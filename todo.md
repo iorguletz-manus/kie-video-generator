@@ -27,3 +27,6 @@
 ## Bug Fixes
 - [x] Rezolvare eroare "You do not have access permissions" la generare video
 - [x] Redimensionare thumbnail imagine la max 150px
+
+## New Bugs
+- [x] Corectare extragere URL din output manus-upload-file

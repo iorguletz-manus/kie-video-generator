@@ -57,12 +57,22 @@ export const appRouter = router({
           // Upload pe Manus CDN folosind manus-upload-file
           const { stdout, stderr } = await execAsync(`manus-upload-file ${tempFilePath}`);
           
-          if (stderr && !stdout) {
+          if (stderr && stderr.includes('error')) {
             throw new Error(`Upload failed: ${stderr}`);
           }
           
-          // Extrage URL-ul din output
-          const imageUrl = stdout.trim();
+          // Extrage URL-ul din output (ultima linie care conține https://)
+          const lines = stdout.split('\n');
+          const urlLine = lines.find(line => line.includes('https://'));
+          
+          if (!urlLine) {
+            throw new Error(`No URL found in upload output: ${stdout}`);
+          }
+          
+          // Extrage doar URL-ul din linia "CDN URL: https://..."
+          const imageUrl = urlLine.includes('CDN URL:') 
+            ? urlLine.split('CDN URL:')[1].trim()
+            : urlLine.trim();
           
           // Șterge fișierul temporar
           fs.unlinkSync(tempFilePath);
