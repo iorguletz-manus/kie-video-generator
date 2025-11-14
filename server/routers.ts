@@ -12,6 +12,7 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 import { saveVideoTask, updateVideoTask } from "./videoCache";
+import { parseAdDocument, parsePromptDocument, replaceInsertText } from "./documentParser";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -266,6 +267,156 @@ export const appRouter = router({
           throw new TRPCError({
             code: 'INTERNAL_SERVER_ERROR',
             message: `Network error: ${error.message || 'Failed to connect to Kie.ai API'}`,
+          });
+        }
+      }),
+
+    // Parsare document ad
+    parseAdDocument: publicProcedure
+      .input(z.object({
+        documentData: z.string(), // base64
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          const base64Data = input.documentData.replace(/^data:application\/[^;]+;base64,/, "");
+          const buffer = Buffer.from(base64Data, 'base64');
+          
+          const lines = await parseAdDocument(buffer);
+          
+          return {
+            success: true,
+            lines: lines,
+          };
+        } catch (error: any) {
+          console.error('Error parsing ad document:', error);
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Failed to parse ad document: ${error.message || 'Unknown error'}`,
+          });
+        }
+      }),
+
+    // Parsare document prompt
+    parsePromptDocument: publicProcedure
+      .input(z.object({
+        documentData: z.string(), // base64
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          const base64Data = input.documentData.replace(/^data:application\/[^;]+;base64,/, "");
+          const buffer = Buffer.from(base64Data, 'base64');
+          
+          const promptTemplate = await parsePromptDocument(buffer);
+          
+          return {
+            success: true,
+            promptTemplate: promptTemplate,
+          };
+        } catch (error: any) {
+          console.error('Error parsing prompt document:', error);
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Failed to parse prompt document: ${error.message || 'Unknown error'}`,
+          });
+        }
+      }),
+
+    // Generare batch videouri
+    generateBatchVideos: publicProcedure
+      .input(z.object({
+        promptTemplate: z.string(),
+        combinations: z.array(z.object({
+          text: z.string(),
+          imageUrl: z.string(),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          const results: Array<{
+            success: boolean;
+            taskId?: string;
+            text: string;
+            imageUrl: string;
+            error?: string;
+          }> = [];
+
+          // Generare paralelă pentru toate combinațiile
+          const promises = input.combinations.map(async (combo) => {
+            try {
+              // Înlocuiește [INSERT TEXT] cu textul din combinație
+              const finalPrompt = replaceInsertText(input.promptTemplate, combo.text);
+              
+              const response = await fetch('https://api.kie.ai/api/v1/veo/generate', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${ENV.kieApiKey}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  prompt: finalPrompt,
+                  imageUrls: [combo.imageUrl],
+                  model: 'veo3_fast',
+                  generationType: 'FIRST_AND_LAST_FRAMES_2_VIDEO',
+                  aspectRatio: '9:16',
+                }),
+              });
+
+              const data = await response.json();
+
+              if (!response.ok || data.code !== 200 || !data.data?.taskId) {
+                return {
+                  success: false,
+                  text: combo.text,
+                  imageUrl: combo.imageUrl,
+                  error: data.msg || 'Failed to generate video',
+                };
+              }
+
+              // Salvează taskId în cache
+              saveVideoTask(data.data.taskId, combo.text, combo.imageUrl);
+
+              return {
+                success: true,
+                taskId: data.data.taskId,
+                text: combo.text,
+                imageUrl: combo.imageUrl,
+              };
+            } catch (error: any) {
+              return {
+                success: false,
+                text: combo.text,
+                imageUrl: combo.imageUrl,
+                error: error.message || 'Network error',
+              };
+            }
+          });
+
+          const settled = await Promise.allSettled(promises);
+          
+          settled.forEach((result) => {
+            if (result.status === 'fulfilled') {
+              results.push(result.value);
+            } else {
+              results.push({
+                success: false,
+                text: '',
+                imageUrl: '',
+                error: result.reason?.message || 'Unknown error',
+              });
+            }
+          });
+
+          return {
+            success: true,
+            results: results,
+            totalGenerated: results.filter(r => r.success).length,
+            totalFailed: results.filter(r => !r.success).length,
+          };
+        } catch (error: any) {
+          console.error('Error generating batch videos:', error);
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Failed to generate batch videos: ${error.message || 'Unknown error'}`,
           });
         }
       }),
