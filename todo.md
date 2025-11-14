@@ -1116,3 +1116,25 @@
 - [x] Session Management → salvare/load/delete sesiuni din database
 - [x] Upload imagini → organizare per user/sesiune în BunnyCDN
 - [x] Logout → redirect la Login Screen
+
+
+## Bug - Modify & Regenerate Multiple Variante (14 Nov 2025)
+
+### Problema 1: Duplicate videouri când setări diferite
+- [x] Când user cere 3 regenerări și modifică setările (prompt/text/imagine diferite):
+  - [x] Prima variantă → înlocuiește videoul original
+  - [x] Variantele 2 și 3 → crează 2 videouri NOI duplicate mai jos (videoName_V2, _V3)
+  - [x] Rezultat final: 3 videouri în total în listă
+- [x] Când user cere 3 regenerări cu aceleași setări (nu modifică nimic):
+  - [x] NU duplicate videouri
+  - [x] Afișează mesaj: "Se vor face 3 regenerări cu aceleași setări (nu se vor crea duplicate)"
+  - [x] Toate 3 regenerările înlocuiesc același video
+  - [x] Afișează regenerationNote în STEP 5: "⚠️ 3 regenerări cu aceleași setări"
+
+### Problema 2: Butonul "Regenerate All" nu funcționează
+- [x] Butonul "Regenerate All" trimite variantele la backend prin generateMultipleVariants
+- [x] Implementare funcționalitate completă pentru regenerare multiple variante
+- [x] Folosire endpoint generateMultipleVariants (deja existent în backend)
+- [x] Actualizare videoResults cu taskId-uri pentru toate variantele
+- [x] Duplicate videouri în videoResults când setări diferite
+- [x] Logică condiționată: allIdentical check pentru detectare setări identice

@@ -2084,6 +2084,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             TaskID: {result.taskId}
                           </p>
                         )}
+                        {(result as any).regenerationNote && (
+                          <p className="text-xs text-orange-600 font-medium mb-1">
+                            ⚠️ {(result as any).regenerationNote}
+                          </p>
+                        )}
                         {combinations[index]?.promptType && (
                           <p className="text-xs text-gray-600 mb-2">
                             <span className="font-medium">Prompt:</span> {combinations[index].promptType}
@@ -2507,7 +2512,20 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                               }
                                               
                                               try {
-                                                toast.info(`Se regenerează ${regenerationVariants.length} variant${regenerationVariants.length > 1 ? 'e' : 'ă'} în paralel...`);
+                                                // Detectare setări identice
+                                                const firstVariant = regenerationVariants[0];
+                                                const allIdentical = regenerationVariants.every(v => 
+                                                  v.promptType === firstVariant.promptType &&
+                                                  v.promptText === firstVariant.promptText &&
+                                                  v.dialogueText === firstVariant.dialogueText &&
+                                                  v.imageUrl === firstVariant.imageUrl
+                                                );
+                                                
+                                                if (allIdentical && regenerationVariants.length > 1) {
+                                                  toast.info(`Se vor face ${regenerationVariants.length} regenerări cu aceleași setări (nu se vor crea duplicate)`);
+                                                } else {
+                                                  toast.info(`Se regenerează ${regenerationVariants.length} variant${regenerationVariants.length > 1 ? 'e' : 'ă'} în paralel...`);
+                                                }
                                                 
                                                 // Pregătește variantele pentru backend
                                                 const variantsForBackend = regenerationVariants.map((variant) => ({
@@ -2523,71 +2541,111 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                                 });
                                                 
                                                 // Procesează rezultatele
-                                                for (let variantIndex = 0; variantIndex < result.results.length; variantIndex++) {
-                                                  const newResult = result.results[variantIndex];
-                                                  const variant = regenerationVariants[variantIndex];
+                                                if (allIdentical && regenerationVariants.length > 1) {
+                                                  // Setări identice: TOATE regenerările înlocuiesc același video (nu creăm duplicate)
+                                                  // Folosim doar prima variantă (toate sunt identice)
+                                                  const firstResult = result.results[0];
+                                                  const firstVariant = regenerationVariants[0];
                                                   
-                                                  if (variantIndex === 0 && newResult.success) {
-                                                    // Prima variantă înlocuiește videoul original
+                                                  if (firstResult.success) {
                                                     setVideoResults(prev =>
                                                       prev.map((v, i) =>
                                                         i === modifyingVideoIndex
                                                           ? {
                                                               ...v,
-                                                              text: variant.dialogueText,
-                                                              imageUrl: variant.imageUrl,
-                                                              taskId: newResult.taskId || '',
+                                                              text: firstVariant.dialogueText,
+                                                              imageUrl: firstVariant.imageUrl,
+                                                              taskId: firstResult.taskId || '',
                                                               status: 'pending' as const,
                                                               error: undefined,
                                                               videoUrl: undefined,
+                                                              regenerationNote: `${regenerationVariants.length} regenerări cu aceleași setări`,
                                                             }
                                                           : v
                                                       )
                                                     );
                                                     
-                                                    // Update combinations
                                                     setCombinations(prev =>
                                                       prev.map((c, i) =>
                                                         i === modifyingVideoIndex
                                                           ? {
                                                               ...c,
-                                                              text: variant.dialogueText,
-                                                              imageUrl: variant.imageUrl,
-                                                              promptType: variant.promptType,
+                                                              text: firstVariant.dialogueText,
+                                                              imageUrl: firstVariant.imageUrl,
+                                                              promptType: firstVariant.promptType,
                                                             }
                                                           : c
                                                       )
                                                     );
-                                                  } else if (variantIndex > 0 && newResult.success) {
-                                                    // Variantele următoare se adaugă ca videouri noi
-                                                    const originalVideo = videoResults[modifyingVideoIndex];
-                                                    const originalCombo = combinations[modifyingVideoIndex];
+                                                  }
+                                                } else {
+                                                  // Setări diferite: creăm duplicate pentru variantele 2, 3, etc.
+                                                  for (let variantIndex = 0; variantIndex < result.results.length; variantIndex++) {
+                                                    const newResult = result.results[variantIndex];
+                                                    const variant = regenerationVariants[variantIndex];
                                                     
-                                                    setVideoResults(prev => [
-                                                      ...prev,
-                                                      {
-                                                        text: variant.dialogueText,
-                                                        imageUrl: variant.imageUrl,
-                                                        taskId: newResult.taskId || '',
-                                                        status: 'pending' as const,
-                                                        error: undefined,
-                                                        videoName: `${originalVideo.videoName}_V${variantIndex + 1}`,
-                                                        section: originalVideo.section,
-                                                        categoryNumber: originalVideo.categoryNumber,
-                                                        reviewStatus: null,
-                                                      },
-                                                    ]);
-                                                    
-                                                    setCombinations(prev => [
-                                                      ...prev,
-                                                      {
-                                                        ...originalCombo,
-                                                        text: variant.dialogueText,
-                                                        imageUrl: variant.imageUrl,
-                                                        promptType: variant.promptType,
-                                                        videoName: `${originalCombo.videoName}_V${variantIndex + 1}`,
-                                                      },
-                                                    ]);
+                                                    if (variantIndex === 0 && newResult.success) {
+                                                      // Prima variantă înlocuiește videoul original
+                                                      setVideoResults(prev =>
+                                                        prev.map((v, i) =>
+                                                          i === modifyingVideoIndex
+                                                            ? {
+                                                                ...v,
+                                                                text: variant.dialogueText,
+                                                                imageUrl: variant.imageUrl,
+                                                                taskId: newResult.taskId || '',
+                                                                status: 'pending' as const,
+                                                                error: undefined,
+                                                                videoUrl: undefined,
+                                                              }
+                                                            : v
+                                                        )
+                                                      );
+                                                      
+                                                      // Update combinations
+                                                      setCombinations(prev =>
+                                                        prev.map((c, i) =>
+                                                          i === modifyingVideoIndex
+                                                            ? {
+                                                                ...c,
+                                                                text: variant.dialogueText,
+                                                                imageUrl: variant.imageUrl,
+                                                                promptType: variant.promptType,
+                                                              }
+                                                            : c
+                                                        )
+                                                      );
+                                                    } else if (variantIndex > 0 && newResult.success) {
+                                                      // Variantele următoare se adaugă ca videouri noi
+                                                      const originalVideo = videoResults[modifyingVideoIndex];
+                                                      const originalCombo = combinations[modifyingVideoIndex];
+                                                      
+                                                      setVideoResults(prev => [
+                                                        ...prev,
+                                                        {
+                                                          text: variant.dialogueText,
+                                                          imageUrl: variant.imageUrl,
+                                                          taskId: newResult.taskId || '',
+                                                          status: 'pending' as const,
+                                                          error: undefined,
+                                                          videoName: `${originalVideo.videoName}_V${variantIndex + 1}`,
+                                                          section: originalVideo.section,
+                                                          categoryNumber: originalVideo.categoryNumber,
+                                                          reviewStatus: null,
+                                                        },
+                                                      ]);
+                                                      
+                                                      setCombinations(prev => [
+                                                        ...prev,
+                                                        {
+                                                          ...originalCombo,
+                                                          text: variant.dialogueText,
+                                                          imageUrl: variant.imageUrl,
+                                                          promptType: variant.promptType,
+                                                          videoName: `${originalCombo.videoName}_V${variantIndex + 1}`,
+                                                        },
+                                                      ]);
+                                                    }
                                                   }
                                                 }
                                                 
