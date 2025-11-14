@@ -785,6 +785,12 @@ export default function Home() {
               : v
           )
         );
+        
+        console.log(`Video #${index} updated in videoResults:`, {
+          status,
+          videoUrl,
+          error: errorMessage,
+        });
 
         if (status === 'success') {
           toast.success(`Video #${index + 1} generat cu succes!`);
@@ -1156,13 +1162,16 @@ export default function Home() {
       const pendingVideos = videoResults.filter(v => v.status === 'pending' && v.taskId);
       if (pendingVideos.length > 0) {
         console.log(`STEP 6: Auto-checking ${pendingVideos.length} pending videos...`);
+        console.log('Pending video task IDs:', pendingVideos.map(v => v.taskId));
+        
         pendingVideos.forEach((video, idx) => {
           const videoIndex = videoResults.findIndex(v => v.taskId === video.taskId);
           if (videoIndex !== -1 && video.taskId) {
-            // Delay each check by 1s to avoid overwhelming API
+            // Delay each check by 3s to give API time to respond
             setTimeout(() => {
+              console.log(`STEP 6: Checking video #${idx + 1}/${pendingVideos.length} - Task ID: ${video.taskId}`);
               checkVideoStatus(video.taskId!, videoIndex);
-            }, idx * 1000);
+            }, idx * 3000); // ← Changed from 1000ms to 3000ms
           }
         });
       }
@@ -1395,8 +1404,8 @@ export default function Home() {
             </Button>
           </div>
         )}
-
-        {/* STEP 1: Text Ad */}
+        
+        {/* STEP 1: Text Ad Upload */}
         {currentStep === 1 && (
           <Card className="mb-8 border-2 border-blue-200">
             <CardHeader className="bg-blue-50">
@@ -1405,10 +1414,24 @@ export default function Home() {
                 STEP 1 - Text Ad Upload
               </CardTitle>
               <CardDescription>
-                Încarcă documentul cu ad-ul (.docx). Liniile vor fi extrase automat.
+                Încărcă documentul cu ad-ul (.docx). Liniile vor fi extrase automat.
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-8 px-8 pb-8">
+              {/* TEMPORARY: Buton pentru încărcare sample videos */}
+              <div className="mb-6 p-4 bg-purple-50 border-2 border-purple-300 rounded-lg">
+                <Button
+                  onClick={loadSampleVideos}
+                  className="bg-purple-600 hover:bg-purple-700 w-full py-4 text-base border-2 border-purple-300"
+                >
+                  <Play className="w-5 h-5 mr-2" />
+                  Continue with Sample Videos (TEMP)
+                </Button>
+                <p className="text-xs text-gray-500 mt-2 text-center">
+                  Încărcă 6 task ID-uri sample pentru testare când Kie.ai nu funcționează
+                </p>
+              </div>
+              
               <div
                 onDrop={handleAdDocumentDrop}
                 onDragOver={(e) => e.preventDefault()}
@@ -2464,7 +2487,15 @@ export default function Home() {
         )}
 
         {/* STEP 6: Check Videos (Final Review) */}
-        {currentStep === 6 && videoResults.length > 0 && (
+        {currentStep === 6 && videoResults.length > 0 && (() => {
+          console.log('STEP 6 RENDER - videoResults:', videoResults.map(v => ({
+            videoName: v.videoName,
+            status: v.status,
+            hasVideoUrl: !!v.videoUrl,
+            videoUrl: v.videoUrl?.substring(0, 50) + '...',
+          })));
+          return true;
+        })() && (
           <Card className="mb-8 border-2 border-green-200">
             <CardHeader className="bg-green-50">
               <CardTitle className="flex items-center gap-2 text-green-900">
@@ -2503,7 +2534,13 @@ export default function Home() {
                     </h3>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {categoryVideos.map((video) => (
+                      {categoryVideos.map((video) => {
+                        console.log(`Rendering video ${video.videoName}:`, {
+                          status: video.status,
+                          hasVideoUrl: !!video.videoUrl,
+                          videoUrl: video.videoUrl,
+                        });
+                        return (
                         <div key={video.videoName} className="p-4 bg-white rounded-lg border-2 border-green-200">
                           {/* TITLE */}
                           <h4 className="font-bold text-green-900 mb-2 text-lg">{video.videoName}</h4>
@@ -2638,7 +2675,8 @@ export default function Home() {
                             )}
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 );

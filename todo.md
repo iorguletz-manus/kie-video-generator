@@ -595,3 +595,61 @@
 - [ ] Fix text breadcrumbs STEP 7 - text nu se vede bine
 - [ ] Verificare aliniere și contrast text
 - [ ] Asigurare vizibilitate pe toate background-urile
+
+
+## Critical Bug - Video Player STEP 6 Nu Se Încarcă
+
+### Problema
+- [ ] Video player nu se încarcă în STEP 6 după "Continue with Sample Videos"
+- [ ] Apare "Video URL lipsește" în loc de video player
+- [ ] Auto-check adăugat dar nu funcționează corect
+
+### Investigare Necesară
+- [ ] Verificare console pentru logging auto-check STEP 6
+- [ ] Verificare ce returnează API pentru sample task IDs
+- [ ] Verificare dacă videoUrl se salvează corect în videoResults
+- [ ] Verificare delay între check-uri (1s poate fi prea scurt)
+
+### Fix Necesar
+- [ ] Mărire delay între check-uri de la 1s la 3s
+- [ ] Adăugare retry logic dacă API returnează pending
+- [ ] Verificare că videoUrl !== undefined înainte de a afișa video player
+- [ ] Toast notification când videoUrl este încărcat cu succes
+
+
+## Critical Bug - Video Player STEP 6 Nu Se Încarcă (IN PROGRESS)
+
+### Problema Raportată
+- Video player nu se încarcă în STEP 6 după "Continue with Sample Videos"
+- Apare "Video URL lipsește" în loc de video player
+- Auto-check adăugat dar videos nu se afișează
+
+### Investigare Completă
+- [x] Verificare API Kie.ai: returnează corect videoUrl pentru sample task IDs
+- [x] Verificare checkVideoStatus: salvează corect status='success' și videoUrl în videoResults
+- [x] Verificare delay între check-uri: mărit de la 1s la 3s
+- [x] Adăugare logging detaliat în checkVideoStatus pentru debugging
+- [x] Adăugare logging în STEP 6 render pentru a vedea videoResults
+- [x] Adăugare logging pentru fiecare video individual în grid
+- [x] Mutare buton "Continue with Sample Videos" la începutul STEP 1 pentru vizibilitate
+
+### Fix-uri Implementate
+- [x] Delay mărit de la 1s la 3s între auto-check-uri în STEP 6
+- [x] Logging complet: "STEP 6: Auto-checking X pending videos..."
+- [x] Logging pentru fiecare check: "STEP 6: Checking video #1/6 - Task ID: ..."
+- [x] Logging în checkVideoStatus: "Video SUCCESS - URL: ...", "Video #X updated in videoResults: ..."
+- [x] Logging în STEP 6 render: afișează toate videoResults cu status și hasVideoUrl
+- [x] Logging pentru fiecare video în grid: "Rendering video CB1_A1_HOOKS1: { status, hasVideoUrl, videoUrl }"
+- [x] Buton violet "Continue with Sample Videos (TEMP)" vizibil la începutul STEP 1
+
+### Așteptăm Testare Utilizator
+- [ ] User testează cu butonul "Continue with Sample Videos"
+- [ ] User trimite screenshot console cu logging complet
+- [ ] Identificare cauză exactă: React re-render sau condiție JSX greșită
+- [ ] Fix final bazat pe rezultatele logging-ului
+
+### Ipoteze de Investigat
+1. **React re-render:** videoUrl se salvează dar componenta nu se re-renderează
+2. **Condiție JSX:** condiția `video.videoUrl ?` nu funcționează corect
+3. **Timing:** auto-check rulează prea repede și nu așteaptă răspunsul API
+4. **State update:** setVideoResults nu propagă corect modificările în UI
