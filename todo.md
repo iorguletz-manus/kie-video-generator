@@ -777,3 +777,37 @@
 - [x] Verificare alternativă: data.data.resultUrls vs data.data.response.resultUrls
 - [x] Adaugat logging detaliat pentru debugging
 - [ ] Aștept testare user - verificare dacă videoUrl se salvează corect la generare de la 0
+
+
+## 6 CERINȚE NOI - Push GitHub, Download, Responsive, Caractere, SAVE, PROMPT_CUSTOM
+
+### 0. Push pe GitHub
+- [ ] Push checkpoint curent pe GitHub
+
+### 2. STEP 5 - Elimină buton Download lângă Generated
+- [ ] Când video are status 'success' → elimină butonul "Download"
+- [ ] Păstrează doar "Generated" verde cu checkbox
+
+### 3. Video player prea mare pe mobil (STEP 6)
+- [ ] Video player responsive: max-width pentru mobil
+- [ ] Aspect ratio 9:16 (vertical) pentru videouri
+- [ ] Test pe mobil: video player nu depășește ecranul
+
+### 4. Peste 125 caractere - nu blochează + mesaj corect
+- [ ] Elimină blocare generare când text > 125 caractere
+- [ ] Fix mesaj: "135 caractere - 10 caractere depășite!" (nu "135 - 125 depășite!")
+- [ ] Formula: `${charCount} caractere - ${charCount - 125} caractere depășite!`
+
+### 5. Modify & Regenerate - buton SAVE (default) + Regenerate
+- [ ] Adăugare buton "SAVE" (default, verde)
+- [ ] Buton "Regenerate" (secundar, portocaliu)
+- [ ] SAVE: salvează modificări fără regenerare
+- [ ] Regenerare se face doar cu "Regenerate All Failed" jos
+
+### 6. Edit Prompt - PROMPT_CUSTOM editabil
+- [ ] Când user editează prompt → salvează ca PROMPT_CUSTOM (sau CUSTOM1, CUSTOM2, etc.)
+- [ ] PROMPT_CTA, PROMPT_SMILING, PROMPT_NEUTRAL rămân statice (nu se modifică)
+- [ ] Când user selectează PROMPT_CTA → afișează text hardcodat
+- [ ] Când user editează text → salvează ca PROMPT_CUSTOM
+- [ ] Fiecare video poate avea PROMPT_CUSTOM diferit
+- [ ] La Edit Prompt pentru CUSTOM: afișează textul custom (nu "lasa gol...")
