@@ -353,3 +353,34 @@
 - [ ] Buton download individual pentru fiecare video
 - [ ] Buton "Download All Accepted Videos" pentru toate videouri acceptate
 - [ ] Download cu nume corect (CB1_A1_MIRROR1.mp4, etc.)
+
+
+## Implementare Completă STEP 6 & 7
+
+### STEP 6 - Regenerare Avansată (NOU STEP)
+- [x] Creare STEP 6 între STEP 5 și STEP 7 (fostul STEP 6 devine STEP 7)
+- [x] Afișare selector videouri pentru regenerare (toate videouri din videoResults)
+- [x] Pentru fiecare video:
+  - [x] Select prompt din cele existente (hardcoded + custom)
+  - [x] Textarea prompt manual (opțional - override hardcoded)
+  - [x] Select imagine diferită (din lista de imagini) cu preview
+  - [x] Textarea editabil pentru text cu char count live
+- [x] Radio button "Vrei să regenerezi mai multe videouri?" (Da/Nu, default: Nu)
+  - [x] Dacă Da: selector 1-10 variante
+  - [x] Fiecare variantă: prompt type, prompt text, text dialogue, imagine diferite
+- [x] Buton "Regenerate" care trimite toate variantele la backend
+- [x] Logică regenerare:
+  - [x] Prima variantă înlocuiește videoul original
+  - [x] Variantele următoare se adaugă ca videouri noi (videoName_V2, _V3, etc.)
+  - [x] Update videoResults și combinations
+  - [x] Revino la STEP 5 pentru verificare progres
+- [x] Validare: text 1-125 caractere, toate câmpurile completate
+- [x] Loading states și toast notifications
+
+### STEP 7 (Final Review) - Îmbunătățiri
+- [x] Afișare toate videouri cu status (verde check pentru acceptate)
+- [x] Buton download individual pentru fiecare video
+- [x] Buton "Download All Accepted Videos" pentru toate videouri acceptate
+- [x] Download batch cu fetch + blob pentru fiecare video
+- [x] Counter videouri acceptate
+- [x] Toast notifications pentru download

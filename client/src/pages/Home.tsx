@@ -85,6 +85,7 @@ export default function Home() {
   const [manualPromptText, setManualPromptText] = useState('');
   
   // Step 6: Regenerate (advanced)
+  const [selectedVideoIndex, setSelectedVideoIndex] = useState<number>(-1);
   const [regenerateMultiple, setRegenerateMultiple] = useState(false);
   const [regenerateVariantCount, setRegenerateVariantCount] = useState(1);
   const [regenerateVariants, setRegenerateVariants] = useState<Array<{
@@ -1645,13 +1646,425 @@ export default function Home() {
           </Card>
         )}
 
-        {/* STEP 6: Check Videos (Review) */}
+        {/* STEP 6: Regenerate Advanced */}
         {currentStep === 6 && videoResults.length > 0 && (
+          <Card className="mb-8 border-2 border-orange-200">
+            <CardHeader className="bg-orange-50">
+              <CardTitle className="flex items-center gap-2 text-orange-900">
+                <Undo2 className="w-5 h-5" />
+                STEP 6 - Regenerare Avansată
+              </CardTitle>
+              <CardDescription>
+                Regenerează videouri cu setări personalizate. Poți crea multiple variante pentru fiecare video.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6">
+              {/* Selectare video pentru regenerare */}
+              <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                <p className="font-medium text-orange-900 mb-3">
+                  Selectează videoul care trebuie regenerat:
+                </p>
+                <select
+                  className="w-full p-3 border border-orange-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  value={selectedVideoIndex}
+                  onChange={(e) => {
+                    const index = parseInt(e.target.value);
+                    setSelectedVideoIndex(index);
+                    
+                    if (index >= 0) {
+                      const video = videoResults[index];
+                      const combo = combinations[index];
+                      // Inițializează prima variantă cu datele actuale
+                      setRegenerateVariants([{
+                        promptType: combo?.promptType || 'PROMPT_NEUTRAL',
+                        promptText: '',
+                        dialogueText: video.text,
+                        imageUrl: video.imageUrl,
+                      }]);
+                    } else {
+                      setRegenerateVariants([]);
+                    }
+                  }}
+                >
+                  <option value="-1">Selectează un video...</option>
+                  {videoResults.map((video, index) => (
+                    <option key={index} value={index}>
+                      {video.videoName} - {video.status === 'failed' ? 'FAILED' : video.text.substring(0, 50)}...
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {regenerateVariants.length > 0 && (
+                <>
+                  {/* Radio button: Vrei să regenerezi mai multe videouri? */}
+                  <div className="mb-6 p-4 bg-white border-2 border-orange-300 rounded-lg">
+                    <p className="font-medium text-orange-900 mb-3">
+                      Vrei să regenerezi mai multe videouri?
+                    </p>
+                    <div className="flex gap-4 mb-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="regenerateMultiple"
+                          checked={!regenerateMultiple}
+                          onChange={() => {
+                            setRegenerateMultiple(false);
+                            setRegenerateVariantCount(1);
+                            // Păstrează doar prima variantă
+                            setRegenerateVariants(prev => [prev[0]]);
+                          }}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-orange-900">Nu</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="regenerateMultiple"
+                          checked={regenerateMultiple}
+                          onChange={() => setRegenerateMultiple(true)}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-orange-900">Da</span>
+                      </label>
+                    </div>
+
+                    {/* Selector număr variante (1-10) */}
+                    {regenerateMultiple && (
+                      <div className="mt-4">
+                        <label className="block text-sm font-medium text-orange-900 mb-2">
+                          Câte variante vrei să generezi? (1-10)
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="10"
+                          value={regenerateVariantCount}
+                          onChange={(e) => {
+                            const count = Math.min(10, Math.max(1, parseInt(e.target.value) || 1));
+                            setRegenerateVariantCount(count);
+                            
+                            // Ajustează array-ul de variante
+                            setRegenerateVariants(prev => {
+                              const newVariants = [...prev];
+                              while (newVariants.length < count) {
+                                newVariants.push({
+                                  promptType: 'PROMPT_NEUTRAL',
+                                  promptText: '',
+                                  dialogueText: prev[0]?.dialogueText || '',
+                                  imageUrl: prev[0]?.imageUrl || '',
+                                });
+                              }
+                              return newVariants.slice(0, count);
+                            });
+                          }}
+                          className="w-full p-3 border border-orange-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* UI pentru fiecare variantă */}
+                  <div className="space-y-6 mb-6">
+                    {regenerateVariants.map((variant, variantIndex) => (
+                      <div key={variantIndex} className="p-4 bg-white border-2 border-orange-300 rounded-lg">
+                        <h4 className="font-bold text-orange-900 mb-4 text-lg border-b-2 border-orange-200 pb-2">
+                          Variantă #{variantIndex + 1}
+                        </h4>
+                        
+                        {/* Select Prompt Type */}
+                        <div className="mb-4">
+                          <label className="block text-sm font-medium text-orange-900 mb-2">
+                            Tip Prompt:
+                          </label>
+                          <select
+                            value={variant.promptType}
+                            onChange={(e) => {
+                              setRegenerateVariants(prev =>
+                                prev.map((v, i) =>
+                                  i === variantIndex
+                                    ? { ...v, promptType: e.target.value as PromptType | 'custom' }
+                                    : v
+                                )
+                              );
+                            }}
+                            className="w-full p-3 border border-orange-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                          >
+                            <option value="PROMPT_NEUTRAL">PROMPT_NEUTRAL</option>
+                            <option value="PROMPT_SMILING">PROMPT_SMILING</option>
+                            <option value="PROMPT_CTA">PROMPT_CTA</option>
+                            <option value="custom">Custom (scrie manual)</option>
+                            {prompts.map(p => (
+                              <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Textarea Prompt Custom (dacă e selectat custom sau vrea să modifice) */}
+                        <div className="mb-4">
+                          <label className="block text-sm font-medium text-orange-900 mb-2">
+                            Prompt Text (opțional - override hardcoded):
+                          </label>
+                          <textarea
+                            value={variant.promptText}
+                            onChange={(e) => {
+                              setRegenerateVariants(prev =>
+                                prev.map((v, i) =>
+                                  i === variantIndex
+                                    ? { ...v, promptText: e.target.value }
+                                    : v
+                                )
+                              );
+                            }}
+                            placeholder="Lasă gol pentru a folosi promptul selectat mai sus, sau scrie aici pentru a-l modifica temporar..."
+                            className="w-full h-24 p-3 border border-orange-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-orange-500"
+                          />
+                        </div>
+
+                        {/* Select Imagine */}
+                        <div className="mb-4">
+                          <label className="block text-sm font-medium text-orange-900 mb-2">
+                            Imagine:
+                          </label>
+                          <select
+                            value={variant.imageUrl}
+                            onChange={(e) => {
+                              setRegenerateVariants(prev =>
+                                prev.map((v, i) =>
+                                  i === variantIndex
+                                    ? { ...v, imageUrl: e.target.value }
+                                    : v
+                                )
+                              );
+                            }}
+                            className="w-full p-3 border border-orange-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                          >
+                            {images.map(img => (
+                              <option key={img.id} value={img.url}>
+                                {img.url.split('/').pop()?.substring(0, 50)}
+                              </option>
+                            ))}
+                          </select>
+                          {/* Preview imagine */}
+                          {variant.imageUrl && (
+                            <img
+                              src={variant.imageUrl}
+                              alt="Preview"
+                              className="mt-2 w-32 h-32 object-cover rounded border-2 border-orange-300"
+                            />
+                          )}
+                        </div>
+
+                        {/* Textarea Text Dialogue */}
+                        <div className="mb-4">
+                          <label className="block text-sm font-medium text-orange-900 mb-2">
+                            Text Dialogue:
+                          </label>
+                          <textarea
+                            value={variant.dialogueText}
+                            onChange={(e) => {
+                              setRegenerateVariants(prev =>
+                                prev.map((v, i) =>
+                                  i === variantIndex
+                                    ? { ...v, dialogueText: e.target.value }
+                                    : v
+                                )
+                              );
+                            }}
+                            className={`w-full h-24 p-3 border rounded-lg resize-none focus:outline-none focus:ring-2 ${
+                              variant.dialogueText.length > 125
+                                ? 'border-red-500 focus:ring-red-500'
+                                : 'border-orange-300 focus:ring-orange-500'
+                            }`}
+                          />
+                          <p className={`text-sm mt-1 ${
+                            variant.dialogueText.length > 125 ? 'text-red-600 font-bold' : 'text-gray-600'
+                          }`}>
+                            {variant.dialogueText.length} caractere{variant.dialogueText.length > 125 ? ' - 125 caractere depășite!' : ''}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Butoane acțiune */}
+                  <div className="flex gap-4">
+                    <Button
+                      onClick={async () => {
+                        if (selectedVideoIndex < 0) {
+                          toast.error('Selectează un video pentru regenerare');
+                          return;
+                        }
+
+                        // Validare: toate variantele trebuie să aibă text valid
+                        const invalidVariants = regenerateVariants.filter(v => 
+                          v.dialogueText.trim().length === 0 || v.dialogueText.length > 125
+                        );
+                        
+                        if (invalidVariants.length > 0) {
+                          toast.error('Toate variantele trebuie să aibă text valid (1-125 caractere)');
+                          return;
+                        }
+
+                        try {
+                          toast.info(`Se regenerează ${regenerateVariants.length} variant${regenerateVariants.length > 1 ? 'e' : 'ă'}...`);
+                          
+                          // Pentru fiecare variantă, trimite la backend
+                          for (let variantIndex = 0; variantIndex < regenerateVariants.length; variantIndex++) {
+                            const variant = regenerateVariants[variantIndex];
+                            // Determină prompt template
+                            let promptTemplate: string;
+                            
+                            if (variant.promptText.trim().length > 0) {
+                              // Folosește prompt custom scris manual
+                              promptTemplate = variant.promptText;
+                            } else if (variant.promptType === 'custom') {
+                              toast.error(`Variantă #${variantIndex + 1}: Selectează un prompt sau scrie unul manual`);
+                              continue;
+                            } else if (['PROMPT_NEUTRAL', 'PROMPT_SMILING', 'PROMPT_CTA'].includes(variant.promptType)) {
+                              // Folosește hardcoded prompt
+                              promptTemplate = `HARDCODED_${variant.promptType}`;
+                            } else {
+                              // Folosește prompt custom din listă
+                              const customPrompt = prompts.find(p => p.id === variant.promptType);
+                              if (customPrompt) {
+                                promptTemplate = customPrompt.template;
+                              } else {
+                                toast.error(`Variantă #${variantIndex + 1}: Prompt nu găsit`);
+                                continue;
+                              }
+                            }
+
+                            const result = await generateBatchMutation.mutateAsync({
+                              promptTemplate: promptTemplate,
+                              combinations: [{
+                                text: variant.dialogueText,
+                                imageUrl: variant.imageUrl,
+                              }],
+                            });
+
+                            const newResult = result.results[0];
+                            
+                            // Actualizează videoResults: adaugă sau înlocuiește
+                            if (variantIndex === 0) {
+                              // Prima variantă înlocuiește videoul original
+                              setVideoResults(prev =>
+                                prev.map((v, i) =>
+                                  i === selectedVideoIndex
+                                    ? {
+                                        ...v,
+                                        text: variant.dialogueText,
+                                        imageUrl: variant.imageUrl,
+                                        taskId: newResult.taskId,
+                                        status: newResult.success ? 'pending' as const : 'failed' as const,
+                                        error: newResult.error,
+                                        videoUrl: undefined,
+                                      }
+                                    : v
+                                )
+                              );
+                              
+                              // Update combinations
+                              setCombinations(prev =>
+                                prev.map((c, i) =>
+                                  i === selectedVideoIndex
+                                    ? {
+                                        ...c,
+                                        text: variant.dialogueText,
+                                        imageUrl: variant.imageUrl,
+                                      }
+                                    : c
+                                )
+                              );
+                            } else {
+                              // Variantele următoare se adaugă ca videouri noi
+                              const originalVideo = videoResults[selectedVideoIndex];
+                              const originalCombo = combinations[selectedVideoIndex];
+                              
+                              setVideoResults(prev => [
+                                ...prev,
+                                {
+                                  text: variant.dialogueText,
+                                  imageUrl: variant.imageUrl,
+                                  taskId: newResult.taskId,
+                                  status: newResult.success ? 'pending' as const : 'failed' as const,
+                                  error: newResult.error,
+                                  videoName: `${originalVideo.videoName}_V${variantIndex + 1}`,
+                                  section: originalVideo.section,
+                                  categoryNumber: originalVideo.categoryNumber,
+                                  reviewStatus: null,
+                                },
+                              ]);
+                              
+                              setCombinations(prev => [
+                                ...prev,
+                                {
+                                  ...originalCombo,
+                                  text: variant.dialogueText,
+                                  imageUrl: variant.imageUrl,
+                                  videoName: `${originalCombo.videoName}_V${variantIndex + 1}`,
+                                },
+                              ]);
+                            }
+
+                            if (newResult.success) {
+                              toast.success(`Variantă #${variantIndex + 1} trimisă pentru generare`);
+                            } else {
+                              toast.error(`Variantă #${variantIndex + 1} a eșuat: ${newResult.error}`);
+                            }
+                          }
+
+                          // Reset form
+                          setSelectedVideoIndex(-1);
+                          setRegenerateVariants([]);
+                          setRegenerateMultiple(false);
+                          setRegenerateVariantCount(1);
+                          
+                          // Revino la STEP 5 pentru a verifica progresul
+                          setCurrentStep(5);
+                          toast.success('Regenerare completă! Verifică progresul la STEP 5.');
+                        } catch (error: any) {
+                          toast.error(`Eroare la regenerare: ${error.message}`);
+                        }
+                      }}
+                      disabled={generateBatchMutation.isPending || selectedVideoIndex < 0}
+                      className="flex-1 bg-orange-600 hover:bg-orange-700 py-6 text-lg"
+                    >
+                      {generateBatchMutation.isPending ? (
+                        <>
+                          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                          Se regenerează...
+                        </>
+                      ) : (
+                        <>
+                          <Undo2 className="w-5 h-5 mr-2" />
+                          Regenerate ({regenerateVariants.length} variant{regenerateVariants.length > 1 ? 'e' : 'ă'})
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      onClick={() => setCurrentStep(7)}
+                      variant="outline"
+                      className="flex-1 border-green-500 text-green-700 hover:bg-green-50 py-6 text-lg"
+                    >
+                      <Check className="w-5 h-5 mr-2" />
+                      Finalizare (STEP 7)
+                    </Button>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* STEP 7: Final Review (Check Videos) */}
+        {currentStep === 7 && videoResults.length > 0 && (
           <Card className="mb-8 border-2 border-green-200">
             <CardHeader className="bg-green-50">
               <CardTitle className="flex items-center gap-2 text-green-900">
                 <Video className="w-5 h-5" />
-                STEP 6 - Check Videos
+                STEP 7 - Final Review
               </CardTitle>
               <CardDescription>
                 Review videourilo generate. Acceptă sau marchează pentru regenerare.
@@ -1700,47 +2113,70 @@ export default function Home() {
                             className="w-full aspect-[9/16] object-cover rounded border-2 border-green-300 mb-3"
                           />
                           
-                          {/* BUTOANE ACCEPT/REGENERATE */}
-                          <div className="flex gap-2">
-                            {video.reviewStatus === 'accepted' ? (
-                              <Button
-                                disabled
-                                size="sm"
-                                className="flex-1 bg-green-600 text-white text-xs py-1"
-                              >
-                                <Check className="w-3 h-3 mr-1" />
-                                Acceptat
-                              </Button>
-                            ) : (
-                              <Button
-                                onClick={() => acceptVideo(video.videoName)}
-                                size="sm"
-                                className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs py-1"
-                              >
-                                <Check className="w-3 h-3 mr-1" />
-                                Accept
-                              </Button>
-                            )}
+                          {/* BUTOANE ACCEPT/REGENERATE/DOWNLOAD */}
+                          <div className="space-y-2">
+                            <div className="flex gap-2">
+                              {video.reviewStatus === 'accepted' ? (
+                                <Button
+                                  disabled
+                                  size="sm"
+                                  className="flex-1 bg-green-600 text-white text-xs py-1"
+                                >
+                                  <Check className="w-3 h-3 mr-1" />
+                                  Acceptat
+                                </Button>
+                              ) : (
+                                <Button
+                                  onClick={() => acceptVideo(video.videoName)}
+                                  size="sm"
+                                  className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs py-1"
+                                >
+                                  <Check className="w-3 h-3 mr-1" />
+                                  Accept
+                                </Button>
+                              )}
+                              
+                              {video.reviewStatus === 'regenerate' ? (
+                                <Button
+                                  disabled
+                                  size="sm"
+                                  className="flex-1 bg-red-600 text-white text-xs py-1"
+                                >
+                                  <X className="w-3 h-3 mr-1" />
+                                  Regenerare
+                                </Button>
+                              ) : (
+                                <Button
+                                  onClick={() => regenerateVideo(video.videoName)}
+                                  size="sm"
+                                  className="flex-1 bg-red-600 hover:bg-red-700 text-white text-xs py-1"
+                                >
+                                  <X className="w-4 h-4 mr-1" />
+                                  Regenerate
+                                </Button>
+                              )}
+                            </div>
                             
-                            {video.reviewStatus === 'regenerate' ? (
-                              <Button
-                                disabled
-                                size="sm"
-                                className="flex-1 bg-red-600 text-white text-xs py-1"
-                              >
-                                <X className="w-3 h-3 mr-1" />
-                                Regenerare
-                              </Button>
-                            ) : (
-                              <Button
-                                onClick={() => regenerateVideo(video.videoName)}
-                                size="sm"
-                                className="flex-1 bg-red-600 hover:bg-red-700 text-white text-xs py-1"
-                              >
-                                <X className="w-4 h-4 mr-1" />
-                                Regenerate
-                              </Button>
-                            )}
+                            {/* Buton Download Individual */}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                if (video.videoUrl) {
+                                  const link = document.createElement('a');
+                                  link.href = video.videoUrl;
+                                  link.download = `${video.videoName}.mp4`;
+                                  document.body.appendChild(link);
+                                  link.click();
+                                  document.body.removeChild(link);
+                                  toast.success(`Descarcă ${video.videoName}...`);
+                                }
+                              }}
+                              className="w-full border-blue-500 text-blue-700 hover:bg-blue-50 text-xs py-1"
+                            >
+                              <Download className="w-3 h-3 mr-1" />
+                              Download
+                            </Button>
                           </div>
                         </div>
                       ))}
@@ -1748,6 +2184,55 @@ export default function Home() {
                   </div>
                 );
               })}
+              
+              {/* Buton Download All Accepted Videos */}
+              {videoResults.filter(v => v.reviewStatus === 'accepted' && v.videoUrl).length > 0 && (
+                <div className="mt-8 p-4 bg-green-50 border-2 border-green-300 rounded-lg">
+                  <p className="text-green-900 font-medium mb-3">
+                    {videoResults.filter(v => v.reviewStatus === 'accepted').length} videouri acceptate
+                  </p>
+                  <Button
+                    onClick={async () => {
+                      const acceptedVideos = videoResults.filter(v => v.reviewStatus === 'accepted' && v.videoUrl);
+                      
+                      if (acceptedVideos.length === 0) {
+                        toast.error('Nu există videouri acceptate pentru download');
+                        return;
+                      }
+                      
+                      toast.info(`Se descarcă ${acceptedVideos.length} videouri...`);
+                      
+                      // Download fiecare video individual
+                      for (const video of acceptedVideos) {
+                        try {
+                          const response = await fetch(video.videoUrl!);
+                          const blob = await response.blob();
+                          const url = window.URL.createObjectURL(blob);
+                          const link = document.createElement('a');
+                          link.href = url;
+                          link.download = `${video.videoName}.mp4`;
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                          window.URL.revokeObjectURL(url);
+                          
+                          // Așteaptă puțin între download-uri pentru a nu suprasărcita browser-ul
+                          await new Promise(resolve => setTimeout(resolve, 500));
+                        } catch (error) {
+                          console.error(`Eroare la download ${video.videoName}:`, error);
+                          toast.error(`Eroare la download ${video.videoName}`);
+                        }
+                      }
+                      
+                      toast.success(`${acceptedVideos.length} videouri descărcate!`);
+                    }}
+                    className="w-full bg-green-600 hover:bg-green-700 py-6 text-lg"
+                  >
+                    <Download className="w-5 h-5 mr-2" />
+                    Download All Accepted Videos ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.videoUrl).length})
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
