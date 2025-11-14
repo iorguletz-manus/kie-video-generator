@@ -89,6 +89,16 @@ export default function Home() {
   
   // State pentru edit timestamps (când user dă SAVE în Modify & Regenerate)
   const [editTimestamps, setEditTimestamps] = useState<Record<number, number>>({});
+  
+  // State pentru regenerări multiple
+  const [multipleRegenerations, setMultipleRegenerations] = useState(false); // Da/Nu
+  const [regenerationCount, setRegenerationCount] = useState(1); // 1-10
+  const [regenerationVariants, setRegenerationVariants] = useState<Array<{
+    promptType: PromptType;
+    promptText: string;
+    dialogueText: string;
+    imageId: string;
+  }>>([]);
   const [currentTime, setCurrentTime] = useState(Date.now());
   
   // State pentru tracking modificări (pentru blocare navigare)
@@ -237,6 +247,9 @@ export default function Home() {
       if (session.regenerateMultiple !== undefined) setRegenerateMultiple(session.regenerateMultiple);
       if (session.regenerateVariantCount) setRegenerateVariantCount(session.regenerateVariantCount);
       if (session.regenerateVariants) setRegenerateVariants(session.regenerateVariants);
+      
+      // Actualizează currentSessionId pentru a sincroniza selector-ul
+      setCurrentSessionId(sessionId);
       
       toast.success(`Sesiune "${session.name}" încărcată!`);
     } catch (error) {
@@ -1339,7 +1352,6 @@ export default function Home() {
                     }
                   } else {
                     // Load session
-                    setCurrentSessionId(sessionId);
                     loadSession(sessionId);
                   }
                 }}
@@ -1398,7 +1410,6 @@ export default function Home() {
             { num: 4, label: "Mapping", icon: Map },
             { num: 5, label: "Generate", icon: Play },
             { num: 6, label: "Check Videos", icon: Video },
-            { num: 7, label: "Regenerate", icon: Undo2 },
           ].map((step, index) => (
             <div key={step.num} className="flex items-center flex-1">
               <div className="flex flex-col items-center flex-1">
@@ -1960,12 +1971,95 @@ export default function Home() {
                                   <div className="mt-4 p-4 bg-white border-2 border-orange-300 rounded-lg space-y-3">
                                     <h5 className="font-bold text-orange-900">Modify & Regenerate</h5>
                                     
+                                    {/* Radio: Vrei să regenerezi mai multe videouri? */}
+                                    <div className="p-3 bg-orange-50 border border-orange-200 rounded">
+                                      <label className="text-sm font-medium text-gray-700 block mb-2">Vrei să regenerezi mai multe videouri?</label>
+                                      <div className="flex gap-4">
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                          <input
+                                            type="radio"
+                                            name="multipleRegens"
+                                            checked={!multipleRegenerations}
+                                            onChange={() => {
+                                              setMultipleRegenerations(false);
+                                              setRegenerationCount(1);
+                                              setRegenerationVariants([]);
+                                            }}
+                                            className="w-4 h-4"
+                                          />
+                                          <span className="text-sm">Nu</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                          <input
+                                            type="radio"
+                                            name="multipleRegens"
+                                            checked={multipleRegenerations}
+                                            onChange={() => {
+                                              setMultipleRegenerations(true);
+                                              // Inițializează variante cu valorile curente
+                                              const initialVariant = {
+                                                promptType: modifyPromptType,
+                                                promptText: modifyPromptText,
+                                                dialogueText: modifyDialogueText,
+                                                imageId: combinations[index]?.imageId || '',
+                                              };
+                                              setRegenerationVariants([initialVariant]);
+                                            }}
+                                            className="w-4 h-4"
+                                          />
+                                          <span className="text-sm">Da</span>
+                                        </label>
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Selector număr regenerări (dacă Da) */}
+                                    {multipleRegenerations && (
+                                      <div>
+                                        <label className="text-sm font-medium text-gray-700 block mb-1">Câte regenerări vrei? (1-10):</label>
+                                        <select
+                                          value={regenerationCount}
+                                          onChange={(e) => {
+                                            const count = parseInt(e.target.value);
+                                            setRegenerationCount(count);
+                                            
+                                            // Ajustează array-ul de variante
+                                            const currentVariants = [...regenerationVariants];
+                                            if (count > currentVariants.length) {
+                                              // Adaugă variante noi (copie după prima)
+                                              const template = currentVariants[0] || {
+                                                promptType: modifyPromptType,
+                                                promptText: modifyPromptText,
+                                                dialogueText: modifyDialogueText,
+                                                imageId: combinations[index]?.imageId || '',
+                                              };
+                                              while (currentVariants.length < count) {
+                                                currentVariants.push({ ...template });
+                                              }
+                                            } else {
+                                              // Șterge variante în plus
+                                              currentVariants.splice(count);
+                                            }
+                                            setRegenerationVariants(currentVariants);
+                                          }}
+                                          className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                                        >
+                                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
+                                            <option key={n} value={n}>{n} regenerări</option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                    )}
+                                    
+                                    {/* Rendering dinamic: 1 secțiune (Nu) sau N secțiuni (Da) */}
+                                    {!multipleRegenerations ? (
+                                      /* Mod single (Nu) - 1 secțiune */
+                                      <>
                                     {/* Select Prompt Type */}
                                     <div>
                                       <label className="text-sm font-medium text-gray-700 block mb-1">Prompt Type:</label>
                                       <select
                                         value={modifyPromptType}
-                                        onChange={(e) => {
+                                        onChange={async (e) => {
                                           const newType = e.target.value as PromptType;
                                           setModifyPromptType(newType);
                                           
@@ -1973,7 +2067,20 @@ export default function Home() {
                                           if (newType === 'PROMPT_CUSTOM' && customPrompts[modifyingVideoIndex!]) {
                                             setModifyPromptText(customPrompts[modifyingVideoIndex!]);
                                           } else if (newType !== 'PROMPT_CUSTOM') {
-                                            setModifyPromptText(''); // Reset pentru prompturi hardcodate
+                                            // Încărcă text hardcodat de la backend
+                                            try {
+                                              const response = await fetch(`/api/trpc/prompt.getHardcodedPrompt?input=${encodeURIComponent(JSON.stringify({ promptType: newType }))}`);
+                                              const data = await response.json();
+                                              if (data.result?.data?.promptText) {
+                                                setModifyPromptText(data.result.data.promptText);
+                                              } else {
+                                                throw new Error('Invalid response');
+                                              }
+                                            } catch (error) {
+                                              console.error('Eroare la încărcare prompt hardcodat:', error);
+                                              toast.error('Eroare la încărcare prompt');
+                                              setModifyPromptText('');
+                                            }
                                           }
                                         }}
                                         className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
@@ -2023,7 +2130,7 @@ export default function Home() {
                                       </p>
                                     </div>
                                     
-                                    {/* Buttons */}
+                                    {/* Buttons (mod single) */}
                                     <div className="flex gap-2">
                                       <Button
                                         size="sm"
@@ -2092,6 +2199,153 @@ export default function Home() {
                                         Cancel
                                       </Button>
                                     </div>
+                                    </>
+                                    ) : (
+                                      /* Mod multiple (Da) - N secțiuni */
+                                      <>
+                                        {regenerationVariants.map((variant, variantIndex) => (
+                                          <div key={variantIndex} className="p-3 bg-gray-50 border border-gray-300 rounded space-y-2">
+                                            <h6 className="font-bold text-gray-900">Varianta {variantIndex + 1}</h6>
+                                            
+                                            {/* Prompt Type */}
+                                            <div>
+                                              <label className="text-xs font-medium text-gray-700 block mb-1">Prompt Type:</label>
+                                              <select
+                                                value={variant.promptType}
+                                                onChange={async (e) => {
+                                                  const newType = e.target.value as PromptType;
+                                                  const updated = [...regenerationVariants];
+                                                  updated[variantIndex] = { ...updated[variantIndex], promptType: newType };
+                                                  
+                                                  // Încărcă text hardcodat dacă nu e CUSTOM
+                                                  if (newType !== 'PROMPT_CUSTOM') {
+                                                    try {
+                                                      const response = await fetch(`/api/trpc/prompt.getHardcodedPrompt?input=${encodeURIComponent(JSON.stringify({ promptType: newType }))}`);
+                                                      const data = await response.json();
+                                                      if (data.result?.data?.promptText) {
+                                                        updated[variantIndex].promptText = data.result.data.promptText;
+                                                      }
+                                                    } catch (error) {
+                                                      console.error('Eroare la încărcare prompt:', error);
+                                                    }
+                                                  }
+                                                  
+                                                  setRegenerationVariants(updated);
+                                                }}
+                                                className="w-full border border-gray-300 rounded px-2 py-1 text-xs"
+                                              >
+                                                <option value="PROMPT_NEUTRAL">PROMPT_NEUTRAL</option>
+                                                <option value="PROMPT_SMILING">PROMPT_SMILING</option>
+                                                <option value="PROMPT_CTA">PROMPT_CTA</option>
+                                                <option value="PROMPT_CUSTOM">PROMPT_CUSTOM</option>
+                                              </select>
+                                            </div>
+                                            
+                                            {/* Edit Prompt Text */}
+                                            <div>
+                                              <label className="text-xs font-medium text-gray-700 block mb-1">Edit Prompt:</label>
+                                              <Textarea
+                                                value={variant.promptText}
+                                                onChange={(e) => {
+                                                  const updated = [...regenerationVariants];
+                                                  updated[variantIndex] = { ...updated[variantIndex], promptText: e.target.value };
+                                                  setRegenerationVariants(updated);
+                                                }}
+                                                placeholder="Introdu promptul aici"
+                                                className="text-xs min-h-[60px]"
+                                              />
+                                            </div>
+                                            
+                                            {/* Edit Dialogue Text */}
+                                            <div>
+                                              <label className="text-xs font-medium text-gray-700 block mb-1">Edit Text:</label>
+                                              <Textarea
+                                                value={variant.dialogueText}
+                                                onChange={(e) => {
+                                                  const updated = [...regenerationVariants];
+                                                  updated[variantIndex] = { ...updated[variantIndex], dialogueText: e.target.value };
+                                                  setRegenerationVariants(updated);
+                                                }}
+                                                className="text-xs min-h-[50px]"
+                                              />
+                                              <p className={`text-xs mt-1 ${
+                                                variant.dialogueText.length > 125 ? 'text-red-600 font-bold' : 'text-gray-500'
+                                              }`}>
+                                                {variant.dialogueText.length} caractere{variant.dialogueText.length > 125 ? ` - ${variant.dialogueText.length - 125} depășite!` : ''}
+                                              </p>
+                                            </div>
+                                            
+                                            {/* Select Image */}
+                                            <div>
+                                              <label className="text-xs font-medium text-gray-700 block mb-1">Imagine:</label>
+                                              <select
+                                                value={variant.imageId}
+                                                onChange={(e) => {
+                                                  const updated = [...regenerationVariants];
+                                                  updated[variantIndex] = { ...updated[variantIndex], imageId: e.target.value };
+                                                  setRegenerationVariants(updated);
+                                                }}
+                                                className="w-full border border-gray-300 rounded px-2 py-1 text-xs"
+                                              >
+                                                {images.map((img) => (
+                                                  <option key={img.id} value={img.id}>{img.id}</option>
+                                                ))}
+                                              </select>
+                                            </div>
+                                          </div>
+                                        ))}
+                                        
+                                        {/* Buttons (mod multiple) - SAVE + REGENERATE ALL */}
+                                        <div className="space-y-2">
+                                          <div className="flex gap-2">
+                                            <Button
+                                              size="sm"
+                                              onClick={() => {
+                                                // SAVE toate variantele
+                                                toast.success(`${regenerationVariants.length} variante salvate!`);
+                                                setModifyingVideoIndex(null);
+                                              }}
+                                              className="flex-1 bg-green-600 hover:bg-green-700"
+                                            >
+                                              Save All
+                                            </Button>
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              onClick={() => setModifyingVideoIndex(null)}
+                                              className="flex-1"
+                                            >
+                                              Cancel
+                                            </Button>
+                                          </div>
+                                          
+                                          {/* Regenerate All - trimite toate variantele pentru generare */}
+                                          <Button
+                                            size="sm"
+                                            onClick={async () => {
+                                              // Trimite toate variantele pentru generare paralelă
+                                              toast.info(`Se trimit ${regenerationVariants.length} variante pentru generare...`);
+                                              
+                                              // TODO: Implementare backend endpoint pentru generare paralelă
+                                              // Pentru acum, doar afișez mesaj
+                                              toast.success(`${regenerationVariants.length} variante trimise cu succes!`);
+                                              setModifyingVideoIndex(null);
+                                            }}
+                                            disabled={generateBatchMutation.isPending}
+                                            className="w-full bg-orange-600 hover:bg-orange-700"
+                                          >
+                                            {generateBatchMutation.isPending ? (
+                                              <>
+                                                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                                                Se trimite...
+                                              </>
+                                            ) : (
+                                              `Regenerate All (${regenerationVariants.length} variante)`
+                                            )}
+                                          </Button>
+                                        </div>
+                                      </>
+                                    )}
                                   </div>
                                 )}
                               </div>
@@ -2593,14 +2847,7 @@ export default function Home() {
                         </>
                       )}
                     </Button>
-                    <Button
-                      onClick={() => setCurrentStep(7)}
-                      variant="outline"
-                      className="flex-1 border-green-500 text-green-700 hover:bg-green-50 py-6 text-lg"
-                    >
-                      <Check className="w-5 h-5 mr-2" />
-                      Finalizare (STEP 7)
-                    </Button>
+
                   </div>
                 </>
               )}

@@ -29,6 +29,24 @@ export const appRouter = router({
     }),
   }),
 
+  prompt: router({
+    // Get hardcoded prompt text
+    getHardcodedPrompt: publicProcedure
+      .input(z.object({
+        promptType: z.enum(['PROMPT_NEUTRAL', 'PROMPT_SMILING', 'PROMPT_CTA']),
+      }))
+      .query(({ input }) => {
+        const promptText = HARDCODED_PROMPTS[input.promptType];
+        if (!promptText) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: `Prompt ${input.promptType} nu există`,
+          });
+        }
+        return { promptText };
+      }),
+  }),
+
   video: router({
     // Upload imagine pe Manus CDN
     uploadImage: publicProcedure

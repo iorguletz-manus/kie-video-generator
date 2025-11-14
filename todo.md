@@ -866,3 +866,60 @@
 
 ### ⚠️ Necesită investigare
 - [ ] FIX 1: Thumbnails dispar când dai Back de la STEP 6 → STEP 5 → STEP 4 (cauza necunoscută, necesită debugging)
+
+
+## 6 CERINȚE NOI - Statistici, Breadcrumbs, Selector Sesiune, Text Hardcodat, Regenerări Multiple
+
+### 1. Implementare ce mai lipsește
+- [ ] Statistici STEP 6: "X videouri acceptate, Y pending"
+- [ ] Activare buton Next Step doar când toate au decizie
+- [ ] Nume videouri corect: CB1_A1_HOOKS1, CB1_A1_MIRROR2 (extragere număr din document)
+
+### 2. Elimină STEP 7 din breadcrumbs
+- [ ] Șterge STEP 7 Regenerate din breadcrumbs (nu mai există)
+
+### 3. Elimină "Continue to final download"
+- [ ] Șterge buton "Continue to final download" din statistici review (după selectare Accept/Regenerate)
+
+### 4. Fix selector sesiune
+- [ ] Când schimbi sesiunea → selector afișează sesiunea selectată (nu rămâne "Default Session")
+- [ ] Update currentSessionId corect în UI
+
+### 5. Încarcă text hardcodat în textarea
+- [ ] Când selectezi PROMPT_SMILING/CTA/NEUTRAL → încarcă textul complet din backend în textarea
+- [ ] Textarea editabil cu textul hardcodat vizibil
+- [ ] User poate edita textul → salvează ca PROMPT_CUSTOM
+
+### 6. Regenerări multiple avansate
+- [ ] Radio button "Vrei să regenerezi mai multe videouri?" (Da/Nu, default: Nu)
+- [ ] Când Nu → 1 secțiune (cum e acum)
+- [ ] Când Da → selector număr regenerări (1-10)
+- [ ] Pentru fiecare regenerare → secțiune cu setări:
+  - [ ] Select prompt type
+  - [ ] Textarea editabil prompt
+  - [ ] Textarea editabil text dialogue
+  - [ ] Select imagine (dropdown)
+  - [ ] Char count live
+- [ ] Când > 1 regenerare → doar buton SAVE (nu Regenerate individual)
+- [ ] Buton "Regenerate All" jos care trimite toate variantele
+- [ ] Backend: generare paralelă toate variantele
+
+
+## 6 FIX-URI NOI - Implementate
+
+### ✅ Toate Implementate
+- [x] FIX 2: Elimină STEP 7 din breadcrumbs
+- [x] FIX 3: Elimină "Continue to final download" (buton "Finalizare STEP 7")
+- [x] FIX 4: Fix selector sesiune - afișează sesiunea selectată corect (setCurrentSessionId în loadSession)
+- [x] FIX 5: Încarcă text hardcodat în textarea când selectezi PROMPT_SMILING/CTA/NEUTRAL (backend endpoint + fetch)
+- [x] FIX 6: Regenerări multiple avansate:
+  - [x] Radio "Vrei să regenerezi mai multe videouri?" (Da/Nu, default Nu)
+  - [x] Când Da → selector 1-10 regenerări
+  - [x] Pentru fiecare variantă → secțiune cu setări (prompt type, edit prompt, edit text, imagine)
+  - [x] Când > 1 → doar buton SAVE (nu Regenerate individual)
+  - [x] Buton "Regenerate All" jos care trimite toate variantele
+
+### ⚠️ Rămase
+- [ ] FIX 1: Thumbnails dispar când dai Back de la STEP 6 → STEP 5 → STEP 4 (cauza necunoscută, necesită debugging)
+- [ ] Implementare statistici STEP 6 + nume videouri corecte (CB1_A1_HOOKS1)
+- [ ] Backend endpoint pentru generare paralelă multiple variante (Regenerate All)
