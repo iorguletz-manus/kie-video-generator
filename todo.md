@@ -653,3 +653,40 @@
 2. **Condiție JSX:** condiția `video.videoUrl ?` nu funcționează corect
 3. **Timing:** auto-check rulează prea repede și nu așteaptă răspunsul API
 4. **State update:** setVideoResults nu propagă corect modificările în UI
+
+
+## URGENT - Clarificare Funcționalitate STEP 6 Check Videos
+
+### User feedback
+- [ ] User spune: "Fii atent tu la step 6 check videos. Nu ai inteles cum trebuie sa faci."
+- [ ] Aștept clarificări de la user despre ce exact trebuie să fac diferit la STEP 6
+- [ ] Verificat API: returnează corect videoUrl pentru task ID 352a1aaaaba3352b6652305f2469718d
+- [ ] Link video: https://tempfile.aiquickdraw.com/v/352a1aaaaba3352b6652305f2469718d_1763136934.mp4
+
+### Întrebări pentru user
+- [ ] Cum exact trebuie să funcționeze STEP 6?
+- [ ] Ce am implementat greșit?
+- [ ] Trebuie să afișez videouri într-un alt mod?
+- [ ] Trebuie să verific status diferit?
+- [ ] Sau este altceva complet diferit?
+
+
+## URGENT - Simplificare STEP 6 Video Player
+
+### Problema identificată
+- [x] Am complicat prea mult cu check status repetat, condiții complicate
+- [x] User vrea SIMPLU: dacă ai videoUrl → afișează `<video src={videoUrl} controls />`
+- [x] Nu trebuie auto-check din 10 în 10 secunde, butoane "Verifică Status", etc.
+
+### Soluția simplă
+- [ ] Când intri în STEP 6 → verifică ODATĂ toate videoUrl-urile (pentru videouri fără URL)
+- [ ] Afișează direct `<video src={video.videoUrl} controls preload="metadata" />` pentru fiecare video
+- [ ] Elimină toate complicațiile: auto-check repetat, butoane verificare, condiții complicate
+- [ ] Video player simplu ca în exemplul HTML: `<video controls><source src="URL" type="video/mp4"></video>`
+
+### Implementare
+- [x] Simplificare STEP 6: video player direct fără complicații
+- [x] Eliminare buton "Verifică Status" - nu mai e necesar
+- [x] Simplificare condiție JSX: dacă videoUrl există → video player, altfel → "Se încarcă video..."
+- [x] Video player simplu: `<video controls preload="metadata"><source src={videoUrl} type="video/mp4" /></video>`
+- [ ] Auto-check din 10 în 10 secunde încă rulează (pentru STEP 5) - aștept feedback user dacă trebuie eliminat

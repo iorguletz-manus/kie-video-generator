@@ -2548,52 +2548,25 @@ export default function Home() {
                           {/* Text */}
                           <p className="text-sm text-gray-700 mb-3">{video.text}</p>
                           
-                          {/* VIDEO PLAYER sau STATUS */}
-                          {video.status === 'pending' ? (
+                          {/* VIDEO PLAYER SIMPLU */}
+                          {video.videoUrl ? (
+                            <video
+                              controls
+                              preload="metadata"
+                              className="w-5/6 mx-auto aspect-[9/16] object-cover rounded border-2 border-green-300 mb-3"
+                            >
+                              <source src={video.videoUrl} type="video/mp4" />
+                              Browserul tău nu suportă video HTML5.
+                            </video>
+                          ) : (
                             <div className="w-5/6 mx-auto aspect-[9/16] bg-blue-50 border-2 border-blue-300 rounded mb-3 flex flex-col items-center justify-center p-4">
                               <Loader2 className="w-8 h-8 text-blue-600 animate-spin mb-2" />
-                              <p className="text-sm text-blue-700 font-medium">În curs de generare...</p>
-                              <p className="text-xs text-blue-600 mt-1">Task ID: {video.taskId}</p>
-                            </div>
-                          ) : video.status === 'failed' ? (
-                            <div className="w-5/6 mx-auto aspect-[9/16] bg-red-50 border-2 border-red-300 rounded mb-3 flex flex-col items-center justify-center p-4">
-                              <X className="w-8 h-8 text-red-600 mb-2" />
-                              <p className="text-sm text-red-700 font-medium">Generare eșuată</p>
-                              {video.error && (
-                                <p className="text-xs text-red-600 mt-2 text-center">{video.error}</p>
-                              )}
-                            </div>
-                          ) : video.videoUrl ? (
-                            <video
-                              src={video.videoUrl}
-                              controls
-                              className="w-5/6 mx-auto aspect-[9/16] object-cover rounded border-2 border-green-300 mb-3"
-                            />
-                          ) : (
-                            <div className="w-5/6 mx-auto aspect-[9/16] bg-gray-50 border-2 border-gray-300 rounded mb-3 flex items-center justify-center">
-                              <p className="text-sm text-gray-500">Video URL lipsește</p>
+                              <p className="text-sm text-blue-700 font-medium">Se încarcă video...</p>
                             </div>
                           )}
                           
                           {/* BUTOANE ACCEPT/REGENERATE/DOWNLOAD */}
                           <div className="space-y-2">
-                            {/* Buton Verifică Status pentru pending */}
-                            {video.status === 'pending' && (
-                              <Button
-                                onClick={() => {
-                                  const index = videoResults.findIndex(v => v.taskId === video.taskId);
-                                  if (index !== -1 && video.taskId) {
-                                    checkVideoStatus(video.taskId, index);
-                                  }
-                                }}
-                                size="sm"
-                                className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs py-2"
-                              >
-                                <RefreshCw className="w-3 h-3 mr-1" />
-                                Verifică Status
-                              </Button>
-                            )}
-                            
                             {/* Butoane Accept/Regenerate - dispar după click */}
                             {!video.reviewStatus ? (
                               <div className="flex gap-2">
