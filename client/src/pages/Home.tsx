@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -286,10 +286,12 @@ export default function Home() {
     const ctaImage = images.find(img => img.isCTA);
     const defaultImage = images[0];
     
-    // Găsește prima linie cu "carte" sau "cartea"
+    // Găsește prima linie cu "carte", "cartea", "rescrie", sau "lacrimi" (cu sau fără diacritice)
     let firstCarteIndex = -1;
+    const ctaKeywords = ['carte', 'cartea', 'rescrie', 'lacrimi', 'lacrami'];
     for (let i = 0; i < adLines.length; i++) {
-      if (adLines[i].text.toLowerCase().includes('carte') || adLines[i].text.toLowerCase().includes('cartea')) {
+      const lowerText = adLines[i].text.toLowerCase();
+      if (ctaKeywords.some(keyword => lowerText.includes(keyword))) {
         firstCarteIndex = i;
         break;
       }
@@ -517,6 +519,45 @@ export default function Home() {
     window.open(url, '_blank');
     toast.success(`Descărcare video #${index + 1} pornită`);
   };
+
+  // Auto-check status la 80s, apoi din 10 în 10s
+  useEffect(() => {
+    if (videoResults.length === 0) return;
+
+    const pendingVideos = videoResults.filter(v => v.status === 'pending');
+    if (pendingVideos.length === 0) return;
+
+    // Primul check la 80 secunde
+    const initialTimeout = setTimeout(() => {
+      pendingVideos.forEach((video, idx) => {
+        const actualIndex = videoResults.findIndex(v => v.taskId === video.taskId);
+        if (actualIndex !== -1 && video.taskId) {
+          checkVideoStatus(video.taskId, actualIndex);
+        }
+      });
+    }, 80000);
+
+    // Check-uri repetate din 10 în 10 secunde
+    const interval = setInterval(() => {
+      const stillPending = videoResults.filter(v => v.status === 'pending');
+      if (stillPending.length === 0) {
+        clearInterval(interval);
+        return;
+      }
+
+      stillPending.forEach((video) => {
+        const actualIndex = videoResults.findIndex(v => v.taskId === video.taskId);
+        if (actualIndex !== -1 && video.taskId) {
+          checkVideoStatus(video.taskId, actualIndex);
+        }
+      });
+    }, 10000);
+
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(interval);
+    };
+  }, [videoResults]);
 
   // STEP 6: Review functions
   const acceptVideo = (videoName: string) => {
@@ -856,20 +897,21 @@ export default function Home() {
                   <p className="font-medium text-blue-900 mb-3">
                     {images.length} imagini încărcate:
                   </p>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
                     {images.map((image) => (
                       <div key={image.id} className="relative group">
                         <img
                           src={image.url}
-                          alt="Uploaded"
-                          className="w-1/2 aspect-[9/16] object-cover rounded border-2 border-blue-200"
+                          alt={image.fileName}
+                          className="w-full aspect-[9/16] object-cover rounded border-2 border-blue-200"
                         />
                         <button
                           onClick={() => removeImage(image.id)}
-                          className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors shadow-lg"
                         >
-                          <X className="w-4 h-4" />
+                          <X className="w-3 h-3" />
                         </button>
+                        <p className="text-xs text-center mt-1 text-gray-600 truncate">{image.fileName}</p>
                       </div>
                     ))}
                   </div>
