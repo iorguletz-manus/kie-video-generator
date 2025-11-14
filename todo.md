@@ -989,3 +989,33 @@
 - [x] Adăugare filtru dropdown în STEP 5 (același ca în STEP 6)
 - [x] Opțiuni: "Afișează Toate" / "Doar Acceptate" / "Pentru Regenerare"
 - [x] Filtrare videouri după reviewStatus (null/accepted/regenerate)
+
+
+## Bug - Upload Imagini STEP 3 (14 Nov 2025)
+
+### Eroare: manus-upload-file not found
+- [x] Problema: `manus-upload-file` este disponibil doar în sandbox local, NU în aplicația deployed
+- [x] Eroare: "Failed to upload image: Command failed: manus-upload-file /tmp/kie-uploads/1763146710872-6zt8t25d6oj.png /bin/sh: 1: manus-upload-file: not found"
+- [x] Soluție: Înlocuire `manus-upload-file` cu `storagePut()` direct din `server/storage.ts`
+- [x] Modificare endpoint `uploadImage` în `server/routers.ts` pentru a folosi S3 direct
+- [x] Eliminat cod temporar (fs.writeFileSync, fs.unlinkSync, execAsync)
+- [x] Upload direct buffer în S3 fără fișiere temporare
+
+
+## Implementare BunnyCDN pentru Upload Imagini (14 Nov 2025)
+
+### Înlocuire S3 cu BunnyCDN
+- [x] Hardcodare BunnyCDN API key direct în cod (nu secrets)
+- [x] Configurare BunnyCDN storage zone: `kie-video-images`
+- [x] Configurare pull zone URL: `https://kie-video-images.b-cdn.net`
+- [x] Configurare region: `de` (Germany)
+- [x] Implementare upload direct pe BunnyCDN în server/routers.ts
+- [x] Înlocuire storagePut() cu BunnyCDN API (fetch PUT request)
+- [x] Eliminare import storagePut nefolosit
+- [ ] Testare upload imagini pe BunnyCDN (necesar test real)
+- [ ] Verificare URL-uri imagini returnate de BunnyCDN
+
+### Motivație
+- BunnyCDN este mai rapid și mai ieftin decât S3 pentru CDN
+- Upload imagini funcționează în deployed app (nu doar în sandbox)
+- API key hardcodat: 0115eac3-f13f-4701-802f-4471c4df8c50fa472597-a64a-4db5-9e24-1ae9441d4ead

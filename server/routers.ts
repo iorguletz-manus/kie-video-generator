@@ -59,53 +59,39 @@ export const appRouter = router({
           const base64Data = input.imageData.replace(/^data:image\/\w+;base64,/, "");
           const buffer = Buffer.from(base64Data, 'base64');
           
-          // Creează director temporar pentru imagini
-          const tempDir = path.join('/tmp', 'kie-uploads');
-          if (!fs.existsSync(tempDir)) {
-            fs.mkdirSync(tempDir, { recursive: true });
-          }
-          
           // Generează nume unic pentru imagine
           const randomSuffix = Math.random().toString(36).substring(2, 15);
           const timestamp = Date.now();
           const fileName = `${timestamp}-${randomSuffix}.png`;
-          const tempFilePath = path.join(tempDir, fileName);
           
-          // Salvează imaginea temporar
-          fs.writeFileSync(tempFilePath, buffer);
+          // BunnyCDN configuration (hardcoded)
+          const BUNNYCDN_API_KEY = '0115eac3-f13f-4701-802f-4471c4df8c50fa472597-a64a-4db5-9e24-1ae9441d4ead';
+          const BUNNYCDN_STORAGE_ZONE = 'kie-video-images';
+          const BUNNYCDN_STORAGE_REGION = 'de'; // Germany region
+          const BUNNYCDN_PULL_ZONE_URL = `https://${BUNNYCDN_STORAGE_ZONE}.b-cdn.net`;
           
-          // Upload pe Manus CDN folosind manus-upload-file
-          console.log('[Upload] Starting upload for:', tempFilePath);
-          const { stdout, stderr } = await execAsync(`manus-upload-file ${tempFilePath}`, {
-            env: {
-              ...process.env,
-              BUILT_IN_FORGE_API_URL: process.env.BUILT_IN_FORGE_API_URL || 'https://forge.manus.ai',
-              BUILT_IN_FORGE_API_KEY: process.env.BUILT_IN_FORGE_API_KEY || '',
-            }
+          // Upload direct pe BunnyCDN Storage
+          console.log('[Upload] Starting BunnyCDN upload for:', fileName);
+          const storageUrl = `https://storage.bunnycdn.com/${BUNNYCDN_STORAGE_ZONE}/${fileName}`;
+          
+          const uploadResponse = await fetch(storageUrl, {
+            method: 'PUT',
+            headers: {
+              'AccessKey': BUNNYCDN_API_KEY,
+              'Content-Type': 'image/png',
+            },
+            body: buffer,
           });
-          console.log('[Upload] stdout:', stdout);
-          console.log('[Upload] stderr:', stderr);
           
-          if (stderr && stderr.includes('error')) {
-            console.error('[Upload] Error detected in stderr:', stderr);
-            throw new Error(`Upload failed: ${stderr}`);
+          if (!uploadResponse.ok) {
+            const errorText = await uploadResponse.text();
+            console.error('[Upload] BunnyCDN upload failed:', errorText);
+            throw new Error(`BunnyCDN upload failed: ${uploadResponse.status} ${errorText}`);
           }
           
-          // Extrage URL-ul din output (ultima linie care conține https://)
-          const lines = stdout.split('\n');
-          const urlLine = lines.find(line => line.includes('https://'));
-          
-          if (!urlLine) {
-            throw new Error(`No URL found in upload output: ${stdout}`);
-          }
-          
-          // Extrage doar URL-ul din linia "CDN URL: https://..."
-          const imageUrl = urlLine.includes('CDN URL:') 
-            ? urlLine.split('CDN URL:')[1].trim()
-            : urlLine.trim();
-          
-          // Șterge fișierul temporar
-          fs.unlinkSync(tempFilePath);
+          // Construiește URL-ul public pentru imagine
+          const imageUrl = `${BUNNYCDN_PULL_ZONE_URL}/${fileName}`;
+          console.log('[Upload] BunnyCDN upload successful:', imageUrl);
           
           if (!imageUrl || !imageUrl.startsWith('http')) {
             throw new Error('Invalid URL returned from upload');
