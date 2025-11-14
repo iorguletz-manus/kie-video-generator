@@ -53,6 +53,7 @@ export const appRouter = router({
       .input(z.object({
         imageData: z.string(),
         fileName: z.string(),
+        sessionId: z.string().optional(), // Optional sessionId pentru organizare în subfoldere
       }))
       .mutation(async ({ input }) => {
         try {
@@ -62,7 +63,9 @@ export const appRouter = router({
           // Generează nume unic pentru imagine
           const randomSuffix = Math.random().toString(36).substring(2, 15);
           const timestamp = Date.now();
-          const fileName = `${timestamp}-${randomSuffix}.png`;
+          // Organizare în subfoldere pe sessionId
+          const sessionFolder = input.sessionId || 'default';
+          const fileName = `${sessionFolder}/${timestamp}-${randomSuffix}.png`;
           
           // BunnyCDN configuration (hardcoded)
           const BUNNYCDN_STORAGE_PASSWORD = '4c9257d6-aede-4ff1-bb0f9fc95279-997e-412b'; // Storage Password (Read-Write)

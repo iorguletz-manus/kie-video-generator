@@ -1042,3 +1042,19 @@
 - [x] URL corect: `https://storage.bunnycdn.com/manus-storage/{filename}`
 - [x] Username FTP: `manus-storage` (nu `manus`)
 - [x] Actualizat cod cu storage zone name corect
+
+
+## Cerințe noi - UX Improvements (14 Nov 2025)
+
+### Contoare în filtru STEP 5
+- [x] Afișează numărul de videouri pentru fiecare categorie în dropdown
+- [x] Format: "Afișează Toate (15)" / "Doar Acceptate (12)" / "Pentru Regenerare (3)"
+- [x] Calculare dinamică contoare bazat pe videoResults array
+- [x] Update contoare când user schimbă status videouri (automatic prin filter)
+
+### Organizare imagini în subfoldere BunnyCDN
+- [x] Modifică fileName pentru a include sessionId: `${sessionId}/${timestamp}.png`
+- [x] Organizare imagini pe sesiuni pentru ștergere batch mai ușoară
+- [x] Transmitere sessionId de la frontend la backend în uploadImage mutation
+- [x] Adăugat sessionId în input schema (optional)
+- [x] Folosire sessionFolder în path: `${sessionFolder}/${timestamp}-${randomSuffix}.png`

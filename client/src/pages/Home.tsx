@@ -486,6 +486,7 @@ export default function Home() {
               const result = await uploadImageMutation.mutateAsync({
                 imageData: base64,
                 fileName: file.name,
+                sessionId: currentSessionId, // Transmitere sessionId pentru organizare în subfoldere
               });
               
               const isCTA = file.name.toUpperCase().includes('CTA');
@@ -1933,9 +1934,9 @@ export default function Home() {
                   onChange={(e) => setStep5Filter(e.target.value as 'all' | 'accepted' | 'regenerate')}
                   className="px-4 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="all">Afișează Toate</option>
-                  <option value="accepted">Doar Acceptate</option>
-                  <option value="regenerate">Pentru Regenerare</option>
+                  <option value="all">Afișează Toate ({videoResults.length})</option>
+                  <option value="accepted">Doar Acceptate ({videoResults.filter(r => r.reviewStatus === 'accepted').length})</option>
+                  <option value="regenerate">Pentru Regenerare ({videoResults.filter(r => r.reviewStatus === 'regenerate').length})</option>
                 </select>
               </div>
               
