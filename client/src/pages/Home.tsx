@@ -2265,19 +2265,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                           if (newType === 'PROMPT_CUSTOM' && customPrompts[modifyingVideoIndex!]) {
                                             setModifyPromptText(customPrompts[modifyingVideoIndex!]);
                                           } else if (newType !== 'PROMPT_CUSTOM') {
-                                            // Încărcă text hardcodat de la backend
-                            try {
-                              const response = await fetch(`/api/trpc/prompt.getHardcodedPrompt?batch=1&input=${encodeURIComponent(JSON.stringify({ "0": { promptType: newType } }))}`);
-                                              const data = await response.json();
-                                              if (data[0]?.result?.data?.promptText) {
-                                                setModifyPromptText(data[0].result.data.promptText);
-                                              } else {
-                                                throw new Error('Invalid response');
-                                              }
-                                            } catch (error) {
-                                              console.error('Eroare la încărcare prompt hardcodat:', error);
-                                              toast.error('Eroare la încărcare prompt');
+                                            // Încarcă text din prompts state (salvat în session)
+                                            const promptFromState = prompts.find(p => p.name === newType);
+                                            if (promptFromState?.template) {
+                                              setModifyPromptText(promptFromState.template);
+                                            } else {
                                               setModifyPromptText('');
+                                              toast.warning(`Prompt ${newType} nu a fost găsit în sesiune`);
                                             }
                                           }
                                         }}

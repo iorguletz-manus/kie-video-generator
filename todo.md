@@ -1154,3 +1154,28 @@
 - [x] Același formular ca pentru videouri "failed"
 - [x] User poate modifica text, prompt, imagine și regenera videouri respinse
 - [x] Buton full-width sub badge-ul "Respinse" cu styling orange
+
+
+## Bug - Prompturi nu se încarcă în Modify & Regenerate (14 Nov 2025)
+
+### Problema: Prompturile hardcodate nu apar când selectezi PROMPT_NEUTRAL/POSITIVE/NEGATIVE
+- [x] În Modify & Regenerate, când user selectează PROMPT_NEUTRAL/POSITIVE/NEGATIVE
+- [x] Nu apare textul promptului în textarea (rămâne gol)
+- [x] Prompturile sunt hardcodate în backend, nu salvate în database
+- [x] User nu poate vedea/edita prompturile hardcodate
+
+### Soluție
+- [x] Salvare prompturi în database (session data) în STEP 2 (DEJA EXISTENT - linia 237)
+- [x] Când user introduce prompturile în STEP 2 → salvează în session data (DEJA EXISTENT)
+- [x] Modificare Modify & Regenerate pentru a încărca prompturi din prompts state (nu backend hardcoded)
+- [x] Încărcare prompturi din prompts.find(p => p.name === newType) când user selectează PROMPT_NEUTRAL/SMILING/CTA
+- [x] Folosire promptFromState.template pentru a seta modifyPromptText
+
+
+## UX Improvement - Counter în butonul "Regenerate ALL Failed" (14 Nov 2025)
+
+### Cerință: Afișare număr videouri failed în butonul roșu
+- [x] Butonul "Regenerate ALL Failed" trebuie să arate câte videouri failed există (DEJA EXISTENT)
+- [x] Format: "Regenerate ALL Failed (5)" - număr dinamic (linia 2774)
+- [x] Update counter când status videouri se schimbă (automatic prin filter)
+- [x] Același format ca filtrul STEP 5: "Afișează Toate (15)"
