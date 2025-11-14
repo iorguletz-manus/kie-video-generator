@@ -76,6 +76,10 @@ export default function Home() {
   
   // Step 5: Generate
   const [videoResults, setVideoResults] = useState<VideoResult[]>([]);
+  const [modifyingVideoIndex, setModifyingVideoIndex] = useState<number | null>(null);
+  const [modifyPromptType, setModifyPromptType] = useState<PromptType>('PROMPT_NEUTRAL');
+  const [modifyPromptText, setModifyPromptText] = useState('');
+  const [modifyDialogueText, setModifyDialogueText] = useState('');
   
   // Step 6: Check Videos (review)
   const [reviewHistory, setReviewHistory] = useState<Array<{
@@ -1098,23 +1102,14 @@ export default function Home() {
                           )}
                           {result.status === 'success' && result.videoUrl && (
                             <>
-                              <div className="flex items-center gap-2 bg-green-50 px-3 py-1 rounded">
-                                <Check className="w-4 h-4 text-green-600" />
-                                <span className="text-sm text-green-600 font-medium">Success</span>
+                              <div className="flex items-center gap-3 bg-green-50 border-2 border-green-500 px-4 py-2 rounded-lg flex-1">
+                                <Check className="w-5 h-5 text-green-600" />
+                                <span className="text-base text-green-700 font-bold">Generated</span>
                               </div>
-                              <a
-                                href={result.videoUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm text-blue-600 hover:underline flex-1 truncate"
-                                title={result.videoUrl}
-                              >
-                                {result.videoUrl.substring(0, 50)}...
-                              </a>
                               <Button
                                 size="sm"
                                 onClick={() => downloadVideo(result.videoUrl!, index)}
-                                className="ml-auto bg-green-600 hover:bg-green-700 gap-2"
+                                className="bg-green-600 hover:bg-green-700 gap-2"
                               >
                                 <Download className="w-4 h-4" />
                                 Download
@@ -1123,22 +1118,111 @@ export default function Home() {
                           )}
                           {result.status === 'failed' && (
                             <>
-                              <div className="flex items-center gap-2 bg-red-50 px-3 py-1 rounded">
-                                <X className="w-4 h-4 text-red-600" />
-                                <span className="text-sm text-red-600 font-medium">
-                                  Failed: {result.error || 'Unknown error'}
-                                </span>
+                              <div className="flex-1">
+                                <div className="bg-red-50 border-2 border-red-500 px-4 py-2 rounded-lg">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <X className="w-5 h-5 text-red-600" />
+                                    <span className="text-base text-red-700 font-bold">Failed</span>
+                                  </div>
+                                  <p className="text-sm text-red-600 ml-7">
+                                    {result.error || 'Unknown error'}
+                                  </p>
+                                </div>
+                                
+                                {/* Modify & Regenerate Form */}
+                                {modifyingVideoIndex === index && (
+                                  <div className="mt-4 p-4 bg-white border-2 border-orange-300 rounded-lg space-y-3">
+                                    <h5 className="font-bold text-orange-900">Modify & Regenerate</h5>
+                                    
+                                    {/* Select Prompt Type */}
+                                    <div>
+                                      <label className="text-sm font-medium text-gray-700 block mb-1">Prompt Type:</label>
+                                      <select
+                                        value={modifyPromptType}
+                                        onChange={(e) => setModifyPromptType(e.target.value as PromptType)}
+                                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                                      >
+                                        <option value="PROMPT_NEUTRAL">PROMPT_NEUTRAL</option>
+                                        <option value="PROMPT_SMILING">PROMPT_SMILING</option>
+                                        <option value="PROMPT_CTA">PROMPT_CTA</option>
+                                      </select>
+                                    </div>
+                                    
+                                    {/* Edit Prompt Text (optional) */}
+                                    <div>
+                                      <label className="text-sm font-medium text-gray-700 block mb-1">Edit Prompt (optional):</label>
+                                      <Textarea
+                                        value={modifyPromptText}
+                                        onChange={(e) => setModifyPromptText(e.target.value)}
+                                        placeholder="Lasă gol pentru a folosi promptul hardcodat"
+                                        className="text-sm min-h-[80px]"
+                                      />
+                                    </div>
+                                    
+                                    {/* Edit Dialogue Text */}
+                                    <div>
+                                      <label className="text-sm font-medium text-gray-700 block mb-1">Edit Text:</label>
+                                      <Textarea
+                                        value={modifyDialogueText}
+                                        onChange={(e) => setModifyDialogueText(e.target.value)}
+                                        className="text-sm min-h-[60px]"
+                                      />
+                                      <p className={`text-xs mt-1 ${
+                                        modifyDialogueText.length > 125 ? 'text-red-600 font-bold' : 'text-gray-500'
+                                      }`}>
+                                        {modifyDialogueText.length} caractere{modifyDialogueText.length > 125 ? ' - 125 caractere depășite!' : ''}
+                                      </p>
+                                    </div>
+                                    
+                                    {/* Buttons */}
+                                    <div className="flex gap-2">
+                                      <Button
+                                        size="sm"
+                                        onClick={() => {
+                                          toast.info('Regenerare cu modificări - feature în curs de implementare');
+                                        }}
+                                        className="flex-1 bg-orange-600 hover:bg-orange-700"
+                                      >
+                                        Regenerate
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setModifyingVideoIndex(null)}
+                                        className="flex-1"
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => {
-                                  toast.info('Regenerare video - feature în curs de implementare');
-                                }}
-                                className="ml-auto bg-red-600 hover:bg-red-700"
-                              >
-                                Regenerate
-                              </Button>
+                              
+                              <div className="flex flex-col gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => {
+                                    toast.info('Regenerare video - feature în curs de implementare');
+                                  }}
+                                  className="bg-red-600 hover:bg-red-700"
+                                >
+                                  Regenerate
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setModifyingVideoIndex(index);
+                                    setModifyPromptType(combinations[index]?.promptType || 'PROMPT_NEUTRAL');
+                                    setModifyPromptText('');
+                                    setModifyDialogueText(result.text);
+                                  }}
+                                  className="border-orange-500 text-orange-700 hover:bg-orange-50"
+                                >
+                                  Modify & Regenerate
+                                </Button>
+                              </div>
                             </>
                           )}
                         </div>
@@ -1147,6 +1231,21 @@ export default function Home() {
                   </div>
                 ))}
               </div>
+              
+              {/* Buton Regenerate ALL Failed */}
+              {videoResults.some(v => v.status === 'failed') && (
+                <div className="mt-6">
+                  <Button
+                    onClick={() => {
+                      toast.info('Regenerare toate videouri failed - feature în curs de implementare');
+                    }}
+                    className="bg-red-600 hover:bg-red-700 w-full py-4 text-base"
+                  >
+                    <X className="w-5 h-5 mr-2" />
+                    Regenerate ALL Failed ({videoResults.filter(v => v.status === 'failed').length})
+                  </Button>
+                </div>
+              )}
               
               {/* Buton pentru a trece la STEP 6 */}
               {videoResults.some(v => v.status === 'success') && (
@@ -1193,7 +1292,7 @@ export default function Home() {
 
               {/* Organizare pe categorii */}
               {['HOOKS', 'MIRROR', 'DCS', 'TRANZITION', 'NEW_CAUSE', 'MECHANISM', 'EMOTIONAL_PROOF', 'TRANSFORMATION', 'CTA'].map(category => {
-                const categoryVideos = videoResults.filter(v => v.section === category && v.status === 'success');
+                const categoryVideos = videoResults.filter(v => v.section === category && v.status === 'success' && v.videoUrl);
                 
                 if (categoryVideos.length === 0) return null;
                 
@@ -1206,22 +1305,20 @@ export default function Home() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {categoryVideos.map((video) => (
                         <div key={video.videoName} className="p-4 bg-white rounded-lg border-2 border-green-200">
-                          {/* Nume video */}
-                          <h4 className="font-bold text-green-900 mb-2">{video.videoName}</h4>
+                          {/* TITLE */}
+                          <h4 className="font-bold text-green-900 mb-2 text-lg">{video.videoName}</h4>
                           
-                          {/* Text dialogue */}
-                          <p className="text-sm text-gray-700 mb-3 line-clamp-3">{video.text}</p>
+                          {/* Text */}
+                          <p className="text-sm text-gray-700 mb-3">{video.text}</p>
                           
-                          {/* Video player */}
-                          {video.videoUrl && (
-                            <video
-                              src={video.videoUrl}
-                              controls
-                              className="w-full aspect-[9/16] object-cover rounded border-2 border-green-300 mb-3"
-                            />
-                          )}
+                          {/* VIDEO PLAYER */}
+                          <video
+                            src={video.videoUrl}
+                            controls
+                            className="w-full aspect-[9/16] object-cover rounded border-2 border-green-300 mb-3"
+                          />
                           
-                          {/* Butoane Accept / Regenerate - mici */}
+                          {/* BUTOANE ACCEPT/REGENERATE */}
                           <div className="flex gap-2">
                             {video.reviewStatus === 'accepted' ? (
                               <Button

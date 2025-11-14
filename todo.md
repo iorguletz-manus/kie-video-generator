@@ -233,3 +233,29 @@
 - [x] Fix eroare "te rog adaugă cel puțin un prompt" care blochează trecerea la STEP 4
 - [x] Validare corectă: acceptă prompturi hardcodate ca valide
 - [x] Backend: suport HARDCODED_PROMPT_TYPE pentru a folosi prompturi hardcodate automat
+
+
+## New User Requests - Fix STEP 5 & 6
+
+### STEP 6 - Video Player
+- [x] Fix încărcare videouri de la STEP 5 în STEP 6 (filtrare cu videoUrl)
+- [x] Layout corect: TITLE → Text → VIDEO PLAYER → Butoane Accept/Regenerate
+- [x] Video player funcțional pentru fiecare video generat
+
+### STEP 5 - Auto-check Status
+- [x] Verificare cod: primul check la 80 secunde după generare (există deja)
+- [x] Check-uri ulterioare din 10 în 10 secunde (există deja)
+- [x] Video DONE: border verde + mesaj "Generated" (verde frumos) în loc de buton
+- [x] Video FAILED: mesaj roșu cu eroarea exactă primită de la Kie.ai
+- [x] Afișare eroare: "Rejected by Google's content policy..." cu roșu
+
+### STEP 5 - Regenerate Failed
+- [x] Buton "Regenerate ALL Failed" jos deasupra "Check Videos"
+- [ ] Regenerare automată toate videouri failed (placeholder implementat)
+- [x] Buton "Modify & Regenerate" pentru fiecare video failed
+- [x] Modal/Form pentru Modify & Regenerate cu:
+  - [x] Select prompt (NEUTRAL/SMILING/CTA)
+  - [x] Textarea editabil prompt (temporar, nu modifică hardcoded)
+  - [x] Textarea editabil text
+  - [x] Char count live când scrii/ștergi
+  - [x] Text roșu "125 caractere depășite!" când depășește 125
