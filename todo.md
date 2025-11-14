@@ -197,7 +197,7 @@
 ### STEP 3 - Layout Imagini
 - [x] Fix layout: X pe imagine (absolute top-1 right-1)
 - [x] Poze una lângă alta (grid-cols-3 md:grid-cols-6)
-- [ ] Bug: upload imagine nu funcționează (nu se întâmplă nimic)
+- [x] Bug: upload imagine nu funcționează - fix cu Promise.all pentru așteptare corectă
 
 ### STEP 4 - Mapare
 - [x] Text roșu în textarea pentru cuvinte importante (SKIP - limitați HTML textarea)
