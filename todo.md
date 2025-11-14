@@ -948,3 +948,16 @@
 - [x] Bold text (font-bold)
 - [x] Adăugare iconița Clock (lucide-react)
 - [x] UX mai bun pentru a ieși în evidență (flex items-center gap-1)
+
+
+## Cerințe finale (14 Nov 2025 - Ultim batch)
+
+### STEP 6 - Statistici și Buton Condiționat
+- [x] Afișare statistici: "X videouri acceptate, Y pentru regenerare, Z fără decizie" (DEJA EXISTENT)
+- [x] Activare condiționată buton "Continue to Final Download": activ doar când toate videouri au decizie (DEJA EXISTENT)
+- [x] Elimină buton "Continue to Final Download" complet din STEP 6
+
+### Video Naming Convention - Format Corect
+- [x] Fix nume videouri: Format CB1_A1_HOOK1, CB1_A1_MIRROR1 (folosește HOOK singular, nu HOOKS)
+- [x] Extragere număr categorie corect (categoryNumber = 1 pentru toate sample videos)
+- [x] Salvare categoryNumber în videoResults pentru afișare corectă

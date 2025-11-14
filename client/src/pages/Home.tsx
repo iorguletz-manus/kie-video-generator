@@ -884,36 +884,51 @@ export default function Home() {
     
     try {
       // Creează videoResults cu videoUrl deja completat (hardcodat)
-      const sampleResults: VideoResult[] = sampleData.map((data, index) => ({
-        taskId: data.taskId,
-        videoName: `CB1_A1_${data.section}${index + 1}`,
-        text: data.text,
-        imageUrl: 'https://via.placeholder.com/270x480/blue/white?text=Sample',
-        status: 'success' as const,
-        videoUrl: data.videoUrl,
-        section: data.section,
-        categoryNumber: index + 1,
-        reviewStatus: null,
-      }));
+      const sampleResults: VideoResult[] = sampleData.map((data, index) => {
+        // Pentru HOOKS folosește HOOK (singular) în nume
+        const categoryName = data.section === 'HOOKS' ? 'HOOK' : data.section;
+        // Toate sample videos sunt prima linie din categoria lor (categoryNumber = 1)
+        const categoryNumber = 1;
+        
+        return {
+          taskId: data.taskId,
+          videoName: `CB1_A1_${categoryName}${categoryNumber}`,
+          text: data.text,
+          imageUrl: 'https://via.placeholder.com/270x480/blue/white?text=Sample',
+          status: 'success' as const,
+          videoUrl: data.videoUrl,
+          section: data.section,
+          categoryNumber: categoryNumber,
+          reviewStatus: null,
+        };
+      });
       
       setVideoResults(sampleResults);
       
       // Creează și combinations pentru sample videos
-      const sampleCombinations: Combination[] = sampleData.map((data, index) => ({
-        id: `sample-${index}`,
-        text: data.text,
-        imageUrl: 'https://via.placeholder.com/270x480/blue/white?text=Sample',
-        imageId: `sample-img-${index}`,
-        promptType: 'PROMPT_NEUTRAL' as PromptType,
-        videoName: `CB1_A1_${data.section}${index + 1}`,
-        section: data.section,
-        categoryNumber: index + 1,
-      }));
+      const sampleCombinations: Combination[] = sampleData.map((data, index) => {
+        // Pentru HOOKS folosește HOOK (singular) în nume
+        const categoryName = data.section === 'HOOKS' ? 'HOOK' : data.section;
+        // Toate sample videos sunt prima linie din categoria lor (categoryNumber = 1)
+        const categoryNumber = 1;
+        
+        return {
+          id: `sample-${index}`,
+          text: data.text,
+          imageUrl: 'https://via.placeholder.com/270x480/blue/white?text=Sample',
+          imageId: `sample-img-${index}`,
+          promptType: 'PROMPT_NEUTRAL' as PromptType,
+          videoName: `CB1_A1_${categoryName}${categoryNumber}`,
+          section: data.section,
+          categoryNumber: categoryNumber,
+        };
+      });
       
       setCombinations(sampleCombinations);
       setCurrentStep(6); // Trece la STEP 6 (Check Videos)
       
-      toast.success(`${sampleData.length}/4 sample videos încărcate cu succes!`);
+      toast.success(`4/4 sample videos încărcate cu succes!`);
+      console.log('Sample videos loaded:', sampleResults.map(v => v.videoName));
     } catch (error: any) {
       toast.error(`Eroare la încărcarea sample videos: ${error.message}`);
     }
@@ -3083,16 +3098,6 @@ export default function Home() {
                       >
                         <RefreshCw className="w-5 h-5 mr-2" />
                         Regenerate Selected ({videoResults.filter(v => v.reviewStatus === 'regenerate').length})
-                      </Button>
-                    )}
-                    
-                    {videoResults.some(v => v.reviewStatus === 'accepted') && (
-                      <Button
-                        onClick={() => setCurrentStep(7)}
-                        className="w-full bg-blue-600 hover:bg-blue-700 py-6 text-lg"
-                      >
-                        <ChevronLeft className="w-5 h-5 mr-2 rotate-180" />
-                        Continue to Final Download
                       </Button>
                     )}
                   </div>
