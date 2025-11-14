@@ -565,3 +565,33 @@
   - [ ] Afișare doar videouri acceptate
   - [ ] Download individual + Download All
   - [ ] Nu mai e nevoie de STEP 7 Regenerate Advanced (integrat în STEP 6)
+
+
+## New User Feedback - STEP 5 & 6 UI Fixes (Latest)
+
+### STEP 5 - Auto-check Notifications
+- [ ] Disable toast notifications pentru auto-check la 10s când video e pending
+- [ ] Păstrează notifications doar pentru success/failed
+- [ ] Doar "În curs de generare..." pe ecran e suficient
+
+### STEP 5 - Success Indicator
+- [ ] După ce video devine success, afișează indicator verde sub video
+- [ ] Badge verde cu text "Success" + checkbox verde
+- [ ] Border verde la întreaga secțiune video
+- [ ] Indicator vizibil permanent (nu doar temporar)
+
+### STEP 6 - Video URL Loading
+- [ ] Investigare: de ce apare "Video URL lipsește" în loc de video player
+- [ ] Verificare: checkVideoStatus salvează corect videoUrl din API
+- [ ] Verificare: STEP 6 primește videoUrl din videoResults
+- [ ] Fix: asigurare încărcare corectă video după "Verifică Status"
+
+### STEP 6 - Video Player Size
+- [ ] Mărire video player de la w-3/4 (75%) la w-5/6 sau similar (85%)
+- [ ] Aplicare la toate statusurile: pending, failed, success
+
+### STEP 6 & 7 - Breadcrumbs Fix
+- [ ] Fix text breadcrumbs STEP 6 - text nu se vede bine
+- [ ] Fix text breadcrumbs STEP 7 - text nu se vede bine
+- [ ] Verificare aliniere și contrast text
+- [ ] Asigurare vizibilitate pe toate background-urile

@@ -790,9 +790,8 @@ export default function Home() {
           toast.success(`Video #${index + 1} generat cu succes!`);
         } else if (status === 'failed') {
           toast.error(`Video #${index + 1} a eșuat: ${errorMessage}`);
-        } else {
-          toast.info(`Video #${index + 1} încă se generează...`);
         }
+        // Nu mai afișăm toast pentru pending - doar UI update
       } else {
         toast.error(`Răspuns invalid de la API: ${data.msg || 'Unknown error'}`);
       }
@@ -1150,6 +1149,25 @@ export default function Home() {
       clearInterval(interval);
     };
   }, [videoResults]);
+
+  // Auto-check toate videouri pending când intri în STEP 6
+  useEffect(() => {
+    if (currentStep === 6 && videoResults.length > 0) {
+      const pendingVideos = videoResults.filter(v => v.status === 'pending' && v.taskId);
+      if (pendingVideos.length > 0) {
+        console.log(`STEP 6: Auto-checking ${pendingVideos.length} pending videos...`);
+        pendingVideos.forEach((video, idx) => {
+          const videoIndex = videoResults.findIndex(v => v.taskId === video.taskId);
+          if (videoIndex !== -1 && video.taskId) {
+            // Delay each check by 1s to avoid overwhelming API
+            setTimeout(() => {
+              checkVideoStatus(video.taskId!, videoIndex);
+            }, idx * 1000);
+          }
+        });
+      }
+    }
+  }, [currentStep]);
 
   // STEP 6: Review functions
   const acceptVideo = (videoName: string) => {
@@ -1846,9 +1864,9 @@ export default function Home() {
                           )}
                           {result.status === 'success' && result.videoUrl && (
                             <>
-                              <div className="flex items-center gap-3 bg-green-50 border-2 border-green-500 px-4 py-2 rounded-lg flex-1">
+                              <div className="flex items-center gap-2 bg-green-50 border-2 border-green-500 px-3 py-2 rounded-lg flex-1">
                                 <Check className="w-5 h-5 text-green-600" />
-                                <span className="text-base text-green-700 font-bold">Generated</span>
+                                <span className="text-sm text-green-700 font-bold">Success</span>
                               </div>
                               <Button
                                 size="sm"
@@ -2495,13 +2513,13 @@ export default function Home() {
                           
                           {/* VIDEO PLAYER sau STATUS */}
                           {video.status === 'pending' ? (
-                            <div className="w-3/4 mx-auto aspect-[9/16] bg-blue-50 border-2 border-blue-300 rounded mb-3 flex flex-col items-center justify-center p-4">
+                            <div className="w-5/6 mx-auto aspect-[9/16] bg-blue-50 border-2 border-blue-300 rounded mb-3 flex flex-col items-center justify-center p-4">
                               <Loader2 className="w-8 h-8 text-blue-600 animate-spin mb-2" />
                               <p className="text-sm text-blue-700 font-medium">În curs de generare...</p>
                               <p className="text-xs text-blue-600 mt-1">Task ID: {video.taskId}</p>
                             </div>
                           ) : video.status === 'failed' ? (
-                            <div className="w-3/4 mx-auto aspect-[9/16] bg-red-50 border-2 border-red-300 rounded mb-3 flex flex-col items-center justify-center p-4">
+                            <div className="w-5/6 mx-auto aspect-[9/16] bg-red-50 border-2 border-red-300 rounded mb-3 flex flex-col items-center justify-center p-4">
                               <X className="w-8 h-8 text-red-600 mb-2" />
                               <p className="text-sm text-red-700 font-medium">Generare eșuată</p>
                               {video.error && (
@@ -2512,10 +2530,10 @@ export default function Home() {
                             <video
                               src={video.videoUrl}
                               controls
-                              className="w-3/4 mx-auto aspect-[9/16] object-cover rounded border-2 border-green-300 mb-3"
+                              className="w-5/6 mx-auto aspect-[9/16] object-cover rounded border-2 border-green-300 mb-3"
                             />
                           ) : (
-                            <div className="w-3/4 mx-auto aspect-[9/16] bg-gray-50 border-2 border-gray-300 rounded mb-3 flex items-center justify-center">
+                            <div className="w-5/6 mx-auto aspect-[9/16] bg-gray-50 border-2 border-gray-300 rounded mb-3 flex items-center justify-center">
                               <p className="text-sm text-gray-500">Video URL lipsește</p>
                             </div>
                           )}
