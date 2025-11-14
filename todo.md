@@ -38,3 +38,6 @@
 
 ## Critical Bug
 - [x] Rezolvare eroare persistentă "You do not have access permissions" - API KEY cu litere mici
+
+## New Bug
+- [x] Fix verificare status video - folosește successFlag și resultUrls

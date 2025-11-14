@@ -216,8 +216,28 @@ export const appRouter = router({
           }
           
           if (data.code === 200 && data.data) {
-            const status = data.data.status;
-            const videoUrl = data.data.videoUrl || data.data.video_url;
+            const responseData = data.data.response;
+            const successFlag = data.data.successFlag;
+            
+            // Determină statusul bazat pe successFlag
+            let status: 'success' | 'pending' | 'failed';
+            let videoUrl: string | undefined = undefined;
+            
+            if (successFlag === 1) {
+              // Video generat cu succes
+              status = 'success';
+              if (responseData?.resultUrls && responseData.resultUrls.length > 0) {
+                videoUrl = responseData.resultUrls[0];
+              }
+            } else if (successFlag === 0) {
+              // Video în curs de generare
+              status = 'pending';
+            } else if (successFlag === -1) {
+              // Generare eșuată
+              status = 'failed';
+            } else {
+              status = 'pending';
+            }
             
             updateVideoTask(input.taskId, {
               status: status,
