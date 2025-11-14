@@ -1006,12 +1006,13 @@
 
 ### Înlocuire S3 cu BunnyCDN
 - [x] Hardcodare BunnyCDN API key direct în cod (nu secrets)
-- [x] Configurare BunnyCDN storage zone: `kie-video-images`
-- [x] Configurare pull zone URL: `https://kie-video-images.b-cdn.net`
-- [x] Configurare region: `de` (Germany)
+- [x] Configurare BunnyCDN storage zone: `manus` (Storage Zone ID: 1258323)
+- [x] Configurare pull zone URL: `https://manus.b-cdn.net` (Pull Zone ID: 4856013)
+- [x] Verificare configurație prin BunnyCDN API
 - [x] Implementare upload direct pe BunnyCDN în server/routers.ts
 - [x] Înlocuire storagePut() cu BunnyCDN API (fetch PUT request)
 - [x] Eliminare import storagePut nefolosit
+- [x] Actualizare cod cu configurație reală (storage zone: manus)
 - [ ] Testare upload imagini pe BunnyCDN (necesar test real)
 - [ ] Verificare URL-uri imagini returnate de BunnyCDN
 

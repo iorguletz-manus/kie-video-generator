@@ -66,9 +66,8 @@ export const appRouter = router({
           
           // BunnyCDN configuration (hardcoded)
           const BUNNYCDN_API_KEY = '0115eac3-f13f-4701-802f-4471c4df8c50fa472597-a64a-4db5-9e24-1ae9441d4ead';
-          const BUNNYCDN_STORAGE_ZONE = 'kie-video-images';
-          const BUNNYCDN_STORAGE_REGION = 'de'; // Germany region
-          const BUNNYCDN_PULL_ZONE_URL = `https://${BUNNYCDN_STORAGE_ZONE}.b-cdn.net`;
+          const BUNNYCDN_STORAGE_ZONE = 'manus'; // Storage Zone ID: 1258323
+          const BUNNYCDN_PULL_ZONE_URL = 'https://manus.b-cdn.net'; // Pull Zone ID: 4856013
           
           // Upload direct pe BunnyCDN Storage
           console.log('[Upload] Starting BunnyCDN upload for:', fileName);
