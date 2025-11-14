@@ -369,7 +369,9 @@ export default function Home() {
   const removeCombination = (id: string) => {
     const combo = combinations.find(c => c.id === id);
     if (combo) {
-      setDeletedCombinations(prev => [combo, ...prev]);
+      const currentIndex = combinations.findIndex(c => c.id === id);
+      // Salvează combinația cu indexul original
+      setDeletedCombinations(prev => [{ ...combo, originalIndex: currentIndex }, ...prev]);
       setCombinations(prev => prev.filter(c => c.id !== id));
     }
   };
@@ -377,9 +379,17 @@ export default function Home() {
   const undoDelete = () => {
     if (deletedCombinations.length > 0) {
       const lastDeleted = deletedCombinations[0];
-      setCombinations(prev => [...prev, lastDeleted]);
+      const originalIndex = (lastDeleted as any).originalIndex ?? combinations.length;
+      
+      // Restaurează la poziția originală
+      setCombinations(prev => {
+        const newCombinations = [...prev];
+        newCombinations.splice(originalIndex, 0, lastDeleted);
+        return newCombinations;
+      });
+      
       setDeletedCombinations(prev => prev.slice(1));
-      toast.success("Combinație restaurată");
+      toast.success("Combinație restaurată la poziția originală");
     }
   };
 
@@ -490,6 +500,8 @@ export default function Home() {
 
   const checkVideoStatus = async (taskId: string, index: number) => {
     try {
+      console.log(`Checking status for taskId: ${taskId}, index: ${index}`);
+      
       const response = await fetch(`https://api.kie.ai/api/v1/veo/record-info?taskId=${taskId}`, {
         headers: {
           'Authorization': 'Bearer a4089052f1c04c6b8be02b026ce87fe8',
@@ -497,16 +509,20 @@ export default function Home() {
       });
 
       const data = await response.json();
+      console.log('Status response:', data);
 
       if (data.code === 200 && data.data) {
         let status: 'pending' | 'success' | 'failed' = 'pending';
         let videoUrl: string | undefined;
+        let errorMessage: string | undefined;
 
         if (data.data.successFlag === 1) {
           status = 'success';
           videoUrl = data.data.resultUrls?.[0];
         } else if (data.data.successFlag === -1) {
           status = 'failed';
+          errorMessage = data.data.errorMessage || 'Unknown error';
+          console.log('Video failed with error:', errorMessage);
         }
 
         setVideoResults(prev =>
@@ -516,7 +532,7 @@ export default function Home() {
                   ...v,
                   status: status,
                   videoUrl: videoUrl,
-                  error: data.data.errorMessage || undefined,
+                  error: errorMessage,
                 }
               : v
           )
@@ -524,9 +540,16 @@ export default function Home() {
 
         if (status === 'success') {
           toast.success(`Video #${index + 1} generat cu succes!`);
+        } else if (status === 'failed') {
+          toast.error(`Video #${index + 1} a eșuat: ${errorMessage}`);
+        } else {
+          toast.info(`Video #${index + 1} încă se generează...`);
         }
+      } else {
+        toast.error(`Răspuns invalid de la API: ${data.msg || 'Unknown error'}`);
       }
     } catch (error: any) {
+      console.error('Error checking video status:', error);
       toast.error(`Eroare la verificarea statusului: ${error.message}`);
     }
   };
@@ -536,24 +559,14 @@ export default function Home() {
     toast.success(`Descărcare video #${index + 1} pornită`);
   };
 
-  // Auto-check status la 80s, apoi din 10 în 10s
+  // Auto-check status din 10 în 10 secunde de la început
   useEffect(() => {
     if (videoResults.length === 0) return;
 
     const pendingVideos = videoResults.filter(v => v.status === 'pending');
     if (pendingVideos.length === 0) return;
 
-    // Primul check la 80 secunde
-    const initialTimeout = setTimeout(() => {
-      pendingVideos.forEach((video, idx) => {
-        const actualIndex = videoResults.findIndex(v => v.taskId === video.taskId);
-        if (actualIndex !== -1 && video.taskId) {
-          checkVideoStatus(video.taskId, actualIndex);
-        }
-      });
-    }, 80000);
-
-    // Check-uri repetate din 10 în 10 secunde
+    // Check-uri din 10 în 10 secunde de la început
     const interval = setInterval(() => {
       const stillPending = videoResults.filter(v => v.status === 'pending');
       if (stillPending.length === 0) {
@@ -570,7 +583,6 @@ export default function Home() {
     }, 10000);
 
     return () => {
-      clearTimeout(initialTimeout);
       clearInterval(interval);
     };
   }, [videoResults]);
@@ -732,7 +744,7 @@ export default function Home() {
                 onDrop={handleAdDocumentDrop}
                 onDragOver={(e) => e.preventDefault()}
                 className="border-2 border-dashed border-blue-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors cursor-pointer bg-blue-50/50"
-                onClick={() => document.getElementById('ad-upload')?.click()}
+                onClick={() => !adDocument && document.getElementById('ad-upload')?.click()}
               >
                 <Upload className="w-12 h-12 text-blue-500 mx-auto mb-4" />
                 <p className="text-blue-900 font-medium mb-2">
@@ -747,6 +759,26 @@ export default function Home() {
                   onChange={handleAdDocumentSelect}
                 />
               </div>
+              
+              {/* Buton șterge document */}
+              {adDocument && (
+                <div className="mt-4">
+                  <Button
+                    onClick={() => {
+                      setAdDocument(null);
+                      setAdLines([]);
+                      const input = document.getElementById('ad-upload') as HTMLInputElement;
+                      if (input) input.value = '';
+                      toast.success('Document șters. Poți încărca altul.');
+                    }}
+                    variant="outline"
+                    className="border-red-300 text-red-700 hover:bg-red-50"
+                  >
+                    <X className="w-4 h-4 mr-2" />
+                    Șterge document
+                  </Button>
+                </div>
+              )}
 
               {adLines.length > 0 && (
                 <div className="mt-6">
@@ -828,9 +860,25 @@ export default function Home() {
 
                 {prompts.length > 0 && (
                   <div className="mt-4">
-                    <p className="font-medium text-blue-900 mb-3">
-                      {prompts.length} prompturi custom încărcate:
-                    </p>
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="font-medium text-blue-900">
+                        {prompts.length} prompturi custom încărcate:
+                      </p>
+                      <Button
+                        onClick={() => {
+                          setPrompts([]);
+                          const input = document.getElementById('prompt-upload') as HTMLInputElement;
+                          if (input) input.value = '';
+                          toast.success('Toate prompturile custom au fost șterse.');
+                        }}
+                        variant="outline"
+                        size="sm"
+                        className="border-red-300 text-red-700 hover:bg-red-50"
+                      >
+                        <X className="w-4 h-4 mr-1" />
+                        Șterge toate
+                      </Button>
+                    </div>
                     <div className="space-y-2">
                       {prompts.map((prompt) => (
                         <div key={prompt.id} className="p-3 bg-white rounded border border-blue-200 flex items-center justify-between">

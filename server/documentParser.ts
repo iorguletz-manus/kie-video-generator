@@ -147,16 +147,24 @@ export function detectSection(line: string, allLines: string[], lineIndex: numbe
 }
 
 /**
- * Determină promptul potrivit pentru o secțiune
+ * Determină promptul potrivit pentru o secțiune și text
  */
-export function getPromptForSection(section: SectionType): PromptType {
+export function getPromptForSection(section: SectionType, text?: string): PromptType {
+  // Verifică dacă textul conține cuvinte cheie pentru PROMPT_CTA
+  if (text) {
+    const lowerText = text.toLowerCase();
+    const ctaKeywords = ['carte', 'cartea', 'rescrie', 'lacrimi'];
+    
+    if (ctaKeywords.some(keyword => lowerText.includes(keyword))) {
+      return 'PROMPT_CTA';
+    }
+  }
+  
+  // Reguli bazate pe secțiune
   switch (section) {
     case 'TRANSFORMATION':
     case 'CTA':
       return 'PROMPT_SMILING';
-    case 'CTA':
-      // CTA cu "carte" folosește PROMPT_CTA
-      return 'PROMPT_CTA';
     default:
       // HOOKS, MIRROR, DCS, TRANZITION, NEW_CAUSE, MECHANISM, EMOTIONAL_PROOF, OTHER
       return 'PROMPT_NEUTRAL';
@@ -260,7 +268,7 @@ export async function parseAdDocumentWithSections(buffer: Buffer): Promise<Array
       
       if (cleanedLine.length > 0) {
         const section = detectSection(cleanedLine, allLines, i);
-        const promptType = getPromptForSection(section);
+        const promptType = getPromptForSection(section, cleanedLine);
         
         // Dacă secțiunea s-a schimbat, reset index
         if (currentSection !== section) {

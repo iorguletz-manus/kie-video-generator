@@ -259,3 +259,28 @@
   - [x] Textarea editabil text
   - [x] Char count live când scrii/ștergi
   - [x] Text roșu "125 caractere depășite!" când depășește 125
+
+
+## New User Requests - Fix Drag & Drop, STEP 4, STEP 5
+
+### STEP 1 & 2 - Drag & Drop Fix
+- [x] Adăugare buton "Șterge document" pentru a putea șterge documentul încărcat (STEP 1)
+- [x] Permite re-upload document după ștergere (STEP 1)
+- [x] Fix funcționalitate drag & drop pentru re-upload (STEP 1)
+- [x] Buton "Șterge toate" pentru prompturi custom (STEP 2)
+
+### STEP 4 - Auto-select PROMPT_CTA
+- [x] Regula automată: dacă textul conține "carte", "cartea", "rescrie", "lacrimi" → selectează PROMPT_CTA by default
+- [x] Verificare case-insensitive pentru cuvinte cheie
+- [x] Modificare getPromptForSection() în documentParser.ts
+
+### STEP 4 - UNDO Fix
+- [x] Când faci UNDO, secțiunea ștearsă apare exact în locul original (nu la final)
+- [x] Salvare index original pentru fiecare secțiune ștearsă (originalIndex)
+- [x] Restaurare cu splice() la poziția corectă
+
+### STEP 5 - Check Status Fix
+- [x] Schimbare: check din 10 în 10 secunde de la început (nu 80s)
+- [x] Fix buton "Verifică Status" - adăugare console.log pentru debugging
+- [x] Afișare eroare completă de la Kie.ai cu roșu (errorMessage din response)
+- [x] Toast notifications pentru success/failed/pending
