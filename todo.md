@@ -1031,3 +1031,14 @@
 - [x] Storage Password (Read-Write): `4c9257d6-aede-4ff1-bb0f9fc95279-997e-412b`
 - [x] Header: `AccessKey` → Storage Password (nu Account API Key)
 - [x] Înlocuit BUNNYCDN_API_KEY cu BUNNYCDN_STORAGE_PASSWORD în cod
+
+
+## Bug - 401 Unauthorized (încă) - Storage Zone Name Greșit (14 Nov 2025)
+
+### Eroare: Storage zone name `manus` în loc de `manus-storage`
+- [x] Problema: Am folosit `manus` (din API response) în loc de `manus-storage` (username FTP)
+- [x] Eroare: "BunnyCDN upload failed: 401 {"HttpCode":401,"Message":"Unauthorized"}"
+- [x] Soluție: Înlocuire `BUNNYCDN_STORAGE_ZONE = 'manus'` cu `'manus-storage'`
+- [x] URL corect: `https://storage.bunnycdn.com/manus-storage/{filename}`
+- [x] Username FTP: `manus-storage` (nu `manus`)
+- [x] Actualizat cod cu storage zone name corect

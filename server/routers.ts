@@ -66,7 +66,7 @@ export const appRouter = router({
           
           // BunnyCDN configuration (hardcoded)
           const BUNNYCDN_STORAGE_PASSWORD = '4c9257d6-aede-4ff1-bb0f9fc95279-997e-412b'; // Storage Password (Read-Write)
-          const BUNNYCDN_STORAGE_ZONE = 'manus'; // Storage Zone ID: 1258323
+          const BUNNYCDN_STORAGE_ZONE = 'manus-storage'; // Storage Zone ID: 1258323, Username: manus-storage
           const BUNNYCDN_PULL_ZONE_URL = 'https://manus.b-cdn.net'; // Pull Zone ID: 4856013
           
           // Upload direct pe BunnyCDN Storage
