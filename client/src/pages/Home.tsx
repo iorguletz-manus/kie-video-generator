@@ -197,40 +197,49 @@ export default function Home() {
   const uploadImages = async (files: File[]) => {
     const imageFiles = files.filter(file => file.type.startsWith('image/'));
     
-    const uploadedImages: UploadedImage[] = [];
+    if (imageFiles.length === 0) {
+      toast.error('Niciun fișier imagine valid selectat');
+      return;
+    }
     
-    for (const file of imageFiles) {
-      try {
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-          const base64 = event.target?.result as string;
-          const result = await uploadImageMutation.mutateAsync({
-            imageData: base64,
-            fileName: file.name,
-          });
-          
-          const isCTA = file.name.toUpperCase().includes('CTA');
-          
-          const newImage: UploadedImage = {
-            id: `img-${Date.now()}-${Math.random()}`,
-            url: result.imageUrl,
-            file: file,
-            fileName: file.name,
-            isCTA: isCTA,
+    try {
+      const uploadPromises = imageFiles.map(async (file) => {
+        return new Promise<UploadedImage>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = async (event) => {
+            try {
+              const base64 = event.target?.result as string;
+              const result = await uploadImageMutation.mutateAsync({
+                imageData: base64,
+                fileName: file.name,
+              });
+              
+              const isCTA = file.name.toUpperCase().includes('CTA');
+              
+              const newImage: UploadedImage = {
+                id: `img-${Date.now()}-${Math.random()}`,
+                url: result.imageUrl,
+                file: file,
+                fileName: file.name,
+                isCTA: isCTA,
+              };
+              
+              resolve(newImage);
+            } catch (error: any) {
+              reject(error);
+            }
           };
-          
-          uploadedImages.push(newImage);
-          
-          // Ordonare după încărcarea tuturor
-          if (uploadedImages.length === imageFiles.length) {
-            const sortedImages = sortImagesByPairs(uploadedImages);
-            setImages(prev => [...prev, ...sortedImages]);
-          }
-        };
-        reader.readAsDataURL(file);
-      } catch (error: any) {
-        toast.error(`Eroare la încărcarea imaginii ${file.name}: ${error.message}`);
-      }
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      });
+      
+      const uploadedImages = await Promise.all(uploadPromises);
+      const sortedImages = sortImagesByPairs(uploadedImages);
+      setImages(prev => [...prev, ...sortedImages]);
+      toast.success(`${uploadedImages.length} imagini încărcate`);
+    } catch (error: any) {
+      toast.error(`Eroare la încărcarea imaginilor: ${error.message}`);
     }
   };
   
