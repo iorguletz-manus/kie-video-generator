@@ -979,13 +979,13 @@
 ## Cerințe noi - UX Improvements STEP 5 & GitHub Push (14 Nov 2025)
 
 ### Push GitHub
-- [ ] Commit și push la ultima versiune pe GitHub
+- [x] Commit și push la ultima versiune pe GitHub (commit 99fd091)
 
 ### Status "Respinse" în STEP 5
-- [ ] Când user se întoarce din STEP 6 în STEP 5, videouri marcate "Regenerate" în STEP 6 trebuie să apară cu roșu "Respinse" în STEP 5
-- [ ] În loc de badge verde "Generated", afișează badge roșu "Respinse" pentru videouri cu reviewStatus === 'regenerate'
+- [x] Când user se întoarce din STEP 6 în STEP 5, videouri marcate "Regenerate" în STEP 6 apar cu roșu "Respinse" în STEP 5
+- [x] În loc de badge verde "Generated", afișează badge roșu "Respinse" pentru videouri cu reviewStatus === 'regenerate'
 
 ### Filtru videouri în STEP 5
-- [ ] Adăugare filtru dropdown în STEP 5 (același ca în STEP 6)
-- [ ] Opțiuni: "Afișează toate" / "Acceptate" / "Pentru regenerare"
-- [ ] Filtrare videouri după reviewStatus (null/accepted/regenerate)
+- [x] Adăugare filtru dropdown în STEP 5 (același ca în STEP 6)
+- [x] Opțiuni: "Afișează Toate" / "Doar Acceptate" / "Pentru Regenerare"
+- [x] Filtrare videouri după reviewStatus (null/accepted/regenerate)
