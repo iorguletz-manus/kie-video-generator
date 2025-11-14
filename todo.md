@@ -284,3 +284,38 @@
 - [x] Fix buton "Verifică Status" - adăugare console.log pentru debugging
 - [x] Afișare eroare completă de la Kie.ai cu roșu (errorMessage din response)
 - [x] Toast notifications pentru success/failed/pending
+
+
+## New User Request - Implementare Funcționalitate Regenerare
+
+### Regenerate Simplu (Individual)
+- [x] Buton "Regenerate" pentru fiecare video failed
+- [x] Retrimite video cu aceleași setări (text, imagine, prompt type)
+- [x] Actualizare videoResults cu nou taskId
+- [x] Reset status la 'pending' pentru video regenerat
+- [x] Toast notification "Video retrimis pentru generare"
+- [x] Funcție regenerateSingleVideo() implementată
+
+### Regenerate ALL Failed (Batch)
+- [x] Buton "Regenerate ALL Failed" jos deasupra "Check Videos"
+- [x] Retrimite toate videouri failed în batch
+- [x] Folosește același endpoint generateBatchVideos
+- [x] Actualizare videoResults pentru toate videouri failed
+- [x] Toast notification cu număr videouri retrimise
+- [x] Funcție regenerateAllFailed() implementată
+- [x] Loading state cu Loader2 pe buton
+
+### Modify & Regenerate
+- [x] Form expandabil cu toate opțiunile:
+  - [x] Select Prompt Type (NEUTRAL/SMILING/CTA)
+  - [x] Textarea prompt custom (opțional, override hardcoded)
+  - [x] Textarea text dialogue (editabil)
+  - [x] Char count live cu validare 125 caractere
+- [x] Buton "Regenerate" care trimite cu setări modificate
+- [x] Actualizare videoResults cu nou taskId
+- [x] Actualizare combinations cu text și promptType modificate
+- [x] Închidere form după regenerare
+- [x] Toast notification "Video retrimis cu modificări"
+- [x] Funcție regenerateWithModifications() implementată
+- [x] Validare: disable buton dacă text > 125 caractere sau gol
+- [x] Loading state cu Loader2 pe buton

@@ -559,6 +559,269 @@ export default function Home() {
     toast.success(`Descărcare video #${index + 1} pornită`);
   };
 
+  // Regenerare toate videouri failed
+  const regenerateAllFailed = async () => {
+    const failedIndexes = videoResults
+      .map((v, i) => ({ video: v, index: i }))
+      .filter(({ video }) => video.status === 'failed')
+      .map(({ index }) => index);
+    
+    if (failedIndexes.length === 0) {
+      toast.error('Nu există videouri failed de regenerat');
+      return;
+    }
+
+    try {
+      toast.info(`Se retrimite ${failedIndexes.length} videouri...`);
+      
+      // Grupează pe tip de prompt
+      const combinationsByPrompt: Record<PromptType, Array<{ combo: typeof combinations[0], index: number }>> = {
+        PROMPT_NEUTRAL: [],
+        PROMPT_SMILING: [],
+        PROMPT_CTA: [],
+      };
+
+      failedIndexes.forEach(index => {
+        const combo = combinations[index];
+        if (combo) {
+          combinationsByPrompt[combo.promptType].push({ combo, index });
+        }
+      });
+
+      let successCount = 0;
+      let failCount = 0;
+
+      // Regenerează pentru fiecare tip de prompt
+      for (const [promptType, items] of Object.entries(combinationsByPrompt)) {
+        if (items.length === 0) continue;
+
+        // Determină prompt template
+        let promptTemplate: string;
+        let customPrompt;
+        
+        if (promptType === 'PROMPT_NEUTRAL') {
+          customPrompt = prompts.find(p => p.name.toUpperCase().includes('NEUTRAL'));
+        } else if (promptType === 'PROMPT_SMILING') {
+          customPrompt = prompts.find(p => p.name.toUpperCase().includes('SMILING'));
+        } else if (promptType === 'PROMPT_CTA') {
+          customPrompt = prompts.find(p => p.name.toUpperCase().includes('CTA'));
+        }
+        
+        if (customPrompt) {
+          promptTemplate = customPrompt.template;
+        } else {
+          promptTemplate = `HARDCODED_${promptType}`;
+        }
+
+        const result = await generateBatchMutation.mutateAsync({
+          promptTemplate: promptTemplate,
+          combinations: items.map(({ combo }) => ({
+            text: combo.text,
+            imageUrl: combo.imageUrl,
+          })),
+        });
+
+        // Actualizează videoResults
+        result.results.forEach((newResult: any, i: number) => {
+          const originalIndex = items[i].index;
+          
+          setVideoResults(prev =>
+            prev.map((v, idx) =>
+              idx === originalIndex
+                ? {
+                    ...v,
+                    taskId: newResult.taskId,
+                    status: newResult.success ? 'pending' as const : 'failed' as const,
+                    error: newResult.error,
+                    videoUrl: undefined,
+                  }
+                : v
+            )
+          );
+
+          if (newResult.success) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        });
+      }
+
+      if (successCount > 0) {
+        toast.success(`${successCount} videouri retrimise pentru generare`);
+      }
+      if (failCount > 0) {
+        toast.error(`${failCount} videouri au eșuat din nou`);
+      }
+    } catch (error: any) {
+      toast.error(`Eroare la regenerare batch: ${error.message}`);
+    }
+  };
+
+  // Regenerare video cu modificări (Modify & Regenerate)
+  const regenerateWithModifications = async (index: number) => {
+    const combo = combinations[index];
+    
+    if (!combo) {
+      toast.error('Combinație nu găsită');
+      return;
+    }
+
+    // Validare text (maxim 125 caractere)
+    if (modifyDialogueText.length > 125) {
+      toast.error('Textul depășește 125 de caractere!');
+      return;
+    }
+
+    if (modifyDialogueText.trim().length === 0) {
+      toast.error('Textul nu poate fi gol!');
+      return;
+    }
+
+    try {
+      // Determină prompt template
+      let promptTemplate: string;
+      
+      // Dacă utilizatorul a editat promptul custom, folosește-l
+      if (modifyPromptText.trim().length > 0) {
+        promptTemplate = modifyPromptText;
+      } else {
+        // Altfel, folosește prompt type selectat
+        let customPrompt;
+        if (modifyPromptType === 'PROMPT_NEUTRAL') {
+          customPrompt = prompts.find(p => p.name.toUpperCase().includes('NEUTRAL'));
+        } else if (modifyPromptType === 'PROMPT_SMILING') {
+          customPrompt = prompts.find(p => p.name.toUpperCase().includes('SMILING'));
+        } else if (modifyPromptType === 'PROMPT_CTA') {
+          customPrompt = prompts.find(p => p.name.toUpperCase().includes('CTA'));
+        }
+        
+        if (customPrompt) {
+          promptTemplate = customPrompt.template;
+        } else {
+          promptTemplate = `HARDCODED_${modifyPromptType}`;
+        }
+      }
+
+      const result = await generateBatchMutation.mutateAsync({
+        promptTemplate: promptTemplate,
+        combinations: [{
+          text: modifyDialogueText, // Folosește textul modificat
+          imageUrl: combo.imageUrl,
+        }],
+      });
+
+      const newResult = result.results[0];
+      
+      // Actualizează videoResults și combinations cu noul text
+      setVideoResults(prev =>
+        prev.map((v, i) =>
+          i === index
+            ? {
+                ...v,
+                text: modifyDialogueText, // Update text
+                taskId: newResult.taskId,
+                status: newResult.success ? 'pending' as const : 'failed' as const,
+                error: newResult.error,
+                videoUrl: undefined,
+              }
+            : v
+        )
+      );
+      
+      // Update combinations cu noul prompt type și text
+      setCombinations(prev =>
+        prev.map((c, i) =>
+          i === index
+            ? {
+                ...c,
+                text: modifyDialogueText,
+                promptType: modifyPromptType,
+              }
+            : c
+        )
+      );
+
+      // Închide form-ul
+      setModifyingVideoIndex(null);
+      setModifyPromptText('');
+      setModifyDialogueText('');
+
+      if (newResult.success) {
+        toast.success(`Video #${index + 1} retrimis cu modificări`);
+      } else {
+        toast.error(`Eroare la retrimite video #${index + 1}: ${newResult.error}`);
+      }
+    } catch (error: any) {
+      toast.error(`Eroare la regenerare cu modificări: ${error.message}`);
+    }
+  };
+
+  // Regenerare video individual cu aceleași setări
+  const regenerateSingleVideo = async (index: number) => {
+    const video = videoResults[index];
+    const combo = combinations[index];
+    
+    if (!combo) {
+      toast.error('Combinație nu găsită');
+      return;
+    }
+
+    try {
+      // Determină prompt template (custom sau hardcoded)
+      let promptTemplate: string;
+      const promptType = combo.promptType;
+      
+      let customPrompt;
+      if (promptType === 'PROMPT_NEUTRAL') {
+        customPrompt = prompts.find(p => p.name.toUpperCase().includes('NEUTRAL'));
+      } else if (promptType === 'PROMPT_SMILING') {
+        customPrompt = prompts.find(p => p.name.toUpperCase().includes('SMILING'));
+      } else if (promptType === 'PROMPT_CTA') {
+        customPrompt = prompts.find(p => p.name.toUpperCase().includes('CTA'));
+      }
+      
+      if (customPrompt) {
+        promptTemplate = customPrompt.template;
+      } else {
+        promptTemplate = `HARDCODED_${promptType}`;
+      }
+
+      const result = await generateBatchMutation.mutateAsync({
+        promptTemplate: promptTemplate,
+        combinations: [{
+          text: combo.text,
+          imageUrl: combo.imageUrl,
+        }],
+      });
+
+      const newResult = result.results[0];
+      
+      // Actualizează videoResults cu noul taskId
+      setVideoResults(prev =>
+        prev.map((v, i) =>
+          i === index
+            ? {
+                ...v,
+                taskId: newResult.taskId,
+                status: newResult.success ? 'pending' as const : 'failed' as const,
+                error: newResult.error,
+                videoUrl: undefined, // Reset videoUrl
+              }
+            : v
+        )
+      );
+
+      if (newResult.success) {
+        toast.success(`Video #${index + 1} retrimis pentru generare`);
+      } else {
+        toast.error(`Eroare la retrimite video #${index + 1}: ${newResult.error}`);
+      }
+    } catch (error: any) {
+      toast.error(`Eroare la regenerare: ${error.message}`);
+    }
+  };
+
   // Auto-check status din 10 în 10 secunde de la început
   useEffect(() => {
     if (videoResults.length === 0) return;
@@ -1226,12 +1489,18 @@ export default function Home() {
                                     <div className="flex gap-2">
                                       <Button
                                         size="sm"
-                                        onClick={() => {
-                                          toast.info('Regenerare cu modificări - feature în curs de implementare');
-                                        }}
+                                        onClick={() => regenerateWithModifications(index)}
+                                        disabled={generateBatchMutation.isPending || modifyDialogueText.length > 125 || modifyDialogueText.trim().length === 0}
                                         className="flex-1 bg-orange-600 hover:bg-orange-700"
                                       >
-                                        Regenerate
+                                        {generateBatchMutation.isPending ? (
+                                          <>
+                                            <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                                            Se trimite...
+                                          </>
+                                        ) : (
+                                          'Regenerate'
+                                        )}
                                       </Button>
                                       <Button
                                         size="sm"
@@ -1250,9 +1519,7 @@ export default function Home() {
                                 <Button
                                   size="sm"
                                   variant="destructive"
-                                  onClick={() => {
-                                    toast.info('Regenerare video - feature în curs de implementare');
-                                  }}
+                                  onClick={() => regenerateSingleVideo(index)}
                                   className="bg-red-600 hover:bg-red-700"
                                 >
                                   Regenerate
@@ -1284,13 +1551,21 @@ export default function Home() {
               {videoResults.some(v => v.status === 'failed') && (
                 <div className="mt-6">
                   <Button
-                    onClick={() => {
-                      toast.info('Regenerare toate videouri failed - feature în curs de implementare');
-                    }}
+                    onClick={regenerateAllFailed}
+                    disabled={generateBatchMutation.isPending}
                     className="bg-red-600 hover:bg-red-700 w-full py-4 text-base"
                   >
-                    <X className="w-5 h-5 mr-2" />
-                    Regenerate ALL Failed ({videoResults.filter(v => v.status === 'failed').length})
+                    {generateBatchMutation.isPending ? (
+                      <>
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        Se retrimite...
+                      </>
+                    ) : (
+                      <>
+                        <X className="w-5 h-5 mr-2" />
+                        Regenerate ALL Failed ({videoResults.filter(v => v.status === 'failed').length})
+                      </>
+                    )}
                   </Button>
                 </div>
               )}
