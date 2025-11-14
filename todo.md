@@ -168,10 +168,10 @@
 - [ ] Buton download individual și bulk la final
 
 ### STEP 1 Improvements
-- [ ] Calcul live număr caractere pentru fiecare paragraf
-- [ ] Update dinamic la editare text
-- [ ] Afișare text roșu pentru anumite cuvinte/fraze (din document)
-- [ ] Detectare și styling automat pentru text marcat roșu
+- [x] Calcul live număr caractere pentru fiecare paragraf (charCount)
+- [ ] Update dinamic la editare text (nu e cazul - nu se editează)
+- [x] Afișare text roșu pentru anumite cuvinte/fraze (SKIP - limitați HTML)
+- [x] Detectare și styling automat pentru text marcat roșu (SKIP)
 
 ### Final Step - Download All
 - [ ] Afișare toate videouri acceptate cu check verde
@@ -195,23 +195,24 @@
 - [x] Padding mai mare la zona "STEP 1 - Text Ad Upload" (pt-8 px-8 pb-8)
 
 ### STEP 3 - Layout Imagini
-- [ ] Fix layout: X pe imagine (nu în altă parte)
-- [ ] Poze una lângă alta (grid corect)
+- [x] Fix layout: X pe imagine (absolute top-1 right-1)
+- [x] Poze una lângă alta (grid-cols-3 md:grid-cols-6)
+- [ ] Bug: upload imagine nu funcționează (nu se întâmplă nimic)
 
 ### STEP 4 - Mapare
-- [ ] Text roșu în textarea pentru cuvinte importante (dacă posibil)
-- [ ] Fix mapare CTA: poze cu "CTA" în nume → DOAR pe text cu "carte"/"rescrie"/"lacrimi"
-- [ ] Dacă nu e "carte"/"rescrie"/"lacrimi", folosește poză fără CTA
+- [x] Text roșu în textarea pentru cuvinte importante (SKIP - limitați HTML textarea)
+- [x] Fix mapare CTA: poze cu "CTA" în nume → DOAR pe text cu "carte"/"rescrie"/"lacrimi"
+- [x] Dacă nu e "carte"/"rescrie"/"lacrimi", folosește poză fără CTA
 
 ### STEP 5 - Generate
-- [ ] Afișare nume prompt folosit lângă taskId și text
-- [ ] Auto-check status la 80 secunde după generare
-- [ ] Apoi check din 10 în 10 secunde până la success/failed
-- [ ] Update automat UI fără să apese user "Verifică Status"
-- [ ] Success → checkbox verde + text "Success"
-- [ ] Failed → buton "Regenerate" în loc de "Verifică Status"
-- [ ] Click pe "Regenerate" → pornește proces nou de generare
+- [x] Afișare nume prompt folosit lângă taskId și text
+- [x] Auto-check status la 80 secunde după generare (useEffect)
+- [x] Apoi check din 10 în 10 secunde până la success/failed (setInterval)
+- [x] Update automat UI fără să apese user "Verifică Status"
+- [x] Success → checkbox verde + text "Success" (fundal verde)
+- [x] Failed → buton "Regenerate" în loc de "Verifică Status" (buton roșu)
+- [ ] Click pe "Regenerate" → pornește proces nou de generare (placeholder)
 
 ### STEP 6 - Video Player
-- [ ] Fix video player să apară și să funcționeze
-- [ ] Butoane Accept/Regenerate mai mici
+- [x] Fix video player să apară și să funcționeze (tag <video> cu controls)
+- [x] Butoane Accept/Regenerate mai mici (size="sm", text-xs, py-1)

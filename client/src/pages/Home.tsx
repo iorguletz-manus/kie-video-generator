@@ -740,8 +740,12 @@ export default function Home() {
                   <div className="space-y-2 max-h-60 overflow-y-auto">
                     {adLines.map((line, index) => (
                       <div key={line.id} className="p-3 bg-white rounded border border-blue-200 text-sm">
-                        <span className="font-medium text-blue-700">#{index + 1}:</span> {line.text}
-                        <span className="ml-2 text-xs text-gray-500">({line.promptType})</span>
+                        <div className="flex justify-between items-start mb-1">
+                          <span className="font-medium text-blue-700">#{index + 1}:</span>
+                          <span className="text-xs text-gray-500">{line.charCount} caractere</span>
+                        </div>
+                        <p>{line.text}</p>
+                        <span className="text-xs text-gray-500">({line.promptType})</span>
                       </div>
                     ))}
                   </div>
@@ -1075,8 +1079,13 @@ export default function Home() {
                           <span className="font-medium">Text:</span> {result.text.substring(0, 100)}...
                         </p>
                         {result.taskId && (
-                          <p className="text-xs text-blue-700 mb-2">
+                          <p className="text-xs text-blue-700 mb-1">
                             TaskID: {result.taskId}
+                          </p>
+                        )}
+                        {combinations[index]?.promptType && (
+                          <p className="text-xs text-gray-600 mb-2">
+                            <span className="font-medium">Prompt:</span> {combinations[index].promptType}
                           </p>
                         )}
                         <div className="flex items-center gap-2">
@@ -1098,14 +1107,18 @@ export default function Home() {
                           )}
                           {result.status === 'success' && result.videoUrl && (
                             <>
-                              <Check className="w-4 h-4 text-green-600" />
+                              <div className="flex items-center gap-2 bg-green-50 px-3 py-1 rounded">
+                                <Check className="w-4 h-4 text-green-600" />
+                                <span className="text-sm text-green-600 font-medium">Success</span>
+                              </div>
                               <a
                                 href={result.videoUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-sm text-green-600 hover:underline flex-1"
+                                className="text-sm text-blue-600 hover:underline flex-1 truncate"
+                                title={result.videoUrl}
                               >
-                                {result.videoUrl}
+                                {result.videoUrl.substring(0, 50)}...
                               </a>
                               <Button
                                 size="sm"
@@ -1119,10 +1132,22 @@ export default function Home() {
                           )}
                           {result.status === 'failed' && (
                             <>
-                              <X className="w-4 h-4 text-red-600" />
-                              <span className="text-sm text-red-600 font-medium">
-                                Eșuat: {result.error || 'Unknown error'}
-                              </span>
+                              <div className="flex items-center gap-2 bg-red-50 px-3 py-1 rounded">
+                                <X className="w-4 h-4 text-red-600" />
+                                <span className="text-sm text-red-600 font-medium">
+                                  Failed: {result.error || 'Unknown error'}
+                                </span>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => {
+                                  toast.info('Regenerare video - feature în curs de implementare');
+                                }}
+                                className="ml-auto bg-red-600 hover:bg-red-700"
+                              >
+                                Regenerate
+                              </Button>
                             </>
                           )}
                         </div>
@@ -1205,22 +1230,24 @@ export default function Home() {
                             />
                           )}
                           
-                          {/* Butoane Accept / Regenerate */}
+                          {/* Butoane Accept / Regenerate - mici */}
                           <div className="flex gap-2">
                             {video.reviewStatus === 'accepted' ? (
                               <Button
                                 disabled
-                                className="flex-1 bg-green-600 text-white"
+                                size="sm"
+                                className="flex-1 bg-green-600 text-white text-xs py-1"
                               >
-                                <Check className="w-4 h-4 mr-1" />
+                                <Check className="w-3 h-3 mr-1" />
                                 Acceptat
                               </Button>
                             ) : (
                               <Button
                                 onClick={() => acceptVideo(video.videoName)}
-                                className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                                size="sm"
+                                className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs py-1"
                               >
-                                <Check className="w-4 h-4 mr-1" />
+                                <Check className="w-3 h-3 mr-1" />
                                 Accept
                               </Button>
                             )}
@@ -1228,15 +1255,17 @@ export default function Home() {
                             {video.reviewStatus === 'regenerate' ? (
                               <Button
                                 disabled
-                                className="flex-1 bg-red-600 text-white"
+                                size="sm"
+                                className="flex-1 bg-red-600 text-white text-xs py-1"
                               >
-                                <X className="w-4 h-4 mr-1" />
+                                <X className="w-3 h-3 mr-1" />
                                 Regenerare
                               </Button>
                             ) : (
                               <Button
                                 onClick={() => regenerateVideo(video.videoName)}
-                                className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                                size="sm"
+                                className="flex-1 bg-red-600 hover:bg-red-700 text-white text-xs py-1"
                               >
                                 <X className="w-4 h-4 mr-1" />
                                 Regenerate
