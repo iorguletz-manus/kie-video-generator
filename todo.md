@@ -384,3 +384,40 @@
 - [x] Download batch cu fetch + blob pentru fiecare video
 - [x] Counter videouri acceptate
 - [x] Toast notifications pentru download
+
+
+## New User Request - Session Management & Auto-Save
+
+### Auto-Save la Refresh
+- [x] Salvare automată în localStorage la fiecare schimbare de state
+- [x] State-uri de salvat:
+  - [x] currentStep
+  - [x] adLines
+  - [x] prompts (fără File objects, doar template)
+  - [x] images
+  - [x] combinations
+  - [x] videoResults
+  - [x] reviewHistory
+  - [x] selectedVideoIndex, regenerateVariants, etc.
+- [x] Auto-restore la mount/refresh din localStorage
+- [x] Debounce save pentru a nu suprasolicita localStorage (1 secundă)
+- [x] useEffect cu dependency array complet pentru toate state-urile
+- [x] isRestoringSession flag pentru a evita save în timpul restore
+
+### Session Management
+- [x] UI Session Management sus în pagină:
+  - [x] Selector dropdown pentru sesiuni salvate
+  - [x] Buton "Save Session" cu prompt pentru nume sesiune
+  - [x] Buton "Load Session" (click pe selector)
+  - [x] Opțiune "+ Sesiune Nouă" în selector
+  - [x] Buton "Delete" pentru sesiune curentă (disabled pentru default)
+- [x] Logică session management:
+  - [x] Salvare sesiune cu nume și timestamp (saveSession)
+  - [x] Load sesiune din listă (loadSession)
+  - [x] Delete sesiune din listă (deleteSession)
+  - [x] Lista sesiuni în localStorage cu metadata (nume, timestamp, step, nr videouri)
+  - [x] Interface SavedSession cu toate tipurile necesare
+- [x] Preview sesiune în selector: "Session 1 (STEP 5, 10 videos) - 15.01.2024, 10:30"
+- [x] Confirm dialog înainte de delete sesiune (confirm())
+- [x] Confirm dialog înainte de new session (confirm())
+- [x] Toast notifications pentru save/load/delete success

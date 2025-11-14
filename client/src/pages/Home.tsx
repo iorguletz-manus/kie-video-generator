@@ -104,12 +104,229 @@ export default function Home() {
   
   // Current step
   const [currentStep, setCurrentStep] = useState(1);
+  
+  // Session management
+  const [currentSessionId, setCurrentSessionId] = useState<string>('default');
+  const [isRestoringSession, setIsRestoringSession] = useState(true);
 
   // Mutations
   const parseAdMutation = trpc.video.parseAdDocument.useMutation();
   const parsePromptMutation = trpc.video.parsePromptDocument.useMutation();
   const uploadImageMutation = trpc.video.uploadImage.useMutation();
   const generateBatchMutation = trpc.video.generateBatchVideos.useMutation();
+  
+  // Session management functions
+  interface SavedSession {
+    id: string;
+    name: string;
+    currentStep: number;
+    adLines?: AdLine[];
+    prompts?: UploadedPrompt[];
+    images?: UploadedImage[];
+    combinations?: Combination[];
+    deletedCombinations?: Combination[];
+    videoResults?: VideoResult[];
+    reviewHistory?: Array<{
+      videoName: string;
+      previousStatus: 'pending' | 'accepted' | 'regenerate' | null;
+      newStatus: 'pending' | 'accepted' | 'regenerate' | null;
+    }>;
+    selectedVideoIndex?: number;
+    regenerateMultiple?: boolean;
+    regenerateVariantCount?: number;
+    regenerateVariants?: Array<{
+      promptType: PromptType | 'custom';
+      promptText: string;
+      dialogueText: string;
+      imageUrl: string;
+    }>;
+    videoCount: number;
+    timestamp: string;
+  }
+  
+  const getSavedSessions = (): SavedSession[] => {
+    try {
+      const sessions = localStorage.getItem('kie-video-generator-sessions');
+      return sessions ? JSON.parse(sessions) : [];
+    } catch (error) {
+      console.error('Eroare la citire sesiuni:', error);
+      return [];
+    }
+  };
+  
+  const saveSession = (name: string) => {
+    try {
+      const session = {
+        id: currentSessionId,
+        name,
+        currentStep,
+        adLines,
+        prompts: prompts.map(p => ({ ...p, file: null })),
+        images,
+        combinations,
+        deletedCombinations,
+        videoResults,
+        reviewHistory,
+        selectedVideoIndex,
+        regenerateMultiple,
+        regenerateVariantCount,
+        regenerateVariants,
+        videoCount: videoResults.length,
+        timestamp: new Date().toISOString(),
+      };
+      
+      const sessions = getSavedSessions();
+      const existingIndex = sessions.findIndex(s => s.id === currentSessionId);
+      
+      if (existingIndex >= 0) {
+        sessions[existingIndex] = session;
+      } else {
+        sessions.push(session);
+      }
+      
+      localStorage.setItem('kie-video-generator-sessions', JSON.stringify(sessions));
+      toast.success(`Sesiune "${name}" salvată!`);
+    } catch (error) {
+      console.error('Eroare la salvare sesiune:', error);
+      toast.error('Eroare la salvare sesiune');
+    }
+  };
+  
+  const loadSession = (sessionId: string) => {
+    try {
+      const sessions = getSavedSessions();
+      const session = sessions.find(s => s.id === sessionId);
+      
+      if (!session) {
+        toast.error('Sesiune negăsită');
+        return;
+      }
+      
+      // Restore state-uri
+      if (session.currentStep) setCurrentStep(session.currentStep);
+      if (session.adLines) setAdLines(session.adLines);
+      if (session.prompts) setPrompts(session.prompts);
+      if (session.images) setImages(session.images);
+      if (session.combinations) setCombinations(session.combinations);
+      if (session.deletedCombinations) setDeletedCombinations(session.deletedCombinations);
+      if (session.videoResults) setVideoResults(session.videoResults);
+      if (session.reviewHistory) setReviewHistory(session.reviewHistory);
+      if (session.selectedVideoIndex !== undefined) setSelectedVideoIndex(session.selectedVideoIndex);
+      if (session.regenerateMultiple !== undefined) setRegenerateMultiple(session.regenerateMultiple);
+      if (session.regenerateVariantCount) setRegenerateVariantCount(session.regenerateVariantCount);
+      if (session.regenerateVariants) setRegenerateVariants(session.regenerateVariants);
+      
+      toast.success(`Sesiune "${session.name}" încărcată!`);
+    } catch (error) {
+      console.error('Eroare la încărcare sesiune:', error);
+      toast.error('Eroare la încărcare sesiune');
+    }
+  };
+  
+  const deleteSession = (sessionId: string) => {
+    try {
+      const sessions = getSavedSessions();
+      const filteredSessions = sessions.filter(s => s.id !== sessionId);
+      
+      localStorage.setItem('kie-video-generator-sessions', JSON.stringify(filteredSessions));
+      
+      // Reset la default session
+      setCurrentSessionId('default');
+      setCurrentStep(1);
+      setAdLines([]);
+      setPrompts([]);
+      setImages([]);
+      setCombinations([]);
+      setDeletedCombinations([]);
+      setVideoResults([]);
+      setReviewHistory([]);
+      setSelectedVideoIndex(-1);
+      setRegenerateMultiple(false);
+      setRegenerateVariantCount(1);
+      setRegenerateVariants([]);
+      
+      toast.success('Sesiune ștearsă!');
+    } catch (error) {
+      console.error('Eroare la ștergere sesiune:', error);
+      toast.error('Eroare la ștergere sesiune');
+    }
+  };
+  
+  // Auto-restore session la mount
+  useEffect(() => {
+    try {
+      const savedSession = localStorage.getItem('kie-video-generator-session');
+      if (savedSession) {
+        const session = JSON.parse(savedSession);
+        
+        // Restore state-uri
+        if (session.currentStep) setCurrentStep(session.currentStep);
+        if (session.adLines) setAdLines(session.adLines);
+        if (session.prompts) setPrompts(session.prompts);
+        if (session.images) setImages(session.images);
+        if (session.combinations) setCombinations(session.combinations);
+        if (session.deletedCombinations) setDeletedCombinations(session.deletedCombinations);
+        if (session.videoResults) setVideoResults(session.videoResults);
+        if (session.reviewHistory) setReviewHistory(session.reviewHistory);
+        if (session.selectedVideoIndex !== undefined) setSelectedVideoIndex(session.selectedVideoIndex);
+        if (session.regenerateMultiple !== undefined) setRegenerateMultiple(session.regenerateMultiple);
+        if (session.regenerateVariantCount) setRegenerateVariantCount(session.regenerateVariantCount);
+        if (session.regenerateVariants) setRegenerateVariants(session.regenerateVariants);
+        
+        toast.success('Sesiune restaurată!');
+      }
+    } catch (error) {
+      console.error('Eroare la restore session:', error);
+      toast.error('Eroare la restaurare sesiune');
+    } finally {
+      setIsRestoringSession(false);
+    }
+  }, []);
+  
+  // Auto-save session la fiecare schimbare (debounced)
+  useEffect(() => {
+    if (isRestoringSession) return; // Nu salva în timpul restore
+    
+    const timeoutId = setTimeout(() => {
+      try {
+        const session = {
+          currentStep,
+          adLines,
+          prompts: prompts.map(p => ({ ...p, file: null })), // Exclude File objects
+          images,
+          combinations,
+          deletedCombinations,
+          videoResults,
+          reviewHistory,
+          selectedVideoIndex,
+          regenerateMultiple,
+          regenerateVariantCount,
+          regenerateVariants,
+          timestamp: new Date().toISOString(),
+        };
+        
+        localStorage.setItem('kie-video-generator-session', JSON.stringify(session));
+      } catch (error) {
+        console.error('Eroare la save session:', error);
+      }
+    }, 1000); // Debounce 1 secundă
+    
+    return () => clearTimeout(timeoutId);
+  }, [
+    currentStep,
+    adLines,
+    prompts,
+    images,
+    combinations,
+    deletedCombinations,
+    videoResults,
+    reviewHistory,
+    selectedVideoIndex,
+    regenerateMultiple,
+    regenerateVariantCount,
+    regenerateVariants,
+    isRestoringSession,
+  ]);
 
   // Step 1: Handle ad document upload
   const handleAdDocumentDrop = async (e: React.DragEvent<HTMLDivElement>) => {
@@ -938,6 +1155,85 @@ export default function Home() {
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-blue-900 mb-2">Kie.ai Video Generator</h1>
           <p className="text-blue-700">Generează videouri AI în masă cu Kie.ai Veo 3.1</p>
+        </div>
+
+        {/* Session Management */}
+        <div className="mb-6 p-4 bg-white border-2 border-blue-200 rounded-lg">
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-blue-900 mb-2">
+                Sesiune Curentă:
+              </label>
+              <select
+                value={currentSessionId}
+                onChange={(e) => {
+                  const sessionId = e.target.value;
+                  if (sessionId === 'new') {
+                    // New session
+                    if (confirm('Vrei să începi o sesiune nouă? Sesiunea curentă va fi salvată automat.')) {
+                      setCurrentSessionId(`session-${Date.now()}`);
+                      // Reset all states
+                      setCurrentStep(1);
+                      setAdLines([]);
+                      setPrompts([]);
+                      setImages([]);
+                      setCombinations([]);
+                      setDeletedCombinations([]);
+                      setVideoResults([]);
+                      setReviewHistory([]);
+                      setSelectedVideoIndex(-1);
+                      setRegenerateMultiple(false);
+                      setRegenerateVariantCount(1);
+                      setRegenerateVariants([]);
+                      toast.success('Sesiune nouă creată!');
+                    }
+                  } else {
+                    // Load session
+                    setCurrentSessionId(sessionId);
+                    loadSession(sessionId);
+                  }
+                }}
+                className="w-full p-3 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="default">Default Session</option>
+                {getSavedSessions().map(session => (
+                  <option key={session.id} value={session.id}>
+                    {session.name} (STEP {session.currentStep}, {session.videoCount} videos) - {new Date(session.timestamp).toLocaleString('ro-RO')}
+                  </option>
+                ))}
+                <option value="new">+ Sesiune Nouă</option>
+              </select>
+            </div>
+            
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={() => {
+                  const name = prompt('Nume sesiune:', `Session ${new Date().toLocaleDateString('ro-RO')}`);
+                  if (name) {
+                    saveSession(name);
+                  }
+                }}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                Save Session
+              </Button>
+              
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => {
+                  if (confirm('Sigur vrei să ștergi sesiunea curentă?')) {
+                    deleteSession(currentSessionId);
+                  }
+                }}
+                disabled={currentSessionId === 'default'}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
         </div>
 
         {/* Breadcrumbs */}
