@@ -669,7 +669,7 @@ export default function Home() {
                 Încarcă documentul cu ad-ul (.docx). Liniile vor fi extrase automat.
               </CardDescription>
             </CardHeader>
-            <CardContent className="pt-6">
+            <CardContent className="pt-8 px-8 pb-8">
               <div
                 onDrop={handleAdDocumentDrop}
                 onDragOver={(e) => e.preventDefault()}

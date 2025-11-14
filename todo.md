@@ -182,3 +182,36 @@
 
 ## Bug Fix
 - [x] Fix keywords to remove: suport pentru orice număr HOOKS (H1-H999, nu doar H1-H9)
+
+
+## New Bug Fixes & Improvements (Latest)
+
+### STEP 2 - Prompturi
+- [x] Hardcodare 3 prompturi din documente atașate (server/hardcodedPrompts.ts)
+- [ ] Opțiune să adaugi noi prompturi sau să folosești cele hardcodate
+- [ ] Skip STEP 2 dacă folosești prompturile hardcodate
+
+### STEP 1 - UI
+- [x] Padding mai mare la zona "STEP 1 - Text Ad Upload" (pt-8 px-8 pb-8)
+
+### STEP 3 - Layout Imagini
+- [ ] Fix layout: X pe imagine (nu în altă parte)
+- [ ] Poze una lângă alta (grid corect)
+
+### STEP 4 - Mapare
+- [ ] Text roșu în textarea pentru cuvinte importante (dacă posibil)
+- [ ] Fix mapare CTA: poze cu "CTA" în nume → DOAR pe text cu "carte"/"rescrie"/"lacrimi"
+- [ ] Dacă nu e "carte"/"rescrie"/"lacrimi", folosește poză fără CTA
+
+### STEP 5 - Generate
+- [ ] Afișare nume prompt folosit lângă taskId și text
+- [ ] Auto-check status la 80 secunde după generare
+- [ ] Apoi check din 10 în 10 secunde până la success/failed
+- [ ] Update automat UI fără să apese user "Verifică Status"
+- [ ] Success → checkbox verde + text "Success"
+- [ ] Failed → buton "Regenerate" în loc de "Verifică Status"
+- [ ] Click pe "Regenerate" → pornește proces nou de generare
+
+### STEP 6 - Video Player
+- [ ] Fix video player să apară și să funcționeze
+- [ ] Butoane Accept/Regenerate mai mici
