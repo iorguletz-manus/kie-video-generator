@@ -12,7 +12,7 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 import { saveVideoTask, updateVideoTask } from "./videoCache";
-import { parseAdDocument, parsePromptDocument, replaceInsertText } from "./documentParser";
+import { parseAdDocument, parsePromptDocument, replaceInsertText, parseAdDocumentWithSections, PromptType } from "./documentParser";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -271,7 +271,7 @@ export const appRouter = router({
         }
       }),
 
-    // Parsare document ad
+    // Parsare document ad cu detectare secțiuni
     parseAdDocument: publicProcedure
       .input(z.object({
         documentData: z.string(), // base64
@@ -281,11 +281,11 @@ export const appRouter = router({
           const base64Data = input.documentData.replace(/^data:application\/[^;]+;base64,/, "");
           const buffer = Buffer.from(base64Data, 'base64');
           
-          const lines = await parseAdDocument(buffer);
+          const linesWithSections = await parseAdDocumentWithSections(buffer);
           
           return {
             success: true,
-            lines: lines,
+            lines: linesWithSections,
           };
         } catch (error: any) {
           console.error('Error parsing ad document:', error);

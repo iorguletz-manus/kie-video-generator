@@ -75,3 +75,35 @@
 - [x] Componente drag & drop reutilizabile
 - [x] Gestionare state complex pentru workflow
 - [x] Validare la fiecare pas înainte de a trece la următorul
+
+
+## New Improvements & Bug Fixes
+
+### UI/UX Improvements
+- [x] Fix buton verifică status: afișează buton "Download" când video este success
+- [x] Culori status: roșu (failed), portocaliu (pending), verde (success)
+- [x] Afișare link video când status = success
+- [x] Text suport format gri italic pentru toate step-urile (ex: "Suportă .docx, .doc")
+- [x] Thumbnail-uri 9:16 peste tot (nu 16:9)
+- [x] Buton UNDO la ștergere combinație în step 4
+- [x] Statistici jos deasupra butonului "Generează X videouri"
+
+### Navigation & Breadcrumbs
+- [x] Implementare breadcrumbs navigabile
+- [x] Click pe breadcrumb pentru navigare directă
+- [x] Buton back pentru navigare înapoi
+- [x] Ascundere step completat când se trece la următorul
+- [x] Afișare doar step curent + breadcrumbs
+
+### Multi-Prompt System
+- [x] Upload 3 prompturi în step 2 (în loc de 1)
+- [x] Salvare nume document pentru fiecare prompt
+- [x] Select prompt la mapare (în loc de textarea)
+- [x] Denumiri prompturi: $PROMPT_NEUTRAL, $PROMPT_SMILING, $PROMPT_CTA
+
+### Intelligent Mapping
+- [x] Detectare secțiuni în document ad (HOOKS, TRANSFORMATION, CTA, etc.)
+- [x] Mapare automată: secțiuni până la TRANSFORMATION → $PROMPT_NEUTRAL
+- [x] Mapare automată: TRANSFORMATION + CTA → $PROMPT_SMILING
+- [x] Mapare automată: CTA cu keywords "carte"/"cartea" → $PROMPT_CTA
+- [x] Backend: funcție pentru detectare secțiune din linie text

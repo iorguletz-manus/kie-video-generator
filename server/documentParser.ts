@@ -88,3 +88,114 @@ export async function parsePromptDocument(buffer: Buffer): Promise<string> {
 export function replaceInsertText(promptTemplate: string, text: string): string {
   return promptTemplate.replace('[INSERT TEXT]', text);
 }
+
+/**
+ * Tipuri de secțiuni din document ad
+ */
+export type SectionType = 'HOOKS' | 'TRANSFORMATION' | 'CTA' | 'OTHER';
+
+/**
+ * Tipuri de prompturi
+ */
+export type PromptType = 'PROMPT_NEUTRAL' | 'PROMPT_SMILING' | 'PROMPT_CTA';
+
+/**
+ * Detectează tipul de secțiune pentru o linie de text
+ */
+export function detectSection(line: string, allLines: string[], lineIndex: number): SectionType {
+  const upperLine = line.toUpperCase();
+  
+  // Verifică dacă linia conține keywords pentru CTA
+  if (upperLine.includes('CARTE') || upperLine.includes('CARTEA')) {
+    return 'CTA';
+  }
+  
+  // Caută în liniile anterioare pentru a determina secțiunea
+  for (let i = lineIndex; i >= 0; i--) {
+    const prevLine = allLines[i].toUpperCase().trim();
+    
+    if (prevLine.startsWith('CTA')) {
+      return 'CTA';
+    }
+    if (prevLine.startsWith('TRANSFORMATION')) {
+      return 'TRANSFORMATION';
+    }
+    if (prevLine.startsWith('HOOKS') || prevLine.startsWith('H1') || prevLine.startsWith('H2')) {
+      return 'HOOKS';
+    }
+  }
+  
+  return 'OTHER';
+}
+
+/**
+ * Determină promptul potrivit pentru o secțiune
+ */
+export function getPromptForSection(section: SectionType): PromptType {
+  switch (section) {
+    case 'HOOKS':
+    case 'OTHER':
+      return 'PROMPT_NEUTRAL';
+    case 'TRANSFORMATION':
+      return 'PROMPT_SMILING';
+    case 'CTA':
+      return 'PROMPT_CTA';
+    default:
+      return 'PROMPT_NEUTRAL';
+  }
+}
+
+/**
+ * Parsează document ad și returnează linii cu secțiuni detectate
+ */
+export async function parseAdDocumentWithSections(buffer: Buffer): Promise<Array<{
+  text: string;
+  section: SectionType;
+  promptType: PromptType;
+}>> {
+  try {
+    const result = await mammoth.extractRawText({ buffer });
+    const text = result.value;
+    
+    const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+    const allLines = [...lines]; // Copie pentru referință
+    
+    const processedLines: Array<{
+      text: string;
+      section: SectionType;
+      promptType: PromptType;
+    }> = [];
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
+      // Verifică dacă linia este un keyword de eliminat
+      const isKeyword = KEYWORDS_TO_REMOVE.some(keyword => 
+        line.toUpperCase().startsWith(keyword.toUpperCase())
+      );
+      
+      if (isKeyword) {
+        continue; // Skip keywords
+      }
+      
+      // Elimină contorul de caractere
+      let cleanedLine = line.replace(/\s*-\s*\d+\s*chars?\s*$/i, '').trim();
+      
+      if (cleanedLine.length > 0) {
+        const section = detectSection(cleanedLine, allLines, i);
+        const promptType = getPromptForSection(section);
+        
+        processedLines.push({
+          text: cleanedLine,
+          section: section,
+          promptType: promptType,
+        });
+      }
+    }
+    
+    return processedLines;
+  } catch (error: any) {
+    console.error('Error parsing ad document with sections:', error);
+    throw new Error(`Failed to parse ad document: ${error.message}`);
+  }
+}

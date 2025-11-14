@@ -4,11 +4,23 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Upload, X, Check, Loader2, Video, FileText, Image as ImageIcon, Map, Play } from "lucide-react";
+import { Upload, X, Check, Loader2, Video, FileText, Image as ImageIcon, Map, Play, Download, Undo2, ChevronLeft } from "lucide-react";
+
+type PromptType = 'PROMPT_NEUTRAL' | 'PROMPT_SMILING' | 'PROMPT_CTA';
+type SectionType = 'HOOKS' | 'TRANSFORMATION' | 'CTA' | 'OTHER';
 
 interface AdLine {
   id: string;
   text: string;
+  section: SectionType;
+  promptType: PromptType;
+}
+
+interface UploadedPrompt {
+  id: string;
+  name: string;
+  template: string;
+  file: File;
 }
 
 interface UploadedImage {
@@ -22,6 +34,7 @@ interface Combination {
   text: string;
   imageUrl: string;
   imageId: string;
+  promptType: PromptType;
 }
 
 interface VideoResult {
@@ -38,16 +51,15 @@ export default function Home() {
   const [adDocument, setAdDocument] = useState<File | null>(null);
   const [adLines, setAdLines] = useState<AdLine[]>([]);
   
-  // Step 2: Prompt
-  const [promptDocument, setPromptDocument] = useState<File | null>(null);
-  const [promptTemplate, setPromptTemplate] = useState<string>("");
-  const [manualPrompt, setManualPrompt] = useState<string>("");
+  // Step 2: Prompts (3 prompts)
+  const [prompts, setPrompts] = useState<UploadedPrompt[]>([]);
   
   // Step 3: Images
   const [images, setImages] = useState<UploadedImage[]>([]);
   
   // Step 4: Mapping
   const [combinations, setCombinations] = useState<Combination[]>([]);
+  const [deletedCombinations, setDeletedCombinations] = useState<Combination[]>([]);
   
   // Step 5: Generate
   const [videoResults, setVideoResults] = useState<VideoResult[]>([]);
@@ -88,9 +100,11 @@ export default function Home() {
         const base64 = event.target?.result as string;
         const result = await parseAdMutation.mutateAsync({ documentData: base64 });
         
-        const lines: AdLine[] = result.lines.map((line, index) => ({
+        const lines: AdLine[] = result.lines.map((line: any, index: number) => ({
           id: `line-${index}`,
-          text: line,
+          text: line.text,
+          section: line.section,
+          promptType: line.promptType,
         }));
         
         setAdLines(lines);
@@ -102,41 +116,47 @@ export default function Home() {
     }
   };
 
-  // Step 2: Handle prompt document upload
+  // Step 2: Handle prompt documents upload (3 prompts)
   const handlePromptDocumentDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file && (file.name.endsWith('.docx') || file.name.endsWith('.doc'))) {
-      setPromptDocument(file);
-      await parsePromptDocument(file);
-    } else {
-      toast.error("Te rog încarcă un document .docx");
-    }
+    const files = Array.from(e.dataTransfer.files);
+    await uploadPrompts(files);
   };
 
   const handlePromptDocumentSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setPromptDocument(file);
-      await parsePromptDocument(file);
+    const files = Array.from(e.target.files || []);
+    await uploadPrompts(files);
+  };
+
+  const uploadPrompts = async (files: File[]) => {
+    const docFiles = files.filter(file => file.name.endsWith('.docx') || file.name.endsWith('.doc'));
+    
+    for (const file of docFiles) {
+      try {
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+          const base64 = event.target?.result as string;
+          const result = await parsePromptMutation.mutateAsync({ documentData: base64 });
+          
+          const newPrompt: UploadedPrompt = {
+            id: `prompt-${Date.now()}-${Math.random()}`,
+            name: file.name.replace(/\.(docx|doc)$/i, ''),
+            template: result.promptTemplate,
+            file: file,
+          };
+          
+          setPrompts(prev => [...prev, newPrompt]);
+          toast.success(`Prompt "${newPrompt.name}" încărcat`);
+        };
+        reader.readAsDataURL(file);
+      } catch (error: any) {
+        toast.error(`Eroare la parsarea promptului ${file.name}: ${error.message}`);
+      }
     }
   };
 
-  const parsePromptDocument = async (file: File) => {
-    try {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const base64 = event.target?.result as string;
-        const result = await parsePromptMutation.mutateAsync({ documentData: base64 });
-        
-        setPromptTemplate(result.promptTemplate);
-        setManualPrompt(result.promptTemplate);
-        toast.success("Prompt încărcat cu succes");
-      };
-      reader.readAsDataURL(file);
-    } catch (error: any) {
-      toast.error(`Eroare la parsarea promptului: ${error.message}`);
-    }
+  const removePrompt = (id: string) => {
+    setPrompts(prev => prev.filter(p => p.id !== id));
   };
 
   // Step 3: Handle image upload
@@ -193,24 +213,30 @@ export default function Home() {
       toast.error("Te rog încarcă cel puțin o imagine");
       return;
     }
+    if (prompts.length === 0) {
+      toast.error("Te rog încarcă cel puțin un prompt");
+      return;
+    }
 
-    // Creează combinații: fiecare linie cu prima imagine (default)
+    // Creează combinații: fiecare linie cu prima imagine și promptul potrivit
     const newCombinations: Combination[] = adLines.map((line, index) => ({
       id: `combo-${index}`,
       text: line.text,
       imageUrl: images[0].url,
       imageId: images[0].id,
+      promptType: line.promptType, // Mapare automată inteligentă
     }));
 
     setCombinations(newCombinations);
+    setDeletedCombinations([]);
     setCurrentStep(4);
-    toast.success(`${newCombinations.length} combinații create`);
+    toast.success(`${newCombinations.length} combinații create cu mapare automată`);
   };
 
-  const updateCombinationText = (id: string, newText: string) => {
+  const updateCombinationPromptType = (id: string, promptType: PromptType) => {
     setCombinations(prev =>
       prev.map(combo =>
-        combo.id === id ? { ...combo, text: newText } : combo
+        combo.id === id ? { ...combo, promptType } : combo
       )
     );
   };
@@ -227,7 +253,20 @@ export default function Home() {
   };
 
   const removeCombination = (id: string) => {
-    setCombinations(prev => prev.filter(combo => combo.id !== id));
+    const combo = combinations.find(c => c.id === id);
+    if (combo) {
+      setDeletedCombinations(prev => [combo, ...prev]);
+      setCombinations(prev => prev.filter(c => c.id !== id));
+    }
+  };
+
+  const undoDelete = () => {
+    if (deletedCombinations.length > 0) {
+      const lastDeleted = deletedCombinations[0];
+      setCombinations(prev => [...prev, lastDeleted]);
+      setDeletedCombinations(prev => prev.slice(1));
+      toast.success("Combinație restaurată");
+    }
   };
 
   // Step 5: Generate videos
@@ -237,9 +276,8 @@ export default function Home() {
       return;
     }
 
-    const finalPrompt = manualPrompt || promptTemplate;
-    if (!finalPrompt) {
-      toast.error("Te rog încarcă un prompt");
+    if (prompts.length === 0) {
+      toast.error("Te rog încarcă cel puțin un prompt");
       return;
     }
 
@@ -254,28 +292,56 @@ export default function Home() {
       }));
       setVideoResults(initialResults);
 
-      const result = await generateBatchMutation.mutateAsync({
-        promptTemplate: finalPrompt,
-        combinations: combinations.map(combo => ({
-          text: combo.text,
-          imageUrl: combo.imageUrl,
-        })),
+      // Grupează combinațiile pe tip de prompt
+      const combinationsByPrompt: Record<PromptType, typeof combinations> = {
+        PROMPT_NEUTRAL: [],
+        PROMPT_SMILING: [],
+        PROMPT_CTA: [],
+      };
+
+      combinations.forEach(combo => {
+        combinationsByPrompt[combo.promptType].push(combo);
       });
 
-      // Actualizează rezultatele cu taskId-uri
-      const updatedResults: VideoResult[] = result.results.map(r => ({
-        taskId: r.taskId,
-        text: r.text,
-        imageUrl: r.imageUrl,
-        status: r.success ? 'pending' as const : 'failed' as const,
-        error: r.error,
-      }));
+      // Generează pentru fiecare tip de prompt
+      const allResults: VideoResult[] = [];
 
-      setVideoResults(updatedResults);
-      toast.success(`${result.totalGenerated} videouri trimise spre generare`);
+      for (const [promptType, combos] of Object.entries(combinationsByPrompt)) {
+        if (combos.length === 0) continue;
+
+        const prompt = prompts.find(p => p.name.toUpperCase().includes(promptType));
+        if (!prompt) {
+          toast.error(`Nu s-a găsit prompt pentru ${promptType}`);
+          continue;
+        }
+
+        const result = await generateBatchMutation.mutateAsync({
+          promptTemplate: prompt.template,
+          combinations: combos.map(combo => ({
+            text: combo.text,
+            imageUrl: combo.imageUrl,
+          })),
+        });
+
+        const batchResults: VideoResult[] = result.results.map((r: any) => ({
+          taskId: r.taskId,
+          text: r.text,
+          imageUrl: r.imageUrl,
+          status: r.success ? 'pending' as const : 'failed' as const,
+          error: r.error,
+        }));
+
+        allResults.push(...batchResults);
+      }
+
+      setVideoResults(allResults);
+      const successCount = allResults.filter(r => r.status === 'pending').length;
+      const failedCount = allResults.filter(r => r.status === 'failed').length;
+
+      toast.success(`${successCount} videouri trimise spre generare`);
       
-      if (result.totalFailed > 0) {
-        toast.error(`${result.totalFailed} videouri au eșuat`);
+      if (failedCount > 0) {
+        toast.error(`${failedCount} videouri au eșuat`);
       }
     } catch (error: any) {
       toast.error(`Eroare la generarea videourilo: ${error.message}`);
@@ -325,6 +391,24 @@ export default function Home() {
     }
   };
 
+  const downloadVideo = (url: string, index: number) => {
+    window.open(url, '_blank');
+    toast.success(`Descărcare video #${index + 1} pornită`);
+  };
+
+  // Navigation
+  const goToStep = (step: number) => {
+    if (step <= currentStep) {
+      setCurrentStep(step);
+    }
+  };
+
+  const goBack = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 py-8">
       <div className="container max-w-6xl">
@@ -333,22 +417,24 @@ export default function Home() {
           <p className="text-blue-700">Generează videouri AI în masă cu Kie.ai Veo 3.1</p>
         </div>
 
-        {/* Progress Steps */}
-        <div className="flex justify-between items-center mb-12 px-4">
+        {/* Breadcrumbs */}
+        <div className="flex justify-between items-center mb-8 px-4">
           {[
             { num: 1, label: "Text Ad", icon: FileText },
-            { num: 2, label: "Prompt", icon: FileText },
+            { num: 2, label: "Prompts", icon: FileText },
             { num: 3, label: "Images", icon: ImageIcon },
             { num: 4, label: "Mapping", icon: Map },
             { num: 5, label: "Generate", icon: Play },
           ].map((step, index) => (
             <div key={step.num} className="flex items-center flex-1">
               <div className="flex flex-col items-center flex-1">
-                <div
+                <button
+                  onClick={() => goToStep(step.num)}
+                  disabled={step.num > currentStep}
                   className={`w-12 h-12 rounded-full flex items-center justify-center font-bold transition-all ${
                     currentStep >= step.num
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-200 text-gray-500"
+                      ? "bg-blue-600 text-white cursor-pointer hover:bg-blue-700"
+                      : "bg-gray-200 text-gray-500 cursor-not-allowed"
                   }`}
                 >
                   {currentStep > step.num ? (
@@ -356,7 +442,7 @@ export default function Home() {
                   ) : (
                     <step.icon className="w-6 h-6" />
                   )}
-                </div>
+                </button>
                 <span className={`text-sm mt-2 font-medium ${
                   currentStep >= step.num ? "text-blue-900" : "text-gray-500"
                 }`}>
@@ -379,71 +465,89 @@ export default function Home() {
           ))}
         </div>
 
-        {/* STEP 1: Text Ad */}
-        <Card className="mb-8 border-2 border-blue-200">
-          <CardHeader className="bg-blue-50">
-            <CardTitle className="flex items-center gap-2 text-blue-900">
-              <FileText className="w-5 h-5" />
-              STEP 1 - Text Ad Upload
-            </CardTitle>
-            <CardDescription>
-              Încarcă documentul cu ad-ul (.docx). Liniile vor fi extrase automat.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <div
-              onDrop={handleAdDocumentDrop}
-              onDragOver={(e) => e.preventDefault()}
-              className="border-2 border-dashed border-blue-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors cursor-pointer bg-blue-50/50"
-              onClick={() => document.getElementById('ad-upload')?.click()}
+        {/* Back Button */}
+        {currentStep > 1 && (
+          <div className="mb-4">
+            <Button
+              onClick={goBack}
+              variant="outline"
+              size="sm"
+              className="gap-2"
             >
-              <Upload className="w-12 h-12 text-blue-500 mx-auto mb-4" />
-              <p className="text-blue-900 font-medium mb-2">
-                {adDocument ? adDocument.name : "Drop document here or click to upload"}
-              </p>
-              <p className="text-sm text-blue-600">Suportă .docx</p>
-              <input
-                id="ad-upload"
-                type="file"
-                accept=".docx,.doc"
-                className="hidden"
-                onChange={handleAdDocumentSelect}
-              />
-            </div>
+              <ChevronLeft className="w-4 h-4" />
+              Înapoi la STEP {currentStep - 1}
+            </Button>
+          </div>
+        )}
 
-            {adLines.length > 0 && (
-              <div className="mt-6">
-                <p className="font-medium text-blue-900 mb-3">
-                  {adLines.length} linii extrase:
-                </p>
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {adLines.map((line, index) => (
-                    <div key={line.id} className="p-3 bg-white rounded border border-blue-200 text-sm">
-                      <span className="font-medium text-blue-700">#{index + 1}:</span> {line.text}
-                    </div>
-                  ))}
-                </div>
-                <Button
-                  onClick={() => setCurrentStep(2)}
-                  className="mt-4 bg-blue-600 hover:bg-blue-700"
-                >
-                  Continuă la STEP 2
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* STEP 2: Prompt */}
-        {currentStep >= 2 && (
+        {/* STEP 1: Text Ad */}
+        {currentStep === 1 && (
           <Card className="mb-8 border-2 border-blue-200">
             <CardHeader className="bg-blue-50">
               <CardTitle className="flex items-center gap-2 text-blue-900">
                 <FileText className="w-5 h-5" />
-                STEP 2 - Prompt Upload
+                STEP 1 - Text Ad Upload
               </CardTitle>
               <CardDescription>
-                Încarcă documentul cu promptul (.docx) sau scrie manual. [INSERT TEXT] va fi înlocuit cu textul din ad.
+                Încarcă documentul cu ad-ul (.docx). Liniile vor fi extrase automat.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <div
+                onDrop={handleAdDocumentDrop}
+                onDragOver={(e) => e.preventDefault()}
+                className="border-2 border-dashed border-blue-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors cursor-pointer bg-blue-50/50"
+                onClick={() => document.getElementById('ad-upload')?.click()}
+              >
+                <Upload className="w-12 h-12 text-blue-500 mx-auto mb-4" />
+                <p className="text-blue-900 font-medium mb-2">
+                  {adDocument ? adDocument.name : "Drop document here or click to upload"}
+                </p>
+                <p className="text-sm text-gray-500 italic">Suportă .docx, .doc</p>
+                <input
+                  id="ad-upload"
+                  type="file"
+                  accept=".docx,.doc"
+                  className="hidden"
+                  onChange={handleAdDocumentSelect}
+                />
+              </div>
+
+              {adLines.length > 0 && (
+                <div className="mt-6">
+                  <p className="font-medium text-blue-900 mb-3">
+                    {adLines.length} linii extrase:
+                  </p>
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {adLines.map((line, index) => (
+                      <div key={line.id} className="p-3 bg-white rounded border border-blue-200 text-sm">
+                        <span className="font-medium text-blue-700">#{index + 1}:</span> {line.text}
+                        <span className="ml-2 text-xs text-gray-500">({line.promptType})</span>
+                      </div>
+                    ))}
+                  </div>
+                  <Button
+                    onClick={() => setCurrentStep(2)}
+                    className="mt-4 bg-blue-600 hover:bg-blue-700"
+                  >
+                    Continuă la STEP 2
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* STEP 2: Prompts (3 prompts) */}
+        {currentStep === 2 && (
+          <Card className="mb-8 border-2 border-blue-200">
+            <CardHeader className="bg-blue-50">
+              <CardTitle className="flex items-center gap-2 text-blue-900">
+                <FileText className="w-5 h-5" />
+                STEP 2 - Prompts Upload (până la 3)
+              </CardTitle>
+              <CardDescription>
+                Încarcă până la 3 documente cu prompturi (.docx). Fiecare prompt va fi folosit pentru anumite secțiuni.
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-6">
@@ -455,44 +559,51 @@ export default function Home() {
               >
                 <Upload className="w-12 h-12 text-blue-500 mx-auto mb-4" />
                 <p className="text-blue-900 font-medium mb-2">
-                  {promptDocument ? promptDocument.name : "Drop prompt document here or click to upload"}
+                  Drop prompt documents here or click to upload
                 </p>
-                <p className="text-sm text-blue-600">Suportă .docx</p>
+                <p className="text-sm text-gray-500 italic">Suportă .docx, .doc (maxim 3 fișiere)</p>
                 <input
                   id="prompt-upload"
                   type="file"
                   accept=".docx,.doc"
+                  multiple
                   className="hidden"
                   onChange={handlePromptDocumentSelect}
                 />
               </div>
 
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-blue-900 mb-2">
-                  Sau editează promptul manual:
-                </label>
-                <Textarea
-                  value={manualPrompt}
-                  onChange={(e) => setManualPrompt(e.target.value)}
-                  placeholder="Scrie promptul aici... Asigură-te că include [INSERT TEXT] unde vrei să fie inserat textul din ad."
-                  className="min-h-[200px] font-mono text-sm"
-                />
-              </div>
-
-              {(promptTemplate || manualPrompt) && (
-                <Button
-                  onClick={() => setCurrentStep(3)}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  Continuă la STEP 3
-                </Button>
+              {prompts.length > 0 && (
+                <div className="mt-6">
+                  <p className="font-medium text-blue-900 mb-3">
+                    {prompts.length} prompturi încărcate:
+                  </p>
+                  <div className="space-y-2">
+                    {prompts.map((prompt) => (
+                      <div key={prompt.id} className="p-3 bg-white rounded border border-blue-200 flex items-center justify-between">
+                        <span className="text-sm font-medium text-blue-900">{prompt.name}</span>
+                        <button
+                          onClick={() => removePrompt(prompt.id)}
+                          className="p-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <Button
+                    onClick={() => setCurrentStep(3)}
+                    className="mt-4 bg-blue-600 hover:bg-blue-700"
+                  >
+                    Continuă la STEP 3
+                  </Button>
+                </div>
               )}
             </CardContent>
           </Card>
         )}
 
         {/* STEP 3: Images */}
-        {currentStep >= 3 && (
+        {currentStep === 3 && (
           <Card className="mb-8 border-2 border-blue-200">
             <CardHeader className="bg-blue-50">
               <CardTitle className="flex items-center gap-2 text-blue-900">
@@ -500,7 +611,7 @@ export default function Home() {
                 STEP 3 - Images Upload
               </CardTitle>
               <CardDescription>
-                Încarcă imaginile pentru videouri. Poți încărca multiple imagini.
+                Încarcă imaginile pentru videouri (format 9:16). Poți încărca multiple imagini.
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-6">
@@ -512,7 +623,7 @@ export default function Home() {
               >
                 <Upload className="w-12 h-12 text-blue-500 mx-auto mb-4" />
                 <p className="text-blue-900 font-medium mb-2">Drop images here or click to upload</p>
-                <p className="text-sm text-blue-600">Suportă JPG, PNG, WEBP</p>
+                <p className="text-sm text-gray-500 italic">Suportă .jpg, .png, .webp (format 9:16 recomandat)</p>
                 <input
                   id="image-upload"
                   type="file"
@@ -528,13 +639,13 @@ export default function Home() {
                   <p className="font-medium text-blue-900 mb-3">
                     {images.length} imagini încărcate:
                   </p>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                     {images.map((image) => (
                       <div key={image.id} className="relative group">
                         <img
                           src={image.url}
                           alt="Uploaded"
-                          className="w-full h-32 object-cover rounded border-2 border-blue-200"
+                          className="w-full aspect-[9/16] object-cover rounded border-2 border-blue-200"
                         />
                         <button
                           onClick={() => removeImage(image.id)}
@@ -558,25 +669,33 @@ export default function Home() {
         )}
 
         {/* STEP 4: Mapping */}
-        {currentStep >= 4 && combinations.length > 0 && (
+        {currentStep === 4 && combinations.length > 0 && (
           <Card className="mb-8 border-2 border-blue-200">
             <CardHeader className="bg-blue-50">
               <CardTitle className="flex items-center gap-2 text-blue-900">
                 <Map className="w-5 h-5" />
-                STEP 4 - Mapping (Text + Image)
+                STEP 4 - Mapping (Text + Image + Prompt)
               </CardTitle>
               <CardDescription>
-                Configurează combinațiile de text și imagine pentru fiecare video.
+                Configurează combinațiile de text, imagine și prompt pentru fiecare video. Maparea este făcută automat.
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-6">
-              <div className="mb-6 p-4 bg-blue-100 rounded-lg">
-                <p className="text-blue-900 font-medium">
-                  📊 Statistici: {combinations.length} videouri vor fi generate
-                </p>
-              </div>
+              {deletedCombinations.length > 0 && (
+                <div className="mb-4">
+                  <Button
+                    onClick={undoDelete}
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                  >
+                    <Undo2 className="w-4 h-4" />
+                    UNDO - Restaurează ultima combinație ștearsă
+                  </Button>
+                </div>
+              )}
 
-              <div className="space-y-4 max-h-[600px] overflow-y-auto">
+              <div className="space-y-4 max-h-[600px] overflow-y-auto mb-6">
                 {combinations.map((combo, index) => (
                   <div key={combo.id} className="p-4 bg-white rounded-lg border-2 border-blue-200">
                     <div className="flex gap-4">
@@ -588,7 +707,7 @@ export default function Home() {
                         <select
                           value={combo.imageId}
                           onChange={(e) => updateCombinationImage(combo.id, e.target.value)}
-                          className="w-32 p-2 border border-blue-300 rounded text-sm"
+                          className="w-32 p-2 border border-blue-300 rounded text-sm mb-2"
                         >
                           {images.map((img, imgIndex) => (
                             <option key={img.id} value={img.id}>
@@ -599,20 +718,31 @@ export default function Home() {
                         <img
                           src={combo.imageUrl}
                           alt="Selected"
-                          className="w-32 h-32 object-cover rounded border-2 border-blue-300 mt-2"
+                          className="w-32 aspect-[9/16] object-cover rounded border-2 border-blue-300"
                         />
                       </div>
 
-                      {/* Text editor */}
+                      {/* Text and prompt selector */}
                       <div className="flex-1">
                         <label className="block text-xs font-medium text-blue-900 mb-2">
                           Text pentru Dialogue
                         </label>
-                        <Textarea
-                          value={combo.text}
-                          onChange={(e) => updateCombinationText(combo.id, e.target.value)}
-                          className="min-h-[120px] text-sm"
-                        />
+                        <div className="p-3 bg-gray-50 rounded border border-gray-200 text-sm mb-3">
+                          {combo.text}
+                        </div>
+                        
+                        <label className="block text-xs font-medium text-blue-900 mb-2">
+                          Prompt Type
+                        </label>
+                        <select
+                          value={combo.promptType}
+                          onChange={(e) => updateCombinationPromptType(combo.id, e.target.value as PromptType)}
+                          className="w-full p-2 border border-blue-300 rounded text-sm"
+                        >
+                          <option value="PROMPT_NEUTRAL">PROMPT_NEUTRAL</option>
+                          <option value="PROMPT_SMILING">PROMPT_SMILING</option>
+                          <option value="PROMPT_CTA">PROMPT_CTA</option>
+                        </select>
                       </div>
 
                       {/* Delete button */}
@@ -630,10 +760,16 @@ export default function Home() {
                 ))}
               </div>
 
+              <div className="mb-6 p-4 bg-blue-100 rounded-lg">
+                <p className="text-blue-900 font-medium">
+                  📊 Statistici: {combinations.length} videouri vor fi generate
+                </p>
+              </div>
+
               <Button
                 onClick={generateVideos}
                 disabled={generateBatchMutation.isPending}
-                className="mt-6 bg-blue-600 hover:bg-blue-700 w-full py-6 text-lg"
+                className="bg-blue-600 hover:bg-blue-700 w-full py-6 text-lg"
               >
                 {generateBatchMutation.isPending ? (
                   <>
@@ -652,7 +788,7 @@ export default function Home() {
         )}
 
         {/* STEP 5: Generate Results */}
-        {currentStep >= 5 && videoResults.length > 0 && (
+        {currentStep === 5 && videoResults.length > 0 && (
           <Card className="mb-8 border-2 border-blue-200">
             <CardHeader className="bg-blue-50">
               <CardTitle className="flex items-center gap-2 text-blue-900">
@@ -660,7 +796,7 @@ export default function Home() {
                 STEP 5 - Videouri Generate
               </CardTitle>
               <CardDescription>
-                Urmărește progresul generării videourilo și accesează link-urile.
+                Urmărește progresul generării videourilo și descarcă-le.
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-6">
@@ -671,7 +807,7 @@ export default function Home() {
                       <img
                         src={result.imageUrl}
                         alt="Video thumbnail"
-                        className="w-24 h-24 object-cover rounded border-2 border-blue-300"
+                        className="w-24 aspect-[9/16] object-cover rounded border-2 border-blue-300"
                       />
                       <div className="flex-1">
                         <p className="text-sm text-blue-900 mb-2">
@@ -685,14 +821,14 @@ export default function Home() {
                         <div className="flex items-center gap-2">
                           {result.status === 'pending' && (
                             <>
-                              <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                              <span className="text-sm text-blue-600">În curs de generare...</span>
+                              <Loader2 className="w-4 h-4 animate-spin text-orange-600" />
+                              <span className="text-sm text-orange-600 font-medium">În curs de generare...</span>
                               {result.taskId && (
                                 <Button
                                   size="sm"
                                   variant="outline"
                                   onClick={() => checkVideoStatus(result.taskId!, index)}
-                                  className="ml-auto"
+                                  className="ml-auto border-orange-300 text-orange-700 hover:bg-orange-50"
                                 >
                                   Verifică Status
                                 </Button>
@@ -706,16 +842,24 @@ export default function Home() {
                                 href={result.videoUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-sm text-green-600 hover:underline"
+                                className="text-sm text-green-600 hover:underline flex-1"
                               >
                                 {result.videoUrl}
                               </a>
+                              <Button
+                                size="sm"
+                                onClick={() => downloadVideo(result.videoUrl!, index)}
+                                className="ml-auto bg-green-600 hover:bg-green-700 gap-2"
+                              >
+                                <Download className="w-4 h-4" />
+                                Download
+                              </Button>
                             </>
                           )}
                           {result.status === 'failed' && (
                             <>
                               <X className="w-4 h-4 text-red-600" />
-                              <span className="text-sm text-red-600">
+                              <span className="text-sm text-red-600 font-medium">
                                 Eșuat: {result.error || 'Unknown error'}
                               </span>
                             </>
