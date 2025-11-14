@@ -820,10 +820,20 @@ export default function Home() {
     
     const sections: SectionType[] = ['HOOKS', 'MIRROR', 'DCS', 'TRANZITION', 'NEW_CAUSE', 'MECHANISM'];
     
+    // Texte reale pentru sample videos (H1-H6)
+    const sampleTexts = [
+      "Pentru femeile care s-au săturat să trăiască de la o lună la alta și cred că 'așa e viața'. Acest mesaj este pentru voi.",
+      "Pentru femeile care simt că oricât se străduiesc, nu reușesc să iasă din datorii. Acest mesaj este pentru voi. Pentru femeile",
+      "Știu cum e să simți că nu mai poți din cauză că nu mai faci față cu cheltuielile și să-ți vină să renunți la tot. Știu cum e",
+      "Dacă simți că viața ta e doar despre supraviețuire, cheltuieli, stres și lipsuri, ascultă-mă un minut. Dacă simți că",
+      "Dacă simți că muncesti doar ca să plătești datorii și nu te mai bucuri de viață, ascultă-mă un minut. Dacă simți",
+      "Nu știu ce e mai greu, să nu ai bani sau să simți că oricât te zbăți, nu mai vezi nicio cale de ieșire. Nu știu ce e mai greu",
+    ];
+    
     const sampleResults: VideoResult[] = sampleTaskIds.map((taskId, index) => ({
       taskId,
-      videoName: `${sections[index]}_A${index + 1}_MIRROR1`,
-      text: `Sample video ${index + 1} for testing`,
+      videoName: `CB1_A1_${sections[index]}${index + 1}`,
+      text: sampleTexts[index],
       imageUrl: 'https://via.placeholder.com/270x480/blue/white?text=Sample',
       status: 'pending' as const,
       section: sections[index],
@@ -836,11 +846,11 @@ export default function Home() {
     // Crează și combinations pentru sample videos
     const sampleCombinations: Combination[] = sampleTaskIds.map((taskId, index) => ({
       id: `sample-${index}`,
-      text: `Sample video ${index + 1} for testing`,
+      text: sampleTexts[index],
       imageUrl: 'https://via.placeholder.com/270x480/blue/white?text=Sample',
       imageId: `sample-img-${index}`,
       promptType: 'PROMPT_NEUTRAL' as PromptType,
-      videoName: `${sections[index]}_A${index + 1}_MIRROR1`,
+      videoName: `CB1_A1_${sections[index]}${index + 1}`,
       section: sections[index],
       categoryNumber: index + 1,
     }));
@@ -1164,14 +1174,21 @@ export default function Home() {
         ? { ...v, reviewStatus: 'regenerate' as const }
         : v
     ));
-    
     setReviewHistory(prev => [...prev, {
       videoName,
       previousStatus: videoResults.find(v => v.videoName === videoName)?.reviewStatus || null,
       newStatus: 'regenerate',
     }]);
-    
-    toast.info(`Video ${videoName} marcat pentru regenerare`);
+    toast.info(`${videoName} marcat pentru regenerare`);
+  };
+
+  const undoReviewDecision = (videoName: string) => {
+    setVideoResults(prev => prev.map(v => 
+      v.videoName === videoName 
+        ? { ...v, reviewStatus: null }
+        : v
+    ));
+    toast.success(`Decizie anulată pentru ${videoName}`);
   };
 
   const undoReview = () => {
@@ -2478,13 +2495,13 @@ export default function Home() {
                           
                           {/* VIDEO PLAYER sau STATUS */}
                           {video.status === 'pending' ? (
-                            <div className="w-full aspect-[9/16] bg-blue-50 border-2 border-blue-300 rounded mb-3 flex flex-col items-center justify-center p-4">
+                            <div className="w-3/4 mx-auto aspect-[9/16] bg-blue-50 border-2 border-blue-300 rounded mb-3 flex flex-col items-center justify-center p-4">
                               <Loader2 className="w-8 h-8 text-blue-600 animate-spin mb-2" />
                               <p className="text-sm text-blue-700 font-medium">În curs de generare...</p>
                               <p className="text-xs text-blue-600 mt-1">Task ID: {video.taskId}</p>
                             </div>
                           ) : video.status === 'failed' ? (
-                            <div className="w-full aspect-[9/16] bg-red-50 border-2 border-red-300 rounded mb-3 flex flex-col items-center justify-center p-4">
+                            <div className="w-3/4 mx-auto aspect-[9/16] bg-red-50 border-2 border-red-300 rounded mb-3 flex flex-col items-center justify-center p-4">
                               <X className="w-8 h-8 text-red-600 mb-2" />
                               <p className="text-sm text-red-700 font-medium">Generare eșuată</p>
                               {video.error && (
@@ -2495,10 +2512,10 @@ export default function Home() {
                             <video
                               src={video.videoUrl}
                               controls
-                              className="w-full aspect-[9/16] object-cover rounded border-2 border-green-300 mb-3"
+                              className="w-3/4 mx-auto aspect-[9/16] object-cover rounded border-2 border-green-300 mb-3"
                             />
                           ) : (
-                            <div className="w-full aspect-[9/16] bg-gray-50 border-2 border-gray-300 rounded mb-3 flex items-center justify-center">
+                            <div className="w-3/4 mx-auto aspect-[9/16] bg-gray-50 border-2 border-gray-300 rounded mb-3 flex items-center justify-center">
                               <p className="text-sm text-gray-500">Video URL lipsește</p>
                             </div>
                           )}
@@ -2522,17 +2539,9 @@ export default function Home() {
                               </Button>
                             )}
                             
-                            <div className="flex gap-2">
-                              {video.reviewStatus === 'accepted' ? (
-                                <Button
-                                  disabled
-                                  size="sm"
-                                  className="flex-1 bg-green-600 text-white text-xs py-1"
-                                >
-                                  <Check className="w-3 h-3 mr-1" />
-                                  Acceptat
-                                </Button>
-                              ) : (
+                            {/* Butoane Accept/Regenerate - dispar după click */}
+                            {!video.reviewStatus ? (
+                              <div className="flex gap-2">
                                 <Button
                                   onClick={() => acceptVideo(video.videoName)}
                                   size="sm"
@@ -2541,18 +2550,7 @@ export default function Home() {
                                   <Check className="w-3 h-3 mr-1" />
                                   Accept
                                 </Button>
-                              )}
-                              
-                              {video.reviewStatus === 'regenerate' ? (
-                                <Button
-                                  disabled
-                                  size="sm"
-                                  className="flex-1 bg-red-600 text-white text-xs py-1"
-                                >
-                                  <X className="w-3 h-3 mr-1" />
-                                  Regenerare
-                                </Button>
-                              ) : (
+                                
                                 <Button
                                   onClick={() => regenerateVideo(video.videoName)}
                                   size="sm"
@@ -2561,29 +2559,65 @@ export default function Home() {
                                   <X className="w-4 h-4 mr-1" />
                                   Regenerate
                                 </Button>
-                              )}
-                            </div>
+                              </div>
+                            ) : (
+                              <div className="flex gap-2 items-center">
+                                {/* Status după decizie */}
+                                <div className={`flex-1 px-3 py-2 rounded text-xs font-medium text-center ${
+                                  video.reviewStatus === 'accepted' 
+                                    ? 'bg-green-100 text-green-700 border border-green-300'
+                                    : 'bg-red-100 text-red-700 border border-red-300'
+                                }`}>
+                                  {video.reviewStatus === 'accepted' ? (
+                                    <><Check className="w-3 h-3 inline mr-1" />Acceptat</>
+                                  ) : (
+                                    <><X className="w-3 h-3 inline mr-1" />Regenerare</>
+                                  )}
+                                </div>
+                                
+                                {/* UNDO individual */}
+                                <Button
+                                  onClick={() => undoReviewDecision(video.videoName)}
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-gray-400 text-gray-700 hover:bg-gray-100 text-xs py-1"
+                                >
+                                  <Undo2 className="w-3 h-3 mr-1" />
+                                  Undo
+                                </Button>
+                              </div>
+                            )}
                             
                             {/* Buton Download Individual */}
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                if (video.videoUrl) {
-                                  const link = document.createElement('a');
-                                  link.href = video.videoUrl;
-                                  link.download = `${video.videoName}.mp4`;
-                                  document.body.appendChild(link);
-                                  link.click();
-                                  document.body.removeChild(link);
-                                  toast.success(`Descarcă ${video.videoName}...`);
-                                }
-                              }}
-                              className="w-full border-blue-500 text-blue-700 hover:bg-blue-50 text-xs py-1"
-                            >
-                              <Download className="w-3 h-3 mr-1" />
-                              Download
-                            </Button>
+                            {video.videoUrl && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={async () => {
+                                  try {
+                                    toast.info(`Descarcă ${video.videoName}...`);
+                                    const response = await fetch(video.videoUrl!);
+                                    const blob = await response.blob();
+                                    const url = window.URL.createObjectURL(blob);
+                                    const link = document.createElement('a');
+                                    link.href = url;
+                                    link.download = `${video.videoName}.mp4`;
+                                    document.body.appendChild(link);
+                                    link.click();
+                                    document.body.removeChild(link);
+                                    window.URL.revokeObjectURL(url);
+                                    toast.success(`${video.videoName} descărcat!`);
+                                  } catch (error) {
+                                    console.error('Download error:', error);
+                                    toast.error(`Eroare la descărcare: ${error}`);
+                                  }
+                                }}
+                                className="w-full border-blue-500 text-blue-700 hover:bg-blue-50 text-xs py-1"
+                              >
+                                <Download className="w-3 h-3 mr-1" />
+                                Download
+                              </Button>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -2591,6 +2625,65 @@ export default function Home() {
                   </div>
                 );
               })}
+              
+              {/* Statistici și Buton Next Step */}
+              <div className="mt-8 p-6 bg-gray-50 border-2 border-gray-300 rounded-lg">
+                {/* Statistici */}
+                <div className="mb-4">
+                  <p className="text-lg font-semibold text-gray-900 mb-2">Statistici Review:</p>
+                  <div className="flex gap-4 text-sm">
+                    <span className="text-green-700">
+                      <Check className="w-4 h-4 inline mr-1" />
+                      {videoResults.filter(v => v.reviewStatus === 'accepted').length} acceptate
+                    </span>
+                    <span className="text-red-700">
+                      <X className="w-4 h-4 inline mr-1" />
+                      {videoResults.filter(v => v.reviewStatus === 'regenerate').length} pentru regenerare
+                    </span>
+                    <span className="text-gray-600">
+                      {videoResults.filter(v => !v.reviewStatus).length} fără decizie
+                    </span>
+                  </div>
+                </div>
+                
+                {/* Buton Next Step - activ doar când toate videouri au decizie */}
+                {videoResults.every(v => v.reviewStatus !== null) ? (
+                  <div className="space-y-2">
+                    {videoResults.some(v => v.reviewStatus === 'regenerate') && (
+                      <Button
+                        onClick={() => {
+                          // TODO: Implementare regenerare și revenire la STEP 5
+                          toast.info('Regenerare videouri marcate...');
+                          setCurrentStep(5);
+                        }}
+                        className="w-full bg-red-600 hover:bg-red-700 py-6 text-lg"
+                      >
+                        <RefreshCw className="w-5 h-5 mr-2" />
+                        Regenerate Selected ({videoResults.filter(v => v.reviewStatus === 'regenerate').length})
+                      </Button>
+                    )}
+                    
+                    {videoResults.some(v => v.reviewStatus === 'accepted') && (
+                      <Button
+                        onClick={() => setCurrentStep(7)}
+                        className="w-full bg-blue-600 hover:bg-blue-700 py-6 text-lg"
+                      >
+                        <ChevronLeft className="w-5 h-5 mr-2 rotate-180" />
+                        Continue to Final Download
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="bg-yellow-50 border-2 border-yellow-300 rounded p-4 text-center">
+                    <p className="text-yellow-800 font-medium">
+                      Te rog să iei o decizie (Accept sau Regenerate) pentru toate videouri înainte de a continua.
+                    </p>
+                    <p className="text-sm text-yellow-700 mt-1">
+                      {videoResults.filter(v => !v.reviewStatus).length} videouri rămase fără decizie
+                    </p>
+                  </div>
+                )}
+              </div>
               
               {/* Buton Download All Accepted Videos */}
               {videoResults.filter(v => v.reviewStatus === 'accepted' && v.videoUrl).length > 0 && (

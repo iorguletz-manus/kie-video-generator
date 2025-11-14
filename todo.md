@@ -509,3 +509,59 @@
   - [x] `success` fără videoUrl: "Video URL lipsește"
 - [x] Buton "Verifică Status" pentru videouri pending
 - [x] Import RefreshCw icon pentru buton
+
+
+## User Feedback - STEP 6 Complete Overhaul
+
+### 1. Video URL Lipsește
+- [ ] Când status = success, fetch videoUrl din API folosind taskId
+- [ ] Nu afișa "Video URL lipsește" dacă video e success - fetch-uiește URL-ul
+
+### 2. Video Player Size
+- [ ] Video player 25% mai mic decât este acum
+- [ ] Ajustare aspect-ratio și width
+
+### 3. Butoane Accept/Regenerate + UNDO
+- [ ] Butoane Accept/Regenerate dispar după click (nu doar disabled)
+- [ ] UNDO individual la fiecare video (nu doar un buton sus)
+- [ ] UNDO button lângă fiecare video care a fost acceptat/regenerat
+
+### 4. Download Funcțional
+- [ ] Buton Download trebuie să funcționeze
+- [ ] Fetch video blob și download cu nume corect
+
+### 5. Nume Videouri Corecte
+- [ ] Format: `CB1_A1_$CATEGORY$NUMBER`
+- [ ] Exemple: `CB1_A1_MIRROR1`, `CB1_A1_TRANZITION1`
+- [ ] NU: `HOOKS_A1_MIRROR1` (greșit!)
+- [ ] Fix în loadSampleVideos() și peste tot
+
+### 6. Texte Reale Sample Videos
+- [ ] 6 texte pentru H1-H6 (fără prefix H1-H6, fără chars count)
+- [ ] H1: "Pentru femeile care s-au săturat să trăiască de la o lună la alta și cred că 'așa e viața'. Acest mesaj este pentru voi."
+- [ ] H2: "Pentru femeile care simt că oricât se străduiesc, nu reușesc să iasă din datorii. Acest mesaj este pentru voi. Pentru femeile"
+- [ ] H3: "Știu cum e să simți că nu mai poți din cauză că nu mai faci față cu cheltuielile și să-ți vină să renunți la tot. Știu cum e"
+- [ ] H4: "Dacă simți că viața ta e doar despre supraviețuire, cheltuieli, stres și lipsuri, ascultă-mă un minut. Dacă simți că"
+- [ ] H5: "Dacă simți că muncești doar ca să plătești datorii și nu te mai bucuri de viață, ascultă-mă un minut. Dacă simți"
+- [ ] H6: "Nu știu ce e mai greu, să nu ai bani sau să simți că oricât te zbați, nu mai vezi nicio cale de ieșire. Nu știu ce e mai greu"
+
+### 7. Statistici Videouri
+- [ ] Afișare statistici jos deasupra butonului Next Step
+- [ ] Format: "X videouri acceptate, Y urmează să fie regenerate"
+- [ ] Calculare dinamică din videoResults
+
+### 8. Buton Next Step Condiționat
+- [ ] Buton activ DOAR când toate videouri au Accept SAU Regenerate
+- [ ] Disabled dacă există videouri fără decizie
+- [ ] Tooltip explicativ când disabled
+
+### 9. Restructurare Workflow
+- [ ] STEP 5: Generate (generare inițială)
+- [ ] STEP 6: Check & Review (accept/regenerate individual)
+  - [ ] Dacă user marchează videouri pentru regenerare → buton "Regenerate Selected" care:
+    - [ ] Trimite doar videouri marcate pentru regenerare
+    - [ ] Revine la STEP 5 pentru a vedea progres
+- [ ] STEP 7: Final Download (toate videouri acceptate, download individual/batch)
+  - [ ] Afișare doar videouri acceptate
+  - [ ] Download individual + Download All
+  - [ ] Nu mai e nevoie de STEP 7 Regenerate Advanced (integrat în STEP 6)
