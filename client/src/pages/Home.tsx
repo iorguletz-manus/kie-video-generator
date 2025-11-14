@@ -84,8 +84,27 @@ export default function Home() {
   // State pentru custom prompts (fiecare video poate avea propriul custom prompt)
   const [customPrompts, setCustomPrompts] = useState<Record<number, string>>({});
   
+  // State pentru filtru STEP 6 (show all / accepted / failed)
+  const [videoFilter, setVideoFilter] = useState<'all' | 'accepted' | 'failed'>('all');
+  
+  // State pentru edit timestamps (când user dă SAVE în Modify & Regenerate)
+  const [editTimestamps, setEditTimestamps] = useState<Record<number, number>>({});
+  const [currentTime, setCurrentTime] = useState(Date.now());
+  
+  // State pentru tracking modificări (pentru blocare navigare)
+  const [hasModifications, setHasModifications] = useState(false);
+  
   // Step 2: Manual prompt textarea
   const [manualPromptText, setManualPromptText] = useState('');
+  
+  // Update currentTime la fiecare minut pentru "Edited X min ago"
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 60000); // Update la fiecare 60 secunde
+    
+    return () => clearInterval(interval);
+  }, []);
   
   // Step 6: Regenerate (advanced)
   const [selectedVideoIndex, setSelectedVideoIndex] = useState<number>(-1);
@@ -1269,6 +1288,13 @@ export default function Home() {
 
   const goBack = () => {
     if (currentStep > 1) {
+      // Dacă sunt modificări, întreabă user
+      if (hasModifications) {
+        if (!confirm('Ai modificări nesalvate. Sigur vrei să te întorci?')) {
+          return;
+        }
+        setHasModifications(false); // Reset modificări
+      }
       setCurrentStep(currentStep - 1);
     }
   };
@@ -1347,11 +1373,14 @@ export default function Home() {
                 size="sm"
                 variant="destructive"
                 onClick={() => {
+                  if (currentSessionId === 'default') {
+                    toast.error('Nu poți șterge sesiunea default!');
+                    return;
+                  }
                   if (confirm('Sigur vrei să ștergi sesiunea curentă?')) {
                     deleteSession(currentSessionId);
                   }
                 }}
-                disabled={currentSessionId === 'default'}
                 className="bg-red-600 hover:bg-red-700"
               >
                 Delete
@@ -1940,12 +1969,11 @@ export default function Home() {
                                           const newType = e.target.value as PromptType;
                                           setModifyPromptType(newType);
                                           
-                                          // Când user selectează PROMPT_CTA/SMILING/NEUTRAL → afișează text hardcodat
-                                          if (newType !== 'PROMPT_CUSTOM') {
-                                            setModifyPromptText(''); // Reset custom prompt
-                                          } else if (customPrompts[modifyingVideoIndex!]) {
-                                            // Dacă PROMPT_CUSTOM există pentru acest video → afișează-l
+                                          // Când user selectează PROMPT_CUSTOM → încarcă textul salvat
+                                          if (newType === 'PROMPT_CUSTOM' && customPrompts[modifyingVideoIndex!]) {
                                             setModifyPromptText(customPrompts[modifyingVideoIndex!]);
+                                          } else if (newType !== 'PROMPT_CUSTOM') {
+                                            setModifyPromptText(''); // Reset pentru prompturi hardcodate
                                           }
                                         }}
                                         className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
@@ -1971,9 +1999,12 @@ export default function Home() {
                                             setModifyPromptType('PROMPT_CUSTOM');
                                           }
                                         }}
-                                        placeholder={modifyPromptType === 'PROMPT_CUSTOM' ? 'Introdu promptul custom aici' : 'Lasă gol pentru a folosi promptul hardcodat'}
+                                        placeholder={
+                                          modifyPromptType === 'PROMPT_CUSTOM'
+                                            ? 'Introdu promptul custom aici'
+                                            : `Editează ${modifyPromptType} sau lasă gol pentru a folosi promptul hardcodat`
+                                        }
                                         className="text-sm min-h-[80px]"
-                                        disabled={modifyPromptType !== 'PROMPT_CUSTOM'}
                                       />
                                     </div>
                                     
@@ -2022,6 +2053,12 @@ export default function Home() {
                                             )
                                           );
                                           
+                                          // Salvează timestamp pentru "Edited X min ago"
+                                          setEditTimestamps(prev => ({
+                                            ...prev,
+                                            [index]: Date.now(),
+                                          }));
+                                          
                                           toast.success('Modificări salvate!');
                                           setModifyingVideoIndex(null);
                                         }}
@@ -2043,7 +2080,7 @@ export default function Home() {
                                             Se trimite...
                                           </>
                                         ) : (
-                                          'Regenerate'
+                                          'Save & Regenerate'
                                         )}
                                       </Button>
                                       <Button
@@ -2089,6 +2126,13 @@ export default function Home() {
                                 >
                                   Modify & Regenerate
                                 </Button>
+                                
+                                {/* Edited X min ago */}
+                                {editTimestamps[index] && (
+                                  <p className="text-xs text-orange-600 mt-1">
+                                    Edited {Math.floor((currentTime - editTimestamps[index]) / 60000)} min ago
+                                  </p>
+                                )}
                               </div>
                             </>
                           )}
@@ -2585,6 +2629,20 @@ export default function Home() {
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-6">
+              {/* Filtru videouri */}
+              <div className="mb-6 flex items-center gap-4">
+                <label className="text-sm font-medium text-green-900">Filtrează videouri:</label>
+                <select
+                  value={videoFilter}
+                  onChange={(e) => setVideoFilter(e.target.value as 'all' | 'accepted' | 'failed')}
+                  className="px-4 py-2 border border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="all">Afișează Toate</option>
+                  <option value="accepted">Doar Acceptate</option>
+                  <option value="failed">Doar Failed/Pending</option>
+                </select>
+              </div>
+              
               {/* Buton UNDO */}
               {reviewHistory.length > 0 && (
                 <div className="mb-6">
@@ -2601,7 +2659,14 @@ export default function Home() {
 
               {/* Organizare pe categorii */}
               {['HOOKS', 'MIRROR', 'DCS', 'TRANZITION', 'NEW_CAUSE', 'MECHANISM', 'EMOTIONAL_PROOF', 'TRANSFORMATION', 'CTA'].map(category => {
-                const categoryVideos = videoResults.filter(v => v.section === category);
+                // Filtrare videouri pe bază de videoFilter
+                let categoryVideos = videoResults.filter(v => v.section === category);
+                
+                if (videoFilter === 'accepted') {
+                  categoryVideos = categoryVideos.filter(v => v.reviewStatus === 'accepted');
+                } else if (videoFilter === 'failed') {
+                  categoryVideos = categoryVideos.filter(v => v.reviewStatus !== 'accepted');
+                }
                 
                 if (categoryVideos.length === 0) return null;
                 

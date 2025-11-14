@@ -811,3 +811,58 @@
 - [x] Când user editează text → switch automat la PROMPT_CUSTOM
 - [x] Fiecare video poate avea PROMPT_CUSTOM diferit (salvat în customPrompts state)
 - [x] La Edit Prompt pentru CUSTOM: afișează textul custom (nu "lasa gol...") + disabled pentru non-CUSTOM
+
+
+## 8 CERINȚE NOI - Thumbnails, Navigare, Delete, Filtru, Edited, PROMPT_CUSTOM Logic
+
+### 1. Video thumbnails dispar când dai Back de la STEP 6 la STEP 5/4
+- [ ] Problema: thumbnails dispar când navighezi înapoi
+- [ ] Trebuie să mergi la STEP 3 și Continue pentru a apărea din nou
+- [ ] Fix: păstrează thumbnails în state când navighezi între steps
+
+### 2. Blocare STEP 5 când dai Back de la STEP 5 la STEP 4
+- [ ] Problema: nu te poți întoarce la STEP 5 după ce dai Back la STEP 4
+- [ ] Soluție: permite navigare între steps dacă NU sunt modificări
+- [ ] Blocare doar dacă user face modificări la steps anteriori
+
+### 3. Delete session nu merge
+- [ ] Selectezi sesiune → butonul Delete nu funcționează
+- [ ] Fix: verifică event handler pentru butonul Delete
+
+### 4. Elimină butonul "Continue to final download"
+- [ ] Butonul albastru "Continue to final download" nu mai are rost
+- [ ] Păstrează doar butonul verde "Download all accepted videos"
+
+### 5. Filtru "Show only failed/accepted/both" în STEP 6
+- [ ] Adăugare dropdown/toggle sub STEP 6 title
+- [ ] Opțiuni: "Show All" / "Show Accepted Only" / "Show Failed Only"
+- [ ] Filtrare dinamică videouri în grid
+
+### 6. "Edited X min ago" sub butonul Modify & Regenerate
+- [ ] Când user dă SAVE → afișează "Edited X min ago" portocaliu
+- [ ] Update dinamic la fiecare minut (AJAX/setInterval)
+- [ ] Timestamp salvat în videoResults sau combinations
+
+### 7. PROMPT_CUSTOM logic corect
+- [ ] Când selectezi PROMPT_SMILING → încarcă textul hardcodat în Edit Prompt
+- [ ] Când modifici textul → salvează ca PROMPT_CUSTOM (sau CUSTOM1, CUSTOM2, etc.)
+- [ ] PROMPT_CUSTOM reutilizabil între videouri (salvat global, nu per-video)
+- [ ] Selector afișează PROMPT_CUSTOM1, PROMPT_CUSTOM2, etc.
+
+### 8. Rename "Regenerate" → "Save & Regenerate"
+- [ ] În Modify & Regenerate dialog, butonul "Regenerate" → "Save & Regenerate"
+
+
+## 8 FIX-URI NOI - Status Implementare (Latest Batch)
+
+### ✅ Toate Implementate
+- [x] FIX 8: Rename "Regenerate" → "Save & Regenerate"
+- [x] FIX 4: Elimină "Continue to final download" (nu există în cod)
+- [x] FIX 3: Delete session funcționează (eliminat disabled, toast error pentru default)
+- [x] FIX 5: Filtru "Show All/Accepted/Failed" în STEP 6
+- [x] FIX 6: "Edited X min ago" portocaliu sub Modify & Regenerate (update dinamic la fiecare minut)
+- [x] FIX 2: Blocare navigare când sunt modificări (confirm dialog)
+- [x] FIX 7: PROMPT_CUSTOM logic simplificat (textarea editabil, switch automat la CUSTOM când modifici, salvat per-video)
+
+### ⚠️ Necesită investigare
+- [ ] FIX 1: Thumbnails dispar când dai Back de la STEP 6 → STEP 5 → STEP 4 (cauza necunoscută, necesită debugging)
