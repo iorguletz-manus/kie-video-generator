@@ -319,3 +319,37 @@
 - [x] Funcție regenerateWithModifications() implementată
 - [x] Validare: disable buton dacă text > 125 caractere sau gol
 - [x] Loading state cu Loader2 pe buton
+
+
+## New User Request - STEP 2 Textarea Manual, STEP 7 Regenerare Avansată, STEP 6 Download
+
+### STEP 2 - Textarea Manual Prompt
+- [x] Adăugare textarea pentru prompt manual (pe lângă upload .docx)
+- [x] Utilizatorul poate scrie direct promptul în textarea
+- [x] Buton "Adaugă Prompt Manual" care salvează prompt în listă
+- [x] Validare: prompt trebuie să conțină [INSERT TEXT]
+- [x] Afișare prompt manual în lista de prompturi cu nume generic "Custom Prompt #N"
+- [x] Fix TypeScript: UploadedPrompt.file poate fi null pentru prompturi manuale
+
+### STEP 7 - Regenerare Avansată (NOU STEP)
+- [ ] Creare STEP 7 între STEP 5 și STEP 6
+- [ ] Afișare doar videouri care trebuie regenerate (failed sau selectate manual)
+- [ ] Pentru fiecare video:
+  - [ ] Select prompt din cele existente (hardcoded NEUTRAL/SMILING/CTA + custom)
+  - [ ] SAU textarea prompt manual
+  - [ ] SAU select prompt + textarea pentru modificare prompt
+  - [ ] Select imagine diferită (dropdown cu toate imaginile)
+  - [ ] Textarea editabil pentru text cu char count (125 max)
+- [ ] Radio button "Vrei să regenerezi mai multe videouri?" (Da/Nu, default: Nu)
+  - [ ] Dacă Nu: o singură variantă
+  - [ ] Dacă Da: selector număr variante (1-10)
+  - [ ] Pentru fiecare variantă: prompt, textarea, text, imagine independente
+- [ ] Buton "Regenerate" care trimite toate variantele
+- [ ] După regenerare: rămâi în STEP 7 pentru iterații multiple
+- [ ] Buton "Finalizare" pentru a trece la STEP 6 când toate sunt OK
+
+### STEP 6 - Îmbunătățiri Download
+- [ ] Afișare toate videouri cu status vizual (verde check pentru acceptate)
+- [ ] Buton download individual pentru fiecare video
+- [ ] Buton "Download All Accepted Videos" pentru toate videouri acceptate
+- [ ] Download cu nume corect (CB1_A1_MIRROR1.mp4, etc.)

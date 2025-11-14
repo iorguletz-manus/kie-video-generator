@@ -23,7 +23,7 @@ interface UploadedPrompt {
   id: string;
   name: string;
   template: string;
-  file: File;
+  file: File | null; // null pentru prompturi manuale
 }
 
 interface UploadedImage {
@@ -81,7 +81,20 @@ export default function Home() {
   const [modifyPromptText, setModifyPromptText] = useState('');
   const [modifyDialogueText, setModifyDialogueText] = useState('');
   
-  // Step 6: Check Videos (review)
+  // Step 2: Manual prompt textarea
+  const [manualPromptText, setManualPromptText] = useState('');
+  
+  // Step 6: Regenerate (advanced)
+  const [regenerateMultiple, setRegenerateMultiple] = useState(false);
+  const [regenerateVariantCount, setRegenerateVariantCount] = useState(1);
+  const [regenerateVariants, setRegenerateVariants] = useState<Array<{
+    promptType: PromptType | 'custom';
+    promptText: string;
+    dialogueText: string;
+    imageUrl: string;
+  }>>([]);
+  
+  // Step 7: Final Review (check videos)
   const [reviewHistory, setReviewHistory] = useState<Array<{
     videoName: string;
     previousStatus: 'pending' | 'accepted' | 'regenerate' | null;
@@ -934,7 +947,8 @@ export default function Home() {
             { num: 3, label: "Images", icon: ImageIcon },
             { num: 4, label: "Mapping", icon: Map },
             { num: 5, label: "Generate", icon: Play },
-            { num: 6, label: "Check Videos", icon: Video },
+            { num: 6, label: "Regenerate", icon: Undo2 },
+            { num: 7, label: "Final Review", icon: Video },
           ].map((step, index) => (
             <div key={step.num} className="flex items-center flex-1">
               <div className="flex flex-col items-center flex-1">
@@ -964,7 +978,7 @@ export default function Home() {
                   {step.label}
                 </span>
               </div>
-              {index < 5 && (
+              {index < 6 && (
                 <div
                   className={`h-1 flex-1 mx-2 transition-all ${
                     currentStep > step.num ? "bg-blue-600" : "bg-gray-200"
@@ -1100,26 +1114,71 @@ export default function Home() {
               {/* Upload prompturi custom - opțional */}
               <div className="mb-4">
                 <p className="font-medium text-blue-900 mb-3">Adaugă prompturi custom (opțional):</p>
-                  <div
-                    onDrop={handlePromptDocumentDrop}
-                    onDragOver={(e) => e.preventDefault()}
-                    className="border-2 border-dashed border-blue-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors cursor-pointer bg-blue-50/50 mb-4"
-                    onClick={() => document.getElementById('prompt-upload')?.click()}
-                  >
-                    <Upload className="w-12 h-12 text-blue-500 mx-auto mb-4" />
-                    <p className="text-blue-900 font-medium mb-2">
-                      Drop prompt documents here or click to upload
-                    </p>
-                    <p className="text-sm text-gray-500 italic">Suportă .docx, .doc (maxim 3 fișiere)</p>
-                    <input
-                      id="prompt-upload"
-                      type="file"
-                      accept=".docx,.doc"
-                      multiple
-                      className="hidden"
-                      onChange={handlePromptDocumentSelect}
+                
+                {/* Upload .docx */}
+                <div
+                  onDrop={handlePromptDocumentDrop}
+                  onDragOver={(e) => e.preventDefault()}
+                  className="border-2 border-dashed border-blue-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors cursor-pointer bg-blue-50/50 mb-4"
+                  onClick={() => document.getElementById('prompt-upload')?.click()}
+                >
+                  <Upload className="w-12 h-12 text-blue-500 mx-auto mb-4" />
+                  <p className="text-blue-900 font-medium mb-2">
+                    Drop prompt documents here or click to upload
+                  </p>
+                  <p className="text-sm text-gray-500 italic">Suportă .docx, .doc (maxim 3 fișiere)</p>
+                  <input
+                    id="prompt-upload"
+                    type="file"
+                    accept=".docx,.doc"
+                    multiple
+                    className="hidden"
+                    onChange={handlePromptDocumentSelect}
+                  />
+                </div>
+                
+                {/* SAU Textarea Manual */}
+                <div className="mb-4">
+                  <p className="text-sm text-gray-600 mb-2 text-center font-medium">SAU</p>
+                  <div className="border-2 border-blue-300 rounded-lg p-4 bg-white">
+                    <label className="block text-sm font-medium text-blue-900 mb-2">
+                      Scrie prompt manual (trebuie să conțină [INSERT TEXT]):
+                    </label>
+                    <textarea
+                      value={manualPromptText}
+                      onChange={(e) => setManualPromptText(e.target.value)}
+                      placeholder="Exemplu: Generate a video with the following text: [INSERT TEXT]. Make it engaging and professional."
+                      className="w-full h-32 p-3 border border-blue-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
+                    <Button
+                      onClick={() => {
+                        if (!manualPromptText.includes('[INSERT TEXT]')) {
+                          toast.error('Promptul trebuie să conțină [INSERT TEXT]');
+                          return;
+                        }
+                        if (manualPromptText.trim().length === 0) {
+                          toast.error('Promptul nu poate fi gol');
+                          return;
+                        }
+                        
+                        const newPrompt: UploadedPrompt = {
+                          id: `manual-${Date.now()}`,
+                          name: `Custom Prompt #${prompts.length + 1}`,
+                          template: manualPromptText,
+                          file: null, // Prompt manual, fără fișier
+                        };
+                        
+                        setPrompts(prev => [...prev, newPrompt]);
+                        setManualPromptText('');
+                        toast.success('Prompt manual adăugat!');
+                      }}
+                      disabled={!manualPromptText.includes('[INSERT TEXT]') || manualPromptText.trim().length === 0}
+                      className="mt-3 bg-blue-600 hover:bg-blue-700"
+                    >
+                      Adaugă Prompt Manual
+                    </Button>
                   </div>
+                </div>
 
                 {prompts.length > 0 && (
                   <div className="mt-4">
