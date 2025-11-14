@@ -135,16 +135,18 @@
 ## New Features: STEP 6 & STEP 7
 
 ### STEP 6 - Check Videos
-- [ ] Layout 3 coloane pentru video players
-- [ ] Încărcare videouri direct de pe URL Kie.ai (nu download local)
-- [ ] Afișare nume video deasupra player-ului
-- [ ] Afișare text dialogue sub nume
-- [ ] Organizare videouri pe categorii (HOOKS, MIRROR, DCS, TRANZITION, NEW_CAUSE, MECHANISM, EMOTIONAL_PROOF, TRANSFORMATION, CTA)
-- [ ] Nume categorie bold pentru separare vizuală
-- [ ] Buton verde "ACCEPT" pentru fiecare video
-- [ ] Buton roșu "REGENERATE" pentru fiecare video
-- [ ] Buton "UNDO" pentru fiecare video
-- [ ] Sistem de tracking status: accepted/regenerate/pending
+- [x] Layout 3 coloane pentru video players (grid responsive)
+- [x] Încărcare videouri direct de pe URL Kie.ai (nu download local)
+- [x] Afișare nume video deasupra player-ului
+- [x] Afișare text dialogue sub nume
+- [x] Organizare videouri pe categorii (HOOKS, MIRROR, DCS, TRANZITION, NEW_CAUSE, MECHANISM, EMOTIONAL_PROOF, TRANSFORMATION, CTA)
+- [x] Nume categorie bold pentru separare vizuală
+- [x] Buton verde "ACCEPT" pentru fiecare video
+- [x] Buton roșu "REGENERATE" pentru fiecare video
+- [x] Buton "UNDO" global pentru anulare ultima acțiune
+- [x] Sistem de tracking status: accepted/regenerate/pending
+- [x] Breadcrumbs actualizat cu STEP 6
+- [x] Buton "Check Videos" la STEP 5 pentru tranziție
 
 ### Video Naming Convention
 - [ ] Format nume: "CB1_A1_$CATEGORY$NUMBER" (ex: "CB1_A1_MIRROR1", "CB1_A1_TRANZITION1")

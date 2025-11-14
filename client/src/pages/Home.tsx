@@ -76,6 +76,13 @@ export default function Home() {
   // Step 5: Generate
   const [videoResults, setVideoResults] = useState<VideoResult[]>([]);
   
+  // Step 6: Check Videos (review)
+  const [reviewHistory, setReviewHistory] = useState<Array<{
+    videoName: string;
+    previousStatus: 'pending' | 'accepted' | 'regenerate' | null;
+    newStatus: 'pending' | 'accepted' | 'regenerate' | null;
+  }>>([]);
+  
   // Current step
   const [currentStep, setCurrentStep] = useState(1);
 
@@ -117,6 +124,9 @@ export default function Home() {
           text: line.text,
           section: line.section,
           promptType: line.promptType,
+          videoName: line.videoName,
+          categoryNumber: line.categoryNumber,
+          charCount: line.text.length,
         }));
         
         setAdLines(lines);
@@ -299,6 +309,9 @@ export default function Home() {
         imageUrl: selectedImage.url,
         imageId: selectedImage.id,
         promptType: line.promptType, // Mapare automată inteligentă
+        videoName: line.videoName,
+        section: line.section,
+        categoryNumber: line.categoryNumber,
       };
     });
 
@@ -377,6 +390,10 @@ export default function Home() {
         text: combo.text,
         imageUrl: combo.imageUrl,
         status: 'pending' as const,
+        videoName: combo.videoName,
+        section: combo.section,
+        categoryNumber: combo.categoryNumber,
+        reviewStatus: null,
       }));
       setVideoResults(initialResults);
 
@@ -420,13 +437,20 @@ export default function Home() {
           })),
         });
 
-        const batchResults: VideoResult[] = result.results.map((r: any) => ({
-          taskId: r.taskId,
-          text: r.text,
-          imageUrl: r.imageUrl,
-          status: r.success ? 'pending' as const : 'failed' as const,
-          error: r.error,
-        }));
+        const batchResults: VideoResult[] = result.results.map((r: any, index: number) => {
+          const combo = combos[index];
+          return {
+            taskId: r.taskId,
+            text: r.text,
+            imageUrl: r.imageUrl,
+            status: r.success ? 'pending' as const : 'failed' as const,
+            error: r.error,
+            videoName: combo.videoName,
+            section: combo.section,
+            categoryNumber: combo.categoryNumber,
+            reviewStatus: null,
+          };
+        });
 
         allResults.push(...batchResults);
       }
@@ -493,6 +517,61 @@ export default function Home() {
     toast.success(`Descărcare video #${index + 1} pornită`);
   };
 
+  // STEP 6: Review functions
+  const acceptVideo = (videoName: string) => {
+    setVideoResults(prev => prev.map(v => 
+      v.videoName === videoName 
+        ? { ...v, reviewStatus: 'accepted' as const }
+        : v
+    ));
+    
+    setReviewHistory(prev => [...prev, {
+      videoName,
+      previousStatus: videoResults.find(v => v.videoName === videoName)?.reviewStatus || null,
+      newStatus: 'accepted',
+    }]);
+    
+    toast.success(`Video ${videoName} acceptat!`);
+  };
+
+  const regenerateVideo = (videoName: string) => {
+    setVideoResults(prev => prev.map(v => 
+      v.videoName === videoName 
+        ? { ...v, reviewStatus: 'regenerate' as const }
+        : v
+    ));
+    
+    setReviewHistory(prev => [...prev, {
+      videoName,
+      previousStatus: videoResults.find(v => v.videoName === videoName)?.reviewStatus || null,
+      newStatus: 'regenerate',
+    }]);
+    
+    toast.info(`Video ${videoName} marcat pentru regenerare`);
+  };
+
+  const undoReview = () => {
+    if (reviewHistory.length === 0) {
+      toast.error('Nu există acțiuni de anulat');
+      return;
+    }
+    
+    const lastAction = reviewHistory[reviewHistory.length - 1];
+    
+    setVideoResults(prev => prev.map(v => 
+      v.videoName === lastAction.videoName 
+        ? { ...v, reviewStatus: lastAction.previousStatus }
+        : v
+    ));
+    
+    setReviewHistory(prev => prev.slice(0, -1));
+    toast.success(`Acțiune anulată pentru ${lastAction.videoName}`);
+  };
+
+  const goToCheckVideos = () => {
+    setCurrentStep(6);
+  };
+
   // Navigation
   const goToStep = (step: number) => {
     if (step <= currentStep) {
@@ -522,6 +601,7 @@ export default function Home() {
             { num: 3, label: "Images", icon: ImageIcon },
             { num: 4, label: "Mapping", icon: Map },
             { num: 5, label: "Generate", icon: Play },
+            { num: 6, label: "Check Videos", icon: Video },
           ].map((step, index) => (
             <div key={step.num} className="flex items-center flex-1">
               <div className="flex flex-col items-center flex-1">
@@ -551,7 +631,7 @@ export default function Home() {
                   {step.label}
                 </span>
               </div>
-              {index < 4 && (
+              {index < 5 && (
                 <div
                   className={`h-1 flex-1 mx-2 transition-all ${
                     currentStep > step.num ? "bg-blue-600" : "bg-gray-200"
@@ -969,6 +1049,124 @@ export default function Home() {
                   </div>
                 ))}
               </div>
+              
+              {/* Buton pentru a trece la STEP 6 */}
+              {videoResults.some(v => v.status === 'success') && (
+                <div className="mt-6">
+                  <Button
+                    onClick={goToCheckVideos}
+                    className="bg-green-600 hover:bg-green-700 w-full py-6 text-lg"
+                  >
+                    <Check className="w-5 h-5 mr-2" />
+                    Check Videos (Review)
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* STEP 6: Check Videos (Review) */}
+        {currentStep === 6 && videoResults.length > 0 && (
+          <Card className="mb-8 border-2 border-green-200">
+            <CardHeader className="bg-green-50">
+              <CardTitle className="flex items-center gap-2 text-green-900">
+                <Video className="w-5 h-5" />
+                STEP 6 - Check Videos
+              </CardTitle>
+              <CardDescription>
+                Review videourilo generate. Acceptă sau marchează pentru regenerare.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6">
+              {/* Buton UNDO */}
+              {reviewHistory.length > 0 && (
+                <div className="mb-6">
+                  <Button
+                    onClick={undoReview}
+                    variant="outline"
+                    className="border-orange-500 text-orange-700 hover:bg-orange-50"
+                  >
+                    <Undo2 className="w-4 h-4 mr-2" />
+                    UNDO ({reviewHistory.length} acțiuni)
+                  </Button>
+                </div>
+              )}
+
+              {/* Organizare pe categorii */}
+              {['HOOKS', 'MIRROR', 'DCS', 'TRANZITION', 'NEW_CAUSE', 'MECHANISM', 'EMOTIONAL_PROOF', 'TRANSFORMATION', 'CTA'].map(category => {
+                const categoryVideos = videoResults.filter(v => v.section === category && v.status === 'success');
+                
+                if (categoryVideos.length === 0) return null;
+                
+                return (
+                  <div key={category} className="mb-8">
+                    <h3 className="text-xl font-bold text-green-900 mb-4 border-b-2 border-green-300 pb-2">
+                      {category}
+                    </h3>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {categoryVideos.map((video) => (
+                        <div key={video.videoName} className="p-4 bg-white rounded-lg border-2 border-green-200">
+                          {/* Nume video */}
+                          <h4 className="font-bold text-green-900 mb-2">{video.videoName}</h4>
+                          
+                          {/* Text dialogue */}
+                          <p className="text-sm text-gray-700 mb-3 line-clamp-3">{video.text}</p>
+                          
+                          {/* Video player */}
+                          {video.videoUrl && (
+                            <video
+                              src={video.videoUrl}
+                              controls
+                              className="w-full aspect-[9/16] object-cover rounded border-2 border-green-300 mb-3"
+                            />
+                          )}
+                          
+                          {/* Butoane Accept / Regenerate */}
+                          <div className="flex gap-2">
+                            {video.reviewStatus === 'accepted' ? (
+                              <Button
+                                disabled
+                                className="flex-1 bg-green-600 text-white"
+                              >
+                                <Check className="w-4 h-4 mr-1" />
+                                Acceptat
+                              </Button>
+                            ) : (
+                              <Button
+                                onClick={() => acceptVideo(video.videoName)}
+                                className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                              >
+                                <Check className="w-4 h-4 mr-1" />
+                                Accept
+                              </Button>
+                            )}
+                            
+                            {video.reviewStatus === 'regenerate' ? (
+                              <Button
+                                disabled
+                                className="flex-1 bg-red-600 text-white"
+                              >
+                                <X className="w-4 h-4 mr-1" />
+                                Regenerare
+                              </Button>
+                            ) : (
+                              <Button
+                                onClick={() => regenerateVideo(video.videoName)}
+                                className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                              >
+                                <X className="w-4 h-4 mr-1" />
+                                Regenerate
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </CardContent>
           </Card>
         )}
