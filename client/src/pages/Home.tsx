@@ -7,13 +7,16 @@ import { toast } from "sonner";
 import { Upload, X, Check, Loader2, Video, FileText, Image as ImageIcon, Map, Play, Download, Undo2, ChevronLeft } from "lucide-react";
 
 type PromptType = 'PROMPT_NEUTRAL' | 'PROMPT_SMILING' | 'PROMPT_CTA';
-type SectionType = 'HOOKS' | 'TRANSFORMATION' | 'CTA' | 'OTHER';
+type SectionType = 'HOOKS' | 'MIRROR' | 'DCS' | 'TRANZITION' | 'NEW_CAUSE' | 'MECHANISM' | 'EMOTIONAL_PROOF' | 'TRANSFORMATION' | 'CTA' | 'OTHER';
 
 interface AdLine {
   id: string;
   text: string;
   section: SectionType;
   promptType: PromptType;
+  videoName: string;
+  categoryNumber: number;
+  charCount: number;
 }
 
 interface UploadedPrompt {
@@ -37,6 +40,9 @@ interface Combination {
   imageUrl: string;
   imageId: string;
   promptType: PromptType;
+  videoName: string;
+  section: SectionType;
+  categoryNumber: number;
 }
 
 interface VideoResult {
@@ -46,6 +52,10 @@ interface VideoResult {
   status: 'pending' | 'success' | 'failed' | null;
   videoUrl?: string;
   error?: string;
+  videoName: string;
+  section: SectionType;
+  categoryNumber: number;
+  reviewStatus: 'pending' | 'accepted' | 'regenerate' | null;
 }
 
 export default function Home() {

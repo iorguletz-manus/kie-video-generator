@@ -130,3 +130,53 @@
 - [x] Text editabil la step 4 (textarea în loc de div grey)
 - [x] Selector imagine: afișează numele real al fișierului (img.fileName)
 - [x] Salvare nume fișier original pentru fiecare imagine (fileName + isCTA)
+
+
+## New Features: STEP 6 & STEP 7
+
+### STEP 6 - Check Videos
+- [ ] Layout 3 coloane pentru video players
+- [ ] Încărcare videouri direct de pe URL Kie.ai (nu download local)
+- [ ] Afișare nume video deasupra player-ului
+- [ ] Afișare text dialogue sub nume
+- [ ] Organizare videouri pe categorii (HOOKS, MIRROR, DCS, TRANZITION, NEW_CAUSE, MECHANISM, EMOTIONAL_PROOF, TRANSFORMATION, CTA)
+- [ ] Nume categorie bold pentru separare vizuală
+- [ ] Buton verde "ACCEPT" pentru fiecare video
+- [ ] Buton roșu "REGENERATE" pentru fiecare video
+- [ ] Buton "UNDO" pentru fiecare video
+- [ ] Sistem de tracking status: accepted/regenerate/pending
+
+### Video Naming Convention
+- [ ] Format nume: "CB1_A1_$CATEGORY$NUMBER" (ex: "CB1_A1_MIRROR1", "CB1_A1_TRANZITION1")
+- [ ] Extragere număr categorie din document (MIRROR1 → 1, TRANZITION2 → 2)
+- [ ] Excepție HOOKS: H3 cu 2 propoziții → "CB1_A1_HOOK3" și "CB1_A1_HOOK3B"
+- [ ] Adăugare litere A, B, C, D pentru videouri multiple din aceeași categorie
+- [ ] Salvare mapping categorie → număr din document
+
+### STEP 7 - Regenerate
+- [ ] Afișare doar videouri marcate pentru regenerare
+- [ ] Selector prompt: alegere din liste sau manual
+- [ ] Textarea pentru modificare prompt existent
+- [ ] Selector imagine: schimbare poză pentru regenerare
+- [ ] Radio button "Vrei să regenerezi mai multe videouri?" (Da/Nu, default: Nu)
+- [ ] Când Da: selector număr regenerări (1-10)
+- [ ] Afișare formulare multiple pentru fiecare variantă
+- [ ] Buton "Regenerate" cu același proces ca Generate
+- [ ] Tracking iterații regenerare până când toate sunt acceptate
+- [ ] Buton download individual și bulk la final
+
+### STEP 1 Improvements
+- [ ] Calcul live număr caractere pentru fiecare paragraf
+- [ ] Update dinamic la editare text
+- [ ] Afișare text roșu pentru anumite cuvinte/fraze (din document)
+- [ ] Detectare și styling automat pentru text marcat roșu
+
+### Final Step - Download All
+- [ ] Afișare toate videouri acceptate cu check verde
+- [ ] Buton download individual pentru fiecare video
+- [ ] Buton "Descarcă toate" pentru bulk download
+- [ ] Export CSV cu toate detaliile (nume, text, categorie, URL)
+
+
+## Bug Fix
+- [x] Fix keywords to remove: suport pentru orice număr HOOKS (H1-H999, nu doar H1-H9)
