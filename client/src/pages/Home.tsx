@@ -87,6 +87,9 @@ export default function Home() {
   // State pentru filtru STEP 6 (show all / accepted / failed)
   const [videoFilter, setVideoFilter] = useState<'all' | 'accepted' | 'failed'>('all');
   
+  // State pentru filtru STEP 5 (show all / accepted / regenerate)
+  const [step5Filter, setStep5Filter] = useState<'all' | 'accepted' | 'regenerate'>('all');
+  
   // State pentru edit timestamps (când user dă SAVE în Modify & Regenerate)
   const [editTimestamps, setEditTimestamps] = useState<Record<number, number>>({});
   
@@ -1922,8 +1925,27 @@ export default function Home() {
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-6">
+              {/* Filtru videouri STEP 5 */}
+              <div className="mb-6 flex items-center gap-4">
+                <label className="text-sm font-medium text-blue-900">Filtrează videouri:</label>
+                <select
+                  value={step5Filter}
+                  onChange={(e) => setStep5Filter(e.target.value as 'all' | 'accepted' | 'regenerate')}
+                  className="px-4 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">Afișează Toate</option>
+                  <option value="accepted">Doar Acceptate</option>
+                  <option value="regenerate">Pentru Regenerare</option>
+                </select>
+              </div>
+              
               <div className="space-y-4">
-                {videoResults.map((result, index) => (
+                {videoResults.filter(result => {
+                  if (step5Filter === 'all') return true;
+                  if (step5Filter === 'accepted') return result.reviewStatus === 'accepted';
+                  if (step5Filter === 'regenerate') return result.reviewStatus === 'regenerate';
+                  return true;
+                }).map((result, index) => (
                   <div key={index} className="p-4 bg-white rounded-lg border-2 border-blue-200">
                     <div className="flex items-start gap-4">
                       <img
@@ -1964,10 +1986,17 @@ export default function Home() {
                           )}
                           {result.status === 'success' && result.videoUrl && (
                             <>
-                              <div className="flex items-center gap-2 bg-green-50 border-2 border-green-500 px-3 py-2 rounded-lg flex-1">
-                                <Check className="w-5 h-5 text-green-600" />
-                                <span className="text-sm text-green-700 font-bold">Generated</span>
-                              </div>
+                              {result.reviewStatus === 'regenerate' ? (
+                                <div className="flex items-center gap-2 bg-red-50 border-2 border-red-500 px-3 py-2 rounded-lg flex-1">
+                                  <X className="w-5 h-5 text-red-600" />
+                                  <span className="text-sm text-red-700 font-bold">Respinse</span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2 bg-green-50 border-2 border-green-500 px-3 py-2 rounded-lg flex-1">
+                                  <Check className="w-5 h-5 text-green-600" />
+                                  <span className="text-sm text-green-700 font-bold">Generated</span>
+                                </div>
+                              )}
                             </>
                           )}
                           {result.status === 'failed' && (
