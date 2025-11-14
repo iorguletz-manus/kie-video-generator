@@ -2114,9 +2114,34 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           {result.status === 'success' && result.videoUrl && (
                             <>
                               {result.reviewStatus === 'regenerate' ? (
-                                <div className="flex items-center gap-2 bg-red-50 border-2 border-red-500 px-3 py-2 rounded-lg flex-1">
-                                  <X className="w-5 h-5 text-red-600" />
-                                  <span className="text-sm text-red-700 font-bold">Respinse</span>
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 bg-red-50 border-2 border-red-500 px-3 py-2 rounded-lg">
+                                    <X className="w-5 h-5 text-red-600" />
+                                    <span className="text-sm text-red-700 font-bold">Respinse</span>
+                                  </div>
+                                  
+                                  {/* Buton Modify & Regenerate pentru videouri respinse */}
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setModifyingVideoIndex(index);
+                                      const currentPromptType = combinations[index]?.promptType || 'PROMPT_NEUTRAL';
+                                      setModifyPromptType(currentPromptType);
+                                      
+                                      // Dacă video are PROMPT_CUSTOM salvat → afișează-l
+                                      if (currentPromptType === 'PROMPT_CUSTOM' && customPrompts[index]) {
+                                        setModifyPromptText(customPrompts[index]);
+                                      } else {
+                                        setModifyPromptText('');
+                                      }
+                                      
+                                      setModifyDialogueText(result.text);
+                                    }}
+                                    className="mt-2 w-full border-orange-500 text-orange-700 hover:bg-orange-50"
+                                  >
+                                    Modify & Regenerate
+                                  </Button>
                                 </div>
                               ) : (
                                 <div className="flex items-center gap-2 bg-green-50 border-2 border-green-500 px-3 py-2 rounded-lg flex-1">

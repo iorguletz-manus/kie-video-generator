@@ -1138,3 +1138,19 @@
 - [x] Actualizare videoResults cu taskId-uri pentru toate variantele
 - [x] Duplicate videouri în videoResults când setări diferite
 - [x] Logică condiționată: allIdentical check pentru detectare setări identice
+
+
+## Bug - Nu pot modifica videouri respinse în STEP 5 (14 Nov 2025)
+
+### Problema: Butonul "Modify & Regenerate" lipsește pentru videouri respinse
+- [x] Când user marchează videouri cu "Respinge" în STEP 6 și se întoarce în STEP 5
+- [x] Videouri respinse (reviewStatus === 'regenerate') afișează badge roșu "Respinse"
+- [x] DAR butonul "Modify & Regenerate" NU apare pentru aceste videouri
+- [x] Butonul apare DOAR pentru videouri cu status "failed"
+- [x] User nu poate modifica text/prompt/imagine pentru videouri respinse
+
+### Soluție
+- [x] Adăugare buton "Modify & Regenerate" pentru videouri cu reviewStatus === 'regenerate'
+- [x] Același formular ca pentru videouri "failed"
+- [x] User poate modifica text, prompt, imagine și regenera videouri respinse
+- [x] Buton full-width sub badge-ul "Respinse" cu styling orange
