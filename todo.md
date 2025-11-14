@@ -107,3 +107,26 @@
 - [x] Mapare automată: TRANSFORMATION + CTA → $PROMPT_SMILING
 - [x] Mapare automată: CTA cu keywords "carte"/"cartea" → $PROMPT_CTA
 - [x] Backend: funcție pentru detectare secțiune din linie text
+
+
+## Critical Bug Fixes & Improvements
+
+### Prompt Matching
+- [x] Fix căutare prompt: verifică numele exact (nu includes, ci match exact sau partial corect)
+- [x] Asigură că prompturile cu nume "neutral", "smiling", "cta" sunt găsite corect
+
+### CTA Image Mapping Intelligence
+- [x] Detectare poze cu "CTA" în nume fișier
+- [x] Mapare automată: poze CTA → linii cu "carte"/"cartea"
+- [x] După prima linie cu carte, toate liniile de jos primesc aceeași poză CTA by default
+
+### Image Ordering
+- [x] Ordonare poze în perechi: normale + CTA (ex: Alina_1, Alina_1CTA, Alina_2, Alina_2CTA)
+- [x] Algoritm sortare: grupează după prefix, apoi pune CTA după normală
+
+### UI Fixes
+- [x] Thumbnail-uri 50% mai mici la step 3 (w-1/2 în loc de w-full)
+- [x] Thumbnail-uri 50% mai mici la step 4 (w-16 în loc de w-32)
+- [x] Text editabil la step 4 (textarea în loc de div grey)
+- [x] Selector imagine: afișează numele real al fișierului (img.fileName)
+- [x] Salvare nume fișier original pentru fiecare imagine (fileName + isCTA)

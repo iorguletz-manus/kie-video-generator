@@ -27,6 +27,8 @@ interface UploadedImage {
   id: string;
   url: string;
   file: File;
+  fileName: string;
+  isCTA: boolean;
 }
 
 interface Combination {
@@ -174,6 +176,8 @@ export default function Home() {
   const uploadImages = async (files: File[]) => {
     const imageFiles = files.filter(file => file.type.startsWith('image/'));
     
+    const uploadedImages: UploadedImage[] = [];
+    
     for (const file of imageFiles) {
       try {
         const reader = new FileReader();
@@ -184,19 +188,58 @@ export default function Home() {
             fileName: file.name,
           });
           
+          const isCTA = file.name.toUpperCase().includes('CTA');
+          
           const newImage: UploadedImage = {
             id: `img-${Date.now()}-${Math.random()}`,
             url: result.imageUrl,
             file: file,
+            fileName: file.name,
+            isCTA: isCTA,
           };
           
-          setImages(prev => [...prev, newImage]);
+          uploadedImages.push(newImage);
+          
+          // Ordonare după încărcarea tuturor
+          if (uploadedImages.length === imageFiles.length) {
+            const sortedImages = sortImagesByPairs(uploadedImages);
+            setImages(prev => [...prev, ...sortedImages]);
+          }
         };
         reader.readAsDataURL(file);
       } catch (error: any) {
         toast.error(`Eroare la încărcarea imaginii ${file.name}: ${error.message}`);
       }
     }
+  };
+  
+  // Funcție pentru ordonare poze în perechi: normale + CTA
+  const sortImagesByPairs = (images: UploadedImage[]): UploadedImage[] => {
+    const pairs: Record<string, { normal?: UploadedImage; cta?: UploadedImage }> = {};
+    
+    // Grupează după prefix (numele fără CTA)
+    images.forEach(img => {
+      const prefix = img.fileName.replace(/CTA/gi, '').replace(/[_-]$/,'').trim();
+      
+      if (!pairs[prefix]) {
+        pairs[prefix] = {};
+      }
+      
+      if (img.isCTA) {
+        pairs[prefix].cta = img;
+      } else {
+        pairs[prefix].normal = img;
+      }
+    });
+    
+    // Construiește lista ordonată: normal, CTA, normal, CTA...
+    const sorted: UploadedImage[] = [];
+    Object.values(pairs).forEach(pair => {
+      if (pair.normal) sorted.push(pair.normal);
+      if (pair.cta) sorted.push(pair.cta);
+    });
+    
+    return sorted;
   };
 
   const removeImage = (id: string) => {
@@ -218,25 +261,60 @@ export default function Home() {
       return;
     }
 
-    // Creează combinații: fiecare linie cu prima imagine și promptul potrivit
-    const newCombinations: Combination[] = adLines.map((line, index) => ({
-      id: `combo-${index}`,
-      text: line.text,
-      imageUrl: images[0].url,
-      imageId: images[0].id,
-      promptType: line.promptType, // Mapare automată inteligentă
-    }));
+    // Găsește poza CTA (dacă există)
+    const ctaImage = images.find(img => img.isCTA);
+    const defaultImage = images[0];
+    
+    // Găsește prima linie cu "carte" sau "cartea"
+    let firstCarteIndex = -1;
+    for (let i = 0; i < adLines.length; i++) {
+      if (adLines[i].text.toLowerCase().includes('carte') || adLines[i].text.toLowerCase().includes('cartea')) {
+        firstCarteIndex = i;
+        break;
+      }
+    }
+
+    // Crează combinații cu mapare inteligentă CTA
+    const newCombinations: Combination[] = adLines.map((line, index) => {
+      let selectedImage = defaultImage;
+      
+      // Dacă există poză CTA și suntem după prima linie cu "carte"
+      if (ctaImage && firstCarteIndex !== -1 && index >= firstCarteIndex) {
+        selectedImage = ctaImage;
+      }
+      
+      return {
+        id: `combo-${index}`,
+        text: line.text,
+        imageUrl: selectedImage.url,
+        imageId: selectedImage.id,
+        promptType: line.promptType, // Mapare automată inteligentă
+      };
+    });
 
     setCombinations(newCombinations);
     setDeletedCombinations([]);
     setCurrentStep(4);
-    toast.success(`${newCombinations.length} combinații create cu mapare automată`);
+    
+    if (ctaImage && firstCarteIndex !== -1) {
+      toast.success(`${newCombinations.length} combinații create. Poza CTA mapata pe liniile cu "carte"`);
+    } else {
+      toast.success(`${newCombinations.length} combinații create cu mapare automată`);
+    }
   };
 
   const updateCombinationPromptType = (id: string, promptType: PromptType) => {
     setCombinations(prev =>
       prev.map(combo =>
         combo.id === id ? { ...combo, promptType } : combo
+      )
+    );
+  };
+
+  const updateCombinationText = (id: string, text: string) => {
+    setCombinations(prev =>
+      prev.map(combo =>
+        combo.id === id ? { ...combo, text } : combo
       )
     );
   };
@@ -309,9 +387,18 @@ export default function Home() {
       for (const [promptType, combos] of Object.entries(combinationsByPrompt)) {
         if (combos.length === 0) continue;
 
-        const prompt = prompts.find(p => p.name.toUpperCase().includes(promptType));
+        // Căutare prompt: verifică dacă numele conține "NEUTRAL", "SMILING" sau "CTA"
+        let prompt;
+        if (promptType === 'PROMPT_NEUTRAL') {
+          prompt = prompts.find(p => p.name.toUpperCase().includes('NEUTRAL'));
+        } else if (promptType === 'PROMPT_SMILING') {
+          prompt = prompts.find(p => p.name.toUpperCase().includes('SMILING'));
+        } else if (promptType === 'PROMPT_CTA') {
+          prompt = prompts.find(p => p.name.toUpperCase().includes('CTA'));
+        }
+        
         if (!prompt) {
-          toast.error(`Nu s-a găsit prompt pentru ${promptType}`);
+          toast.error(`Nu s-a găsit prompt pentru ${promptType}. Verifică că numele conține "NEUTRAL", "SMILING" sau "CTA"`);
           continue;
         }
 
@@ -645,7 +732,7 @@ export default function Home() {
                         <img
                           src={image.url}
                           alt="Uploaded"
-                          className="w-full aspect-[9/16] object-cover rounded border-2 border-blue-200"
+                          className="w-1/2 aspect-[9/16] object-cover rounded border-2 border-blue-200"
                         />
                         <button
                           onClick={() => removeImage(image.id)}
@@ -707,18 +794,18 @@ export default function Home() {
                         <select
                           value={combo.imageId}
                           onChange={(e) => updateCombinationImage(combo.id, e.target.value)}
-                          className="w-32 p-2 border border-blue-300 rounded text-sm mb-2"
+                          className="w-full p-2 border border-blue-300 rounded text-sm mb-2"
                         >
-                          {images.map((img, imgIndex) => (
+                          {images.map((img) => (
                             <option key={img.id} value={img.id}>
-                              Imagine {imgIndex + 1}
+                              {img.fileName}
                             </option>
                           ))}
                         </select>
                         <img
                           src={combo.imageUrl}
                           alt="Selected"
-                          className="w-32 aspect-[9/16] object-cover rounded border-2 border-blue-300"
+                          className="w-16 aspect-[9/16] object-cover rounded border-2 border-blue-300"
                         />
                       </div>
 
@@ -727,9 +814,11 @@ export default function Home() {
                         <label className="block text-xs font-medium text-blue-900 mb-2">
                           Text pentru Dialogue
                         </label>
-                        <div className="p-3 bg-gray-50 rounded border border-gray-200 text-sm mb-3">
-                          {combo.text}
-                        </div>
+                        <Textarea
+                          value={combo.text}
+                          onChange={(e) => updateCombinationText(combo.id, e.target.value)}
+                          className="text-sm mb-3 min-h-[80px]"
+                        />
                         
                         <label className="block text-xs font-medium text-blue-900 mb-2">
                           Prompt Type
@@ -807,7 +896,7 @@ export default function Home() {
                       <img
                         src={result.imageUrl}
                         alt="Video thumbnail"
-                        className="w-24 aspect-[9/16] object-cover rounded border-2 border-blue-300"
+                        className="w-12 aspect-[9/16] object-cover rounded border-2 border-blue-300"
                       />
                       <div className="flex-1">
                         <p className="text-sm text-blue-900 mb-2">
