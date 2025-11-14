@@ -690,3 +690,25 @@
 - [x] Simplificare condiție JSX: dacă videoUrl există → video player, altfel → "Se încarcă video..."
 - [x] Video player simplu: `<video controls preload="metadata"><source src={videoUrl} type="video/mp4" /></video>`
 - [ ] Auto-check din 10 în 10 secunde încă rulează (pentru STEP 5) - aștept feedback user dacă trebuie eliminat
+
+
+## CRITICAL FIX - loadSampleVideos Trebuie să Încarce videoUrl INSTANT
+
+### Problema identificată
+- [x] User apasă "Continue with Sample Videos" → apare "Se încarcă video..." și trebuie să aștepte 3 secunde
+- [x] Problema: `loadSampleVideos()` salvează doar taskId-uri, NU și videoUrl-uri
+- [x] Auto-check-ul trebuie să ruleze pentru a lua videoUrl-urile → delay inutil de 3s
+
+### Soluția corectă
+- [ ] Când apeși "Continue with Sample Videos" → încarcă IMEDIAT toate videoUrl-urile cu `Promise.all`
+- [ ] Salvează în `videoResults` cu `videoUrl` deja completat
+- [ ] Treci la STEP 6 → video player-ele apar INSTANT, fără delay!
+
+### Implementare
+- [x] Modificare funcție `loadSampleVideos()`:
+  - [x] Pentru fiecare task ID, fă request la API Kie.ai (cu `Promise.all` pentru paralelizare)
+  - [x] Extrage `videoUrl` din `data.data.resultUrls[0]`
+  - [x] Salvează în `videoResults` cu `videoUrl`, `status: 'success'`
+  - [x] Treci la STEP 6 doar DUPĂ ce toate videoUrl-urile sunt încărcate
+- [x] Toast "6/6 sample videos încărcate cu succes!" după încărcare
+- [ ] Aștept testare user - video player-ele ar trebui să apară INSTANT în STEP 6

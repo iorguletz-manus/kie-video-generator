@@ -813,7 +813,7 @@ export default function Home() {
   };
 
   // TEMPORARY: Load sample videos for testing when Kie.ai is down
-  const loadSampleVideos = () => {
+  const loadSampleVideos = async () => {
     const sampleTaskIds = [
       'b78c0ce0523ab52128ea6d86954bbeac',
       '55b7419936130ddf132e18d0a0f6477c',
@@ -835,34 +835,60 @@ export default function Home() {
       "Nu știu ce e mai greu, să nu ai bani sau să simți că oricât te zbăți, nu mai vezi nicio cale de ieșire. Nu știu ce e mai greu",
     ];
     
-    const sampleResults: VideoResult[] = sampleTaskIds.map((taskId, index) => ({
-      taskId,
-      videoName: `CB1_A1_${sections[index]}${index + 1}`,
-      text: sampleTexts[index],
-      imageUrl: 'https://via.placeholder.com/270x480/blue/white?text=Sample',
-      status: 'pending' as const,
-      section: sections[index],
-      categoryNumber: index + 1,
-      reviewStatus: null,
-    }));
+    toast.info('Încărcare sample videos...');
     
-    setVideoResults(sampleResults);
-    
-    // Crează și combinations pentru sample videos
-    const sampleCombinations: Combination[] = sampleTaskIds.map((taskId, index) => ({
-      id: `sample-${index}`,
-      text: sampleTexts[index],
-      imageUrl: 'https://via.placeholder.com/270x480/blue/white?text=Sample',
-      imageId: `sample-img-${index}`,
-      promptType: 'PROMPT_NEUTRAL' as PromptType,
-      videoName: `CB1_A1_${sections[index]}${index + 1}`,
-      section: sections[index],
-      categoryNumber: index + 1,
-    }));
-    
-    setCombinations(sampleCombinations);
-    setCurrentStep(6); // Trece la STEP 6 (Check Videos)
-    toast.success('6 sample videos încărcate pentru testare!');
+    try {
+      // Încărcare INSTANT a tuturor videoUrl-urilor cu Promise.all
+      const videoUrlPromises = sampleTaskIds.map(async (taskId) => {
+        const response = await fetch(`https://api.kie.ai/api/v1/veo/record-info?taskId=${taskId}`, {
+          headers: {
+            'Authorization': 'Bearer a4089052f1c04c6b8be02b026ce87fe8',
+          },
+        });
+        const data = await response.json();
+        if (data.code === 200 && data.data && data.data.successFlag === 1) {
+          return data.data.resultUrls?.[0] || null;
+        }
+        return null;
+      });
+      
+      const videoUrls = await Promise.all(videoUrlPromises);
+      
+      // Creează videoResults cu videoUrl deja completat
+      const sampleResults: VideoResult[] = sampleTaskIds.map((taskId, index) => ({
+        taskId,
+        videoName: `CB1_A1_${sections[index]}${index + 1}`,
+        text: sampleTexts[index],
+        imageUrl: 'https://via.placeholder.com/270x480/blue/white?text=Sample',
+        status: videoUrls[index] ? ('success' as const) : ('failed' as const),
+        videoUrl: videoUrls[index] || undefined,
+        section: sections[index],
+        categoryNumber: index + 1,
+        reviewStatus: null,
+      }));
+      
+      setVideoResults(sampleResults);
+      
+      // Creează și combinations pentru sample videos
+      const sampleCombinations: Combination[] = sampleTaskIds.map((taskId, index) => ({
+        id: `sample-${index}`,
+        text: sampleTexts[index],
+        imageUrl: 'https://via.placeholder.com/270x480/blue/white?text=Sample',
+        imageId: `sample-img-${index}`,
+        promptType: 'PROMPT_NEUTRAL' as PromptType,
+        videoName: `CB1_A1_${sections[index]}${index + 1}`,
+        section: sections[index],
+        categoryNumber: index + 1,
+      }));
+      
+      setCombinations(sampleCombinations);
+      setCurrentStep(6); // Trece la STEP 6 (Check Videos)
+      
+      const successCount = videoUrls.filter((url: string | null) => url).length;
+      toast.success(`${successCount}/6 sample videos încărcate cu succes!`);
+    } catch (error: any) {
+      toast.error(`Eroare la încărcarea sample videos: ${error.message}`);
+    }
   };
   
   // Regenerare toate videouri failed
