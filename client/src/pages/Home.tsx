@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Upload, X, Check, Loader2, Video, FileText, Image as ImageIcon, Map, Play, Download, Undo2, ChevronLeft, RefreshCw } from "lucide-react";
+import { Upload, X, Check, Loader2, Video, FileText, Image as ImageIcon, Map, Play, Download, Undo2, ChevronLeft, RefreshCw, Clock } from "lucide-react";
 
 type PromptType = 'PROMPT_NEUTRAL' | 'PROMPT_SMILING' | 'PROMPT_CTA' | 'PROMPT_CUSTOM';
 type SectionType = 'HOOKS' | 'MIRROR' | 'DCS' | 'TRANZITION' | 'NEW_CAUSE' | 'MECHANISM' | 'EMOTIONAL_PROOF' | 'TRANSFORMATION' | 'CTA' | 'OTHER';
@@ -1328,6 +1328,7 @@ export default function Home() {
                 Sesiune Curentă:
               </label>
               <select
+                key={currentSessionId}
                 value={currentSessionId}
                 onChange={(e) => {
                   const sessionId = e.target.value;
@@ -1409,7 +1410,7 @@ export default function Home() {
             { num: 3, label: "Images", icon: ImageIcon },
             { num: 4, label: "Mapping", icon: Map },
             { num: 5, label: "Generate", icon: Play },
-            { num: 6, label: "Check Videos", icon: Video },
+            { num: 6, label: "Check\u00A0Videos", icon: Video },
           ].map((step, index) => (
             <div key={step.num} className="flex items-center flex-1">
               <div className="flex flex-col items-center flex-1">
@@ -1439,7 +1440,7 @@ export default function Home() {
                   {step.label}
                 </span>
               </div>
-              {index < 6 && (
+              {index < 5 && (
                 <div
                   className={`h-1 flex-1 mx-2 transition-all ${
                     currentStep > step.num ? "bg-blue-600" : "bg-gray-200"
@@ -2068,11 +2069,11 @@ export default function Home() {
                                             setModifyPromptText(customPrompts[modifyingVideoIndex!]);
                                           } else if (newType !== 'PROMPT_CUSTOM') {
                                             // Încărcă text hardcodat de la backend
-                                            try {
-                                              const response = await fetch(`/api/trpc/prompt.getHardcodedPrompt?input=${encodeURIComponent(JSON.stringify({ promptType: newType }))}`);
+                            try {
+                              const response = await fetch(`/api/trpc/prompt.getHardcodedPrompt?batch=1&input=${encodeURIComponent(JSON.stringify({ "0": { promptType: newType } }))}`);
                                               const data = await response.json();
-                                              if (data.result?.data?.promptText) {
-                                                setModifyPromptText(data.result.data.promptText);
+                                              if (data[0]?.result?.data?.promptText) {
+                                                setModifyPromptText(data[0].result.data.promptText);
                                               } else {
                                                 throw new Error('Invalid response');
                                               }
@@ -2219,11 +2220,11 @@ export default function Home() {
                                                   
                                                   // Încărcă text hardcodat dacă nu e CUSTOM
                                                   if (newType !== 'PROMPT_CUSTOM') {
-                                                    try {
-                                                      const response = await fetch(`/api/trpc/prompt.getHardcodedPrompt?input=${encodeURIComponent(JSON.stringify({ promptType: newType }))}`);
-                                                      const data = await response.json();
-                                                      if (data.result?.data?.promptText) {
-                                                        updated[variantIndex].promptText = data.result.data.promptText;
+                                                     try {
+                                                       const response = await fetch(`/api/trpc/prompt.getHardcodedPrompt?batch=1&input=${encodeURIComponent(JSON.stringify({ "0": { promptType: newType } }))}`);
+                                                       const data = await response.json();
+                                                       if (data[0]?.result?.data?.promptText) {
+                                                         updated[variantIndex].promptText = data[0].result.data.promptText;
                                                       }
                                                     } catch (error) {
                                                       console.error('Eroare la încărcare prompt:', error);
@@ -2383,9 +2384,12 @@ export default function Home() {
                                 
                                 {/* Edited X min ago */}
                                 {editTimestamps[index] && (
-                                  <p className="text-xs text-orange-600 mt-1">
-                                    Edited {Math.floor((currentTime - editTimestamps[index]) / 60000)} min ago
-                                  </p>
+                                  <div className="flex items-center gap-1 mt-2">
+                                    <Clock className="w-3 h-3 text-orange-500" />
+                                    <p className="text-xs text-orange-500 font-bold">
+                                      Edited {Math.floor((currentTime - editTimestamps[index]) / 60000)} min ago
+                                    </p>
+                                  </div>
                                 )}
                               </div>
                             </>

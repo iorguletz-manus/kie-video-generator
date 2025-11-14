@@ -923,3 +923,28 @@
 - [ ] FIX 1: Thumbnails dispar când dai Back de la STEP 6 → STEP 5 → STEP 4 (cauza necunoscută, necesită debugging)
 - [ ] Implementare statistici STEP 6 + nume videouri corecte (CB1_A1_HOOKS1)
 - [ ] Backend endpoint pentru generare paralelă multiple variante (Regenerate All)
+
+
+## 4 PROBLEME RAPORTATE - ✅ Toate Rezolvate
+
+### 1. Breadcrumbs - Elimină linie după STEP 6
+- [x] STEP 6 e ultimul step - elimină linia după el (index < 5)
+- [x] "Check Videos" să apară pe 1 rând (folosit non-breaking space)
+- [x] Ajustare UX pentru a arăta mai bine
+
+### 2. Selector Sesiune - Rămâne pe "Default Session"
+- [x] Când schimbi sesiunea, selector-ul rămâne pe "Default Session"
+- [x] Trebuie să afișeze sesiunea selectată corect
+- [x] Fix: adăugat key={currentSessionId} pentru forțare re-render
+
+### 3. Eroare Încărcare Prompt Hardcodat
+- [x] Când selectezi PROMPT_SMILING în Modify & Regenerate → eroare "Invalid response"
+- [x] Nu încarcă textul hardcodat în textarea "Edit prompt (optional)"
+- [x] Fix: folosit format tRPC batch corect (?batch=1&input={"0":{...}})
+
+### 4. "Edited X min ago" Styling
+- [x] Când dai SAVE în Modify & Regenerate → trebuie să apară "Edited X min ago"
+- [x] Culoare: portocaliu (text-orange-500)
+- [x] Bold text (font-bold)
+- [x] Adăugare iconița Clock (lucide-react)
+- [x] UX mai bun pentru a ieși în evidență (flex items-center gap-1)
