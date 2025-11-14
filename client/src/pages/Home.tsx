@@ -747,13 +747,30 @@ export default function Home() {
         let videoUrl: string | undefined;
         let errorMessage: string | undefined;
 
+        console.log('Processing video status - successFlag:', data.data.successFlag);
+        console.log('Full API response:', JSON.stringify(data.data, null, 2));
+        
         if (data.data.successFlag === 1) {
           status = 'success';
           videoUrl = data.data.resultUrls?.[0];
-        } else if (data.data.successFlag === -1) {
+          console.log('Video SUCCESS - URL:', videoUrl);
+        } else if (data.data.successFlag === -1 || data.data.successFlag === 2) {
+          // successFlag === -1 sau 2 înseamnă failed
           status = 'failed';
-          errorMessage = data.data.errorMessage || 'Unknown error';
-          console.log('Video failed with error:', errorMessage);
+          errorMessage = data.data.errorMessage || data.data.error || data.data.msg || 'Unknown error';
+          console.log('Video FAILED - Error:', errorMessage);
+        } else if (data.data.errorMessage || data.data.error) {
+          // Dacă există errorMessage dar successFlag nu e -1, tot considerăm failed
+          status = 'failed';
+          errorMessage = data.data.errorMessage || data.data.error;
+          console.log('Video FAILED (detected via errorMessage) - Error:', errorMessage);
+        } else if (data.data.successFlag === 0) {
+          // successFlag === 0 înseamnă pending
+          status = 'pending';
+          console.log('Video PENDING - successFlag:', data.data.successFlag);
+        } else {
+          console.log('Video status UNKNOWN - successFlag:', data.data.successFlag);
+          console.log('Setting as pending by default');
         }
 
         setVideoResults(prev =>

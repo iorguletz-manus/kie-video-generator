@@ -421,3 +421,21 @@
 - [x] Confirm dialog înainte de delete sesiune (confirm())
 - [x] Confirm dialog înainte de new session (confirm())
 - [x] Toast notifications pentru save/load/delete success
+
+
+## Bug Report - Check Status Nu Afișează FAILED Corect
+
+### Problema
+- [x] Când video are status FAILED în logurile Kie.ai, UI-ul afișează încă "în curs de generare"
+- [x] Nu se afișează statusul FAILED cu roșu
+- [x] Nu se afișează eroarea completă de la Kie.ai (ex: "Rejected by Google's content policy...")
+
+### Fix Implementat
+- [x] Investigare funcția checkVideoStatus - verificare procesare răspuns backend
+- [x] Îmbunătățire detectare failed: successFlag === -1 sau 2
+- [x] Detectare failed via errorMessage chiar dacă successFlag nu e -1
+- [x] Adăugare logging complet pentru debugging (console.log full API response)
+- [x] Fix actualizare videoResults cu status "failed" și error
+- [x] UI STEP 5 - afișare status FAILED cu roșu (border-red-500, bg-red-50)
+- [x] UI STEP 5 - afișare errorMessage complet cu roșu sub status
+- [ ] Test cu video real failed pentru a verifica afișarea corectă (user trebuie să testeze)
