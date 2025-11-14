@@ -846,7 +846,7 @@ export default function Home() {
     }));
     
     setCombinations(sampleCombinations);
-    setCurrentStep(5);
+    setCurrentStep(6); // Trece la STEP 6 (Check Videos)
     toast.success('6 sample videos încărcate pentru testare!');
   };
   
@@ -1304,8 +1304,8 @@ export default function Home() {
             { num: 3, label: "Images", icon: ImageIcon },
             { num: 4, label: "Mapping", icon: Map },
             { num: 5, label: "Generate", icon: Play },
-            { num: 6, label: "Regenerate", icon: Undo2 },
-            { num: 7, label: "Final Review", icon: Video },
+            { num: 6, label: "Check Videos", icon: Video },
+            { num: 7, label: "Regenerate", icon: Undo2 },
           ].map((step, index) => (
             <div key={step.num} className="flex items-center flex-1">
               <div className="flex flex-col items-center flex-1">
@@ -2016,13 +2016,13 @@ export default function Home() {
           </Card>
         )}
 
-        {/* STEP 6: Regenerate Advanced */}
-        {currentStep === 6 && videoResults.length > 0 && (
+        {/* STEP 7: Regenerate Advanced */}
+        {currentStep === 7 && videoResults.length > 0 && (
           <Card className="mb-8 border-2 border-orange-200">
             <CardHeader className="bg-orange-50">
               <CardTitle className="flex items-center gap-2 text-orange-900">
                 <Undo2 className="w-5 h-5" />
-                STEP 6 - Regenerare Avansată
+                STEP 7 - Regenerare Avansată
               </CardTitle>
               <CardDescription>
                 Regenerează videouri cu setări personalizate. Poți crea multiple variante pentru fiecare video.
@@ -2428,13 +2428,13 @@ export default function Home() {
           </Card>
         )}
 
-        {/* STEP 7: Final Review (Check Videos) */}
-        {currentStep === 7 && videoResults.length > 0 && (
+        {/* STEP 6: Check Videos (Final Review) */}
+        {currentStep === 6 && videoResults.length > 0 && (
           <Card className="mb-8 border-2 border-green-200">
             <CardHeader className="bg-green-50">
               <CardTitle className="flex items-center gap-2 text-green-900">
                 <Video className="w-5 h-5" />
-                STEP 7 - Final Review
+                STEP 6 - Check Videos
               </CardTitle>
               <CardDescription>
                 Review videourilo generate. Acceptă sau marchează pentru regenerare.

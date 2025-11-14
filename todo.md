@@ -467,3 +467,23 @@
 - [x] Toast notification: "6 sample videos încărcate pentru testare!"
 - [x] Nume videouri: HOOKS_A1_MIRROR1, MIRROR_A2_MIRROR1, etc.
 - [x] Secțiuni: HOOKS, MIRROR, DCS, TRANZITION, NEW_CAUSE, MECHANISM
+
+
+## Bug Report - Sample Videos & Step Structure
+
+### Problema 1: Continue with Sample Videos
+- [x] Butonul "Continue with Sample Videos" trebuie să treacă la STEP 6 (următorul step)
+- [x] Fix: setCurrentStep(6) în loadSampleVideos()
+
+### Problema 2: Structură Step-uri Greșită
+- [x] STEP 6 era "Check Videos" (review și accept/regenerate)
+- [x] Acum STEP 6 este "Regenerate" - greșit!
+- [x] Fix: Inversare STEP 6 și STEP 7
+- [x] Ordinea corectă acum:
+  - STEP 5: Generate (generare videouri)
+  - STEP 6: Check Videos (review, accept/regenerate individual)
+  - STEP 7: Regenerate Advanced (regenerare avansată cu multiple variante)
+- [x] Breadcrumbs actualizate:
+  - STEP 6: Check Videos (icon: Video)
+  - STEP 7: Regenerate (icon: Undo2)
+- [x] Comentarii cod actualizate pentru claritate
