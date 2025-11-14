@@ -286,10 +286,7 @@ export default function Home() {
       toast.error("Te rog încarcă cel puțin o imagine");
       return;
     }
-    if (prompts.length === 0) {
-      toast.error("Te rog încarcă cel puțin un prompt");
-      return;
-    }
+    // Prompturile hardcodate sunt întotdeauna active, nu mai verificăm prompts.length
 
     // Găsește poza CTA (dacă există)
     const ctaImage = images.find(img => img.isCTA);
@@ -389,10 +386,7 @@ export default function Home() {
       return;
     }
 
-    if (prompts.length === 0) {
-      toast.error("Te rog încarcă cel puțin un prompt");
-      return;
-    }
+    // Prompturile hardcodate sunt întotdeauna active, nu mai verificăm prompts.length
 
     try {
       setCurrentStep(5);
@@ -426,23 +420,32 @@ export default function Home() {
       for (const [promptType, combos] of Object.entries(combinationsByPrompt)) {
         if (combos.length === 0) continue;
 
-        // Căutare prompt: verifică dacă numele conține "NEUTRAL", "SMILING" sau "CTA"
-        let prompt;
+        // Căutare prompt: încearcă custom, apoi hardcoded
+        let promptTemplate: string;
+        let promptName: string;
+        
+        // Încearcă să găsească prompt custom
+        let customPrompt;
         if (promptType === 'PROMPT_NEUTRAL') {
-          prompt = prompts.find(p => p.name.toUpperCase().includes('NEUTRAL'));
+          customPrompt = prompts.find(p => p.name.toUpperCase().includes('NEUTRAL'));
         } else if (promptType === 'PROMPT_SMILING') {
-          prompt = prompts.find(p => p.name.toUpperCase().includes('SMILING'));
+          customPrompt = prompts.find(p => p.name.toUpperCase().includes('SMILING'));
         } else if (promptType === 'PROMPT_CTA') {
-          prompt = prompts.find(p => p.name.toUpperCase().includes('CTA'));
+          customPrompt = prompts.find(p => p.name.toUpperCase().includes('CTA'));
         }
         
-        if (!prompt) {
-          toast.error(`Nu s-a găsit prompt pentru ${promptType}. Verifică că numele conține "NEUTRAL", "SMILING" sau "CTA"`);
-          continue;
+        if (customPrompt) {
+          promptTemplate = customPrompt.template;
+          promptName = customPrompt.name;
+        } else {
+          // Folosește hardcoded prompt de pe backend
+          // Backend-ul va folosi HARDCODED_PROMPTS automat
+          promptTemplate = `HARDCODED_${promptType}`;
+          promptName = promptType;
         }
 
         const result = await generateBatchMutation.mutateAsync({
-          promptTemplate: prompt.template,
+          promptTemplate: promptTemplate,
           combinations: combos.map(combo => ({
             text: combo.text,
             imageUrl: combo.imageUrl,
@@ -776,50 +779,28 @@ export default function Home() {
             <CardHeader className="bg-blue-50">
               <CardTitle className="flex items-center gap-2 text-blue-900">
                 <FileText className="w-5 h-5" />
-                STEP 2 - Prompts Upload (opțional)
+                STEP 2 - Prompts
               </CardTitle>
               <CardDescription>
-                Folosește prompturile hardcodate sau încarcă propriile prompturi (.docx).
+                Prompturile hardcodate sunt întotdeauna active. Poți adăuga și prompturi custom (.docx).
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-6">
-              {/* Toggle pentru prompturi hardcodate */}
+              {/* Prompturi hardcodate - întotdeauna active */}
               <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-medium text-green-900">Folosește prompturile hardcodate (recomandat)</span>
-                  <button
-                    onClick={() => setUseHardcodedPrompts(!useHardcodedPrompts)}
-                    className={`px-4 py-2 rounded transition-colors ${
-                      useHardcodedPrompts 
-                        ? 'bg-green-600 text-white hover:bg-green-700' 
-                        : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
-                    }`}
-                  >
-                    {useHardcodedPrompts ? 'Activat ✓' : 'Dezactivat'}
-                  </button>
+                <div className="mb-2">
+                  <span className="font-medium text-green-900">Prompturi hardcodate (întotdeauna active)</span>
                 </div>
-                {useHardcodedPrompts && (
-                  <div className="text-sm text-green-700 space-y-1">
-                    <p>✓ PROMPT_NEUTRAL - pentru secțiuni până la TRANSFORMATION</p>
-                    <p>✓ PROMPT_SMILING - pentru TRANSFORMATION și CTA</p>
-                    <p>✓ PROMPT_CTA - pentru CTA cu carte</p>
-                  </div>
-                )}
+                <div className="text-sm text-green-700 space-y-1">
+                  <p>✓ PROMPT_NEUTRAL - pentru secțiuni până la TRANSFORMATION</p>
+                  <p>✓ PROMPT_SMILING - pentru TRANSFORMATION și CTA</p>
+                  <p>✓ PROMPT_CTA - pentru CTA cu carte</p>
+                </div>
               </div>
 
-              {/* Buton skip dacă folosești prompturi hardcodate */}
-              {useHardcodedPrompts && (
-                <Button
-                  onClick={() => setCurrentStep(3)}
-                  className="w-full bg-blue-600 hover:bg-blue-700 mb-4"
-                >
-                  Continuă la STEP 3 (folosește prompturi hardcodate)
-                </Button>
-              )}
-
-              {/* Upload prompturi custom */}
-              {!useHardcodedPrompts && (
-                <>
+              {/* Upload prompturi custom - opțional */}
+              <div className="mb-4">
+                <p className="font-medium text-blue-900 mb-3">Adaugă prompturi custom (opțional):</p>
                   <div
                     onDrop={handlePromptDocumentDrop}
                     onDragOver={(e) => e.preventDefault()}
@@ -841,34 +822,35 @@ export default function Home() {
                     />
                   </div>
 
-                  {prompts.length > 0 && (
-                    <div className="mt-6">
-                      <p className="font-medium text-blue-900 mb-3">
-                        {prompts.length} prompturi încărcate:
-                      </p>
-                      <div className="space-y-2">
-                        {prompts.map((prompt) => (
-                          <div key={prompt.id} className="p-3 bg-white rounded border border-blue-200 flex items-center justify-between">
-                            <span className="text-sm font-medium text-blue-900">{prompt.name}</span>
-                            <button
-                              onClick={() => removePrompt(prompt.id)}
-                              className="p-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                      <Button
-                        onClick={() => setCurrentStep(3)}
-                        className="mt-4 bg-blue-600 hover:bg-blue-700"
-                      >
-                        Continuă la STEP 3
-                      </Button>
+                {prompts.length > 0 && (
+                  <div className="mt-4">
+                    <p className="font-medium text-blue-900 mb-3">
+                      {prompts.length} prompturi custom încărcate:
+                    </p>
+                    <div className="space-y-2">
+                      {prompts.map((prompt) => (
+                        <div key={prompt.id} className="p-3 bg-white rounded border border-blue-200 flex items-center justify-between">
+                          <span className="text-sm font-medium text-blue-900">{prompt.name}</span>
+                          <button
+                            onClick={() => removePrompt(prompt.id)}
+                            className="p-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                  )}
-                </>
-              )}
+                  </div>
+                )}
+              </div>
+
+              {/* Buton continuare - întotdeauna vizibil */}
+              <Button
+                onClick={() => setCurrentStep(3)}
+                className="w-full bg-blue-600 hover:bg-blue-700"
+              >
+                Continuă la STEP 3
+              </Button>
             </CardContent>
           </Card>
         )}
@@ -910,7 +892,7 @@ export default function Home() {
                   <p className="font-medium text-blue-900 mb-3">
                     {images.length} imagini încărcate:
                   </p>
-                  <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+                  <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
                     {images.map((image) => (
                       <div key={image.id} className="relative group">
                         <img
@@ -920,9 +902,9 @@ export default function Home() {
                         />
                         <button
                           onClick={() => removeImage(image.id)}
-                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors shadow-lg"
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-all shadow-lg hover:scale-110 border-2 border-white"
                         >
-                          <X className="w-3 h-3" />
+                          <X className="w-5 h-5" />
                         </button>
                         <p className="text-xs text-center mt-1 text-gray-600 truncate">{image.fileName}</p>
                       </div>

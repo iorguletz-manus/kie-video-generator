@@ -216,3 +216,20 @@
 ### STEP 6 - Video Player
 - [x] Fix video player să apară și să funcționeze (tag <video> cu controls)
 - [x] Butoane Accept/Regenerate mai mici (size="sm", text-xs, py-1)
+
+
+## New User Requests - Fix STEP 2, 3, 4
+
+### STEP 2 - Prompturi
+- [x] Prompturile hardcodate (NEUTRAL, SMILING, CTA) sunt ÎNTOTDEAUNA active
+- [x] Utilizatorul poate adăuga și prompturi manual (nu mai e toggle on/off)
+- [x] Afișare prompturi hardcodate + prompturi custom împreună
+
+### STEP 3 - UI Imagini
+- [x] Thumbnail-uri 50% mai mici decât sunt acum (grid-cols-4 md:grid-cols-8)
+- [x] X-uri mai mari și mai frumoase pentru ștergere imagine (w-5 h-5, hover:scale-110)
+
+### STEP 4 - Validare
+- [x] Fix eroare "te rog adaugă cel puțin un prompt" care blochează trecerea la STEP 4
+- [x] Validare corectă: acceptă prompturi hardcodate ca valide
+- [x] Backend: suport HARDCODED_PROMPT_TYPE pentru a folosi prompturi hardcodate automat

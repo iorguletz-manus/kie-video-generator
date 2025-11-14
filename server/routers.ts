@@ -2,6 +2,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
+import { HARDCODED_PROMPTS } from "./hardcodedPrompts";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { ENV } from "./_core/env";
@@ -343,8 +344,18 @@ export const appRouter = router({
           // Generare paralelă pentru toate combinațiile
           const promises = input.combinations.map(async (combo) => {
             try {
+              // Determină prompt template: hardcoded sau custom
+              let promptTemplate = input.promptTemplate;
+              
+              if (promptTemplate.startsWith('HARDCODED_')) {
+                const promptType = promptTemplate.replace('HARDCODED_', '') as keyof typeof HARDCODED_PROMPTS;
+                if (HARDCODED_PROMPTS[promptType]) {
+                  promptTemplate = HARDCODED_PROMPTS[promptType].content;
+                }
+              }
+              
               // Înlocuiește [INSERT TEXT] cu textul din combinație
-              const finalPrompt = replaceInsertText(input.promptTemplate, combo.text);
+              const finalPrompt = replaceInsertText(promptTemplate, combo.text);
               
               const response = await fetch('https://api.kie.ai/api/v1/veo/generate', {
                 method: 'POST',
