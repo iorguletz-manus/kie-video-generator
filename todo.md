@@ -712,3 +712,68 @@
   - [x] Treci la STEP 6 doar DUPĂ ce toate videoUrl-urile sunt încărcate
 - [x] Toast "6/6 sample videos încărcate cu succes!" după încărcare
 - [ ] Aștept testare user - video player-ele ar trebui să apară INSTANT în STEP 6
+
+
+## CRITICAL BUG - loadSampleVideos Returnează 0/6 Videos
+
+### Problema raportată
+- [x] User apasă "Continue with Sample Videos" → Toast "0/6 sample videos încărcate cu succes!"
+- [x] Nu apar video player-e în STEP 6
+- [x] Toate request-urile la API au eșuat
+
+### Investigare necesară
+- [ ] Verificare console pentru erori (CORS, API response, etc.)
+- [ ] Verificare dacă fetch la API Kie.ai funcționează din frontend
+- [ ] Verificare dacă API key este corect în frontend
+- [ ] Posibil: trebuie să folosesc backend endpoint în loc de fetch direct din frontend
+
+### Soluție posibilă
+- [ ] Folosire endpoint backend `trpc.video.checkVideoStatus` în loc de fetch direct
+- [ ] Sau: adăugare logging în console pentru a vedea exact ce returnează API
+
+
+## FIX FINAL - checkVideoStatus Salvează videoUrl IMEDIAT
+
+### Soluția corectă (user feedback)
+- [x] Când `checkVideoStatus` primește `successFlag: 1` (success) → salvează IMEDIAT `videoUrl` în `videoResults[index]`
+- [x] Astfel, când ajungi în STEP 6, `videoUrl` este deja salvat → video player apare INSTANT!
+
+### Implementare
+- [ ] Modificare funcție `checkVideoStatus` (linia 733):
+  - [ ] Când `successFlag === 1` → salvează `videoUrl` în `videoResults[index].videoUrl`
+  - [ ] Update `status: 'success'` și `videoUrl` simultan
+- [ ] Hardcodare URL-uri sample videos:
+  - [ ] User furnizează 6 URL-uri pentru sample task IDs
+  - [ ] Salvez în `loadSampleVideos()` cu videoUrl hardcodat
+  - [ ] Sample videos vor funcționa INSTANT fără API calls
+
+### User va furniza URL-uri
+- [ ] Task ID 1: b78c0ce0523ab52128ea6d86954bbeac → URL?
+- [ ] Task ID 2: 55b7419936130ddf132e18d0a0f6477c → URL?
+- [ ] Task ID 3: aa6bd9b4b2732a5dbd6146d4e34dad98 → URL?
+- [ ] Task ID 4: 82e9dbc99e597a89a33ed16088577094 → URL?
+- [ ] Task ID 5: 7886953a056290ada67c2d64c84195d5 → URL?
+- [ ] Task ID 6: 89ce31bc36aef3d3d5eec77e7141fcd1 → URL?
+
+
+## FIX 3 PROBLEME - Task IDs Noi, Generated Verde, Debug Video Loading
+
+### 1. Schimb Task IDs Sample (4 noi)
+- [x] Înlocuire task IDs vechi cu cele 4 noi:
+  - [x] 352a1aaaaba3352b6652305f2469718d → https://tempfile.aiquickdraw.com/v/352a1aaaaba3352b6652305f2469718d_1763136934.mp4
+  - [x] f4207b34d031dfbfcc06915e8cd8f4d2 → https://tempfile.aiquickdraw.com/v/f4207b34d031dfbfcc06915e8cd8f4d2_1763116288.mp4
+  - [x] 119acff811870bcdb8da7cca59d58ddb → https://tempfile.aiquickdraw.com/v/119acff811870bcdb8da7cca59d58ddb_1763116319.mp4
+  - [x] 155a3426ecbf0f4548030f333716f597 → https://tempfile.aiquickdraw.com/v/155a3426ecbf0f4548030f333716f597_1763116288.mp4
+- [x] Hardcodare URL-uri direct în loadSampleVideos() - fără API calls
+- [x] Schimbare text "Încărcă 6 task ID-uri..." → "Încărcă 4 task ID-uri..."
+
+### 2. "În curs de generare" → "Generated" Verde cu Checkbox
+- [x] În STEP 5, când video are status 'success':
+  - [x] "Success" → "Generated" cu text verde
+  - [x] Checkbox verde (Check icon) deja existent
+  - [x] Border verde deja existent
+
+### 3. Debug "Se încarcă video" în STEP 6
+- [x] Verificare alternativă: data.data.resultUrls vs data.data.response.resultUrls
+- [x] Adaugat logging detaliat pentru debugging
+- [ ] Aștept testare user - verificare dacă videoUrl se salvează corect la generare de la 0

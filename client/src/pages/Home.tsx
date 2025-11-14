@@ -752,8 +752,10 @@ export default function Home() {
         
         if (data.data.successFlag === 1) {
           status = 'success';
-          videoUrl = data.data.resultUrls?.[0];
+          // Verificare alternativă pentru resultUrls (poate fi în data.data sau data.data.response)
+          videoUrl = data.data.resultUrls?.[0] || data.data.response?.resultUrls?.[0];
           console.log('Video SUCCESS - URL:', videoUrl);
+          console.log('resultUrls location:', data.data.resultUrls ? 'data.data.resultUrls' : 'data.data.response.resultUrls');
         } else if (data.data.successFlag === -1 || data.data.successFlag === 2) {
           // successFlag === -1 sau 2 înseamnă failed
           status = 'failed';
@@ -814,55 +816,46 @@ export default function Home() {
 
   // TEMPORARY: Load sample videos for testing when Kie.ai is down
   const loadSampleVideos = async () => {
-    const sampleTaskIds = [
-      'b78c0ce0523ab52128ea6d86954bbeac',
-      '55b7419936130ddf132e18d0a0f6477c',
-      'aa6bd9b4b2732a5dbd6146d4e34dad98',
-      '82e9dbc99e597a89a33ed16088577094',
-      '7886953a056290ada67c2d64c84195d5',
-      '89ce31bc36aef3d3d5eec77e7141fcd1',
-    ];
-    
-    const sections: SectionType[] = ['HOOKS', 'MIRROR', 'DCS', 'TRANZITION', 'NEW_CAUSE', 'MECHANISM'];
-    
-    // Texte reale pentru sample videos (H1-H6)
-    const sampleTexts = [
-      "Pentru femeile care s-au săturat să trăiască de la o lună la alta și cred că 'așa e viața'. Acest mesaj este pentru voi.",
-      "Pentru femeile care simt că oricât se străduiesc, nu reușesc să iasă din datorii. Acest mesaj este pentru voi. Pentru femeile",
-      "Știu cum e să simți că nu mai poți din cauză că nu mai faci față cu cheltuielile și să-ți vină să renunți la tot. Știu cum e",
-      "Dacă simți că viața ta e doar despre supraviețuire, cheltuieli, stres și lipsuri, ascultă-mă un minut. Dacă simți că",
-      "Dacă simți că muncesti doar ca să plătești datorii și nu te mai bucuri de viață, ascultă-mă un minut. Dacă simți",
-      "Nu știu ce e mai greu, să nu ai bani sau să simți că oricât te zbăți, nu mai vezi nicio cale de ieșire. Nu știu ce e mai greu",
+    // Task IDs și URL-uri hardcodate (furnizate de user)
+    const sampleData = [
+      {
+        taskId: '352a1aaaaba3352b6652305f2469718d',
+        videoUrl: 'https://tempfile.aiquickdraw.com/v/352a1aaaaba3352b6652305f2469718d_1763136934.mp4',
+        text: "Pentru femeile care s-au săturat să trăiască de la o lună la alta și cred că 'așa e viața'. Acest mesaj este pentru voi.",
+        section: 'HOOKS' as SectionType,
+      },
+      {
+        taskId: 'f4207b34d031dfbfcc06915e8cd8f4d2',
+        videoUrl: 'https://tempfile.aiquickdraw.com/v/f4207b34d031dfbfcc06915e8cd8f4d2_1763116288.mp4',
+        text: "Pentru femeile care simt că oricât se străduiesc, nu reușesc să iasă din datorii. Acest mesaj este pentru voi.",
+        section: 'MIRROR' as SectionType,
+      },
+      {
+        taskId: '119acff811870bcdb8da7cca59d58ddb',
+        videoUrl: 'https://tempfile.aiquickdraw.com/v/119acff811870bcdb8da7cca59d58ddb_1763116319.mp4',
+        text: "Știu cum e să simți că nu mai poți din cauză că nu mai faci față cu cheltuielile și să-ți vină să renunți la tot.",
+        section: 'DCS' as SectionType,
+      },
+      {
+        taskId: '155a3426ecbf0f4548030f333716f597',
+        videoUrl: 'https://tempfile.aiquickdraw.com/v/155a3426ecbf0f4548030f333716f597_1763116288.mp4',
+        text: "Dacă simți că viața ta e doar despre supraviețuire, cheltuieli, stres și lipsuri, ascultă-mă un minut.",
+        section: 'TRANZITION' as SectionType,
+      },
     ];
     
     toast.info('Încărcare sample videos...');
     
     try {
-      // Încărcare INSTANT a tuturor videoUrl-urilor cu Promise.all
-      const videoUrlPromises = sampleTaskIds.map(async (taskId) => {
-        const response = await fetch(`https://api.kie.ai/api/v1/veo/record-info?taskId=${taskId}`, {
-          headers: {
-            'Authorization': 'Bearer a4089052f1c04c6b8be02b026ce87fe8',
-          },
-        });
-        const data = await response.json();
-        if (data.code === 200 && data.data && data.data.successFlag === 1) {
-          return data.data.resultUrls?.[0] || null;
-        }
-        return null;
-      });
-      
-      const videoUrls = await Promise.all(videoUrlPromises);
-      
-      // Creează videoResults cu videoUrl deja completat
-      const sampleResults: VideoResult[] = sampleTaskIds.map((taskId, index) => ({
-        taskId,
-        videoName: `CB1_A1_${sections[index]}${index + 1}`,
-        text: sampleTexts[index],
+      // Creează videoResults cu videoUrl deja completat (hardcodat)
+      const sampleResults: VideoResult[] = sampleData.map((data, index) => ({
+        taskId: data.taskId,
+        videoName: `CB1_A1_${data.section}${index + 1}`,
+        text: data.text,
         imageUrl: 'https://via.placeholder.com/270x480/blue/white?text=Sample',
-        status: videoUrls[index] ? ('success' as const) : ('failed' as const),
-        videoUrl: videoUrls[index] || undefined,
-        section: sections[index],
+        status: 'success' as const,
+        videoUrl: data.videoUrl,
+        section: data.section,
         categoryNumber: index + 1,
         reviewStatus: null,
       }));
@@ -870,22 +863,21 @@ export default function Home() {
       setVideoResults(sampleResults);
       
       // Creează și combinations pentru sample videos
-      const sampleCombinations: Combination[] = sampleTaskIds.map((taskId, index) => ({
+      const sampleCombinations: Combination[] = sampleData.map((data, index) => ({
         id: `sample-${index}`,
-        text: sampleTexts[index],
+        text: data.text,
         imageUrl: 'https://via.placeholder.com/270x480/blue/white?text=Sample',
         imageId: `sample-img-${index}`,
         promptType: 'PROMPT_NEUTRAL' as PromptType,
-        videoName: `CB1_A1_${sections[index]}${index + 1}`,
-        section: sections[index],
+        videoName: `CB1_A1_${data.section}${index + 1}`,
+        section: data.section,
         categoryNumber: index + 1,
       }));
       
       setCombinations(sampleCombinations);
       setCurrentStep(6); // Trece la STEP 6 (Check Videos)
       
-      const successCount = videoUrls.filter((url: string | null) => url).length;
-      toast.success(`${successCount}/6 sample videos încărcate cu succes!`);
+      toast.success(`${sampleData.length}/4 sample videos încărcate cu succes!`);
     } catch (error: any) {
       toast.error(`Eroare la încărcarea sample videos: ${error.message}`);
     }
@@ -1454,7 +1446,7 @@ export default function Home() {
                   Continue with Sample Videos (TEMP)
                 </Button>
                 <p className="text-xs text-gray-500 mt-2 text-center">
-                  Încărcă 6 task ID-uri sample pentru testare când Kie.ai nu funcționează
+                  Încărcă 4 task ID-uri sample pentru testare când Kie.ai nu funcționează
                 </p>
               </div>
               
@@ -1915,7 +1907,7 @@ export default function Home() {
                             <>
                               <div className="flex items-center gap-2 bg-green-50 border-2 border-green-500 px-3 py-2 rounded-lg flex-1">
                                 <Check className="w-5 h-5 text-green-600" />
-                                <span className="text-sm text-green-700 font-bold">Success</span>
+                                <span className="text-sm text-green-700 font-bold">Generated</span>
                               </div>
                               <Button
                                 size="sm"
