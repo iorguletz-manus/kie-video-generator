@@ -439,3 +439,31 @@
 - [x] UI STEP 5 - afișare status FAILED cu roșu (border-red-500, bg-red-50)
 - [x] UI STEP 5 - afișare errorMessage complet cu roșu sub status
 - [ ] Test cu video real failed pentru a verifica afișarea corectă (user trebuie să testeze)
+
+
+## Temporary Feature - Sample Videos for Testing
+
+### Context
+- [x] Kie.ai nu funcționează momentan pentru generare videouri noi
+- [x] Avem 6 task ID-uri vechi cu videouri deja generate pentru testare
+- [x] Feature temporar până când Kie.ai va funcționa din nou
+
+### Implementation
+- [x] Buton "Continue with Sample Videos (TEMP)" la STEP 5 sub "Regenerate ALL Failed"
+- [x] Funcție loadSampleVideos() care:
+  - [x] Încărcă 6 task ID-uri hardcodate
+  - [x] Crează videoResults cu status 'pending' și taskId
+  - [x] Crează combinations cu toate proprietățile necesare
+  - [x] Trece automat la STEP 5 pentru a vedea videouri
+- [x] Task ID-uri sample:
+  - b78c0ce0523ab52128ea6d86954bbeac
+  - 55b7419936130ddf132e18d0a0f6477c
+  - aa6bd9b4b2732a5dbd6146d4e34dad98
+  - 82e9dbc99e597a89a33ed16088577094
+  - 7886953a056290ada67c2d64c84195d5
+  - 89ce31bc36aef3d3d5eec77e7141fcd1
+- [x] Buton vizibil întotdeauna (nu doar când videoResults.length === 0)
+- [x] Styling: border-purple-300, bg-purple-600 pentru a se distinge de alte butoane
+- [x] Toast notification: "6 sample videos încărcate pentru testare!"
+- [x] Nume videouri: HOOKS_A1_MIRROR1, MIRROR_A2_MIRROR1, etc.
+- [x] Secțiuni: HOOKS, MIRROR, DCS, TRANZITION, NEW_CAUSE, MECHANISM

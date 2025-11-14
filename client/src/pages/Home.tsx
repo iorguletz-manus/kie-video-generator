@@ -807,6 +807,49 @@ export default function Home() {
     toast.success(`Descărcare video #${index + 1} pornită`);
   };
 
+  // TEMPORARY: Load sample videos for testing when Kie.ai is down
+  const loadSampleVideos = () => {
+    const sampleTaskIds = [
+      'b78c0ce0523ab52128ea6d86954bbeac',
+      '55b7419936130ddf132e18d0a0f6477c',
+      'aa6bd9b4b2732a5dbd6146d4e34dad98',
+      '82e9dbc99e597a89a33ed16088577094',
+      '7886953a056290ada67c2d64c84195d5',
+      '89ce31bc36aef3d3d5eec77e7141fcd1',
+    ];
+    
+    const sections: SectionType[] = ['HOOKS', 'MIRROR', 'DCS', 'TRANZITION', 'NEW_CAUSE', 'MECHANISM'];
+    
+    const sampleResults: VideoResult[] = sampleTaskIds.map((taskId, index) => ({
+      taskId,
+      videoName: `${sections[index]}_A${index + 1}_MIRROR1`,
+      text: `Sample video ${index + 1} for testing`,
+      imageUrl: 'https://via.placeholder.com/270x480/blue/white?text=Sample',
+      status: 'pending' as const,
+      section: sections[index],
+      categoryNumber: index + 1,
+      reviewStatus: null,
+    }));
+    
+    setVideoResults(sampleResults);
+    
+    // Crează și combinations pentru sample videos
+    const sampleCombinations: Combination[] = sampleTaskIds.map((taskId, index) => ({
+      id: `sample-${index}`,
+      text: `Sample video ${index + 1} for testing`,
+      imageUrl: 'https://via.placeholder.com/270x480/blue/white?text=Sample',
+      imageId: `sample-img-${index}`,
+      promptType: 'PROMPT_NEUTRAL' as PromptType,
+      videoName: `${sections[index]}_A${index + 1}_MIRROR1`,
+      section: sections[index],
+      categoryNumber: index + 1,
+    }));
+    
+    setCombinations(sampleCombinations);
+    setCurrentStep(5);
+    toast.success('6 sample videos încărcate pentru testare!');
+  };
+  
   // Regenerare toate videouri failed
   const regenerateAllFailed = async () => {
     const failedIndexes = videoResults
@@ -1942,6 +1985,20 @@ export default function Home() {
                   </Button>
                 </div>
               )}
+              
+              {/* TEMPORARY: Buton pentru sample videos (când Kie.ai nu funcționează) */}
+              <div className="mt-6">
+                <Button
+                  onClick={loadSampleVideos}
+                  className="bg-purple-600 hover:bg-purple-700 w-full py-4 text-base border-2 border-purple-300"
+                >
+                  <Play className="w-5 h-5 mr-2" />
+                  Continue with Sample Videos (TEMP)
+                </Button>
+                <p className="text-xs text-gray-500 mt-2 text-center">
+                  Încarcă 6 task ID-uri sample pentru testare când Kie.ai nu funcționează
+                </p>
+              </div>
               
               {/* Buton pentru a trece la STEP 6 */}
               {videoResults.some(v => v.status === 'success') && (
