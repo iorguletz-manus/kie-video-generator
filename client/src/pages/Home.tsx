@@ -1909,14 +1909,6 @@ export default function Home() {
                                 <Check className="w-5 h-5 text-green-600" />
                                 <span className="text-sm text-green-700 font-bold">Generated</span>
                               </div>
-                              <Button
-                                size="sm"
-                                onClick={() => downloadVideo(result.videoUrl!, index)}
-                                className="bg-green-600 hover:bg-green-700 gap-2"
-                              >
-                                <Download className="w-4 h-4" />
-                                Download
-                              </Button>
                             </>
                           )}
                           {result.status === 'failed' && (
