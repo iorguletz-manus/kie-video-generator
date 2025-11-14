@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "sonner";
 import { Upload, X, Check, Loader2, Video, FileText, Image as ImageIcon, Map, Play, Download, Undo2, ChevronLeft, RefreshCw } from "lucide-react";
 
-type PromptType = 'PROMPT_NEUTRAL' | 'PROMPT_SMILING' | 'PROMPT_CTA';
+type PromptType = 'PROMPT_NEUTRAL' | 'PROMPT_SMILING' | 'PROMPT_CTA' | 'PROMPT_CUSTOM';
 type SectionType = 'HOOKS' | 'MIRROR' | 'DCS' | 'TRANZITION' | 'NEW_CAUSE' | 'MECHANISM' | 'EMOTIONAL_PROOF' | 'TRANSFORMATION' | 'CTA' | 'OTHER';
 
 interface AdLine {
@@ -80,6 +80,9 @@ export default function Home() {
   const [modifyPromptType, setModifyPromptType] = useState<PromptType>('PROMPT_NEUTRAL');
   const [modifyPromptText, setModifyPromptText] = useState('');
   const [modifyDialogueText, setModifyDialogueText] = useState('');
+  
+  // State pentru custom prompts (fiecare video poate avea propriul custom prompt)
+  const [customPrompts, setCustomPrompts] = useState<Record<number, string>>({});
   
   // Step 2: Manual prompt textarea
   const [manualPromptText, setManualPromptText] = useState('');
@@ -653,6 +656,7 @@ export default function Home() {
         PROMPT_NEUTRAL: [],
         PROMPT_SMILING: [],
         PROMPT_CTA: [],
+        PROMPT_CUSTOM: [],
       };
 
       combinations.forEach(combo => {
@@ -903,6 +907,7 @@ export default function Home() {
         PROMPT_NEUTRAL: [],
         PROMPT_SMILING: [],
         PROMPT_CTA: [],
+        PROMPT_CUSTOM: [],
       };
 
       failedIndexes.forEach(index => {
@@ -991,11 +996,8 @@ export default function Home() {
       return;
     }
 
-    // Validare text (maxim 125 caractere)
-    if (modifyDialogueText.length > 125) {
-      toast.error('Textul depășește 125 de caractere!');
-      return;
-    }
+    // Validare text (nu mai blochez dacă > 125 caractere)
+    // User poate genera chiar dacă depășește 125 caractere
 
     if (modifyDialogueText.trim().length === 0) {
       toast.error('Textul nu poate fi gol!');
@@ -1934,12 +1936,24 @@ export default function Home() {
                                       <label className="text-sm font-medium text-gray-700 block mb-1">Prompt Type:</label>
                                       <select
                                         value={modifyPromptType}
-                                        onChange={(e) => setModifyPromptType(e.target.value as PromptType)}
+                                        onChange={(e) => {
+                                          const newType = e.target.value as PromptType;
+                                          setModifyPromptType(newType);
+                                          
+                                          // Când user selectează PROMPT_CTA/SMILING/NEUTRAL → afișează text hardcodat
+                                          if (newType !== 'PROMPT_CUSTOM') {
+                                            setModifyPromptText(''); // Reset custom prompt
+                                          } else if (customPrompts[modifyingVideoIndex!]) {
+                                            // Dacă PROMPT_CUSTOM există pentru acest video → afișează-l
+                                            setModifyPromptText(customPrompts[modifyingVideoIndex!]);
+                                          }
+                                        }}
                                         className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
                                       >
                                         <option value="PROMPT_NEUTRAL">PROMPT_NEUTRAL</option>
                                         <option value="PROMPT_SMILING">PROMPT_SMILING</option>
                                         <option value="PROMPT_CTA">PROMPT_CTA</option>
+                                        <option value="PROMPT_CUSTOM">PROMPT_CUSTOM</option>
                                       </select>
                                     </div>
                                     
@@ -1948,9 +1962,18 @@ export default function Home() {
                                       <label className="text-sm font-medium text-gray-700 block mb-1">Edit Prompt (optional):</label>
                                       <Textarea
                                         value={modifyPromptText}
-                                        onChange={(e) => setModifyPromptText(e.target.value)}
-                                        placeholder="Lasă gol pentru a folosi promptul hardcodat"
+                                        onChange={(e) => {
+                                          const newText = e.target.value;
+                                          setModifyPromptText(newText);
+                                          
+                                          // Când user editează prompt text → switch automat la PROMPT_CUSTOM
+                                          if (newText.trim().length > 0 && modifyPromptType !== 'PROMPT_CUSTOM') {
+                                            setModifyPromptType('PROMPT_CUSTOM');
+                                          }
+                                        }}
+                                        placeholder={modifyPromptType === 'PROMPT_CUSTOM' ? 'Introdu promptul custom aici' : 'Lasă gol pentru a folosi promptul hardcodat'}
                                         className="text-sm min-h-[80px]"
+                                        disabled={modifyPromptType !== 'PROMPT_CUSTOM'}
                                       />
                                     </div>
                                     
@@ -1965,7 +1988,7 @@ export default function Home() {
                                       <p className={`text-xs mt-1 ${
                                         modifyDialogueText.length > 125 ? 'text-red-600 font-bold' : 'text-gray-500'
                                       }`}>
-                                        {modifyDialogueText.length} caractere{modifyDialogueText.length > 125 ? ' - 125 caractere depășite!' : ''}
+                                        {modifyDialogueText.length} caractere{modifyDialogueText.length > 125 ? ` - ${modifyDialogueText.length - 125} caractere depășite!` : ''}
                                       </p>
                                     </div>
                                     
@@ -1973,9 +1996,46 @@ export default function Home() {
                                     <div className="flex gap-2">
                                       <Button
                                         size="sm"
+                                        onClick={() => {
+                                          // SAVE: salvează modificări fără regenerare
+                                          
+                                          // Dacă user a editat prompt text → salvează ca PROMPT_CUSTOM
+                                          if (modifyPromptText.trim().length > 0) {
+                                            setCustomPrompts(prev => ({
+                                              ...prev,
+                                              [index]: modifyPromptText,
+                                            }));
+                                          }
+                                          
+                                          const updatedCombinations = [...combinations];
+                                          updatedCombinations[index] = {
+                                            ...updatedCombinations[index],
+                                            text: modifyDialogueText,
+                                            promptType: modifyPromptType,
+                                          };
+                                          setCombinations(updatedCombinations);
+                                          
+                                          // Update videoResults cu noul text
+                                          setVideoResults(prev =>
+                                            prev.map((v, i) =>
+                                              i === index ? { ...v, text: modifyDialogueText } : v
+                                            )
+                                          );
+                                          
+                                          toast.success('Modificări salvate!');
+                                          setModifyingVideoIndex(null);
+                                        }}
+                                        disabled={modifyDialogueText.trim().length === 0}
+                                        className="flex-1 bg-green-600 hover:bg-green-700"
+                                      >
+                                        Save
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
                                         onClick={() => regenerateWithModifications(index)}
-                                        disabled={generateBatchMutation.isPending || modifyDialogueText.length > 125 || modifyDialogueText.trim().length === 0}
-                                        className="flex-1 bg-orange-600 hover:bg-orange-700"
+                                        disabled={generateBatchMutation.isPending || modifyDialogueText.trim().length === 0}
+                                        className="flex-1 border-orange-500 text-orange-700 hover:bg-orange-50"
                                       >
                                         {generateBatchMutation.isPending ? (
                                           <>
@@ -2013,8 +2073,16 @@ export default function Home() {
                                   variant="outline"
                                   onClick={() => {
                                     setModifyingVideoIndex(index);
-                                    setModifyPromptType(combinations[index]?.promptType || 'PROMPT_NEUTRAL');
-                                    setModifyPromptText('');
+                                    const currentPromptType = combinations[index]?.promptType || 'PROMPT_NEUTRAL';
+                                    setModifyPromptType(currentPromptType);
+                                    
+                                    // Dacă video are PROMPT_CUSTOM salvat → afișează-l
+                                    if (currentPromptType === 'PROMPT_CUSTOM' && customPrompts[index]) {
+                                      setModifyPromptText(customPrompts[index]);
+                                    } else {
+                                      setModifyPromptText('');
+                                    }
+                                    
                                     setModifyDialogueText(result.text);
                                   }}
                                   className="border-orange-500 text-orange-700 hover:bg-orange-50"
@@ -2319,7 +2387,7 @@ export default function Home() {
                           <p className={`text-sm mt-1 ${
                             variant.dialogueText.length > 125 ? 'text-red-600 font-bold' : 'text-gray-600'
                           }`}>
-                            {variant.dialogueText.length} caractere{variant.dialogueText.length > 125 ? ' - 125 caractere depășite!' : ''}
+                            {variant.dialogueText.length} caractere{variant.dialogueText.length > 125 ? ` - ${variant.dialogueText.length - 125} caractere depășite!` : ''}
                           </p>
                         </div>
                       </div>
@@ -2335,13 +2403,13 @@ export default function Home() {
                           return;
                         }
 
-                        // Validare: toate variantele trebuie să aibă text valid
+                        // Validare: toate variantele trebuie să aibă text valid (nu mai blochez pentru > 125)
                         const invalidVariants = regenerateVariants.filter(v => 
-                          v.dialogueText.trim().length === 0 || v.dialogueText.length > 125
+                          v.dialogueText.trim().length === 0
                         );
                         
                         if (invalidVariants.length > 0) {
-                          toast.error('Toate variantele trebuie să aibă text valid (1-125 caractere)');
+                          toast.error('Toate variantele trebuie să aibă text valid (minim 1 caracter)');
                           return;
                         }
 
@@ -2563,13 +2631,13 @@ export default function Home() {
                             <video
                               controls
                               preload="metadata"
-                              className="w-5/6 mx-auto aspect-[9/16] object-cover rounded border-2 border-green-300 mb-3"
+                              className="w-full max-w-[300px] mx-auto aspect-[9/16] object-cover rounded border-2 border-green-300 mb-3"
                             >
                               <source src={video.videoUrl} type="video/mp4" />
                               Browserul tău nu suportă video HTML5.
                             </video>
                           ) : (
-                            <div className="w-5/6 mx-auto aspect-[9/16] bg-blue-50 border-2 border-blue-300 rounded mb-3 flex flex-col items-center justify-center p-4">
+                            <div className="w-full max-w-[300px] mx-auto aspect-[9/16] bg-blue-50 border-2 border-blue-300 rounded mb-3 flex flex-col items-center justify-center p-4">
                               <Loader2 className="w-8 h-8 text-blue-600 animate-spin mb-2" />
                               <p className="text-sm text-blue-700 font-medium">Se încarcă video...</p>
                             </div>
