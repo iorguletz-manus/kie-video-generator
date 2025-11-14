@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Upload, X, Check, Loader2, Video, FileText, Image as ImageIcon, Map, Play, Download, Undo2, ChevronLeft } from "lucide-react";
+import { Upload, X, Check, Loader2, Video, FileText, Image as ImageIcon, Map, Play, Download, Undo2, ChevronLeft, RefreshCw } from "lucide-react";
 
 type PromptType = 'PROMPT_NEUTRAL' | 'PROMPT_SMILING' | 'PROMPT_CTA';
 type SectionType = 'HOOKS' | 'MIRROR' | 'DCS' | 'TRANZITION' | 'NEW_CAUSE' | 'MECHANISM' | 'EMOTIONAL_PROOF' | 'TRANSFORMATION' | 'CTA' | 'OTHER';
@@ -2457,7 +2457,7 @@ export default function Home() {
 
               {/* Organizare pe categorii */}
               {['HOOKS', 'MIRROR', 'DCS', 'TRANZITION', 'NEW_CAUSE', 'MECHANISM', 'EMOTIONAL_PROOF', 'TRANSFORMATION', 'CTA'].map(category => {
-                const categoryVideos = videoResults.filter(v => v.section === category && v.status === 'success' && v.videoUrl);
+                const categoryVideos = videoResults.filter(v => v.section === category);
                 
                 if (categoryVideos.length === 0) return null;
                 
@@ -2476,15 +2476,52 @@ export default function Home() {
                           {/* Text */}
                           <p className="text-sm text-gray-700 mb-3">{video.text}</p>
                           
-                          {/* VIDEO PLAYER */}
-                          <video
-                            src={video.videoUrl}
-                            controls
-                            className="w-full aspect-[9/16] object-cover rounded border-2 border-green-300 mb-3"
-                          />
+                          {/* VIDEO PLAYER sau STATUS */}
+                          {video.status === 'pending' ? (
+                            <div className="w-full aspect-[9/16] bg-blue-50 border-2 border-blue-300 rounded mb-3 flex flex-col items-center justify-center p-4">
+                              <Loader2 className="w-8 h-8 text-blue-600 animate-spin mb-2" />
+                              <p className="text-sm text-blue-700 font-medium">În curs de generare...</p>
+                              <p className="text-xs text-blue-600 mt-1">Task ID: {video.taskId}</p>
+                            </div>
+                          ) : video.status === 'failed' ? (
+                            <div className="w-full aspect-[9/16] bg-red-50 border-2 border-red-300 rounded mb-3 flex flex-col items-center justify-center p-4">
+                              <X className="w-8 h-8 text-red-600 mb-2" />
+                              <p className="text-sm text-red-700 font-medium">Generare eșuată</p>
+                              {video.error && (
+                                <p className="text-xs text-red-600 mt-2 text-center">{video.error}</p>
+                              )}
+                            </div>
+                          ) : video.videoUrl ? (
+                            <video
+                              src={video.videoUrl}
+                              controls
+                              className="w-full aspect-[9/16] object-cover rounded border-2 border-green-300 mb-3"
+                            />
+                          ) : (
+                            <div className="w-full aspect-[9/16] bg-gray-50 border-2 border-gray-300 rounded mb-3 flex items-center justify-center">
+                              <p className="text-sm text-gray-500">Video URL lipsește</p>
+                            </div>
+                          )}
                           
                           {/* BUTOANE ACCEPT/REGENERATE/DOWNLOAD */}
                           <div className="space-y-2">
+                            {/* Buton Verifică Status pentru pending */}
+                            {video.status === 'pending' && (
+                              <Button
+                                onClick={() => {
+                                  const index = videoResults.findIndex(v => v.taskId === video.taskId);
+                                  if (index !== -1 && video.taskId) {
+                                    checkVideoStatus(video.taskId, index);
+                                  }
+                                }}
+                                size="sm"
+                                className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs py-2"
+                              >
+                                <RefreshCw className="w-3 h-3 mr-1" />
+                                Verifică Status
+                              </Button>
+                            )}
+                            
                             <div className="flex gap-2">
                               {video.reviewStatus === 'accepted' ? (
                                 <Button

@@ -487,3 +487,25 @@
   - STEP 6: Check Videos (icon: Video)
   - STEP 7: Regenerate (icon: Undo2)
 - [x] Comentarii cod actualizate pentru claritate
+
+
+## Bug Report - STEP 6 Check Videos Nu Afișează Sample Videos
+
+### Problema
+- [x] STEP 6 (Check Videos) nu afișează nimic când încarcă sample videos
+- [x] După click "Continue with Sample Videos" → trece la STEP 6 → pagină goală
+
+### Investigare
+- [x] Verificare filtrare videouri în STEP 6 - filtru prea strict!
+- [x] Problema: `v.section === category && v.status === 'success' && v.videoUrl`
+- [x] Sample videos au `status === 'pending'` și nu au `videoUrl`
+
+### Fix Implementat
+- [x] Schimbare filtrare: `v.section === category` (fără status/videoUrl)
+- [x] Afișare condiționată bazată pe status:
+  - [x] `pending`: Loader2 + "In curs de generare..." + Task ID
+  - [x] `failed`: X roșu + "Generare eșuată" + error message
+  - [x] `success` cu videoUrl: Video player
+  - [x] `success` fără videoUrl: "Video URL lipsește"
+- [x] Buton "Verifică Status" pentru videouri pending
+- [x] Import RefreshCw icon pentru buton
