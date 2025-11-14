@@ -57,6 +57,7 @@ interface VideoResult {
   section: SectionType;
   categoryNumber: number;
   reviewStatus: 'pending' | 'accepted' | 'regenerate' | null;
+  regenerationNote?: string; // Ex: "⚠️ 3 regenerări cu aceleași setări"
 }
 
 interface HomeProps {
@@ -2771,7 +2772,20 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     ) : (
                       <>
                         <X className="w-5 h-5 mr-2" />
-                        Regenerate ALL Failed ({videoResults.filter(v => v.status === 'failed').length})
+                        Regenerate ALL Failed ({(() => {
+                          const failedCount = videoResults.filter(v => v.status === 'failed').length;
+                          const pendingRegenerations = videoResults.reduce((sum, v) => {
+                            if (v.regenerationNote) {
+                              // Parse "⚠️ 3 regenerări cu aceleași setări" → 3
+                              const match = v.regenerationNote.match(/(\d+)\s+regener[ăa]ri/);
+                              if (match) {
+                                return sum + parseInt(match[1], 10);
+                              }
+                            }
+                            return sum;
+                          }, 0);
+                          return failedCount + pendingRegenerations;
+                        })()})
                       </>
                     )}
                   </Button>

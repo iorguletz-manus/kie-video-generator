@@ -1179,3 +1179,20 @@
 - [x] Format: "Regenerate ALL Failed (5)" - număr dinamic (linia 2774)
 - [x] Update counter când status videouri se schimbă (automatic prin filter)
 - [x] Același format ca filtrul STEP 5: "Afișează Toate (15)"
+
+
+## Bug - Counter "Regenerate ALL Failed" nu include regenerări multiple (14 Nov 2025)
+
+### Problema: Counter-ul nu numără regenerările multiple în curs
+- [x] Când user cere 3-5 regenerări pentru un video în STEP 5 (Modify & Regenerate)
+- [x] Counter-ul "Regenerate ALL Failed (X)" nu include aceste regenerări în calcul
+- [x] Exemplu: 1 video failed + 1 video cu 3 regenerări în curs → counter arată "(1)" în loc de "(4)"
+- [x] regenerationNote: "⚠️ 3 regenerări cu aceleași setări" nu este luat în considerare
+
+### Soluție
+- [x] Modificare logică counter pentru a număra:
+  - [x] Toate videouri cu status "failed"
+  - [x] PLUS toate regenerările în curs (extragere număr din regenerationNote)
+- [x] Parse regenerationNote cu regex: /(\d+)\s+regener[ăa]ri/ pentru a extrage numărul
+- [x] Counter final: failedCount + pendingRegenerations (reduce sum)
+- [x] Adăugat regenerationNote în interfața VideoResult
