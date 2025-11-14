@@ -5,7 +5,12 @@ import { publicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { ENV } from "./_core/env";
-import { storagePut } from "./storage";
+import fs from 'fs';
+import path from 'path';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 import { saveVideoTask, updateVideoTask } from "./videoCache";
 
 export const appRouter = router({
@@ -34,12 +39,39 @@ export const appRouter = router({
           const base64Data = input.imageData.replace(/^data:image\/\w+;base64,/, "");
           const buffer = Buffer.from(base64Data, 'base64');
           
+          // Creează director temporar pentru imagini
+          const tempDir = path.join('/tmp', 'kie-uploads');
+          if (!fs.existsSync(tempDir)) {
+            fs.mkdirSync(tempDir, { recursive: true });
+          }
+          
+          // Generează nume unic pentru imagine
           const randomSuffix = Math.random().toString(36).substring(2, 15);
-          const fileKey = `video-images/${Date.now()}-${randomSuffix}-${input.fileName}`;
+          const timestamp = Date.now();
+          const fileName = `${timestamp}-${randomSuffix}.png`;
+          const tempFilePath = path.join(tempDir, fileName);
           
-          const { url } = await storagePut(fileKey, buffer, 'image/png');
+          // Salvează imaginea temporar
+          fs.writeFileSync(tempFilePath, buffer);
           
-          return { success: true, imageUrl: url };
+          // Upload pe Manus CDN folosind manus-upload-file
+          const { stdout, stderr } = await execAsync(`manus-upload-file ${tempFilePath}`);
+          
+          if (stderr && !stdout) {
+            throw new Error(`Upload failed: ${stderr}`);
+          }
+          
+          // Extrage URL-ul din output
+          const imageUrl = stdout.trim();
+          
+          // Șterge fișierul temporar
+          fs.unlinkSync(tempFilePath);
+          
+          if (!imageUrl || !imageUrl.startsWith('http')) {
+            throw new Error('Invalid URL returned from upload');
+          }
+          
+          return { success: true, imageUrl: imageUrl };
         } catch (error: any) {
           console.error('Error uploading image:', error);
           throw new TRPCError({

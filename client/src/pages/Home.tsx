@@ -189,11 +189,11 @@ export default function Home() {
                   </Button>
 
                   {imagePreview && (
-                    <div className="relative rounded-lg overflow-hidden border">
+                    <div className="relative rounded-lg overflow-hidden border w-[150px]">
                       <img
                         src={imagePreview}
                         alt="Preview"
-                        className="w-full h-auto"
+                        className="w-full h-auto object-cover"
                       />
                     </div>
                   )}

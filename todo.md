@@ -22,4 +22,8 @@
 - [x] Testare upload imagine
 - [x] Testare verificare status
 - [x] Verificare design albastru
-- [ ] Creare checkpoint final
+- [x] Creare checkpoint final
+
+## Bug Fixes
+- [x] Rezolvare eroare "You do not have access permissions" la generare video
+- [x] Redimensionare thumbnail imagine la max 150px
