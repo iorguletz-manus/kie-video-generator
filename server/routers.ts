@@ -449,6 +449,144 @@ export const appRouter = router({
           });
         }
       }),
+
+    // Generare multiple variante pentru un singur video
+    generateMultipleVariants: publicProcedure
+      .input(z.object({
+        variants: z.array(z.object({
+          promptType: z.string(), // 'PROMPT_NEUTRAL', 'PROMPT_SMILING', 'PROMPT_CTA', 'PROMPT_CUSTOM', sau custom prompt name
+          promptText: z.string().optional(), // Custom prompt text (override hardcoded)
+          dialogueText: z.string(), // Text pentru [INSERT TEXT]
+          imageUrl: z.string(),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          const results: Array<{
+            success: boolean;
+            taskId?: string;
+            dialogueText: string;
+            imageUrl: string;
+            promptType: string;
+            error?: string;
+          }> = [];
+
+          // Generare paralelă pentru toate variantele
+          const promises = input.variants.map(async (variant) => {
+            try {
+              // Determină prompt template
+              let promptTemplate = '';
+              
+              // Dacă există promptText custom, folosește-l
+              if (variant.promptText && variant.promptText.trim().length > 0) {
+                promptTemplate = variant.promptText;
+              } else {
+                // Altfel folosește hardcoded sau custom din promptType
+                if (variant.promptType.startsWith('HARDCODED_') || 
+                    variant.promptType === 'PROMPT_NEUTRAL' || 
+                    variant.promptType === 'PROMPT_SMILING' || 
+                    variant.promptType === 'PROMPT_CTA') {
+                  
+                  let promptKey = variant.promptType;
+                  if (!promptKey.startsWith('HARDCODED_')) {
+                    promptKey = `HARDCODED_${promptKey}`;
+                  }
+                  
+                  const hardcodedKey = promptKey.replace('HARDCODED_', '') as keyof typeof HARDCODED_PROMPTS;
+                  if (HARDCODED_PROMPTS[hardcodedKey]) {
+                    promptTemplate = HARDCODED_PROMPTS[hardcodedKey].content;
+                  }
+                } else {
+                  // Custom prompt type - ar trebui să aibă promptText
+                  throw new Error(`Custom prompt type "${variant.promptType}" requires promptText`);
+                }
+              }
+              
+              if (!promptTemplate) {
+                throw new Error(`No prompt template found for type: ${variant.promptType}`);
+              }
+              
+              // Înlocuiește [INSERT TEXT] cu textul din variantă
+              const finalPrompt = replaceInsertText(promptTemplate, variant.dialogueText);
+              
+              const response = await fetch('https://api.kie.ai/api/v1/veo/generate', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${ENV.kieApiKey}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  prompt: finalPrompt,
+                  imageUrls: [variant.imageUrl],
+                  model: 'veo3_fast',
+                  generationType: 'FIRST_AND_LAST_FRAMES_2_VIDEO',
+                  aspectRatio: '9:16',
+                }),
+              });
+
+              const data = await response.json();
+
+              if (!response.ok || data.code !== 200 || !data.data?.taskId) {
+                return {
+                  success: false,
+                  dialogueText: variant.dialogueText,
+                  imageUrl: variant.imageUrl,
+                  promptType: variant.promptType,
+                  error: data.msg || 'Failed to generate video',
+                };
+              }
+
+              // Salvează taskId în cache
+              saveVideoTask(data.data.taskId, variant.dialogueText, variant.imageUrl);
+
+              return {
+                success: true,
+                taskId: data.data.taskId,
+                dialogueText: variant.dialogueText,
+                imageUrl: variant.imageUrl,
+                promptType: variant.promptType,
+              };
+            } catch (error: any) {
+              return {
+                success: false,
+                dialogueText: variant.dialogueText,
+                imageUrl: variant.imageUrl,
+                promptType: variant.promptType,
+                error: error.message || 'Network error',
+              };
+            }
+          });
+
+          const settled = await Promise.allSettled(promises);
+          
+          settled.forEach((result) => {
+            if (result.status === 'fulfilled') {
+              results.push(result.value);
+            } else {
+              results.push({
+                success: false,
+                dialogueText: '',
+                imageUrl: '',
+                promptType: '',
+                error: result.reason?.message || 'Unknown error',
+              });
+            }
+          });
+
+          return {
+            success: true,
+            results: results,
+            totalGenerated: results.filter(r => r.success).length,
+            totalFailed: results.filter(r => !r.success).length,
+          };
+        } catch (error: any) {
+          console.error('Error generating multiple variants:', error);
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Failed to generate multiple variants: ${error.message || 'Unknown error'}`,
+          });
+        }
+      }),
   }),
 });
 

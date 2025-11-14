@@ -961,3 +961,16 @@
 - [x] Fix nume videouri: Format CB1_A1_HOOK1, CB1_A1_MIRROR1 (folosește HOOK singular, nu HOOKS)
 - [x] Extragere număr categorie corect (categoryNumber = 1 pentru toate sample videos)
 - [x] Salvare categoryNumber în videoResults pentru afișare corectă
+
+
+## Cerință nouă - Backend Regenerate Multiple Variante (14 Nov 2025)
+
+### STEP 5 - Regenerate All (Multiple Variante) - În formularul "Modify & Regenerate"
+- [x] Backend endpoint nou: generateMultipleVariants (IMPLEMENTAT)
+- [x] Primește array de variante (fiecare cu promptType, promptText, dialogueText, imageUrl)
+- [x] Generează videouri în paralel cu Promise.allSettled
+- [x] Returnează task IDs pentru toate variantele
+- [x] Ștergere completă cod STEP 7 (nu mai există) - dezactivat cu {false && (...)}
+- [x] Frontend STEP 5: conectare buton "Regenerate All" cu endpoint nou
+- [x] Prima variantă înlocuiește videoul original
+- [x] Variantele următoare se adaugă ca videouri noi (videoName_V2, _V3, etc.)

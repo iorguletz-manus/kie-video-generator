@@ -97,7 +97,7 @@ export default function Home() {
     promptType: PromptType;
     promptText: string;
     dialogueText: string;
-    imageId: string;
+    imageUrl: string;
   }>>([]);
   const [currentTime, setCurrentTime] = useState(Date.now());
   
@@ -146,6 +146,7 @@ export default function Home() {
   const parsePromptMutation = trpc.video.parsePromptDocument.useMutation();
   const uploadImageMutation = trpc.video.uploadImage.useMutation();
   const generateBatchMutation = trpc.video.generateBatchVideos.useMutation();
+  const generateMultipleVariantsMutation = trpc.video.generateMultipleVariants.useMutation();
   
   // Session management functions
   interface SavedSession {
@@ -2017,7 +2018,7 @@ export default function Home() {
                                                 promptType: modifyPromptType,
                                                 promptText: modifyPromptText,
                                                 dialogueText: modifyDialogueText,
-                                                imageId: combinations[index]?.imageId || '',
+                                                imageUrl: videoResults[index]?.imageUrl || '',
                                               };
                                               setRegenerationVariants([initialVariant]);
                                             }}
@@ -2295,16 +2296,16 @@ export default function Home() {
                                             <div>
                                               <label className="text-xs font-medium text-gray-700 block mb-1">Imagine:</label>
                                               <select
-                                                value={variant.imageId}
+                                                value={variant.imageUrl}
                                                 onChange={(e) => {
                                                   const updated = [...regenerationVariants];
-                                                  updated[variantIndex] = { ...updated[variantIndex], imageId: e.target.value };
+                                                  updated[variantIndex] = { ...updated[variantIndex], imageUrl: e.target.value };
                                                   setRegenerationVariants(updated);
                                                 }}
                                                 className="w-full border border-gray-300 rounded px-2 py-1 text-xs"
                                               >
                                                 {images.map((img) => (
-                                                  <option key={img.id} value={img.id}>{img.id}</option>
+                                                  <option key={img.id} value={img.url}>{img.id}</option>
                                                 ))}
                                               </select>
                                             </div>
@@ -2339,21 +2340,131 @@ export default function Home() {
                                           <Button
                                             size="sm"
                                             onClick={async () => {
-                                              // Trimite toate variantele pentru generare paralelă
-                                              toast.info(`Se trimit ${regenerationVariants.length} variante pentru generare...`);
+                                              if (modifyingVideoIndex === null || modifyingVideoIndex < 0) {
+                                                toast.error('Selectează un video pentru regenerare');
+                                                return;
+                                              }
                                               
-                                              // TODO: Implementare backend endpoint pentru generare paralelă
-                                              // Pentru acum, doar afișez mesaj
-                                              toast.success(`${regenerationVariants.length} variante trimise cu succes!`);
-                                              setModifyingVideoIndex(null);
+                                              // Validare: toate variantele trebuie să aibă text valid
+                                              const invalidVariants = regenerationVariants.filter(v => 
+                                                v.dialogueText.trim().length === 0
+                                              );
+                                              
+                                              if (invalidVariants.length > 0) {
+                                                toast.error('Toate variantele trebuie să aibă text valid');
+                                                return;
+                                              }
+                                              
+                                              try {
+                                                toast.info(`Se regenerează ${regenerationVariants.length} variant${regenerationVariants.length > 1 ? 'e' : 'ă'} în paralel...`);
+                                                
+                                                // Pregătește variantele pentru backend
+                                                const variantsForBackend = regenerationVariants.map((variant) => ({
+                                                  promptType: variant.promptType,
+                                                  promptText: variant.promptText || undefined,
+                                                  dialogueText: variant.dialogueText,
+                                                  imageUrl: variant.imageUrl,
+                                                }));
+                                                
+                                                // Trimite toate variantele la backend pentru generare paralelă
+                                                const result = await generateMultipleVariantsMutation.mutateAsync({
+                                                  variants: variantsForBackend,
+                                                });
+                                                
+                                                // Procesează rezultatele
+                                                for (let variantIndex = 0; variantIndex < result.results.length; variantIndex++) {
+                                                  const newResult = result.results[variantIndex];
+                                                  const variant = regenerationVariants[variantIndex];
+                                                  
+                                                  if (variantIndex === 0 && newResult.success) {
+                                                    // Prima variantă înlocuiește videoul original
+                                                    setVideoResults(prev =>
+                                                      prev.map((v, i) =>
+                                                        i === modifyingVideoIndex
+                                                          ? {
+                                                              ...v,
+                                                              text: variant.dialogueText,
+                                                              imageUrl: variant.imageUrl,
+                                                              taskId: newResult.taskId || '',
+                                                              status: 'pending' as const,
+                                                              error: undefined,
+                                                              videoUrl: undefined,
+                                                            }
+                                                          : v
+                                                      )
+                                                    );
+                                                    
+                                                    // Update combinations
+                                                    setCombinations(prev =>
+                                                      prev.map((c, i) =>
+                                                        i === modifyingVideoIndex
+                                                          ? {
+                                                              ...c,
+                                                              text: variant.dialogueText,
+                                                              imageUrl: variant.imageUrl,
+                                                              promptType: variant.promptType,
+                                                            }
+                                                          : c
+                                                      )
+                                                    );
+                                                  } else if (variantIndex > 0 && newResult.success) {
+                                                    // Variantele următoare se adaugă ca videouri noi
+                                                    const originalVideo = videoResults[modifyingVideoIndex];
+                                                    const originalCombo = combinations[modifyingVideoIndex];
+                                                    
+                                                    setVideoResults(prev => [
+                                                      ...prev,
+                                                      {
+                                                        text: variant.dialogueText,
+                                                        imageUrl: variant.imageUrl,
+                                                        taskId: newResult.taskId || '',
+                                                        status: 'pending' as const,
+                                                        error: undefined,
+                                                        videoName: `${originalVideo.videoName}_V${variantIndex + 1}`,
+                                                        section: originalVideo.section,
+                                                        categoryNumber: originalVideo.categoryNumber,
+                                                        reviewStatus: null,
+                                                      },
+                                                    ]);
+                                                    
+                                                    setCombinations(prev => [
+                                                      ...prev,
+                                                      {
+                                                        ...originalCombo,
+                                                        text: variant.dialogueText,
+                                                        imageUrl: variant.imageUrl,
+                                                        promptType: variant.promptType,
+                                                        videoName: `${originalCombo.videoName}_V${variantIndex + 1}`,
+                                                      },
+                                                    ]);
+                                                  }
+                                                }
+                                                
+                                                // Toast final cu rezultate
+                                                const successCount = result.results.filter((r: any) => r.success).length;
+                                                const failCount = result.results.filter((r: any) => !r.success).length;
+                                                
+                                                if (successCount > 0) {
+                                                  toast.success(`${successCount} variant${successCount > 1 ? 'e trimise' : 'ă trimisă'} pentru generare!`);
+                                                }
+                                                if (failCount > 0) {
+                                                  toast.error(`${failCount} variant${failCount > 1 ? 'e au eșuat' : 'ă a eșuat'}`);
+                                                }
+                                                
+                                                // Reset form
+                                                setModifyingVideoIndex(null);
+                                                setRegenerationVariants([]);
+                                              } catch (error: any) {
+                                                toast.error(`Eroare la regenerare: ${error.message}`);
+                                              }
                                             }}
-                                            disabled={generateBatchMutation.isPending}
+                                            disabled={generateMultipleVariantsMutation.isPending}
                                             className="w-full bg-orange-600 hover:bg-orange-700"
                                           >
-                                            {generateBatchMutation.isPending ? (
+                                            {generateMultipleVariantsMutation.isPending ? (
                                               <>
                                                 <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                                                Se trimite...
+                                                Se regenerează...
                                               </>
                                             ) : (
                                               `Regenerate All (${regenerationVariants.length} variante)`
@@ -2469,8 +2580,8 @@ export default function Home() {
           </Card>
         )}
 
-        {/* STEP 7: Regenerate Advanced */}
-        {currentStep === 7 && videoResults.length > 0 && (
+        {/* STEP 7 REMOVED - Nu mai există, funcționalitatea e în STEP 5 */}
+        {false && (
           <Card className="mb-8 border-2 border-orange-200">
             <CardHeader className="bg-orange-50">
               <CardTitle className="flex items-center gap-2 text-orange-900">
@@ -2731,46 +2842,48 @@ export default function Home() {
                         }
 
                         try {
-                          toast.info(`Se regenerează ${regenerateVariants.length} variant${regenerateVariants.length > 1 ? 'e' : 'ă'}...`);
+                          toast.info(`Se regenerează ${regenerateVariants.length} variant${regenerateVariants.length > 1 ? 'e' : 'ă'} în paralel...`);
                           
-                          // Pentru fiecare variantă, trimite la backend
-                          for (let variantIndex = 0; variantIndex < regenerateVariants.length; variantIndex++) {
-                            const variant = regenerateVariants[variantIndex];
+                          // Pregătește toate variantele pentru backend
+                          const variantsForBackend = regenerateVariants.map((variant, variantIndex) => {
                             // Determină prompt template
-                            let promptTemplate: string;
+                            let promptTemplate: string = '';
+                            let promptText: string | undefined = undefined;
                             
                             if (variant.promptText.trim().length > 0) {
                               // Folosește prompt custom scris manual
-                              promptTemplate = variant.promptText;
+                              promptText = variant.promptText;
                             } else if (variant.promptType === 'custom') {
-                              toast.error(`Variantă #${variantIndex + 1}: Selectează un prompt sau scrie unul manual`);
-                              continue;
-                            } else if (['PROMPT_NEUTRAL', 'PROMPT_SMILING', 'PROMPT_CTA'].includes(variant.promptType)) {
-                              // Folosește hardcoded prompt
-                              promptTemplate = `HARDCODED_${variant.promptType}`;
+                              // Skip - va fi gestionat de backend
+                              promptText = '';
                             } else {
                               // Folosește prompt custom din listă
                               const customPrompt = prompts.find(p => p.id === variant.promptType);
                               if (customPrompt) {
-                                promptTemplate = customPrompt.template;
-                              } else {
-                                toast.error(`Variantă #${variantIndex + 1}: Prompt nu găsit`);
-                                continue;
+                                promptText = customPrompt.template;
                               }
                             }
-
-                            const result = await generateBatchMutation.mutateAsync({
-                              promptTemplate: promptTemplate,
-                              combinations: [{
-                                text: variant.dialogueText,
-                                imageUrl: variant.imageUrl,
-                              }],
-                            });
-
-                            const newResult = result.results[0];
+                            
+                            return {
+                              promptType: variant.promptType,
+                              promptText: promptText,
+                              dialogueText: variant.dialogueText,
+                              imageUrl: variant.imageUrl,
+                            };
+                          });
+                          
+                          // Trimite toate variantele la backend pentru generare paralelă
+                          const result = await generateMultipleVariantsMutation.mutateAsync({
+                            variants: variantsForBackend,
+                          });
+                          
+                          // Procesează rezultatele
+                          for (let variantIndex = 0; variantIndex < result.results.length; variantIndex++) {
+                            const newResult = result.results[variantIndex];
+                            const variant = regenerateVariants[variantIndex];
                             
                             // Actualizează videoResults: adaugă sau înlocuiește
-                            if (variantIndex === 0) {
+                            if (variantIndex === 0 && newResult.success) {
                               // Prima variantă înlocuiește videoul original
                               setVideoResults(prev =>
                                 prev.map((v, i) =>
@@ -2800,7 +2913,7 @@ export default function Home() {
                                     : c
                                 )
                               );
-                            } else {
+                            } else if (variantIndex > 0 && newResult.success) {
                               // Variantele următoare se adaugă ca videouri noi
                               const originalVideo = videoResults[selectedVideoIndex];
                               const originalCombo = combinations[selectedVideoIndex];
@@ -2810,9 +2923,9 @@ export default function Home() {
                                 {
                                   text: variant.dialogueText,
                                   imageUrl: variant.imageUrl,
-                                  taskId: newResult.taskId,
-                                  status: newResult.success ? 'pending' as const : 'failed' as const,
-                                  error: newResult.error,
+                                  taskId: newResult.taskId || '',
+                                  status: 'pending' as const,
+                                  error: undefined,
                                   videoName: `${originalVideo.videoName}_V${variantIndex + 1}`,
                                   section: originalVideo.section,
                                   categoryNumber: originalVideo.categoryNumber,
@@ -2830,12 +2943,17 @@ export default function Home() {
                                 },
                               ]);
                             }
-
-                            if (newResult.success) {
-                              toast.success(`Variantă #${variantIndex + 1} trimisă pentru generare`);
-                            } else {
-                              toast.error(`Variantă #${variantIndex + 1} a eșuat: ${newResult.error}`);
-                            }
+                          }
+                          
+                          // Toast final cu rezultate
+                          const successCount = result.results.filter((r: any) => r.success).length;
+                          const failCount = result.results.filter((r: any) => !r.success).length;
+                          
+                          if (successCount > 0) {
+                            toast.success(`${successCount} variant${successCount > 1 ? 'e trimise' : 'ă trimisă'} pentru generare!`);
+                          }
+                          if (failCount > 0) {
+                            toast.error(`${failCount} variant${failCount > 1 ? 'e au eșuat' : 'ă a eșuat'}`);
                           }
 
                           // Reset form
