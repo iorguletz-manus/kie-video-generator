@@ -55,9 +55,19 @@ export const appRouter = router({
           fs.writeFileSync(tempFilePath, buffer);
           
           // Upload pe Manus CDN folosind manus-upload-file
-          const { stdout, stderr } = await execAsync(`manus-upload-file ${tempFilePath}`);
+          console.log('[Upload] Starting upload for:', tempFilePath);
+          const { stdout, stderr } = await execAsync(`manus-upload-file ${tempFilePath}`, {
+            env: {
+              ...process.env,
+              BUILT_IN_FORGE_API_URL: process.env.BUILT_IN_FORGE_API_URL || 'https://forge.manus.ai',
+              BUILT_IN_FORGE_API_KEY: process.env.BUILT_IN_FORGE_API_KEY || '',
+            }
+          });
+          console.log('[Upload] stdout:', stdout);
+          console.log('[Upload] stderr:', stderr);
           
           if (stderr && stderr.includes('error')) {
+            console.error('[Upload] Error detected in stderr:', stderr);
             throw new Error(`Upload failed: ${stderr}`);
           }
           
@@ -124,6 +134,8 @@ export const appRouter = router({
               errorMessage = 'Insufficient credits on Kie.ai account. Please add credits to continue.';
             } else if (response.status === 401) {
               errorMessage = 'Invalid API key. Please check your Kie.ai API key.';
+            } else if (response.status === 403) {
+              errorMessage = 'You do not have access permissions. This may be due to: insufficient credits, invalid API key, or account restrictions. Please check your Kie.ai account.';
             } else if (response.status === 429) {
               errorMessage = 'Rate limit exceeded. Please try again later.';
             } else if (response.status === 400) {

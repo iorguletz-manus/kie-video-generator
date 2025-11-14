@@ -30,3 +30,11 @@
 
 ## New Bugs
 - [x] Corectare extragere URL din output manus-upload-file
+
+## Debugging
+- [x] Adăugare variabile de mediu pentru manus-upload-file
+- [x] Adăugare logging detaliat pentru debugging
+- [ ] Testare upload imagine de către user
+
+## Critical Bug
+- [x] Rezolvare eroare persistentă "You do not have access permissions" - API KEY cu litere mici
