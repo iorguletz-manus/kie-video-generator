@@ -1020,3 +1020,14 @@
 - BunnyCDN este mai rapid și mai ieftin decât S3 pentru CDN
 - Upload imagini funcționează în deployed app (nu doar în sandbox)
 - API key hardcodat: 0115eac3-f13f-4701-802f-4471c4df8c50fa472597-a64a-4db5-9e24-1ae9441d4ead
+
+
+## Bug - 401 Unauthorized la Upload Imagini BunnyCDN (14 Nov 2025)
+
+### Eroare: Account API Key nu funcționează pentru Storage Upload
+- [x] Problema: Account API Key nu are permisiuni pentru upload la storage zone
+- [x] Eroare: "BunnyCDN upload failed: 401 {"HttpCode":401,"Message":"Unauthorized"}"
+- [x] Soluție: Înlocuire Account API Key cu Storage Password
+- [x] Storage Password (Read-Write): `4c9257d6-aede-4ff1-bb0f9fc95279-997e-412b`
+- [x] Header: `AccessKey` → Storage Password (nu Account API Key)
+- [x] Înlocuit BUNNYCDN_API_KEY cu BUNNYCDN_STORAGE_PASSWORD în cod

@@ -65,7 +65,7 @@ export const appRouter = router({
           const fileName = `${timestamp}-${randomSuffix}.png`;
           
           // BunnyCDN configuration (hardcoded)
-          const BUNNYCDN_API_KEY = '0115eac3-f13f-4701-802f-4471c4df8c50fa472597-a64a-4db5-9e24-1ae9441d4ead';
+          const BUNNYCDN_STORAGE_PASSWORD = '4c9257d6-aede-4ff1-bb0f9fc95279-997e-412b'; // Storage Password (Read-Write)
           const BUNNYCDN_STORAGE_ZONE = 'manus'; // Storage Zone ID: 1258323
           const BUNNYCDN_PULL_ZONE_URL = 'https://manus.b-cdn.net'; // Pull Zone ID: 4856013
           
@@ -76,7 +76,7 @@ export const appRouter = router({
           const uploadResponse = await fetch(storageUrl, {
             method: 'PUT',
             headers: {
-              'AccessKey': BUNNYCDN_API_KEY,
+              'AccessKey': BUNNYCDN_STORAGE_PASSWORD,
               'Content-Type': 'image/png',
             },
             body: buffer,
