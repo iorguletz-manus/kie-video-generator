@@ -25,4 +25,34 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-// TODO: Add your tables here
+/**
+ * App users table for simple username/password authentication
+ * Separate from Manus OAuth users table
+ */
+export const appUsers = mysqlTable("app_users", {
+  id: int("id").autoincrement().primaryKey(),
+  username: varchar("username", { length: 64 }).notNull().unique(),
+  password: text("password").notNull(), // Plain text per requirement (no hashing)
+  profileImageUrl: text("profileImageUrl"), // BunnyCDN URL for profile image
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AppUser = typeof appUsers.$inferSelect;
+export type InsertAppUser = typeof appUsers.$inferInsert;
+
+/**
+ * App sessions table for storing user sessions
+ * Each session belongs to a user and contains all session data
+ */
+export const appSessions = mysqlTable("app_sessions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(), // Foreign key to app_users.id
+  name: text("name").notNull(), // Session name with timestamp (ex: "Campanie Black Friday - 14 Nov 2025 14:45")
+  data: text("data").notNull(), // JSON string containing all session data
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AppSession = typeof appSessions.$inferSelect;
+export type InsertAppSession = typeof appSessions.$inferInsert;

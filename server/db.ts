@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { InsertUser, users, appUsers, InsertAppUser, appSessions, InsertAppSession } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -89,4 +89,106 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+// App Users helpers
+export async function createAppUser(user: InsertAppUser) {
+  const db = await getDb();
+  if (!db) {
+    throw new Error("Database not available");
+  }
+
+  try {
+    const result = await db.insert(appUsers).values(user);
+    return result;
+  } catch (error) {
+    console.error("[Database] Failed to create app user:", error);
+    throw error;
+  }
+}
+
+export async function getAppUserByUsername(username: string) {
+  const db = await getDb();
+  if (!db) {
+    return undefined;
+  }
+
+  const result = await db.select().from(appUsers).where(eq(appUsers.username, username)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getAppUserById(id: number) {
+  const db = await getDb();
+  if (!db) {
+    return undefined;
+  }
+
+  const result = await db.select().from(appUsers).where(eq(appUsers.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function updateAppUser(id: number, data: Partial<InsertAppUser>) {
+  const db = await getDb();
+  if (!db) {
+    throw new Error("Database not available");
+  }
+
+  try {
+    await db.update(appUsers).set(data).where(eq(appUsers.id, id));
+  } catch (error) {
+    console.error("[Database] Failed to update app user:", error);
+    throw error;
+  }
+}
+
+// App Sessions helpers
+export async function createAppSession(session: InsertAppSession) {
+  const db = await getDb();
+  if (!db) {
+    throw new Error("Database not available");
+  }
+
+  try {
+    const result = await db.insert(appSessions).values(session);
+    return result;
+  } catch (error) {
+    console.error("[Database] Failed to create app session:", error);
+    throw error;
+  }
+}
+
+export async function getAppSessionsByUserId(userId: number) {
+  const db = await getDb();
+  if (!db) {
+    return [];
+  }
+
+  const result = await db.select().from(appSessions).where(eq(appSessions.userId, userId));
+  return result;
+}
+
+export async function updateAppSession(id: number, data: Partial<InsertAppSession>) {
+  const db = await getDb();
+  if (!db) {
+    throw new Error("Database not available");
+  }
+
+  try {
+    await db.update(appSessions).set(data).where(eq(appSessions.id, id));
+  } catch (error) {
+    console.error("[Database] Failed to update app session:", error);
+    throw error;
+  }
+}
+
+export async function deleteAppSession(id: number) {
+  const db = await getDb();
+  if (!db) {
+    throw new Error("Database not available");
+  }
+
+  try {
+    await db.delete(appSessions).where(eq(appSessions.id, id));
+  } catch (error) {
+    console.error("[Database] Failed to delete app session:", error);
+    throw error;
+  }
+}

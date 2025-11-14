@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from 'react';
+import EditProfileModal from '@/components/EditProfileModal';
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -58,7 +59,12 @@ interface VideoResult {
   reviewStatus: 'pending' | 'accepted' | 'regenerate' | null;
 }
 
-export default function Home() {
+interface HomeProps {
+  currentUser: { id: number; username: string; profileImageUrl: string | null };
+  onLogout: () => void;
+}
+
+export default function Home({ currentUser, onLogout }: HomeProps) {
   // Step 1: Text Ad
   const [adDocument, setAdDocument] = useState<File | null>(null);
   const [adLines, setAdLines] = useState<AdLine[]>([]);
@@ -143,6 +149,10 @@ export default function Home() {
   // Session management
   const [currentSessionId, setCurrentSessionId] = useState<string>('default');
   const [isRestoringSession, setIsRestoringSession] = useState(true);
+  
+  // Edit Profile modal
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+  const [localCurrentUser, setLocalCurrentUser] = useState(currentUser);
 
   // Mutations
   const parseAdMutation = trpc.video.parseAdDocument.useMutation();
@@ -151,9 +161,21 @@ export default function Home() {
   const generateBatchMutation = trpc.video.generateBatchVideos.useMutation();
   const generateMultipleVariantsMutation = trpc.video.generateMultipleVariants.useMutation();
   
+  // Session mutations
+  const createSessionMutation = trpc.appSession.create.useMutation();
+  const updateSessionMutation = trpc.appSession.update.useMutation();
+  const deleteSessionMutation = trpc.appSession.delete.useMutation();
+  
+  // Query sessions for current user
+  const { data: dbSessions, refetch: refetchSessions } = trpc.appSession.getByUserId.useQuery(
+    { userId: currentUser.id },
+    { enabled: true }
+  );
+  
   // Session management functions
   interface SavedSession {
-    id: string;
+    id: string; // Session ID (string pentru compatibilitate cu localStorage vechi)
+    dbId?: number; // Database ID (pentru sesiuni salvate în database)
     name: string;
     currentStep: number;
     adLines?: AdLine[];
@@ -181,20 +203,35 @@ export default function Home() {
   }
   
   const getSavedSessions = (): SavedSession[] => {
-    try {
-      const sessions = localStorage.getItem('kie-video-generator-sessions');
-      return sessions ? JSON.parse(sessions) : [];
-    } catch (error) {
-      console.error('Eroare la citire sesiuni:', error);
-      return [];
-    }
+    // Return sessions from database
+    if (!dbSessions) return [];
+    
+    return dbSessions.map(session => {
+      try {
+        const data = JSON.parse(session.data);
+        return {
+          ...data,
+          id: session.id.toString(), // Convert DB ID to string for compatibility
+          dbId: session.id, // Store DB ID for updates/deletes
+          name: session.name,
+        };
+      } catch (error) {
+        console.error('Eroare la parse sesiune:', error);
+        return {
+          id: session.id.toString(),
+          dbId: session.id,
+          name: session.name,
+          currentStep: 1,
+          videoCount: 0,
+          timestamp: session.createdAt?.toISOString() || new Date().toISOString(),
+        };
+      }
+    });
   };
   
-  const saveSession = (name: string) => {
+  const saveSession = async (name: string) => {
     try {
-      const session = {
-        id: currentSessionId,
-        name,
+      const sessionData = {
         currentStep,
         adLines,
         prompts: prompts.map(p => ({ ...p, file: null })),
@@ -211,17 +248,40 @@ export default function Home() {
         timestamp: new Date().toISOString(),
       };
       
-      const sessions = getSavedSessions();
-      const existingIndex = sessions.findIndex(s => s.id === currentSessionId);
+      // Format: "{nume} - {14 Nov 2025 14:45}"
+      const now = new Date();
+      const formattedDate = now.toLocaleDateString('ro-RO', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      const sessionName = `${name} - ${formattedDate}`;
       
-      if (existingIndex >= 0) {
-        sessions[existingIndex] = session;
+      // Check if session exists in database
+      const sessions = getSavedSessions();
+      const existingSession = sessions.find(s => s.id === currentSessionId);
+      
+      if (existingSession && existingSession.dbId) {
+        // Update existing session
+        await updateSessionMutation.mutateAsync({
+          sessionId: existingSession.dbId,
+          name: sessionName,
+          data: JSON.stringify(sessionData),
+        });
       } else {
-        sessions.push(session);
+        // Create new session
+        await createSessionMutation.mutateAsync({
+          userId: currentUser.id,
+          name: sessionName,
+          data: JSON.stringify(sessionData),
+        });
       }
       
-      localStorage.setItem('kie-video-generator-sessions', JSON.stringify(sessions));
-      toast.success(`Sesiune "${name}" salvată!`);
+      // Refetch sessions to update UI
+      await refetchSessions();
+      toast.success('Sesiune salvată!');
     } catch (error) {
       console.error('Eroare la salvare sesiune:', error);
       toast.error('Eroare la salvare sesiune');
@@ -262,12 +322,20 @@ export default function Home() {
     }
   };
   
-  const deleteSession = (sessionId: string) => {
+  const deleteSession = async (sessionId: string) => {
     try {
       const sessions = getSavedSessions();
-      const filteredSessions = sessions.filter(s => s.id !== sessionId);
+      const session = sessions.find(s => s.id === sessionId);
       
-      localStorage.setItem('kie-video-generator-sessions', JSON.stringify(filteredSessions));
+      if (session && session.dbId) {
+        // Delete from database
+        await deleteSessionMutation.mutateAsync({
+          sessionId: session.dbId,
+        });
+        
+        // Refetch sessions to update UI
+        await refetchSessions();
+      }
       
       // Reset la default session
       setCurrentSessionId('default');
@@ -486,7 +554,8 @@ export default function Home() {
               const result = await uploadImageMutation.mutateAsync({
                 imageData: base64,
                 fileName: file.name,
-                sessionId: currentSessionId, // Transmitere sessionId pentru organizare în subfoldere
+                userId: currentUser.id, // Transmitere userId pentru organizare per user
+                sessionId: currentSessionId, // Transmitere sessionId pentru organizare per sesiune
               });
               
               const isCTA = file.name.toUpperCase().includes('CTA');
@@ -1335,6 +1404,58 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 py-8">
       <div className="container max-w-6xl">
+        {/* Header cu User Info */}
+        <div className="mb-6 p-4 bg-white border-2 border-blue-200 rounded-lg flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          {localCurrentUser.profileImageUrl && (
+            <img
+              src={localCurrentUser.profileImageUrl}
+              alt="Profile"
+              className="w-12 h-12 rounded-full border-2 border-blue-300 object-cover"
+            />
+          )}
+          {!localCurrentUser.profileImageUrl && (
+            <div className="w-12 h-12 rounded-full border-2 border-blue-300 bg-blue-100 flex items-center justify-center">
+              <span className="text-blue-900 font-bold text-xl">
+                {localCurrentUser.username.charAt(0).toUpperCase()}
+              </span>
+            </div>
+          )}
+          <div>
+            <p className="text-sm text-blue-700">Logat ca:</p>
+            <p className="text-lg font-bold text-blue-900">{localCurrentUser.username}</p>
+          </div>
+        </div>
+        <div className="flex gap-3">
+          <Button
+            onClick={() => setIsEditProfileOpen(true)}
+            variant="outline"
+            className="border-blue-300 text-blue-900 hover:bg-blue-50"
+          >
+            Edit Profile
+          </Button>
+          <Button
+            onClick={onLogout}
+            variant="destructive"
+            className="bg-red-600 hover:bg-red-700"
+          >
+            Logout
+          </Button>
+        </div>
+      </div>
+      
+      {/* Edit Profile Modal */}
+      <EditProfileModal
+        isOpen={isEditProfileOpen}
+        onClose={() => setIsEditProfileOpen(false)}
+        currentUser={localCurrentUser}
+        onProfileUpdated={(updatedUser) => {
+          setLocalCurrentUser(updatedUser);
+          // Update parent component
+          localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+        }}
+      />
+
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-blue-900 mb-2">Kie.ai Video Generator</h1>
           <p className="text-blue-700">Generează videouri AI în masă cu Kie.ai Veo 3.1</p>

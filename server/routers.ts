@@ -14,6 +14,7 @@ import { promisify } from 'util';
 const execAsync = promisify(exec);
 import { saveVideoTask, updateVideoTask } from "./videoCache";
 import { parseAdDocument, parsePromptDocument, replaceInsertText, parseAdDocumentWithSections, PromptType } from "./documentParser";
+import { createAppUser, getAppUserByUsername, getAppUserById, updateAppUser, createAppSession, getAppSessionsByUserId, updateAppSession, deleteAppSession } from "./db";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -27,6 +28,166 @@ export const appRouter = router({
         success: true,
       } as const;
     }),
+  }),
+
+  // App Auth router for simple username/password authentication
+  appAuth: router({
+    // Register new user
+    register: publicProcedure
+      .input(z.object({
+        username: z.string().min(3).max(64),
+        password: z.string().min(1),
+      }))
+      .mutation(async ({ input }) => {
+        // Check if username already exists
+        const existingUser = await getAppUserByUsername(input.username);
+        if (existingUser) {
+          throw new Error('Username already exists');
+        }
+
+        // Create new user
+        await createAppUser({
+          username: input.username,
+          password: input.password, // Plain text per requirement
+          profileImageUrl: null,
+        });
+
+        // Get created user
+        const user = await getAppUserByUsername(input.username);
+        if (!user) {
+          throw new Error('Failed to create user');
+        }
+
+        return {
+          success: true,
+          user: {
+            id: user.id,
+            username: user.username,
+            profileImageUrl: user.profileImageUrl,
+          },
+        };
+      }),
+
+    // Login
+    login: publicProcedure
+      .input(z.object({
+        username: z.string(),
+        password: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        const user = await getAppUserByUsername(input.username);
+        if (!user || user.password !== input.password) {
+          throw new Error('Invalid username or password');
+        }
+
+        return {
+          success: true,
+          user: {
+            id: user.id,
+            username: user.username,
+            profileImageUrl: user.profileImageUrl,
+          },
+        };
+      }),
+
+    // Get current user by ID
+    getMe: publicProcedure
+      .input(z.object({
+        userId: z.number(),
+      }))
+      .query(async ({ input }) => {
+        const user = await getAppUserById(input.userId);
+        if (!user) {
+          return null;
+        }
+
+        return {
+          id: user.id,
+          username: user.username,
+          profileImageUrl: user.profileImageUrl,
+        };
+      }),
+
+    // Update profile (password + profile image)
+    updateProfile: publicProcedure
+      .input(z.object({
+        userId: z.number(),
+        password: z.string().optional(),
+        profileImageUrl: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const updateData: Partial<{ password: string; profileImageUrl: string | null }> = {};
+        if (input.password) updateData.password = input.password;
+        if (input.profileImageUrl !== undefined) updateData.profileImageUrl = input.profileImageUrl;
+
+        await updateAppUser(input.userId, updateData);
+
+        const user = await getAppUserById(input.userId);
+        return {
+          success: true,
+          user: user ? {
+            id: user.id,
+            username: user.username,
+            profileImageUrl: user.profileImageUrl,
+          } : null,
+        };
+      }),
+  }),
+
+  // App Session router for managing user sessions
+  appSession: router({
+    // Create new session
+    create: publicProcedure
+      .input(z.object({
+        userId: z.number(),
+        name: z.string(),
+        data: z.string(), // JSON string
+      }))
+      .mutation(async ({ input }) => {
+        await createAppSession({
+          userId: input.userId,
+          name: input.name,
+          data: input.data,
+        });
+
+        return { success: true };
+      }),
+
+    // Get all sessions for a user
+    getByUserId: publicProcedure
+      .input(z.object({
+        userId: z.number(),
+      }))
+      .query(async ({ input }) => {
+        const sessions = await getAppSessionsByUserId(input.userId);
+        return sessions;
+      }),
+
+    // Update session
+    update: publicProcedure
+      .input(z.object({
+        sessionId: z.number(),
+        name: z.string().optional(),
+        data: z.string().optional(), // JSON string
+      }))
+      .mutation(async ({ input }) => {
+        const updateData: Partial<{ name: string; data: string }> = {};
+        if (input.name) updateData.name = input.name;
+        if (input.data) updateData.data = input.data;
+
+        await updateAppSession(input.sessionId, updateData);
+        return { success: true };
+      }),
+
+    // Delete session
+    delete: publicProcedure
+      .input(z.object({
+        sessionId: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        await deleteAppSession(input.sessionId);
+        return { success: true };
+      }),
   }),
 
   prompt: router({
@@ -53,7 +214,8 @@ export const appRouter = router({
       .input(z.object({
         imageData: z.string(),
         fileName: z.string(),
-        sessionId: z.string().optional(), // Optional sessionId pentru organizare în subfoldere
+        userId: z.number().optional(), // Optional userId pentru organizare per user
+        sessionId: z.string().optional(), // Optional sessionId pentru organizare per sesiune
       }))
       .mutation(async ({ input }) => {
         try {
@@ -63,9 +225,10 @@ export const appRouter = router({
           // Generează nume unic pentru imagine
           const randomSuffix = Math.random().toString(36).substring(2, 15);
           const timestamp = Date.now();
-          // Organizare în subfoldere pe sessionId
+          // Organizare în subfoldere: {userId}/{sessionId}/{timestamp}.png
+          const userFolder = input.userId ? `user-${input.userId}` : 'default';
           const sessionFolder = input.sessionId || 'default';
-          const fileName = `${sessionFolder}/${timestamp}-${randomSuffix}.png`;
+          const fileName = `${userFolder}/${sessionFolder}/${timestamp}-${randomSuffix}.png`;
           
           // BunnyCDN configuration (hardcoded)
           const BUNNYCDN_STORAGE_PASSWORD = '4c9257d6-aede-4ff1-bb0f9fc95279-997e-412b'; // Storage Password (Read-Write)

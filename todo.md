@@ -1058,3 +1058,61 @@
 - [x] Transmitere sessionId de la frontend la backend în uploadImage mutation
 - [x] Adăugat sessionId în input schema (optional)
 - [x] Folosire sessionFolder în path: `${sessionFolder}/${timestamp}-${randomSuffix}.png`
+
+
+## Cerințe majore - User Management + Session per User (14 Nov 2025)
+
+### STEP 1 - User Management
+- [ ] Login Screen la început (înainte de STEP 1)
+- [ ] Formular login: username + password (fără email, fără security avansată)
+- [ ] Buton "Create Account" → formular simplu (username + password)
+- [ ] Edit Profile: schimbare password + upload poză profil
+- [ ] Poză profil salvată în BunnyCDN (`users/{userId}/profile.png`)
+- [ ] Logout button în header
+- [ ] Database schema: users table (id, username, password, profileImageUrl)
+
+### STEP 2 - Session Management per User
+- [ ] Sesiuni salvate la nivel de user (nu global)
+- [ ] La început STEP 2: popup "Nume sesiune?"
+- [ ] Auto-save format: `{nume_dat} - {14 Nov 2025 14:45}` (zi + oră + minut)
+- [ ] Dropdown sesiuni arată doar sesiunile user-ului curent
+- [ ] Database: sessions table (id, userId, name, timestamp, data)
+
+### STEP 3 - Imagini organizate per User/Sesiune
+- [ ] Path BunnyCDN: `{userId}/{sessionId}/{timestamp}.png`
+- [ ] Exemplu: `user-john/session-1/1763149237-abc123.png`
+- [ ] Organizare pentru ștergere batch pe user sau sesiune
+- [ ] Transmitere userId + sessionId la uploadImage mutation
+
+
+## Cerințe majore - User Management + Session per User (14 Nov 2025) ✅ IMPLEMENTAT
+
+### Database Schema
+- [x] Tabel app_users (id, username, password, profileImageUrl, createdAt, updatedAt)
+- [x] Tabel app_sessions (id, userId, name, data JSON, createdAt, updatedAt)
+- [x] Push schema cu pnpm db:push
+
+### Backend Implementation
+- [x] appAuth router: register, login, getMe, updateProfile
+- [x] appSession router: create, getByUserId, update, delete
+- [x] Helper functions în server/db.ts pentru app_users și app_sessions
+- [x] Plain text password storage (per cerință - no hashing)
+
+### Frontend Implementation
+- [x] LoginScreen component cu toggle Login/Register
+- [x] Protected route în App.tsx (redirect la login dacă nu ești logat)
+- [x] localStorage pentru persist user session
+- [x] Header cu username + profile image + Edit Profile button + Logout
+- [x] EditProfileModal component pentru password + profile image upload
+- [x] Session Management per user (database în loc de localStorage)
+- [x] Format nume sesiune: `{nume} - {14 Nov 2025 14:45}`
+- [x] Organizare imagini: `user-{userId}/{sessionId}/{timestamp}.png`
+- [x] Upload profile image în BunnyCDN la `user-{userId}/profile/{timestamp}.png`
+
+### Flow Complet
+- [x] User deschide app → Login Screen
+- [x] Login/Register → Home cu header user info
+- [x] Edit Profile → schimbare password + upload poză profil
+- [x] Session Management → salvare/load/delete sesiuni din database
+- [x] Upload imagini → organizare per user/sesiune în BunnyCDN
+- [x] Logout → redirect la Login Screen
