@@ -65,6 +65,7 @@ export default function Home() {
   
   // Step 2: Prompts (3 prompts)
   const [prompts, setPrompts] = useState<UploadedPrompt[]>([]);
+  const [useHardcodedPrompts, setUseHardcodedPrompts] = useState(true);
   
   // Step 3: Images
   const [images, setImages] = useState<UploadedImage[]>([]);
@@ -721,59 +722,98 @@ export default function Home() {
             <CardHeader className="bg-blue-50">
               <CardTitle className="flex items-center gap-2 text-blue-900">
                 <FileText className="w-5 h-5" />
-                STEP 2 - Prompts Upload (până la 3)
+                STEP 2 - Prompts Upload (opțional)
               </CardTitle>
               <CardDescription>
-                Încarcă până la 3 documente cu prompturi (.docx). Fiecare prompt va fi folosit pentru anumite secțiuni.
+                Folosește prompturile hardcodate sau încarcă propriile prompturi (.docx).
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-6">
-              <div
-                onDrop={handlePromptDocumentDrop}
-                onDragOver={(e) => e.preventDefault()}
-                className="border-2 border-dashed border-blue-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors cursor-pointer bg-blue-50/50 mb-4"
-                onClick={() => document.getElementById('prompt-upload')?.click()}
-              >
-                <Upload className="w-12 h-12 text-blue-500 mx-auto mb-4" />
-                <p className="text-blue-900 font-medium mb-2">
-                  Drop prompt documents here or click to upload
-                </p>
-                <p className="text-sm text-gray-500 italic">Suportă .docx, .doc (maxim 3 fișiere)</p>
-                <input
-                  id="prompt-upload"
-                  type="file"
-                  accept=".docx,.doc"
-                  multiple
-                  className="hidden"
-                  onChange={handlePromptDocumentSelect}
-                />
+              {/* Toggle pentru prompturi hardcodate */}
+              <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-medium text-green-900">Folosește prompturile hardcodate (recomandat)</span>
+                  <button
+                    onClick={() => setUseHardcodedPrompts(!useHardcodedPrompts)}
+                    className={`px-4 py-2 rounded transition-colors ${
+                      useHardcodedPrompts 
+                        ? 'bg-green-600 text-white hover:bg-green-700' 
+                        : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
+                    }`}
+                  >
+                    {useHardcodedPrompts ? 'Activat ✓' : 'Dezactivat'}
+                  </button>
+                </div>
+                {useHardcodedPrompts && (
+                  <div className="text-sm text-green-700 space-y-1">
+                    <p>✓ PROMPT_NEUTRAL - pentru secțiuni până la TRANSFORMATION</p>
+                    <p>✓ PROMPT_SMILING - pentru TRANSFORMATION și CTA</p>
+                    <p>✓ PROMPT_CTA - pentru CTA cu carte</p>
+                  </div>
+                )}
               </div>
 
-              {prompts.length > 0 && (
-                <div className="mt-6">
-                  <p className="font-medium text-blue-900 mb-3">
-                    {prompts.length} prompturi încărcate:
-                  </p>
-                  <div className="space-y-2">
-                    {prompts.map((prompt) => (
-                      <div key={prompt.id} className="p-3 bg-white rounded border border-blue-200 flex items-center justify-between">
-                        <span className="text-sm font-medium text-blue-900">{prompt.name}</span>
-                        <button
-                          onClick={() => removePrompt(prompt.id)}
-                          className="p-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                  <Button
-                    onClick={() => setCurrentStep(3)}
-                    className="mt-4 bg-blue-600 hover:bg-blue-700"
+              {/* Buton skip dacă folosești prompturi hardcodate */}
+              {useHardcodedPrompts && (
+                <Button
+                  onClick={() => setCurrentStep(3)}
+                  className="w-full bg-blue-600 hover:bg-blue-700 mb-4"
+                >
+                  Continuă la STEP 3 (folosește prompturi hardcodate)
+                </Button>
+              )}
+
+              {/* Upload prompturi custom */}
+              {!useHardcodedPrompts && (
+                <>
+                  <div
+                    onDrop={handlePromptDocumentDrop}
+                    onDragOver={(e) => e.preventDefault()}
+                    className="border-2 border-dashed border-blue-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors cursor-pointer bg-blue-50/50 mb-4"
+                    onClick={() => document.getElementById('prompt-upload')?.click()}
                   >
-                    Continuă la STEP 3
-                  </Button>
-                </div>
+                    <Upload className="w-12 h-12 text-blue-500 mx-auto mb-4" />
+                    <p className="text-blue-900 font-medium mb-2">
+                      Drop prompt documents here or click to upload
+                    </p>
+                    <p className="text-sm text-gray-500 italic">Suportă .docx, .doc (maxim 3 fișiere)</p>
+                    <input
+                      id="prompt-upload"
+                      type="file"
+                      accept=".docx,.doc"
+                      multiple
+                      className="hidden"
+                      onChange={handlePromptDocumentSelect}
+                    />
+                  </div>
+
+                  {prompts.length > 0 && (
+                    <div className="mt-6">
+                      <p className="font-medium text-blue-900 mb-3">
+                        {prompts.length} prompturi încărcate:
+                      </p>
+                      <div className="space-y-2">
+                        {prompts.map((prompt) => (
+                          <div key={prompt.id} className="p-3 bg-white rounded border border-blue-200 flex items-center justify-between">
+                            <span className="text-sm font-medium text-blue-900">{prompt.name}</span>
+                            <button
+                              onClick={() => removePrompt(prompt.id)}
+                              className="p-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <Button
+                        onClick={() => setCurrentStep(3)}
+                        className="mt-4 bg-blue-600 hover:bg-blue-700"
+                      >
+                        Continuă la STEP 3
+                      </Button>
+                    </div>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>

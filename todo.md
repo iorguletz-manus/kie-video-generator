@@ -188,8 +188,8 @@
 
 ### STEP 2 - Prompturi
 - [x] Hardcodare 3 prompturi din documente atașate (server/hardcodedPrompts.ts)
-- [ ] Opțiune să adaugi noi prompturi sau să folosești cele hardcodate
-- [ ] Skip STEP 2 dacă folosești prompturile hardcodate
+- [x] Opțiune să adaugi noi prompturi sau să folosești cele hardcodate (toggle button)
+- [x] Skip STEP 2 dacă folosești prompturile hardcodate (buton direct la STEP 3)
 
 ### STEP 1 - UI
 - [x] Padding mai mare la zona "STEP 1 - Text Ad Upload" (pt-8 px-8 pb-8)
