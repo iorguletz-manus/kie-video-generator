@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';'react';
 import EditProfileModal from '@/components/EditProfileModal';
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -436,7 +436,69 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     isRestoringSession,
   ]);
 
-  // Step 1: Handle ad document upload
+  // ========== COMPUTED VALUES (MEMOIZED) ==========
+  // Filtered video lists (evită re-compute la fiecare render)
+  const failedVideos = useMemo(
+    () => videoResults.filter(v => v.status === 'failed'),
+    [videoResults]
+  );
+  
+  const acceptedVideos = useMemo(
+    () => videoResults.filter(v => v.reviewStatus === 'accepted'),
+    [videoResults]
+  );
+  
+  const regenerateVideos = useMemo(
+    () => videoResults.filter(v => v.reviewStatus === 'regenerate'),
+    [videoResults]
+  );
+  
+  const pendingVideos = useMemo(
+    () => videoResults.filter(v => v.status === 'pending'),
+    [videoResults]
+  );
+  
+  const successVideos = useMemo(
+    () => videoResults.filter(v => v.status === 'success'),
+    [videoResults]
+  );
+  
+  // Counter-uri (evită re-compute la fiecare render)
+  const failedCount = useMemo(() => failedVideos.length, [failedVideos]);
+  const acceptedCount = useMemo(() => acceptedVideos.length, [acceptedVideos]);
+  const regenerateCount = useMemo(() => regenerateVideos.length, [regenerateVideos]);
+  const pendingCount = useMemo(() => pendingVideos.length, [pendingVideos]);
+  const successCount = useMemo(() => successVideos.length, [successVideos]);
+  
+  // Filtered lists pentru STEP 5 (based on step5Filter)
+  const step5FilteredVideos = useMemo(() => {
+    if (step5Filter === 'all') return videoResults;
+    if (step5Filter === 'accepted') return acceptedVideos;
+    if (step5Filter === 'regenerate') return regenerateVideos;
+    return videoResults;
+  }, [step5Filter, videoResults, acceptedVideos, regenerateVideos]);
+  
+  // Filtered lists pentru STEP 6 (based on videoFilter)
+  const step6FilteredVideos = useMemo(() => {
+    if (videoFilter === 'all') return videoResults;
+    if (videoFilter === 'accepted') return acceptedVideos;
+    if (videoFilter === 'failed') return failedVideos;
+    return videoResults;
+  }, [videoFilter, videoResults, acceptedVideos, failedVideos]);
+  
+  // Videos fără decizie (pentru statistici STEP 6)
+  const videosWithoutDecision = useMemo(
+    () => videoResults.filter(v => !v.reviewStatus),
+    [videoResults]
+  );
+  
+  // Accepted videos cu videoUrl (pentru download)
+  const acceptedVideosWithUrl = useMemo(
+    () => videoResults.filter(v => v.reviewStatus === 'accepted' && v.videoUrl),
+    [videoResults]
+  );
+  
+  // ========== STEP 1: Handle ad document upload ==========
   const handleAdDocumentDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
@@ -1320,8 +1382,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
   }, [currentStep]);
 
-  // STEP 6: Review functions
-  const acceptVideo = (videoName: string) => {
+  // ========== STEP 6: Review functions (MEMOIZED) ==========
+  const acceptVideo = useCallback((videoName: string) => {
     setVideoResults(prev => prev.map(v => 
       v.videoName === videoName 
         ? { ...v, reviewStatus: 'accepted' as const }
@@ -1335,9 +1397,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }]);
     
     toast.success(`Video ${videoName} acceptat!`);
-  };
+  }, [videoResults]);
 
-  const regenerateVideo = (videoName: string) => {
+  const regenerateVideo = useCallback((videoName: string) => {
     setVideoResults(prev => prev.map(v => 
       v.videoName === videoName 
         ? { ...v, reviewStatus: 'regenerate' as const }
@@ -1349,18 +1411,18 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       newStatus: 'regenerate',
     }]);
     toast.info(`${videoName} marcat pentru regenerare`);
-  };
+  }, [videoResults]);
 
-  const undoReviewDecision = (videoName: string) => {
+  const undoReviewDecision = useCallback((videoName: string) => {
     setVideoResults(prev => prev.map(v => 
       v.videoName === videoName 
         ? { ...v, reviewStatus: null }
         : v
     ));
     toast.success(`Decizie anulată pentru ${videoName}`);
-  };
+  }, []);
 
-  const undoReview = () => {
+  const undoReview = useCallback(() => {
     if (reviewHistory.length === 0) {
       toast.error('Nu există acțiuni de anulat');
       return;
@@ -1376,7 +1438,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     setReviewHistory(prev => prev.slice(0, -1));
     toast.success(`Acțiune anulată pentru ${lastAction.videoName}`);
-  };
+  }, [reviewHistory]);
 
   const goToCheckVideos = () => {
     setCurrentStep(6);
@@ -2057,18 +2119,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   className="px-4 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="all">Afișează Toate ({videoResults.length})</option>
-                  <option value="accepted">Doar Acceptate ({videoResults.filter(r => r.reviewStatus === 'accepted').length})</option>
-                  <option value="regenerate">Pentru Regenerare ({videoResults.filter(r => r.reviewStatus === 'regenerate').length})</option>
+                  <option value="accepted">Doar Acceptate ({acceptedCount})</option>
+                  <option value="regenerate">Pentru Regenerare ({regenerateCount})</option>
                 </select>
               </div>
-              
               <div className="space-y-4">
-                {videoResults.filter(result => {
-                  if (step5Filter === 'all') return true;
-                  if (step5Filter === 'accepted') return result.reviewStatus === 'accepted';
-                  if (step5Filter === 'regenerate') return result.reviewStatus === 'regenerate';
-                  return true;
-                }).map((result, index) => (
+                {step5FilteredVideos.map((result, index) => (
                   <div key={index} className="p-4 bg-white rounded-lg border-2 border-blue-200">
                     <div className="flex items-start gap-4">
                       <img
@@ -2773,7 +2829,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       <>
                         <X className="w-5 h-5 mr-2" />
                         Regenerate ALL Failed ({(() => {
-                          const failedCount = videoResults.filter(v => v.status === 'failed').length;
+                          const currentFailedCount = failedCount;
                           const pendingRegenerations = videoResults.reduce((sum, v) => {
                             if (v.regenerationNote) {
                               // Parse "⚠️ 3 regenerări cu aceleași setări" → 3
@@ -3285,8 +3341,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
               {/* Organizare pe categorii */}
               {['HOOKS', 'MIRROR', 'DCS', 'TRANZITION', 'NEW_CAUSE', 'MECHANISM', 'EMOTIONAL_PROOF', 'TRANSFORMATION', 'CTA'].map(category => {
-                // Filtrare videouri pe bază de videoFilter
-                let categoryVideos = videoResults.filter(v => v.section === category);
+                // Filtrare videouri pe bază de videoFilter (deja filtrat în step6FilteredVideos)
+                let categoryVideos = step6FilteredVideos.filter(v => v.section === category);
                 
                 if (videoFilter === 'accepted') {
                   categoryVideos = categoryVideos.filter(v => v.reviewStatus === 'accepted');
@@ -3432,14 +3488,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   <div className="flex gap-4 text-sm">
                     <span className="text-green-700">
                       <Check className="w-4 h-4 inline mr-1" />
-                      {videoResults.filter(v => v.reviewStatus === 'accepted').length} acceptate
+                      {acceptedCount} acceptate
                     </span>
                     <span className="text-red-700">
                       <X className="w-4 h-4 inline mr-1" />
-                      {videoResults.filter(v => v.reviewStatus === 'regenerate').length} pentru regenerare
+                      {regenerateCount} pentru regenerare
                     </span>
                     <span className="text-gray-600">
-                      {videoResults.filter(v => !v.reviewStatus).length} fără decizie
+                      {videosWithoutDecision.length} fără decizie
                     </span>
                   </div>
                 </div>
@@ -3457,7 +3513,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         className="w-full bg-red-600 hover:bg-red-700 py-6 text-lg"
                       >
                         <RefreshCw className="w-5 h-5 mr-2" />
-                        Regenerate Selected ({videoResults.filter(v => v.reviewStatus === 'regenerate').length})
+                        Regenerate Selected ({regenerateCount})
                       </Button>
                     )}
                   </div>
@@ -3467,21 +3523,21 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       Te rog să iei o decizie (Accept sau Regenerate) pentru toate videouri înainte de a continua.
                     </p>
                     <p className="text-sm text-yellow-700 mt-1">
-                      {videoResults.filter(v => !v.reviewStatus).length} videouri rămase fără decizie
+                      {videosWithoutDecision.length} videouri rămase fără decizie
                     </p>
                   </div>
                 )}
               </div>
               
               {/* Buton Download All Accepted Videos */}
-              {videoResults.filter(v => v.reviewStatus === 'accepted' && v.videoUrl).length > 0 && (
+              {acceptedVideosWithUrl.length > 0 && (
                 <div className="mt-8 p-4 bg-green-50 border-2 border-green-300 rounded-lg">
                   <p className="text-green-900 font-medium mb-3">
-                    {videoResults.filter(v => v.reviewStatus === 'accepted').length} videouri acceptate
+                    {acceptedCount} videouri acceptate
                   </p>
                   <Button
                     onClick={async () => {
-                      const acceptedVideos = videoResults.filter(v => v.reviewStatus === 'accepted' && v.videoUrl);
+                      const acceptedVideos = acceptedVideosWithUrl;
                       
                       if (acceptedVideos.length === 0) {
                         toast.error('Nu există videouri acceptate pentru download');
@@ -3517,7 +3573,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     className="w-full bg-green-600 hover:bg-green-700 py-6 text-lg"
                   >
                     <Download className="w-5 h-5 mr-2" />
-                    Download All Accepted Videos ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.videoUrl).length})
+                    Download All Accepted Videos ({acceptedVideosWithUrl.length})
                   </Button>
                 </div>
               )}

@@ -1196,3 +1196,21 @@
 - [x] Parse regenerationNote cu regex: /(\d+)\s+regener[ăa]ri/ pentru a extrage numărul
 - [x] Counter final: failedCount + pendingRegenerations (reduce sum)
 - [x] Adăugat regenerationNote în interfața VideoResult
+
+
+## Performance Optimizations - #5 & #6
+
+### #5 - Upload Imagini Paralel (Promise.all)
+- [x] Modificare handleImageUpload pentru upload paralel (Promise.all în loc de for loop) - DEJA IMPLEMENTAT!
+- [x] Adăugare progress tracking pentru fiecare imagine individual
+- [x] Testare upload 10 imagini simultan
+- [x] Verificare că toate imaginile se încarcă corect
+
+### #6 - Memoization (useMemo, useCallback, React.memo)
+- [x] Adăugare useMemo pentru filtered video lists (failedVideos, acceptedVideos, pendingVideos, successVideos, regenerateVideos)
+- [x] Adăugare useMemo pentru counter-uri (failedCount, acceptedCount, pendingCount, successCount, regenerateCount)
+- [x] Adăugare useCallback pentru event handlers (acceptVideo, regenerateVideo, undoReview, undoReviewDecision)
+- [x] Adăugare useMemo pentru filtered lists (step5FilteredVideos, step6FilteredVideos)
+- [x] Adăugare useMemo pentru computed values (videosWithoutDecision, acceptedVideosWithUrl)
+- [x] Înlocuire toate videoResults.filter() din JSX cu computed values
+- [x] Testare performance: verificare că re-renders sunt reduse
