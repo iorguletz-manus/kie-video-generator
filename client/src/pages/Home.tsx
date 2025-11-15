@@ -1078,6 +1078,27 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       return;
     }
     
+    // Check for duplicates in library
+    const characterName = selectedCharacterId ? 
+      (categoryCharacters?.find(c => c.id === selectedCharacterId)?.name || 'Unnamed') : 
+      'Unnamed';
+    
+    const duplicates: string[] = [];
+    for (const file of imageFiles) {
+      const imageName = file.name.replace(/\.[^/.]+$/, ''); // Remove extension
+      const existing = libraryImages.find(
+        img => img.imageName === imageName && img.characterName === characterName
+      );
+      if (existing) {
+        duplicates.push(file.name);
+      }
+    }
+    
+    if (duplicates.length > 0) {
+      toast.error(`Imaginile următoare există deja în library pentru ${characterName}: ${duplicates.join(', ')}`);
+      return;
+    }
+    
     try {
       const uploadPromises = imageFiles.map(async (file) => {
         return new Promise<UploadedImage>((resolve, reject) => {

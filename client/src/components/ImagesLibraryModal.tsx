@@ -96,6 +96,23 @@ export function ImagesLibraryModal({ open, onClose, userId }: ImagesLibraryModal
 
     const characterName = selectedCharacter || newCharacterName || "Unnamed";
     
+    // Check for duplicates
+    const duplicates: string[] = [];
+    for (const file of uploadingFiles) {
+      const imageName = file.name.replace(/\.[^/.]+$/, ''); // Remove extension
+      const existing = images.find(
+        img => img.imageName === imageName && img.characterName === characterName
+      );
+      if (existing) {
+        duplicates.push(file.name);
+      }
+    }
+    
+    if (duplicates.length > 0) {
+      toast.error(`Imaginile următoare există deja în library pentru ${characterName}: ${duplicates.join(', ')}`);
+      return;
+    }
+    
     setUploadProgress(0);
     
     for (let i = 0; i < uploadingFiles.length; i++) {
