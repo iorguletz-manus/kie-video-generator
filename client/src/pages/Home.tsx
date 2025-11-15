@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useLocation } from "wouter";
 import EditProfileModal from '@/components/EditProfileModal';
 import { ImagesLibraryModal } from '@/components/ImagesLibraryModal';
-import { trpc } from "@/lib/trpc";
+import { trpc } from '../lib/trpc';
+import mammoth from 'mammoth';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -671,10 +672,21 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
     try {
       const result = await processTextAdMutation.mutateAsync({
-        text: rawTextAd,
+        rawText: rawTextAd,
       });
       
-      setProcessedTextAd(result.processedText);
+      // Convert processedLines array to string
+      const processedText = result.processedLines
+        .map((line: any) => {
+          if (line.type === 'label') {
+            return line.text;
+          } else {
+            return line.text + ` (${line.charCount} chars)`;
+          }
+        })
+        .join('\n');
+      
+      setProcessedTextAd(processedText);
       toast.success('Text processed successfully!');
       setCurrentStep(2);
     } catch (error: any) {
@@ -685,10 +697,50 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const handleTextFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const text = await file.text();
-      setRawTextAd(text);
-      toast.success('Text file loaded!');
+      if (file.name.endsWith('.txt')) {
+        const text = await file.text();
+        setRawTextAd(text);
+        toast.success('Text file loaded!');
+      } else if (file.name.endsWith('.docx') || file.name.endsWith('.doc')) {
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          const result = await mammoth.extractRawText({ arrayBuffer });
+          setRawTextAd(result.value);
+          toast.success('Word document loaded!');
+        } catch (error: any) {
+          toast.error(`Error reading Word document: ${error.message}`);
+        }
+      } else {
+        toast.error('Please upload a .txt, .doc, or .docx file.');
+      }
     }
+  };
+
+  const handleTextFileDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      if (file.name.endsWith('.txt')) {
+        const text = await file.text();
+        setRawTextAd(text);
+        toast.success('Text file loaded!');
+      } else if (file.name.endsWith('.docx') || file.name.endsWith('.doc')) {
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          const result = await mammoth.extractRawText({ arrayBuffer });
+          setRawTextAd(result.value);
+          toast.success('Word document loaded!');
+        } catch (error: any) {
+          toast.error(`Error reading Word document: ${error.message}`);
+        }
+      } else {
+        toast.error('Please upload a .txt, .doc, or .docx file.');
+      }
+    }
+  };
+
+  const handleTextFileDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
   };
 
   // ========== STEP 2: Handle ad document upload ==========
@@ -2224,16 +2276,18 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       <div
                         className="border-2 border-dashed border-blue-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors cursor-pointer bg-blue-50/50"
                         onClick={() => document.getElementById('text-upload')?.click()}
+                        onDrop={handleTextFileDrop}
+                        onDragOver={handleTextFileDragOver}
                       >
                         <Upload className="w-12 h-12 text-blue-500 mx-auto mb-4" />
                         <p className="text-blue-900 font-medium mb-2">
                           {rawTextAd ? 'Text loaded! Click to change' : 'Drop text file here or click to upload'}
                         </p>
-                        <p className="text-sm text-gray-500 italic">Suportă .txt</p>
+                        <p className="text-sm text-gray-500 italic">Suportă .txt, .doc, .docx</p>
                         <input
                           id="text-upload"
                           type="file"
-                          accept=".txt"
+                          accept=".txt,.doc,.docx"
                           className="hidden"
                           onChange={handleTextFileUpload}
                         />
