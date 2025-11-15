@@ -2633,14 +2633,19 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       
                       return (
                         <div key={line.id} className="p-3 bg-white rounded border border-blue-200 text-sm ml-4">
-                          <div className="flex justify-between items-start mb-1">
-                            <span className="text-xs text-gray-500">{line.charCount} caractere</span>
+                          {/* Name above text in italic small font */}
+                          <div className="mb-1">
+                            <span className="text-xs text-gray-500 italic">{line.videoName}</span>
                           </div>
-                          <p className="text-gray-800">
+                          {/* Text with red highlighting */}
+                          <p className="text-gray-800 mb-2">
                             {normalText}
                             {hasRedText && <span className="text-red-600 font-medium">{redText}</span>}
                           </p>
-                          <span className="text-xs text-gray-500">({line.promptType})</span>
+                          {/* Character count below text */}
+                          <div className="text-xs text-gray-500">
+                            {line.charCount} caractere
+                          </div>
                         </div>
                       );
                     })}
