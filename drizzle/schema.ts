@@ -75,3 +75,21 @@ export const userImages = mysqlTable("user_images", {
 
 export type UserImage = typeof userImages.$inferSelect;
 export type InsertUserImage = typeof userImages.$inferInsert;
+
+/**
+ * User prompts library table
+ * Stores prompts for video generation (default + custom)
+ * Default prompts (PROMPT_NEUTRAL, PROMPT_SMILING, PROMPT_CTA) cannot be deleted
+ */
+export const userPrompts = mysqlTable("user_prompts", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(), // Foreign key to app_users.id
+  promptName: varchar("promptName", { length: 100 }).notNull(), // Prompt name (e.g., "PROMPT_NEUTRAL", "My Custom Prompt")
+  promptTemplate: text("promptTemplate").notNull(), // Prompt template text
+  isDefault: int("isDefault").notNull().default(0), // 1 for default prompts (cannot be deleted), 0 for custom
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type UserPrompt = typeof userPrompts.$inferSelect;
+export type InsertUserPrompt = typeof userPrompts.$inferInsert;

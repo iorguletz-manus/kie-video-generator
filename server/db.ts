@@ -1,6 +1,6 @@
 import { eq, and } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, appUsers, InsertAppUser, appSessions, InsertAppSession, userImages, InsertUserImage } from "../drizzle/schema";
+import { InsertUser, users, appUsers, InsertAppUser, appSessions, InsertAppSession, userImages, InsertUserImage, userPrompts, InsertUserPrompt } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -274,4 +274,68 @@ export async function getUniqueCharacterNames(userId: number): Promise<string[]>
     .groupBy(userImages.characterName);
   
   return result.map(r => r.characterName);
+}
+
+// User Prompts Library helpers
+export async function createUserPrompt(prompt: InsertUserPrompt) {
+  const db = await getDb();
+  if (!db) {
+    throw new Error("Database not available");
+  }
+
+  try {
+    const result = await db.insert(userPrompts).values(prompt);
+    return result;
+  } catch (error) {
+    console.error("[Database] Failed to create user prompt:", error);
+    throw error;
+  }
+}
+
+export async function getUserPromptsByUserId(userId: number) {
+  const db = await getDb();
+  if (!db) {
+    return [];
+  }
+
+  const result = await db.select().from(userPrompts).where(eq(userPrompts.userId, userId));
+  return result;
+}
+
+export async function getUserPromptById(id: number) {
+  const db = await getDb();
+  if (!db) {
+    return undefined;
+  }
+
+  const result = await db.select().from(userPrompts).where(eq(userPrompts.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function updateUserPrompt(id: number, data: Partial<InsertUserPrompt>) {
+  const db = await getDb();
+  if (!db) {
+    throw new Error("Database not available");
+  }
+
+  try {
+    await db.update(userPrompts).set(data).where(eq(userPrompts.id, id));
+  } catch (error) {
+    console.error("[Database] Failed to update user prompt:", error);
+    throw error;
+  }
+}
+
+export async function deleteUserPrompt(id: number) {
+  const db = await getDb();
+  if (!db) {
+    throw new Error("Database not available");
+  }
+
+  try {
+    await db.delete(userPrompts).where(eq(userPrompts.id, id));
+  } catch (error) {
+    console.error("[Database] Failed to delete user prompt:", error);
+    throw error;
+  }
 }

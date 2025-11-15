@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useLocation } from "wouter";
 import EditProfileModal from '@/components/EditProfileModal';
 import { ImagesLibraryModal } from '@/components/ImagesLibraryModal';
 import { trpc } from "@/lib/trpc";
@@ -69,6 +70,8 @@ interface HomeProps {
 }
 
 export default function Home({ currentUser, onLogout }: HomeProps) {
+  const [, setLocation] = useLocation();
+  
   // Step 1: Text Ad
   const [adDocument, setAdDocument] = useState<File | null>(null);
   const [adLines, setAdLines] = useState<AdLine[]>([]);
@@ -1504,11 +1507,18 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         </div>
         <div className="flex gap-3">
           <Button
-            onClick={() => setIsImagesLibraryOpen(true)}
+            onClick={() => setLocation("/images-library")}
             variant="outline"
             className="border-purple-300 text-purple-900 hover:bg-purple-50"
           >
             Images Library
+          </Button>
+          <Button
+            onClick={() => setLocation("/prompts-library")}
+            variant="outline"
+            className="border-green-300 text-green-900 hover:bg-green-50"
+          >
+            Prompts Library
           </Button>
           <Button
             onClick={() => setIsEditProfileOpen(true)}

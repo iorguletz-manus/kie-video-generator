@@ -14,7 +14,8 @@ import { promisify } from 'util';
 const execAsync = promisify(exec);
 import { saveVideoTask, updateVideoTask } from "./videoCache";
 import { parseAdDocument, parsePromptDocument, replaceInsertText, parseAdDocumentWithSections, PromptType } from "./documentParser";
-import { createAppUser, getAppUserByUsername, getAppUserById, updateAppUser, createAppSession, getAppSessionsByUserId, updateAppSession, deleteAppSession, createUserImage, getUserImagesByUserId, getUserImagesByCharacter, updateUserImage, deleteUserImage, getUniqueCharacterNames } from "./db";
+import { createAppUser, getAppUserByUsername, getAppUserById, updateAppUser, createAppSession, getAppSessionsByUserId, updateAppSession, deleteAppSession, createUserImage, getUserImagesByUserId, getUserImagesByCharacter, updateUserImage, deleteUserImage, getUniqueCharacterNames, createUserPrompt, getUserPromptsByUserId, getUserPromptById, updateUserPrompt, deleteUserPrompt } from "./db";
+import { seedDefaultPromptsForUser } from "./seedDefaultPrompts";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -46,17 +47,19 @@ export const appRouter = router({
         }
 
         // Create new user
-        await createAppUser({
+             const result = await createAppUser({
           username: input.username,
           password: input.password, // Plain text per requirement
-          profileImageUrl: null,
         });
 
-        // Get created user
+        // Fetch the created user
         const user = await getAppUserByUsername(input.username);
         if (!user) {
           throw new Error('Failed to create user');
         }
+
+        // Seed default prompts for new user
+        await seedDefaultPromptsForUser(user.id);
 
         return {
           success: true,
@@ -79,6 +82,9 @@ export const appRouter = router({
         if (!user || user.password !== input.password) {
           throw new Error('Invalid username or password');
         }
+
+        // Seed default prompts for user (if not already seeded)
+        await seedDefaultPromptsForUser(user.id);
 
         return {
           success: true,
@@ -874,6 +880,136 @@ export const appRouter = router({
           throw new TRPCError({
             code: 'INTERNAL_SERVER_ERROR',
             message: `Failed to delete image: ${error.message}`,
+          });
+        }
+      }),
+  }),
+
+  // Prompts Library router
+  promptLibrary: router({
+    // List all prompts for user (default + custom)
+    list: publicProcedure
+      .input(z.object({
+        userId: z.number(),
+      }))
+      .query(async ({ input }) => {
+        try {
+          return await getUserPromptsByUserId(input.userId);
+        } catch (error: any) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Failed to list prompts: ${error.message}`,
+          });
+        }
+      }),
+
+    // Create new custom prompt
+    create: publicProcedure
+      .input(z.object({
+        userId: z.number(),
+        promptName: z.string().min(1).max(100),
+        promptTemplate: z.string().min(1),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          await createUserPrompt({
+            userId: input.userId,
+            promptName: input.promptName,
+            promptTemplate: input.promptTemplate,
+            isDefault: 0, // Custom prompts are never default
+          });
+          return { success: true };
+        } catch (error: any) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Failed to create prompt: ${error.message}`,
+          });
+        }
+      }),
+
+    // Update prompt (with protection for default prompts)
+    update: publicProcedure
+      .input(z.object({
+        id: z.number(),
+        promptName: z.string().optional(),
+        promptTemplate: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          const updateData: any = {};
+          if (input.promptName) updateData.promptName = input.promptName;
+          if (input.promptTemplate) updateData.promptTemplate = input.promptTemplate;
+          
+          await updateUserPrompt(input.id, updateData);
+          return { success: true };
+        } catch (error: any) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Failed to update prompt: ${error.message}`,
+          });
+        }
+      }),
+
+    // Duplicate prompt
+    duplicate: publicProcedure
+      .input(z.object({
+        id: z.number(),
+        userId: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          const original = await getUserPromptById(input.id);
+          if (!original) {
+            throw new TRPCError({
+              code: 'NOT_FOUND',
+              message: 'Prompt not found',
+            });
+          }
+          
+          await createUserPrompt({
+            userId: input.userId,
+            promptName: `${original.promptName} - Copy`,
+            promptTemplate: original.promptTemplate,
+            isDefault: 0, // Duplicates are never default
+          });
+          return { success: true };
+        } catch (error: any) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Failed to duplicate prompt: ${error.message}`,
+          });
+        }
+      }),
+
+    // Delete prompt (with protection for default prompts)
+    delete: publicProcedure
+      .input(z.object({
+        id: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          // Check if prompt is default
+          const prompt = await getUserPromptById(input.id);
+          if (!prompt) {
+            throw new TRPCError({
+              code: 'NOT_FOUND',
+              message: 'Prompt not found',
+            });
+          }
+          
+          if (prompt.isDefault === 1) {
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: 'Cannot delete default prompts',
+            });
+          }
+          
+          await deleteUserPrompt(input.id);
+          return { success: true };
+        } catch (error: any) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Failed to delete prompt: ${error.message}`,
           });
         }
       }),

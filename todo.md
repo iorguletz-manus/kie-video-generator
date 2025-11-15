@@ -1272,3 +1272,81 @@
 - [ ] Empty states frumoase ("No images yet", "No characters yet")
 - [ ] Toast notifications pentru success/error
 - [ ] Keyboard shortcuts (ESC = close modal, Enter = confirm)
+
+
+## Prompts Library Feature - User Requested
+
+### Database Schema
+- [x] Creare tabel `userPrompts` (id, userId, promptName, promptTemplate, isDefault, createdAt)
+- [x] Seed 3 prompturi default (PROMPT_NEUTRAL, PROMPT_SMILING, PROMPT_CTA) cu isDefault=true - seedDefaultPromptsForUser()
+- [x] Adăugare index pe userId pentru query rapid
+- [x] Push schema cu `pnpm db:push` - SUCCESS!
+
+### Backend (tRPC Procedures)
+- [x] `promptLibrary.list` - List toate prompturile user-ului (default + custom)
+- [x] `promptLibrary.create` - Create prompt nou (custom) - isDefault=0
+- [x] `promptLibrary.update` - Update promptName sau promptTemplate (cu protecție pentru default)
+- [x] `promptLibrary.duplicate` - Duplicate prompt (create copy cu suffix " - Copy") - isDefault=0
+- [x] `promptLibrary.delete` - Delete prompt (cu protecție pentru default) - check isDefault=1
+
+### Frontend - PromptsLibraryModal Component
+- [ ] Creare componenta PromptsLibraryModal.tsx
+- [ ] Buton "Prompts Library" lângă Images Library în header
+- [ ] Modal cu listă prompturi (default + custom)
+- [ ] Default prompts: grey color, disabled edit button
+- [ ] Custom prompts: edit, duplicate, delete buttons
+- [ ] Add New Prompt dialog (promptName + promptTemplate textarea)
+- [ ] Edit Prompt dialog (promptName + promptTemplate textarea)
+- [ ] Confirmation dialog pentru edit default: "Nu-ți recomand să le editezi pe acestea. Ești sigur?"
+- [ ] Protecție delete: default prompts nu pot fi șterse (buton disabled)
+
+### STEP 2 Integration
+- [ ] Modificare STEP 2 - înlocuire hardcoded prompts cu dropdown select
+- [ ] Dropdown cu toate prompturile din library (default + custom)
+- [ ] Display promptTemplate când selectezi prompt
+- [ ] Păstrare funcționalitate PROMPT_CUSTOM (manual input)
+- [ ] Sincronizare: prompt selectat din library → folosit în generare video
+
+### UX & Design
+- [ ] Responsive layout pentru modal (max-width 800px)
+- [ ] Hover effects pe prompt cards
+- [ ] Color coding: grey pentru default, blue pentru custom
+- [ ] Toast notifications pentru success/error
+- [ ] Empty state pentru custom prompts ("No custom prompts yet")
+
+
+## REFACTOR - Pagini Complete pentru Libraries (User Requested)
+
+### Prompts Library - Pagină Completă (nu modal)
+- [x] Creare pagină `/prompts-library` (PromptsLibraryPage.tsx)
+- [x] Layout complet ca STEP 5 (pagină întreagă, nu popup)
+- [x] List prompturi cu cards mari (promptName + preview template)
+- [x] Default prompts: grey color, disabled edit, confirmation dialog "Nu-ți recomand să le editezi pe acestea. Ești sigur?"
+- [x] Custom prompts: edit, duplicate, delete buttons vizibile
+- [x] Add New Prompt: form mare cu promptName + promptTemplate textarea (12 rows)
+- [x] Edit Prompt: form mare cu promptName + promptTemplate textarea (12 rows)
+- [x] Delete confirmation dialog - confirm()
+- [x] Back button pentru revenire la Home
+
+### Images Library - Pagină Completă (nu modal)
+- [x] Creare pagină `/images-library` (ImagesLibraryPage.tsx)
+- [x] Layout complet ca STEP 6 (pagină întreagă, nu popup mic)
+- [x] Thumbnails MARI (grid 2-4 col, aspect 9:16, vizibilitate maximă)
+- [x] Edit inline pentru imageName (click Edit → input + Save/Cancel)
+- [x] Delete button vizibil pe fiecare thumbnail (Edit/Delete buttons)
+- [x] Selector filter pe character (dropdown Select component)
+- [x] Drag & drop între characters (draggable cards, onDrop pe character sections)
+- [x] Upload section generoasă (character name input + upload button + progress bar)
+- [x] Back button pentru revenire la Home
+
+### Header Buttons - Navigate la Pagini
+- [x] Modificare buton "Prompts Library" → setLocation('/prompts-library')
+- [x] Modificare buton "Images Library" → setLocation('/images-library')
+- [x] Eliminare modals (ImagesLibraryModal, PromptsLibraryModal dacă există) - Păstrate pentru STEP 3
+- [x] Update routes în App.tsx - /images-library, /prompts-library
+- [x] Seed default prompts la login/register - seedDefaultPromptsForUser()
+
+### STEP 3 Integration - Păstrare Select din Library
+- [ ] Păstrare funcționalitate select imagini din library în STEP 3
+- [ ] Query imagini din library în STEP 3 (nu redirect la pagină)
+- [ ] Thumbnail grid compact în STEP 3 (4x8) pentru quick select

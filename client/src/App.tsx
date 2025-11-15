@@ -6,6 +6,8 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import LoginScreen from "./pages/LoginScreen";
+import ImagesLibraryPage from "./pages/ImagesLibraryPage";
+import PromptsLibraryPage from "./pages/PromptsLibraryPage";
 import { useState, useEffect } from "react";
 
 function Router() {
@@ -53,6 +55,8 @@ function Router() {
   return (
     <Switch>
       <Route path={"/"} component={() => <Home currentUser={currentUser} onLogout={handleLogout} />} />
+      <Route path={"/images-library"} component={() => <ImagesLibraryPage currentUser={currentUser} />} />
+      <Route path={"/prompts-library"} component={() => <PromptsLibraryPage currentUser={currentUser} />} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />
