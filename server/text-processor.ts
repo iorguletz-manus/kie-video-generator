@@ -207,89 +207,114 @@ function processShortText(text: string, minC: number = 118, maxC: number = 125):
 }
 
 /**
- * Process long sentence (> 125 chars) with strategic overlap
+ * Process long sentence (> 125 chars) with strategic overlap - CORRECT LOGIC
+ * 
+ * Steps:
+ * 1. Generate random length for Line 1 (118-125)
+ * 2. Take first N chars from text
+ * 3. Find logical CUT POINT (after complete idea)
+ * 4. Split Line 1 into WHITE (before cut) and RED (after cut)
+ * 5. Line 2 WHITE = continuation from original text (after Line 1 WHITE)
+ * 6. Generate random length for Line 2 (118-125)
+ * 7. Line 2 RED = chars taken backwards from Line 1 WHITE to reach target length
+ * 
+ * Result:
+ * - Line 1 WHITE + Line 2 WHITE = complete original sentence ✅
+ * - Line 1 RED + Line 2 RED = overlap (will be cut in video)
  */
 function processLongSentenceWithOverlap(text: string, minC: number = 118, maxC: number = 125): ProcessedLine[] {
   const results: ProcessedLine[] = [];
   
-  // Version 1: First part
-  const rand1 = Math.floor(Math.random() * (maxC - minC + 1)) + minC;
-  let version1 = text.substring(0, rand1).trimEnd();
+  // Step 1: Generate random length for Line 1 (118-125)
+  const line1TargetLength = Math.floor(Math.random() * (maxC - minC + 1)) + minC;
   
-  // Adjust to end at word boundary
-  if (version1.includes(' ')) {
-    const words = version1.split(/\s+/);
-    version1 = words.join(' ');
+  // Step 2: Take first line1TargetLength chars
+  let line1Full = text.substring(0, line1TargetLength).trim();
+  
+  // Adjust to word boundary
+  if (line1Full.includes(' ')) {
+    const words = line1Full.split(/\s+/);
+    line1Full = words.join(' ');
   }
   
-  // Version 2: Last part
-  const rand2 = Math.floor(Math.random() * (maxC - minC + 1)) + minC;
-  let version2 = text.substring(text.length - rand2).trimStart();
+  // Step 3: Find logical CUT POINT (after complete idea)
+  let cutPoint = -1;
   
-  // Adjust to start at word boundary
-  if (version2.includes(' ')) {
-    const words = version2.split(/\s+/);
-    version2 = words.join(' ');
+  // Look for punctuation marks
+  const punctuationMarks = [', ', ': ', '; ', '! ', '? '];
+  for (const mark of punctuationMarks) {
+    const idx = line1Full.lastIndexOf(mark);
+    if (idx > cutPoint && idx > line1Full.length * 0.4) {
+      cutPoint = idx + mark.length;
+    }
   }
   
-  // Add version 1 (no red)
-  results.push({ text: version1, redStart: -1, redEnd: -1, charCount: version1.length });
-  
-  // Find strategic CUT point in version2
-  const words = version2.split(/\s+/);
-  let strategicCutIdx = -1;
-  
-  // Look for punctuation marks that indicate idea change
-  for (let i = 0; i < words.length; i++) {
-    if (words[i].match(/[:,]$/)) {
-      const remaining = words.slice(i + 1).join(' ');
-      if (remaining.length >= 50) {
-        strategicCutIdx = i + 1;
-        break;
+  // If no punctuation, look for transition words
+  if (cutPoint === -1) {
+    const transitionWords = [' dar ', ' și ', ' iar ', ' pentru ', ' astfel ', ' când ', ' dacă ', ' ca ', ' că ', ' pot ', ' pot fi '];
+    for (const word of transitionWords) {
+      const idx = line1Full.lastIndexOf(word);
+      if (idx > cutPoint && idx > line1Full.length * 0.4) {
+        cutPoint = idx + word.length;
       }
     }
   }
   
-  // If no good punctuation found, look for transition words
-  if (strategicCutIdx === -1) {
-    const transitionWords = ['dar', 'și', 'iar', 'pentru', 'astfel', 'când', 'dacă'];
-    for (let i = 0; i < words.length; i++) {
-      const wordClean = words[i].toLowerCase().replace(/[.,!?:;]/g, '');
-      if (transitionWords.includes(wordClean)) {
-        const remaining = words.slice(i).join(' ');
-        if (remaining.length >= 50) {
-          strategicCutIdx = i;
-          break;
-        }
-      }
+  // Fallback: cut at 60% of line1Full
+  if (cutPoint === -1) {
+    cutPoint = Math.floor(line1Full.length * 0.6);
+    while (cutPoint < line1Full.length && line1Full[cutPoint] !== ' ') {
+      cutPoint++;
     }
+    if (cutPoint < line1Full.length) cutPoint++;
   }
   
-  // If still not found, use 30% of text as fallback
-  if (strategicCutIdx === -1) {
-    const targetLen = Math.floor(version2.length * 0.3);
-    let currentLen = 0;
-    for (let i = 0; i < words.length; i++) {
-      currentLen += words[i].length + 1;
-      if (currentLen >= targetLen) {
-        const remaining = words.slice(i + 1).join(' ');
-        if (remaining.length >= 50) {
-          strategicCutIdx = i + 1;
-          break;
-        }
-      }
-    }
+  // Step 4: Split Line 1 into WHITE and RED
+  const line1White = line1Full.substring(0, cutPoint).trim();
+  const line1Red = line1Full.substring(cutPoint).trim();
+  
+  // Step 5: Line 2 WHITE = continuation from original text
+  const line1WhiteEndInOriginal = text.indexOf(line1White) + line1White.length;
+  const line2White = text.substring(line1WhiteEndInOriginal).trim();
+  
+  // Step 6: Generate random length for Line 2 (118-125)
+  const line2TargetLength = Math.floor(Math.random() * (maxC - minC + 1)) + minC;
+  
+  // Step 7: Calculate how many chars we need to add as RED
+  const line2RedNeeded = line2TargetLength - line2White.length;
+  
+  // Step 8: Take line2RedNeeded chars BACKWARDS from line1White
+  let line2Red = '';
+  if (line2RedNeeded > 0) {
+    const startIdx = Math.max(0, line1White.length - line2RedNeeded);
+    line2Red = line1White.substring(startIdx).trim();
   }
   
-  // Apply red marking
-  if (strategicCutIdx > 0) {
-    const redText = words.slice(0, strategicCutIdx).join(' ');
-    const redEnd = redText.length;
-    results.push({ text: version2, redStart: 0, redEnd, charCount: version2.length });
-  } else {
-    // Fallback: no red
-    results.push({ text: version2, redStart: -1, redEnd: -1, charCount: version2.length });
-  }
+  // Step 9: Build final lines
+  const line1Final = line1White + (line1Red ? ' ' + line1Red : '');
+  const line2Final = (line2Red ? line2Red + ' ' : '') + line2White;
+  
+  // Step 10: Calculate RED positions
+  const line1RedStart = line1Red ? line1White.length + 1 : -1;
+  const line1RedEnd = line1Red ? line1Final.length : -1;
+  
+  const line2RedStart = line2Red ? 0 : -1;
+  const line2RedEnd = line2Red ? line2Red.length : -1;
+  
+  // Add results
+  results.push({
+    text: line1Final,
+    redStart: line1RedStart,
+    redEnd: line1RedEnd,
+    charCount: line1Final.length
+  });
+  
+  results.push({
+    text: line2Final,
+    redStart: line2RedStart,
+    redEnd: line2RedEnd,
+    charCount: line2Final.length
+  });
   
   return results;
 }
