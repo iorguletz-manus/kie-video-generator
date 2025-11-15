@@ -3533,19 +3533,27 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           {result.status === 'success' && result.videoUrl && (
                             <>
                               {result.reviewStatus === 'regenerate' ? (
-                                <div className="flex-1">
+                                <div className="flex items-center gap-2 justify-between w-full">
+                                  {/* Status Respinse - small, left */}
                                   <div className="flex items-center gap-2 bg-red-50 border-2 border-red-500 px-3 py-2 rounded-lg">
                                     <X className="w-5 h-5 text-red-600" />
                                     <span className="text-sm text-red-700 font-bold">Respinse</span>
                                   </div>
                                   
-                                  {/* Buton Modify & Regenerate pentru videouri respinse */}
+                                  {/* Buton Modify & Regenerate - small, right */}
                                   <Button
                                     size="sm"
                                     variant="outline"
                                     onClick={() => {
                                       // FIX: Găsește index-ul real în videoResults bazat pe videoName
                                       const realIndex = videoResults.findIndex(v => v.videoName === result.videoName);
+                                      console.log('[Modify & Regenerate] Clicked for rejected video:', result.videoName, 'realIndex:', realIndex);
+                                      
+                                      if (realIndex < 0) {
+                                        toast.error('Video nu găsit în videoResults');
+                                        return;
+                                      }
+                                      
                                       setModifyingVideoIndex(realIndex);
                                       const currentPromptType = combinations[realIndex]?.promptType || 'PROMPT_NEUTRAL';
                                       setModifyPromptType(currentPromptType);
@@ -3558,8 +3566,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                       }
                                       
                                       setModifyDialogueText(result.text);
+                                      
+                                      // Scroll to form
+                                      setTimeout(() => {
+                                        const formElement = document.querySelector(`[data-modify-form="${realIndex}"]`);
+                                        if (formElement) {
+                                          formElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                        }
+                                      }, 100);
                                     }}
-                                    className="mt-2 w-full border-orange-500 text-orange-700 hover:bg-orange-50"
+                                    className="border-orange-500 text-orange-700 hover:bg-orange-50"
                                   >
                                     Modify & Regenerate
                                   </Button>
@@ -3587,7 +3603,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                 
                                 {/* Modify & Regenerate Form */}
                                 {modifyingVideoIndex === videoResults.findIndex(v => v.videoName === result.videoName) && (
-                                  <div className="mt-4 p-4 bg-white border-2 border-orange-300 rounded-lg space-y-3">
+                                  <div 
+                                    data-modify-form={videoResults.findIndex(v => v.videoName === result.videoName)}
+                                    className="mt-4 p-4 bg-white border-2 border-orange-300 rounded-lg space-y-3"
+                                  >
                                     <h5 className="font-bold text-orange-900">Modify & Regenerate</h5>
                                     
                                     {/* Radio: Vrei să regenerezi mai multe videouri? */}
