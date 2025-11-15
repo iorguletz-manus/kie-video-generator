@@ -774,9 +774,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           // Generate video name based on section and context
           // Format: T{tamNum}_C{cbNum}_E{eaNum}_AD{adNum}_{SECTION}{lineNum}_{CHARACTER}
           
-          // Normalize section name: remove hyphens and spaces
-          // EMOTIONAL-PROOF → EMOTIONALPROOF, NEW-CAUSE → NEWCAUSE
-          let sectionName = currentSection.replace(/[-\s]/g, '');
+          // Normalize section name: remove underscores only (keep hyphens)
+          // EMOTIONAL_PROOF → EMOTIONAL-PROOF, NEW_CAUSE → NEW-CAUSE
+          let sectionName = currentSection.replace(/_/g, '-');
           let sectionLineNum = '';
           
           // Get the label that precedes this line (to handle H1, H2, etc.)
