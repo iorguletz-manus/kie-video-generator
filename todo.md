@@ -1378,3 +1378,15 @@
 - [x] Fix empty characterName validation în backend (normalize + fallback "Unnamed")
 - [x] Fix empty characterName validation în frontend (trim + fallback "Unnamed")
 - [x] Delete imagini cu characterName empty din database
+
+
+## Images Library UX Refactor
+
+- [x] Refactor upload section cu dropdown smart pentru character selection
+- [x] Dropdown options: "No Character", existing characters, "+ New Character"
+- [x] Input conditional: când selectezi "+ New Character", apare input pentru character name - autoFocus
+- [x] Auto-add new character în dropdown după upload - refetch() after upload
+- [x] Rename "Unnamed" → "No Character" în backend (default value)
+- [x] Rename "Unnamed" → "No Character" în frontend (display)
+- [x] Reduce thumbnails size cu 50% (grid mai dens) - grid-cols-3 md:grid-cols-5 lg:grid-cols-6
+- [ ] Testare flow: select existing, select No Character, create new character

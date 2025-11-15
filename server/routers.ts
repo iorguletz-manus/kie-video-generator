@@ -752,14 +752,14 @@ export const appRouter = router({
     upload: publicProcedure
       .input(z.object({
         userId: z.number(),
-        characterName: z.string().default("Unnamed"),
+        characterName: z.string().default("No Character"),
         imageName: z.string(),
         imageData: z.string(), // base64
       }))
       .mutation(async ({ input }) => {
         try {
-          // Normalize characterName: trim and fallback to "Unnamed" if empty
-          const normalizedCharacterName = (input.characterName || "").trim() || "Unnamed";
+          // Normalize characterName: trim and fallback to "No Character" if empty
+          const normalizedCharacterName = (input.characterName || "").trim() || "No Character";
           
           console.log('[imageLibrary.upload] Starting upload for user:', input.userId, 'character:', normalizedCharacterName, 'imageName:', input.imageName);
           

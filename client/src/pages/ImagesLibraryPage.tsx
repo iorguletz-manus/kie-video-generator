@@ -29,7 +29,8 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
     );
   }
   const [selectedCharacter, setSelectedCharacter] = useState<string>("all");
-  const [newCharacterName, setNewCharacterName] = useState("Unnamed");
+  const [uploadCharacterSelection, setUploadCharacterSelection] = useState<string>("No Character");
+  const [newCharacterName, setNewCharacterName] = useState("");
   const [uploadingFiles, setUploadingFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [editingImageId, setEditingImageId] = useState<number | null>(null);
@@ -95,12 +96,19 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
           const base64 = e.target?.result as string;
 
           try {
-            // Normalize character name: trim and fallback to "Unnamed"
-            const normalizedCharacterName = (newCharacterName || "").trim() || "Unnamed";
+            // Determine final character name based on selection
+            let finalCharacterName: string;
+            if (uploadCharacterSelection === "__new__") {
+              // New character: use input value or fallback to "No Character"
+              finalCharacterName = (newCharacterName || "").trim() || "No Character";
+            } else {
+              // Existing character or "No Character"
+              finalCharacterName = uploadCharacterSelection;
+            }
             
             await uploadMutation.mutateAsync({
               userId: currentUser.id,
-              characterName: normalizedCharacterName,
+              characterName: finalCharacterName,
               imageName: file.name.replace(/\.[^/.]+$/, ""), // Remove extension
               imageData: base64,
             });
@@ -225,13 +233,36 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label>Character Name</Label>
-                    <Input
-                      placeholder="e.g., Alina, Unnamed"
-                      value={newCharacterName}
-                      onChange={(e) => setNewCharacterName(e.target.value)}
-                    />
+                    <Label>Character</Label>
+                    <Select value={uploadCharacterSelection} onValueChange={setUploadCharacterSelection}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="No Character">No Character</SelectItem>
+                        {characters
+                          .filter((char) => char && char.trim() !== "" && char !== "No Character")
+                          .map((char) => (
+                            <SelectItem key={char} value={char}>
+                              {char}
+                            </SelectItem>
+                          ))}
+                        <SelectItem value="__new__">+ New Character</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
+                  
+                  {uploadCharacterSelection === "__new__" && (
+                    <div>
+                      <Label>New Character Name</Label>
+                      <Input
+                        placeholder="e.g., Alina, Maria"
+                        value={newCharacterName}
+                        onChange={(e) => setNewCharacterName(e.target.value)}
+                        autoFocus
+                      />
+                    </div>
+                  )}
 
                   <div className="flex items-end">
                     <Button
@@ -301,7 +332,7 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                     </span>
                   </h2>
 
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                  <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-4">
                     {characterImages.map((image) => (
                       <Card
                         key={image.id}
@@ -384,7 +415,7 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
           </div>
         ) : (
           // Single Character View
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-4">
             {filteredImages.map((image) => (
               <Card
                 key={image.id}
