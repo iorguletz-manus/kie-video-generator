@@ -19,6 +19,15 @@ interface ImagesLibraryPageProps {
 
 export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProps) {
   const [, setLocation] = useLocation();
+  
+  // Safety check: if currentUser is null, show loading
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-white to-pink-50">
+        <div className="text-purple-900 text-xl">Loading...</div>
+      </div>
+    );
+  }
   const [selectedCharacter, setSelectedCharacter] = useState<string>("all");
   const [newCharacterName, setNewCharacterName] = useState("Unnamed");
   const [uploadingFiles, setUploadingFiles] = useState<File[]>([]);
@@ -86,9 +95,12 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
           const base64 = e.target?.result as string;
 
           try {
+            // Normalize character name: trim and fallback to "Unnamed"
+            const normalizedCharacterName = (newCharacterName || "").trim() || "Unnamed";
+            
             await uploadMutation.mutateAsync({
               userId: currentUser.id,
-              characterName: newCharacterName,
+              characterName: normalizedCharacterName,
               imageName: file.name.replace(/\.[^/.]+$/, ""), // Remove extension
               imageData: base64,
             });
@@ -195,11 +207,13 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Characters</SelectItem>
-                  {characters.map((char) => (
-                    <SelectItem key={char} value={char}>
-                      {char}
-                    </SelectItem>
-                  ))}
+                  {characters
+                    .filter((char) => char && char.trim() !== "") // Filter empty strings
+                    .map((char) => (
+                      <SelectItem key={char} value={char}>
+                        {char}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>

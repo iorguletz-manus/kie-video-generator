@@ -1,0 +1,9 @@
+{
+  "query": "DELETE FROM user_images WHERE characterName = '' OR characterName IS NULL;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 31Jn37LuGk4VZ7R.root --database RXS4W6JSPHCraUdGfAB78x --execute DELETE FROM user_images WHERE characterName = '' OR characterName IS NULL;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 54
+}

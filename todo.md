@@ -1366,3 +1366,15 @@
 - [ ] Update ImagesLibraryPage pentru a afișa thumbnail în character filter dropdown
 - [ ] Fallback icon dacă character nu are imagini
 - [ ] Testare vizual: thumbnail vizibil în dropdown
+
+
+## Bug Fix - Upload Images Error în Images Library
+
+- [x] Investigare eroare "An unexpected error occurred" la upload images - FIXED: Empty characterName crash
+- [x] Check BunnyCDN upload în imageLibrary.upload procedure - OK
+- [x] Check database insert în createUserImage - OK
+- [x] Add error logging pentru debugging - console.log added
+- [x] Test upload cu 1 imagine, apoi cu multiple
+- [x] Fix empty characterName validation în backend (normalize + fallback "Unnamed")
+- [x] Fix empty characterName validation în frontend (trim + fallback "Unnamed")
+- [x] Delete imagini cu characterName empty din database

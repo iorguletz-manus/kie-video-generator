@@ -758,13 +758,19 @@ export const appRouter = router({
       }))
       .mutation(async ({ input }) => {
         try {
+          // Normalize characterName: trim and fallback to "Unnamed" if empty
+          const normalizedCharacterName = (input.characterName || "").trim() || "Unnamed";
+          
+          console.log('[imageLibrary.upload] Starting upload for user:', input.userId, 'character:', normalizedCharacterName, 'imageName:', input.imageName);
+          
           // Upload to BunnyCDN (reuse logic from video.uploadImage)
           const base64Data = input.imageData.replace(/^data:image\/\w+;base64,/, "");
           const buffer = Buffer.from(base64Data, 'base64');
+          console.log('[imageLibrary.upload] Buffer size:', buffer.length);
           
           const randomSuffix = Math.random().toString(36).substring(2, 15);
           const timestamp = Date.now();
-          const fileName = `user-${input.userId}/library/${input.characterName}/${input.imageName}-${timestamp}-${randomSuffix}.png`;
+          const fileName = `user-${input.userId}/library/${normalizedCharacterName}/${input.imageName}-${timestamp}-${randomSuffix}.png`;
           
           // BunnyCDN configuration
           const BUNNYCDN_STORAGE_PASSWORD = '4c9257d6-aede-4ff1-bb0f9fc95279-997e-412b';
@@ -772,6 +778,8 @@ export const appRouter = router({
           const BUNNYCDN_PULL_ZONE_URL = 'https://manus.b-cdn.net';
           
           const storageUrl = `https://storage.bunnycdn.com/${BUNNYCDN_STORAGE_ZONE}/${fileName}`;
+          
+          console.log('[imageLibrary.upload] Uploading to BunnyCDN:', storageUrl);
           
           const uploadResponse = await fetch(storageUrl, {
             method: 'PUT',
@@ -782,24 +790,31 @@ export const appRouter = router({
             body: buffer,
           });
           
+          console.log('[imageLibrary.upload] BunnyCDN response status:', uploadResponse.status);
+          
           if (!uploadResponse.ok) {
             const errorText = await uploadResponse.text();
+            console.error('[imageLibrary.upload] BunnyCDN upload failed:', uploadResponse.status, errorText);
             throw new Error(`BunnyCDN upload failed: ${uploadResponse.status} ${errorText}`);
           }
           
           const imageUrl = `${BUNNYCDN_PULL_ZONE_URL}/${fileName}`;
           
+          console.log('[imageLibrary.upload] Saving to database:', imageUrl);
+          
           // Save to database
           await createUserImage({
             userId: input.userId,
-            characterName: input.characterName,
+            characterName: normalizedCharacterName, // Use normalized name
             imageName: input.imageName,
             imageUrl: imageUrl,
             imageKey: fileName,
           });
           
+          console.log('[imageLibrary.upload] Upload successful!');
           return { success: true, imageUrl };
         } catch (error: any) {
+          console.error('[imageLibrary.upload] Error:', error);
           throw new TRPCError({
             code: 'INTERNAL_SERVER_ERROR',
             message: `Failed to upload image: ${error.message}`,

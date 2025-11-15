@@ -19,6 +19,15 @@ interface PromptsLibraryPageProps {
 
 export default function PromptsLibraryPage({ currentUser }: PromptsLibraryPageProps) {
   const [, setLocation] = useLocation();
+  
+  // Safety check: if currentUser is null, show loading
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-white to-pink-50">
+        <div className="text-purple-900 text-xl">Loading...</div>
+      </div>
+    );
+  }
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [newPromptName, setNewPromptName] = useState("");

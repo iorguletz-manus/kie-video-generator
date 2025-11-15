@@ -1,0 +1,20 @@
+{
+  "query": "SELECT characterName, LENGTH(characterName) as len, COUNT(*) as count FROM user_images GROUP BY characterName;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 31Jn37LuGk4VZ7R.root --database RXS4W6JSPHCraUdGfAB78x --execute SELECT characterName, LENGTH(characterName) as len, COUNT(*) as count FROM user_images GROUP BY characterName;",
+  "rows": [
+    {
+      "characterName": "",
+      "len": "0",
+      "count": "6"
+    },
+    {
+      "characterName": "Alina",
+      "len": "5",
+      "count": "2"
+    }
+  ],
+  "messages": [],
+  "stdout": "characterName\tlen\tcount\n\t0\t6\nAlina\t5\t2\n",
+  "stderr": "",
+  "execution_time_ms": 52
+}

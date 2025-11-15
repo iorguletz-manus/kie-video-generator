@@ -273,7 +273,10 @@ export async function getUniqueCharacterNames(userId: number): Promise<string[]>
     .where(eq(userImages.userId, userId))
     .groupBy(userImages.characterName);
   
-  return result.map(r => r.characterName);
+  // Filter out null, undefined, and empty strings
+  return result
+    .map(r => r.characterName)
+    .filter((name): name is string => name != null && name.trim() !== "");
 }
 
 // User Prompts Library helpers
