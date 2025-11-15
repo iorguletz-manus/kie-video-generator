@@ -166,6 +166,7 @@ export const characters = mysqlTable("characters", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(), // Foreign key to app_users.id
   name: varchar("name", { length: 255 }).notNull(), // Character name
+  thumbnailUrl: text("thumbnailUrl"), // Thumbnail image URL (auto-cropped from first image)
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

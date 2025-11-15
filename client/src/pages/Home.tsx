@@ -2281,7 +2281,18 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 </SelectTrigger>
                 <SelectContent>
                   {categoryCharacters.map((char) => (
-                    <SelectItem key={char.id} value={char.id.toString()}>{char.name}</SelectItem>
+                    <SelectItem key={char.id} value={char.id.toString()}>
+                      <div className="flex items-center gap-2">
+                        {char.thumbnailUrl && (
+                          <img 
+                            src={char.thumbnailUrl} 
+                            alt={char.name}
+                            className="w-6 h-6 rounded-full object-cover"
+                          />
+                        )}
+                        <span>{char.name}</span>
+                      </div>
+                    </SelectItem>
                   ))}
                   <SelectItem value="new">+ New Character</SelectItem>
                 </SelectContent>
@@ -2420,7 +2431,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   </div>
                   <div>
                     <span className="font-medium text-gray-600">Character:</span>
-                    <p className="text-blue-900 font-semibold">{categoryCharacters.find(char => char.id === selectedCharacterId)?.name || 'Not selected'}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      {selectedCharacterId && categoryCharacters.find(char => char.id === selectedCharacterId)?.thumbnailUrl && (
+                        <img 
+                          src={categoryCharacters.find(char => char.id === selectedCharacterId)?.thumbnailUrl || ''} 
+                          alt="Character"
+                          className="w-8 h-8 rounded-full object-cover border-2 border-blue-300"
+                        />
+                      )}
+                      <p className="text-blue-900 font-semibold">{categoryCharacters.find(char => char.id === selectedCharacterId)?.name || 'Not selected'}</p>
+                    </div>
                   </div>
                 </div>
               </div>

@@ -863,6 +863,25 @@ export const appRouter = router({
             imageKey: fileName,
           });
           
+          // Check if this is the first image for this character
+          const existingImages = await getUserImagesByCharacter(input.userId, normalizedCharacterName);
+          if (existingImages.length === 1) {
+            // This is the first image! Update character with thumbnail
+            console.log('[imageLibrary.upload] First image for character, updating thumbnail');
+            
+            // Find the character by name
+            const characters = await getCharactersByUserId(input.userId);
+            const character = characters.find(c => c.name === normalizedCharacterName);
+            
+            if (character) {
+              // Use the same image URL as thumbnail (no cropping for now, just use original)
+              await updateCharacter(character.id, {
+                thumbnailUrl: imageUrl,
+              });
+              console.log('[imageLibrary.upload] Character thumbnail updated:', character.id);
+            }
+          }
+          
           console.log('[imageLibrary.upload] Upload successful!');
           return { success: true, imageUrl };
         } catch (error: any) {
