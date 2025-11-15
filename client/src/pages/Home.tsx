@@ -250,6 +250,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // Text processing mutation
   const processTextAdMutation = trpc.video.processTextAd.useMutation();
   
+  // Images Library mutation
+  const uploadLibraryImageMutation = trpc.imageLibrary.upload.useMutation();
+  
   // Context session mutation
   const upsertContextSessionMutation = trpc.contextSessions.upsert.useMutation();
   
@@ -1098,6 +1101,22 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 fileName: file.name,
                 isCTA: isCTA,
               };
+              
+              // Auto-save to Images Library
+              try {
+                await uploadLibraryImageMutation.mutateAsync({
+                  userId: currentUser.id,
+                  characterName: selectedCharacterId ? 
+                    (categoryCharacters?.find(c => c.id === selectedCharacterId)?.name || 'Unnamed') : 
+                    'Unnamed',
+                  imageName: file.name.replace(/\.[^/.]+$/, ''), // Remove extension
+                  imageData: base64,
+                });
+                console.log('[Auto-save] Image saved to library:', file.name);
+              } catch (libError) {
+                console.error('[Auto-save] Failed to save to library:', libError);
+                // Don't fail the upload if library save fails
+              }
               
               resolve(newImage);
             } catch (error: any) {
@@ -2783,7 +2802,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   </div>
                   <Button
                     onClick={() => setCurrentStep(3)}
-                    className="mt-4 bg-blue-600 hover:bg-blue-700"
+                    className="mt-4 bg-blue-600 hover:bg-blue-700 px-6"
                   >
                     Continuă la STEP 3
                   </Button>
@@ -3222,9 +3241,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               
               {/* Library Images Section */}
               {libraryImages.length > 0 && (
-                <div className="mt-8 p-4 bg-purple-50 border-2 border-purple-300 rounded-lg">
+                <div className="mt-8 p-4 bg-green-50 border-2 border-green-300 rounded-lg">
                   <div className="mb-4">
-                    <h3 className="font-bold text-purple-900 flex items-center gap-2 mb-4">
+                    <h3 className="font-bold text-green-900 flex items-center gap-2 mb-4">
                       <ImageIcon className="w-4 h-4" />
                       Select from Library ({libraryImages.length} images)
                     </h3>
@@ -3273,8 +3292,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           key={img.id}
                           className={`relative group cursor-pointer rounded border-2 transition-all ${
                             selectedLibraryImages.includes(img.id)
-                              ? 'border-purple-500 ring-2 ring-purple-300'
-                              : 'border-gray-200 hover:border-purple-400'
+                              ? 'border-green-500 ring-2 ring-green-300'
+                              : 'border-gray-200 hover:border-green-400'
                           }`}
                           onClick={() => {
                             setSelectedLibraryImages((prev) =>
@@ -3305,8 +3324,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   {selectedLibraryImages.length > 0 && (
                     <Button
                       onClick={() => {
+                        // Filter out images that are already added
+                        const existingImageIds = images.map(img => img.id);
                         const newImages: UploadedImage[] = libraryImages
                           .filter((img) => selectedLibraryImages.includes(img.id))
+                          .filter((img) => !existingImageIds.includes(`library-${img.id}`)) // Prevent duplicates
                           .map((img) => ({
                             id: `library-${img.id}`,
                             url: img.imageUrl,
@@ -3316,11 +3338,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             fromLibrary: true,
                           }));
                         
+                        if (newImages.length === 0) {
+                          toast.warning('All selected images are already added!');
+                          setSelectedLibraryImages([]);
+                          return;
+                        }
+                        
                         setImages((prev) => [...prev, ...newImages]);
                         setSelectedLibraryImages([]);
                         toast.success(`${newImages.length} images added from library!`);
                       }}
-                      className="bg-purple-600 hover:bg-purple-700 w-full"
+                      className="bg-green-600 hover:bg-green-700 w-full"
                     >
                       Add {selectedLibraryImages.length} Selected Image(s)
                     </Button>
