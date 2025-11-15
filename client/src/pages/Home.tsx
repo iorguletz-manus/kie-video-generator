@@ -2653,10 +2653,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       // Otherwise, it's a content line
                       // Split text into normal (black) and added (red) parts
                       const hasRedText = line.redStart !== undefined && line.redStart >= 0 && line.redEnd !== undefined;
-                      const normalText = hasRedText 
-                        ? line.text.substring(0, line.redStart) + line.text.substring(line.redEnd)
-                        : line.text;
                       const redText = hasRedText ? line.text.substring(line.redStart, line.redEnd) : '';
+                      const whiteBeforeRed = hasRedText ? line.text.substring(0, line.redStart) : '';
+                      const whiteAfterRed = hasRedText ? line.text.substring(line.redEnd) : line.text;
+                      
+                      // Determine display order: if RED is at start (redStart = 0), show RED first
+                      const redAtStart = hasRedText && line.redStart === 0;
                       
                       return (
                         <div key={line.id} className="p-3 bg-white rounded border border-blue-200 text-sm ml-4">
@@ -2666,8 +2668,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           </div>
                           {/* Text with red highlighting */}
                           <p className="text-gray-800 mb-2">
-                            {normalText}
-                            {hasRedText && <span className="text-red-600 font-medium">{redText}</span>}
+                            {redAtStart && <span className="text-red-600 font-medium">{redText}</span>}
+                            {whiteBeforeRed}
+                            {!redAtStart && hasRedText && <span className="text-red-600 font-medium">{redText}</span>}
+                            {whiteAfterRed}
                           </p>
                           {/* Character count below text */}
                           <div className="text-xs text-gray-500">
