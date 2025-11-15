@@ -714,8 +714,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       const labelLineCounters: Record<string, number> = {};
       let currentLabel = '';
       
-      // Track section name for each label (to preserve across multiple lines)
+      // Track section name and line number for each label (to preserve across multiple lines)
       const labelSectionNames: Record<string, string> = {};
+      const labelSectionLineNums: Record<string, string> = {};
       
       const extractedLines: AdLine[] = [];
       
@@ -782,9 +783,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           
           // Check if we already have a section name for this label (for 2nd, 3rd lines)
           if (labelSectionNames[currentLabel]) {
-            // Reuse the section name from first line
+            // Reuse the section name and line number from first line
             sectionName = labelSectionNames[currentLabel];
-            sectionLineNum = ''; // Already included in sectionName for HOOKS
+            sectionLineNum = labelSectionLineNums[currentLabel];
           } else {
             // First line under this label - determine section name
             // Normalize section name: remove underscores only (keep hyphens)
@@ -809,8 +810,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               sectionLineNum = '1'; // Always 1 for first line of a label
             }
             
-            // Save section name for this label (for subsequent lines)
+            // Save section name and line number for this label (for subsequent lines)
             labelSectionNames[currentLabel] = sectionName;
+            labelSectionLineNums[currentLabel] = sectionLineNum;
           }
           
           // Multi-line suffix: If a label has multiple lines, add B, C, D suffix
