@@ -24,6 +24,8 @@ interface AdLine {
   videoName: string;
   categoryNumber: number;
   charCount: number;
+  redStart?: number;  // Start index of added text (red)
+  redEnd?: number;    // End index of added text (red)
 }
 
 interface UploadedPrompt {
@@ -702,36 +704,29 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       
       for (const line of result.processedLines) {
         if (line.type === 'label') {
-          // Update current section based on label
-          const labelUpper = line.text.toUpperCase().trim().replace(/[:\s-_]+$/, '');
+          // Backend now provides normalized category info
+          const category = line.category || 'OTHER';
+          const displayName = line.displayName || line.text;
           
-          // Map label to SectionType
-          if (labelUpper.startsWith('HOOK') || labelUpper.startsWith('H')) {
-            currentSection = 'HOOKS';
-          } else if (labelUpper.includes('MIRROR')) {
-            currentSection = 'MIRROR';
-          } else if (labelUpper.includes('DCS')) {
-            currentSection = 'DCS';
-          } else if (labelUpper.includes('TRANZIT')) {
-            currentSection = 'TRANZITION';
-          } else if (labelUpper.includes('NEW') && labelUpper.includes('CAUSE')) {
-            currentSection = 'NEW_CAUSE';
-          } else if (labelUpper.includes('MECHANISM')) {
-            currentSection = 'MECHANISM';
-          } else if (labelUpper.includes('EMOTIONAL') && labelUpper.includes('PROOF')) {
-            currentSection = 'EMOTIONAL_PROOF';
-          } else if (labelUpper.includes('TRANSFORMATION')) {
-            currentSection = 'TRANSFORMATION';
-          } else if (labelUpper.includes('CTA')) {
-            currentSection = 'CTA';
-          } else {
-            currentSection = 'OTHER';
-          }
+          // Map backend category to frontend SectionType
+          const categoryToSection: Record<string, SectionType> = {
+            'HOOKS': 'HOOKS',
+            'MIRROR': 'MIRROR',
+            'DCS': 'DCS',
+            'TRANZITION': 'TRANZITION',
+            'NEW CAUSE': 'NEW_CAUSE',
+            'MECHANISM': 'MECHANISM',
+            'EMOTIONAL PROOF': 'EMOTIONAL_PROOF',
+            'TRANSFORMATION': 'TRANSFORMATION',
+            'CTA': 'CTA',
+          };
+          
+          currentSection = categoryToSection[category] || 'OTHER';
           
           // Add label as a marker line (will be displayed as section header)
           extractedLines.push({
             id: `label-${Date.now()}-${extractedLines.length}`,
-            text: line.text, // Keep original label text (e.g., "H1", "MIRROR", "CTA")
+            text: displayName, // Use normalized display name (e.g., "H1", "MIRROR", "CTA")
             section: currentSection,
             promptType: 'PROMPT_NEUTRAL' as PromptType,
             videoName: '', // Empty for labels
@@ -749,6 +744,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             videoName: `video_${lineCounter}`,
             categoryNumber: lineCounter,
             charCount: line.charCount || line.text.length,
+            redStart: line.redStart,  // Include red text markers from backend
+            redEnd: line.redEnd,
           });
         }
       }
@@ -2425,7 +2422,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     className={adDocument ? '' : 'bg-blue-600 hover:bg-blue-700'}
                     disabled={adLines.length === 0}
                   >
-                    Inherited from STEP 1 {adLines.length > 0 && `(${adLines.length} lines)`}
+                    Inherited from STEP 1 {adLines.length > 0 && `(${adLines.filter(l => l.categoryNumber > 0).length} lines)`}
                   </Button>
                   <Button
                     onClick={() => {
@@ -2508,12 +2505,20 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       }
                       
                       // Otherwise, it's a content line
+                      // Split text into normal (black) and added (red) parts
+                      const hasRedText = line.redStart !== undefined && line.redStart >= 0 && line.redEnd !== undefined;
+                      const normalText = hasRedText ? line.text.substring(0, line.redStart) : line.text;
+                      const redText = hasRedText ? line.text.substring(line.redStart, line.redEnd) : '';
+                      
                       return (
                         <div key={line.id} className="p-3 bg-white rounded border border-blue-200 text-sm ml-4">
                           <div className="flex justify-between items-start mb-1">
                             <span className="text-xs text-gray-500">{line.charCount} caractere</span>
                           </div>
-                          <p className="text-gray-800">{line.text}</p>
+                          <p className="text-gray-800">
+                            {normalText}
+                            {hasRedText && <span className="text-red-600 font-medium">{redText}</span>}
+                          </p>
                           <span className="text-xs text-gray-500">({line.promptType})</span>
                         </div>
                       );

@@ -13,40 +13,141 @@ interface ProcessedLine {
 interface OutputItem {
   type: 'label' | 'text';
   text: string;
+  category?: string;        // Normalized category (HOOKS, MIRROR, etc.)
+  subcategory?: string;     // Subcategory (H1, H2, etc.) or null
+  displayName?: string;     // Display name for UI
   redStart?: number;
   redEnd?: number;
   charCount?: number;
 }
 
-// Base labels without numbers/separators
-const BASE_LABELS = [
-  'HOOKS', 'H', 'MIRROR', 'DCS', 'IDENTITY', 'TRANZITIE', 'TRANZITION', 'NEW CAUSE', 'MECHANISM',
-  'EMOTIONAL PROOF', 'TRANSFORMATION', 'CTA'
-];
+/**
+ * Category normalization mapping
+ * Maps all variants to standard database names
+ */
+const CATEGORY_MAPPINGS: Record<string, { category: string; display: string }> = {
+  // HOOKS and subcategories
+  'HOOKS': { category: 'HOOKS', display: 'HOOKS' },
+  'HOOK': { category: 'HOOKS', display: 'HOOKS' },
+  
+  // MIRROR
+  'MIRROR': { category: 'MIRROR', display: 'MIRROR' },
+  
+  // DCS
+  'DCS': { category: 'DCS', display: 'DCS' },
+  'DCS & IDENTITY': { category: 'DCS', display: 'DCS' },
+  'DCS IDENTITY': { category: 'DCS', display: 'DCS' },
+  'IDENTITY': { category: 'DCS', display: 'DCS' },
+  
+  // TRANZITION
+  'TRANZITION': { category: 'TRANZITION', display: 'TRANZITION' },
+  'TRANZITIE': { category: 'TRANZITION', display: 'TRANZITION' },
+  
+  // NEW CAUSE
+  'NEW CAUSE': { category: 'NEW CAUSE', display: 'NEW CAUSE' },
+  'NEW_CAUSE': { category: 'NEW CAUSE', display: 'NEW CAUSE' },
+  'NEW-CAUSE': { category: 'NEW CAUSE', display: 'NEW CAUSE' },
+  'CAUSE': { category: 'NEW CAUSE', display: 'NEW CAUSE' },
+  
+  // MECHANISM
+  'MECHANISM': { category: 'MECHANISM', display: 'MECHANISM' },
+  
+  // EMOTIONAL PROOF
+  'EMOTIONAL PROOF': { category: 'EMOTIONAL PROOF', display: 'EMOTIONAL PROOF' },
+  'EMOTIONAL_PROOF': { category: 'EMOTIONAL PROOF', display: 'EMOTIONAL PROOF' },
+  
+  // TRANSFORMATION
+  'TRANSFORMATION': { category: 'TRANSFORMATION', display: 'TRANSFORMATION' },
+  
+  // CTA
+  'CTA': { category: 'CTA', display: 'CTA' },
+};
 
 /**
- * Check if a line is a label (flexible matching)
- * Matches: HOOKS:, H1:, NEW-CAUSE2, EMOTIONAL_PROOF, etc.
+ * Normalize text: remove diacritics, uppercase, normalize separators
  */
-function isLabel(line: string): boolean {
-  const trimmed = line.trim().toUpperCase();
+function normalizeText(text: string): string {
+  return text
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
+    .replace(/[_-]/g, ' ')            // Replace _ and - with space
+    .trim();
+}
+
+/**
+ * Extract and normalize category from label text
+ * Returns { category, subcategory, displayName } or null
+ */
+function normalizeCategory(rawLabel: string): { category: string; subcategory: string | null; displayName: string } | null {
+  const normalized = normalizeText(rawLabel);
   
-  // Remove trailing colon if present
-  const withoutColon = trimmed.endsWith(':') ? trimmed.slice(0, -1) : trimmed;
+  // Check for H1-H100 (HOOKS subcategories)
+  const hMatch = normalized.match(/^H(\d{1,3})$/);
+  if (hMatch) {
+    const num = parseInt(hMatch[1]);
+    if (num >= 1 && num <= 100) {
+      return {
+        category: 'HOOKS',
+        subcategory: `H${num}`,
+        displayName: `H${num}`
+      };
+    }
+  }
   
-  // Normalize separators (-, _, space) to single space
-  const normalized = withoutColon.replace(/[-_]/g, ' ');
+  // Check known categories
+  const mapping = CATEGORY_MAPPINGS[normalized];
+  if (mapping) {
+    return {
+      category: mapping.category,
+      subcategory: null,
+      displayName: mapping.display
+    };
+  }
   
-  // Remove trailing digits
-  const withoutDigits = normalized.replace(/\d+$/, '').trim();
+  return null;
+}
+
+/**
+ * Check if a line is a label and extract category info
+ * Supports 4 formats:
+ * 1. "H1" (standalone)
+ * 2. "H1:" (with colon)
+ * 3. "H1 [content]" (space + content)
+ * 4. "H1: [content]" (colon + content)
+ */
+function parseLabel(line: string): { isLabel: boolean; categoryInfo: any; content: string | null } {
+  const trimmed = line.trim();
   
-  // Check if matches any base label
-  return BASE_LABELS.some(label => {
-    const normalizedLabel = label.replace(/[-_]/g, ' ');
-    return withoutDigits === normalizedLabel || 
-           withoutDigits.startsWith(normalizedLabel + ' ') ||
-           normalized === normalizedLabel;
-  });
+  if (!trimmed) {
+    return { isLabel: false, categoryInfo: null, content: null };
+  }
+  
+  // Format 1 & 2: "H1" or "H1:" (standalone)
+  const standaloneMatch = trimmed.match(/^([A-Z0-9\s_-]+):?\s*$/i);
+  if (standaloneMatch) {
+    const categoryInfo = normalizeCategory(standaloneMatch[1]);
+    if (categoryInfo) {
+      return { isLabel: true, categoryInfo, content: null };
+    }
+  }
+  
+  // Format 3 & 4: "H1 [content]" or "H1: [content]"
+  const prefixMatch = trimmed.match(/^([A-Z0-9\s_-]+):?\s+(.+)$/i);
+  if (prefixMatch) {
+    const potentialLabel = prefixMatch[1];
+    const potentialContent = prefixMatch[2];
+    
+    // Only treat as label if it's short enough and valid
+    if (potentialLabel.length <= 30) {
+      const categoryInfo = normalizeCategory(potentialLabel);
+      if (categoryInfo) {
+        return { isLabel: true, categoryInfo, content: potentialContent };
+      }
+    }
+  }
+  
+  return { isLabel: false, categoryInfo: null, content: trimmed };
 }
 
 /**
@@ -355,9 +456,10 @@ export function processAdDocument(rawText: string): OutputItem[] {
       continue;
     }
 
-    const lineIsLabel = isLabel(trimmedLine);
+    const { isLabel, categoryInfo, content } = parseLabel(trimmedLine);
 
-    if (lineIsLabel) {
+    if (isLabel && categoryInfo) {
+      // Process any accumulated text before this label
       if (currentText.length > 0) {
         const full = currentText.join(' ');
         const processed = processText(full);
@@ -375,8 +477,21 @@ export function processAdDocument(rawText: string): OutputItem[] {
         currentText = [];
       }
 
-      outputData.push({ type: 'label', text: trimmedLine });
+      // Add label with normalized category info
+      outputData.push({ 
+        type: 'label', 
+        text: categoryInfo.displayName,
+        category: categoryInfo.category,
+        subcategory: categoryInfo.subcategory,
+        displayName: categoryInfo.displayName
+      });
+      
+      // If content is on same line, add it to currentText
+      if (content) {
+        currentText.push(content);
+      }
     } else {
+      // Regular content line
       currentText.push(trimmedLine);
     }
   }
