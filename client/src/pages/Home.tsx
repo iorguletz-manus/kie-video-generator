@@ -2653,7 +2653,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       // Otherwise, it's a content line
                       // Split text into normal (black) and added (red) parts
                       const hasRedText = line.redStart !== undefined && line.redStart >= 0 && line.redEnd !== undefined;
-                      const normalText = hasRedText ? line.text.substring(0, line.redStart) : line.text;
+                      const normalText = hasRedText 
+                        ? line.text.substring(0, line.redStart) + line.text.substring(line.redEnd)
+                        : line.text;
                       const redText = hasRedText ? line.text.substring(line.redStart, line.redEnd) : '';
                       
                       return (
