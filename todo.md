@@ -1390,3 +1390,12 @@
 - [x] Rename "Unnamed" → "No Character" în frontend (display)
 - [x] Reduce thumbnails size cu 50% (grid mai dens) - grid-cols-3 md:grid-cols-5 lg:grid-cols-6
 - [ ] Testare flow: select existing, select No Character, create new character
+
+
+## STEP 3 Library Selection Fix
+
+- [x] Remove "Manage Library" button (nu mai e nevoie, avem buton în header)
+- [x] Add character filter dropdown în STEP 3 lângă search bar
+- [x] Implementare filtrare dublă: search (după imageName) + character filter
+- [x] Layout: search bar + character dropdown pe același rând - grid-cols-2 gap-4
+- [ ] Testare: search "alina" + filter "No Character" → rezultate corecte

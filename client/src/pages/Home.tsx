@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Upload, X, Check, Loader2, Video, FileText, Image as ImageIcon, Map, Play, Download, Undo2, ChevronLeft, RefreshCw, Clock, Search } from "lucide-react";
 
@@ -164,10 +165,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // Images Library modal
   const [isImagesLibraryOpen, setIsImagesLibraryOpen] = useState(false);
   const [librarySearchQuery, setLibrarySearchQuery] = useState("");
+  const [libraryCharacterFilter, setLibraryCharacterFilter] = useState<string>("all");
   const [selectedLibraryImages, setSelectedLibraryImages] = useState<number[]>([]);
 
   // Queries
   const { data: libraryImages = [] } = trpc.imageLibrary.list.useQuery({
+    userId: localCurrentUser.id,
+  });
+  const { data: libraryCharacters = [] } = trpc.imageLibrary.getCharacters.useQuery({
     userId: localCurrentUser.id,
   });
 
@@ -1982,43 +1987,54 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               {/* Library Images Section */}
               {libraryImages.length > 0 && (
                 <div className="mt-8 p-4 bg-purple-50 border-2 border-purple-300 rounded-lg">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-bold text-purple-900 flex items-center gap-2">
+                  <div className="mb-4">
+                    <h3 className="font-bold text-purple-900 flex items-center gap-2 mb-4">
                       <ImageIcon className="w-4 h-4" />
                       Select from Library ({libraryImages.length} images)
                     </h3>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setIsImagesLibraryOpen(true)}
-                      className="border-purple-300 text-purple-700 hover:bg-purple-50"
-                    >
-                      Manage Library
-                    </Button>
                   </div>
                   
-                  {/* Search Bar */}
-                  <div className="mb-4">
+                  {/* Search Bar + Character Filter */}
+                  <div className="mb-4 grid grid-cols-2 gap-4">
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <Input
-                        placeholder="Search images by name or character..."
+                        placeholder="Search images by name..."
                         value={librarySearchQuery}
                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLibrarySearchQuery(e.target.value)}
                         className="pl-10"
                       />
                     </div>
+                    
+                    <Select value={libraryCharacterFilter} onValueChange={setLibraryCharacterFilter}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Filter by character" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Characters</SelectItem>
+                        {libraryCharacters
+                          .filter((char: string) => char && char.trim() !== "")
+                          .map((char: string) => (
+                            <SelectItem key={char} value={char}>
+                              {char}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   
                   {/* Library Images Grid */}
                   <div className="grid grid-cols-4 md:grid-cols-8 gap-2 max-h-[300px] overflow-y-auto mb-4">
                     {libraryImages
                       .filter((img) => {
+                        // Filter by search query (imageName only)
                         const query = librarySearchQuery.toLowerCase();
-                        return (
-                          img.imageName.toLowerCase().includes(query) ||
-                          img.characterName.toLowerCase().includes(query)
-                        );
+                        const matchesSearch = img.imageName.toLowerCase().includes(query);
+                        
+                        // Filter by character
+                        const matchesCharacter = libraryCharacterFilter === "all" || img.characterName === libraryCharacterFilter;
+                        
+                        return matchesSearch && matchesCharacter;
                       })
                       .map((img) => (
                         <div
