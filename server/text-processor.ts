@@ -123,6 +123,11 @@ function parseLabel(line: string): { isLabel: boolean; categoryInfo: any; conten
     return { isLabel: false, categoryInfo: null, content: null };
   }
   
+  // Debug logging
+  if (trimmed.includes('MIRROR') || trimmed.includes('CTA')) {
+    console.log('[parseLabel] Processing line:', trimmed);
+  }
+  
   // Format 1 & 2: "H1" or "H1:" (standalone)
   const standaloneMatch = trimmed.match(/^([A-Z0-9\s_-]+):?\s*$/i);
   if (standaloneMatch) {
@@ -136,13 +141,18 @@ function parseLabel(line: string): { isLabel: boolean; categoryInfo: any; conten
   const prefixMatch = trimmed.match(/^([A-Z0-9\s_-]+):?\s+(.+)$/i);
   if (prefixMatch) {
     const potentialLabel = prefixMatch[1];
-    const potentialContent = prefixMatch[2];
+    let potentialContent = prefixMatch[2];
     
     // Only treat as label if it's short enough and valid
     if (potentialLabel.length <= 30) {
       const categoryInfo = normalizeCategory(potentialLabel);
       if (categoryInfo) {
-        return { isLabel: true, categoryInfo, content: potentialContent };
+        // Special case: if label is "DCS" and content starts with "& IDENTITY", trim it
+        if (categoryInfo.category === 'DCS' && potentialContent.match(/^&\s*IDENTITY\s*/i)) {
+          potentialContent = potentialContent.replace(/^&\s*IDENTITY\s*/i, '').trim();
+        }
+        
+        return { isLabel: true, categoryInfo, content: potentialContent || null };
       }
     }
   }
@@ -284,87 +294,99 @@ function processShortText(text: string, minC: number = 118, maxC: number = 125):
 
 /**
  * Process long sentence with strategic overlap
+ * Creates 2 lines with overlap:
+ * Line 1: normal text + [red overlap]
+ * Line 2: [red overlap] + normal text
  */
 function processLongSentenceWithOverlap(text: string, minC: number = 118, maxC: number = 125): ProcessedLine[] {
   const results: ProcessedLine[] = [];
-
-  // Version 1: First part
-  const rand1 = Math.floor(Math.random() * (maxC - minC + 1)) + minC;
-  let version1 = text.slice(0, rand1).trimEnd();
-
-  // Adjust to word boundary
-  if (version1.includes(' ')) {
-    const words = version1.split(' ');
-    version1 = words.join(' ');
-  }
-
-  results.push({ text: version1, redStart: -1, redEnd: -1, charCount: version1.length });
-
-  // Version 2: Last part
-  const rand2 = Math.floor(Math.random() * (maxC - minC + 1)) + minC;
-  let version2 = text.slice(-rand2).trimStart();
-
-  // Adjust to word boundary
-  if (version2.includes(' ')) {
-    const words = version2.split(' ');
-    version2 = words.join(' ');
-  }
-
-  // Find strategic CUT point
-  const words = version2.split(' ');
-  let strategicCutIdx = -1;
-
-  // Look for punctuation marks
-  for (let i = 0; i < words.length; i++) {
-    const word = words[i];
-    if (word[word.length - 1] && ':,'.includes(word[word.length - 1])) {
-      const remaining = words.slice(i + 1).join(' ');
-      if (remaining.length >= 50) {
-        strategicCutIdx = i + 1;
+  const words = text.split(' ');
+  
+  // Find a good split point around the middle
+  const targetSplit = Math.floor(words.length / 2);
+  let splitIdx = targetSplit;
+  
+  // Look for punctuation marks near the middle
+  for (let offset = 0; offset < 10 && offset < words.length / 4; offset++) {
+    const checkIdx = targetSplit + offset;
+    if (checkIdx < words.length) {
+      const word = words[checkIdx];
+      if (word[word.length - 1] && '.,!?:;'.includes(word[word.length - 1])) {
+        splitIdx = checkIdx + 1;
+        break;
+      }
+    }
+    const checkIdx2 = targetSplit - offset;
+    if (checkIdx2 >= 0) {
+      const word = words[checkIdx2];
+      if (word[word.length - 1] && '.,!?:;'.includes(word[word.length - 1])) {
+        splitIdx = checkIdx2 + 1;
         break;
       }
     }
   }
-
-  // Look for transition words
-  if (strategicCutIdx === -1) {
-    const transitionWords = ['dar', 'și', 'iar', 'pentru', 'astfel', 'când', 'dacă'];
-    for (let i = 0; i < words.length; i++) {
-      const wordClean = words[i].toLowerCase().replace(/[.,!?:;]/g, '');
-      if (transitionWords.includes(wordClean)) {
-        const remaining = words.slice(i).join(' ');
-        if (remaining.length >= 50) {
-          strategicCutIdx = i;
-          break;
-        }
+  
+  // Create Line 1: first part + overlap
+  let line1Words = words.slice(0, splitIdx);
+  let line1Text = line1Words.join(' ');
+  
+  // Add words from second part until we reach minC-maxC
+  let overlapWords: string[] = [];
+  for (let i = splitIdx; i < words.length && line1Text.length < maxC; i++) {
+    const testText = line1Text + ' ' + words[i];
+    if (testText.length <= maxC) {
+      overlapWords.push(words[i]);
+      line1Text = testText;
+    } else {
+      break;
+    }
+  }
+  
+  // Ensure line1 is at least minC
+  while (line1Text.length < minC && line1Words.length > 0) {
+    line1Words.pop();
+    line1Text = line1Words.join(' ');
+    if (overlapWords.length > 0) {
+      line1Text += ' ' + overlapWords.join(' ');
+    }
+  }
+  
+  const line1RedStart = line1Words.join(' ').length + (line1Words.length > 0 ? 1 : 0);
+  const line1RedEnd = line1Text.length;
+  
+  results.push({
+    text: line1Text,
+    redStart: overlapWords.length > 0 ? line1RedStart : -1,
+    redEnd: overlapWords.length > 0 ? line1RedEnd : -1,
+    charCount: line1Text.length
+  });
+  
+  // Create Line 2: overlap + second part
+  let line2Words = words.slice(splitIdx);
+  let line2Text = (overlapWords.length > 0 ? overlapWords.join(' ') + ' ' : '') + line2Words.join(' ');
+  
+  // Ensure line2 is at least minC
+  if (line2Text.length < minC) {
+    // Add words from beginning
+    for (let i = splitIdx - 1; i >= 0 && line2Text.length < maxC; i--) {
+      const testText = words[i] + ' ' + line2Text;
+      if (testText.length <= maxC) {
+        line2Text = testText;
+        overlapWords.unshift(words[i]);
+      } else {
+        break;
       }
     }
   }
-
-  // Fallback: 30% of text
-  if (strategicCutIdx === -1) {
-    const targetLen = Math.floor(version2.length * 0.3);
-    let currentLen = 0;
-    for (let i = 0; i < words.length; i++) {
-      currentLen += words[i].length + 1;
-      if (currentLen >= targetLen) {
-        const remaining = words.slice(i + 1).join(' ');
-        if (remaining.length >= 50) {
-          strategicCutIdx = i + 1;
-          break;
-        }
-      }
-    }
-  }
-
-  // Apply red marking
-  if (strategicCutIdx > 0) {
-    const redText = words.slice(0, strategicCutIdx).join(' ');
-    const redEnd = redText.length;
-    results.push({ text: version2, redStart: 0, redEnd, charCount: version2.length });
-  } else {
-    results.push({ text: version2, redStart: -1, redEnd: -1, charCount: version2.length });
-  }
+  
+  const line2RedEnd = overlapWords.length > 0 ? overlapWords.join(' ').length : 0;
+  
+  results.push({
+    text: line2Text,
+    redStart: overlapWords.length > 0 ? 0 : -1,
+    redEnd: overlapWords.length > 0 ? line2RedEnd : -1,
+    charCount: line2Text.length
+  });
 
   return results;
 }

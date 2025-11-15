@@ -2607,11 +2607,20 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     {adLines.map((line) => {
                       // If categoryNumber is 0, this is a label (section header)
                       if (line.categoryNumber === 0) {
+                        // Check if this is a subcategory (H1-H100) or main category
+                        const isSubcategory = /^H\d+$/.test(line.text);
+                        
                         return (
                           <div key={line.id} className="mt-4 mb-2">
-                            <h3 className="font-bold text-blue-800 text-lg border-b-2 border-blue-300 pb-1">
-                              {line.text}
-                            </h3>
+                            {isSubcategory ? (
+                              <h4 className="font-bold text-blue-700 text-base border-b border-blue-200 pb-1">
+                                {line.text}
+                              </h4>
+                            ) : (
+                              <h3 className="font-bold text-blue-800 text-lg border-b-2 border-blue-300 pb-1">
+                                {line.text}
+                              </h3>
+                            )}
                           </div>
                         );
                       }
