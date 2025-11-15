@@ -922,6 +922,56 @@ export const appRouter = router({
         }
       }),
 
+    // Sync characters from Images Library to categoryCharacters
+    syncCharacters: publicProcedure
+      .input(z.object({
+        userId: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          console.log('[imageLibrary.syncCharacters] Starting sync for user:', input.userId);
+          
+          // Get all unique character names from Images Library
+          const allImages = await getUserImagesByUserId(input.userId);
+          const uniqueCharacterNames = [...new Set(allImages.map(img => img.characterName))];
+          
+          console.log('[imageLibrary.syncCharacters] Found', uniqueCharacterNames.length, 'unique characters in Images Library');
+          
+          // Get existing categoryCharacters
+          const existingCharacters = await getCharactersByUserId(input.userId);
+          const existingNames = new Set(existingCharacters.map(c => c.name));
+          
+          let created = 0;
+          
+          // For each unique character name, create if doesn't exist
+          for (const characterName of uniqueCharacterNames) {
+            if (!existingNames.has(characterName)) {
+              // Get first image for this character as thumbnail
+              const characterImages = await getUserImagesByCharacter(input.userId, characterName);
+              const thumbnailUrl = characterImages[0]?.imageUrl || null;
+              
+              await createCharacter({
+                userId: input.userId,
+                name: characterName,
+                thumbnailUrl: thumbnailUrl,
+              });
+              
+              console.log('[imageLibrary.syncCharacters] Created character:', characterName);
+              created++;
+            }
+          }
+          
+          console.log('[imageLibrary.syncCharacters] Sync complete! Created', created, 'characters');
+          return { success: true, created };
+        } catch (error: any) {
+          console.error('[imageLibrary.syncCharacters] Error:', error);
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Failed to sync characters: ${error.message}`,
+          });
+        }
+      }),
+    
     // Get unique character names
     getCharacters: publicProcedure
       .input(z.object({
@@ -1317,11 +1367,11 @@ export const appRouter = router({
         name: z.string().min(1).max(255),
       }))
       .mutation(async ({ input }) => {
-        const result = await createCharacter({
+        const character = await createCharacter({
           userId: input.userId,
           name: input.name,
         });
-        return { success: true, id: result[0].insertId };
+        return { success: true, id: character.id };
       }),
     
     update: publicProcedure

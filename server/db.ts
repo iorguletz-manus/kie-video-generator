@@ -536,7 +536,11 @@ export async function createCharacter(data: InsertCharacter) {
   if (!db) throw new Error("Database not available");
   
   const result = await db.insert(characters).values(data);
-  return result;
+  const insertId = result[0].insertId;
+  
+  // Return the created character
+  const created = await db.select().from(characters).where(eq(characters.id, insertId));
+  return created[0];
 }
 
 export async function getCharactersByUserId(userId: number) {

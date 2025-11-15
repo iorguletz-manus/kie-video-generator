@@ -81,6 +81,20 @@ export function ImagesLibraryModal({ open, onClose, userId }: ImagesLibraryModal
       toast.error(`Batch delete failed: ${error.message}`);
     },
   });
+  
+  const syncCharactersMutation = trpc.imageLibrary.syncCharacters.useMutation({
+    onSuccess: (data) => {
+      refetchCharacters();
+      if (data.created > 0) {
+        toast.success(`Synced! Created ${data.created} character(s)`);
+      } else {
+        toast.success('All characters already synced!');
+      }
+    },
+    onError: (error) => {
+      toast.error(`Sync failed: ${error.message}`);
+    },
+  });
 
   // Handle file selection
   const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
@@ -170,10 +184,20 @@ export function ImagesLibraryModal({ open, onClose, userId }: ImagesLibraryModal
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <ImageIcon className="w-5 h-5" />
-            Images Library
-          </DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle className="flex items-center gap-2">
+              <ImageIcon className="w-5 h-5" />
+              Images Library
+            </DialogTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => syncCharactersMutation.mutate({ userId })}
+              disabled={syncCharactersMutation.isLoading}
+            >
+              {syncCharactersMutation.isLoading ? 'Syncing...' : 'Sync Characters'}
+            </Button>
+          </div>
         </DialogHeader>
 
         <Tabs defaultValue="all" className="w-full">
