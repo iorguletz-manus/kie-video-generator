@@ -684,6 +684,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       setAdLines([]);
       setAdDocument(null);
       setProcessedTextAd('');
+      setCombinations([]);
+      setVideoResults([]);
       
       const result = await processTextAdMutation.mutateAsync({
         rawText: rawTextAd,
@@ -829,11 +831,27 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           
           const videoName = `T${tamNum}_C${cbNum}_E${eaNum}_AD${adNum}_${sectionName}${sectionLineNum}${suffix}_${characterName}`;
           
+          // Intelligent prompt type mapping based on section
+          let promptType: PromptType = 'PROMPT_NEUTRAL';
+          
+          if (currentSection === 'TRANSFORMATION' || currentSection === 'CTA') {
+            // Check if CTA line contains "carte" keyword
+            const lowerText = line.text.toLowerCase();
+            const ctaKeywords = ['carte', 'cartea', 'rescrie', 'lacrimi', 'lacrami'];
+            const hasCTAKeyword = ctaKeywords.some(keyword => lowerText.includes(keyword));
+            
+            if (currentSection === 'CTA' && hasCTAKeyword) {
+              promptType = 'PROMPT_CTA';
+            } else {
+              promptType = 'PROMPT_SMILING';
+            }
+          }
+          
           extractedLines.push({
             id: `line-${Date.now()}-${extractedLines.length}`,
             text: line.text,
             section: currentSection,
-            promptType: 'PROMPT_NEUTRAL' as PromptType,
+            promptType: promptType,
             videoName: videoName,
             categoryNumber: lineCounter,
             charCount: line.charCount || line.text.length,
@@ -1113,8 +1131,21 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       }
     }
 
+    // Filter out labels (categoryNumber === 0) - only use actual text lines
+    const textLines = adLines.filter(line => line.categoryNumber > 0);
+    
+    // Găsește prima linie cu "carte" în textLines (nu în adLines care include labels)
+    firstCarteIndex = -1;
+    for (let i = 0; i < textLines.length; i++) {
+      const lowerText = textLines[i].text.toLowerCase();
+      if (ctaKeywords.some(keyword => lowerText.includes(keyword))) {
+        firstCarteIndex = i;
+        break;
+      }
+    }
+    
     // Crează combinații cu mapare inteligentă CTA
-    const newCombinations: Combination[] = adLines.map((line, index) => {
+    const newCombinations: Combination[] = textLines.map((line, index) => {
       let selectedImage = defaultImage;
       
       // Dacă există poză CTA și suntem după prima linie cu "carte"
@@ -1136,7 +1167,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
     setCombinations(newCombinations);
     setDeletedCombinations([]);
-    setCurrentStep(4);
+    setCurrentStep(5); // Go to STEP 5 - Mapping
+    
+    console.log('[Create Mappings] Created', newCombinations.length, 'combinations from', textLines.length, 'text lines');
+    console.log('[Create Mappings] First 3 texts:', textLines.slice(0, 3).map(l => l.text.substring(0, 50)));
     
     if (ctaImage && firstCarteIndex !== -1) {
       toast.success(`${newCombinations.length} combinații create. Poza CTA mapata pe liniile cu "carte"`);
@@ -1209,7 +1243,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     // Prompturile hardcodate sunt întotdeauna active, nu mai verificăm prompts.length
 
     try {
-      setCurrentStep(5);
+      setCurrentStep(6); // Go to STEP 6 - Generate
       
       // Inițializează rezultatele
       const initialResults: VideoResult[] = combinations.map(combo => ({
@@ -1466,7 +1500,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       });
       
       setCombinations(sampleCombinations);
-      setCurrentStep(6); // Trece la STEP 6 (Check Videos)
+      setCurrentStep(7); // Go to STEP 7 - Check Videos
       
       toast.success(`4/4 sample videos încărcate cu succes!`);
       console.log('Sample videos loaded:', sampleResults.map(v => v.videoName));
@@ -1845,7 +1879,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   }, [reviewHistory]);
 
   const goToCheckVideos = () => {
-    setCurrentStep(6);
+    setCurrentStep(7); // Go to STEP 7 - Check Videos
   };
 
   // Navigation
@@ -3029,13 +3063,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           </Card>
         )}
 
-        {/* STEP 4: Mapping */}
-        {currentStep === 4 && combinations.length > 0 && (
+        {/* STEP 5: Mapping */}
+        {currentStep === 5 && combinations.length > 0 && (
           <Card className="mb-8 border-2 border-blue-200">
             <CardHeader className="bg-blue-50">
               <CardTitle className="flex items-center gap-2 text-blue-900">
                 <Map className="w-5 h-5" />
-                STEP 4 - Mapping (Text + Image + Prompt)
+                STEP 5 - Mapping (Text + Image + Prompt)
               </CardTitle>
               <CardDescription>
                 Configurează combinațiile de text, imagine și prompt pentru fiecare video. Maparea este făcută automat.
@@ -3085,13 +3119,22 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
                       {/* Text and prompt selector */}
                       <div className="flex-1">
+                        {/* Video Name */}
+                        <label className="block text-xs font-medium text-blue-900 mb-1">
+                          Video Name
+                        </label>
+                        <div className="text-xs text-blue-700 mb-3 font-mono bg-blue-50 p-2 rounded border border-blue-200">
+                          {combo.videoName}
+                        </div>
+                        
                         <label className="block text-xs font-medium text-blue-900 mb-2">
                           Text pentru Dialogue
                         </label>
                         <Textarea
                           value={combo.text}
-                          onChange={(e) => updateCombinationText(combo.id, e.target.value)}
-                          className="text-sm mb-3 min-h-[80px]"
+                          readOnly
+                          disabled
+                          className="text-sm mb-3 min-h-[80px] bg-gray-100 text-gray-600 cursor-not-allowed"
                         />
                         
                         <label className="block text-xs font-medium text-blue-900 mb-2">
@@ -3150,13 +3193,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           </Card>
         )}
 
-        {/* STEP 5: Generate Results */}
-        {currentStep === 5 && videoResults.length > 0 && (
+        {/* STEP 6: Generate Results */}
+        {currentStep === 6 && videoResults.length > 0 && (
           <Card className="mb-8 border-2 border-blue-200">
             <CardHeader className="bg-blue-50">
               <CardTitle className="flex items-center gap-2 text-blue-900">
                 <Play className="w-5 h-5" />
-                STEP 5 - Videouri Generate
+                STEP 6 - Videouri Generate
               </CardTitle>
               <CardDescription>
                 Urmărește progresul generării videourilo și descarcă-le.
@@ -4315,9 +4358,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           setRegenerateMultiple(false);
                           setRegenerateVariantCount(1);
                           
-                          // Revino la STEP 5 pentru a verifica progresul
-                          setCurrentStep(5);
-                          toast.success('Regenerare completă! Verifică progresul la STEP 5.');
+                          // Revino la STEP 6 pentru a verifica progresul
+                          setCurrentStep(6);
+                          toast.success('Regenerare completă! Verifică progresul la STEP 6.');
                         } catch (error: any) {
                           toast.error(`Eroare la regenerare: ${error.message}`);
                         }
@@ -4345,9 +4388,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           </Card>
         )}
 
-        {/* STEP 6: Check Videos (Final Review) */}
-        {currentStep === 6 && videoResults.length > 0 && (() => {
-          console.log('STEP 6 RENDER - videoResults:', videoResults.map(v => ({
+        {/* STEP 7: Check Videos (Final Review) */}
+        {currentStep === 7 && videoResults.length > 0 && (() => {
+          console.log('STEP 7 RENDER - videoResults:', videoResults.map(v => ({
             videoName: v.videoName,
             status: v.status,
             hasVideoUrl: !!v.videoUrl,
@@ -4359,7 +4402,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             <CardHeader className="bg-green-50">
               <CardTitle className="flex items-center gap-2 text-green-900">
                 <Video className="w-5 h-5" />
-                STEP 6 - Check Videos
+                STEP 7 - Check Videos
               </CardTitle>
               <CardDescription>
                 Review videourilo generate. Acceptă sau marchează pentru regenerare.
@@ -4561,9 +4604,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     {videoResults.some(v => v.reviewStatus === 'regenerate') && (
                       <Button
                         onClick={() => {
-                          // TODO: Implementare regenerare și revenire la STEP 5
+                          // TODO: Implementare regenerare și revenire la STEP 6
                           toast.info('Regenerare videouri marcate...');
-                          setCurrentStep(5);
+                          setCurrentStep(6);
                         }}
                         className="w-full bg-red-600 hover:bg-red-700 py-6 text-lg"
                       >
