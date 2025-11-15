@@ -770,9 +770,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           lineCounter++;
           
           // Generate video name based on section and context
-          // Format: T{tamId}_C{coreBeliefId}_E{emotionalAngleId}_AD{adId}_{SECTION}{lineNum}_{CHARACTER}
-          let sectionName = currentSection;
-          let sectionLineNum = 1;
+          // Format: T{tamNum}_C{cbNum}_E{eaNum}_AD{adNum}_{SECTION}{lineNum}_{CHARACTER}
+          
+          // Normalize section name: remove hyphens and spaces
+          // EMOTIONAL-PROOF → EMOTIONALPROOF, NEW-CAUSE → NEWCAUSE
+          let sectionName = currentSection.replace(/[-\s]/g, '');
+          let sectionLineNum = '';
           
           // Get the label that precedes this line (to handle H1, H2, etc.)
           const precedingLabel = extractedLines.length > 0 ? extractedLines[extractedLines.length - 1] : null;
@@ -782,16 +785,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             const labelText = precedingLabel.text; // e.g., "H1", "H2", "H3"
             const hookMatch = labelText.match(/^H(\d+)$/);
             if (hookMatch) {
-              sectionName = `HOOK${hookMatch[1]}`; // H1 → HOOK1, H2 → HOOK2
-              sectionLineNum = 1; // Always 1 for first line under each hook
+              // H1 → HOOK1 (number already included in sectionName)
+              sectionName = `HOOK${hookMatch[1]}`;
+              sectionLineNum = ''; // Don't add line number for HOOKS (already in HOOK1, HOOK2, etc.)
             }
           } else {
-            // For other sections, increment counter
-            if (!sectionCounters[sectionName]) {
-              sectionCounters[sectionName] = 0;
-            }
-            sectionCounters[sectionName]++;
-            sectionLineNum = sectionCounters[sectionName];
+            // For other sections, use line number under current label
+            // First line of MIRROR → MIRROR1, second line → MIRROR1B (with suffix B)
+            sectionLineNum = '1'; // Always 1 for first line of a label
           }
           
           // Multi-line suffix: If a label has multiple lines, add B, C, D suffix
