@@ -74,16 +74,7 @@ interface HomeProps {
 export default function Home({ currentUser, onLogout }: HomeProps) {
   const [, setLocation] = useLocation();
   
-  // Step 1: Categories
-  const [selectedCoreBeliefId, setSelectedCoreBeliefId] = useState<number | null>(null);
-  const [selectedEmotionalAngleId, setSelectedEmotionalAngleId] = useState<number | null>(null);
-  const [selectedAdId, setSelectedAdId] = useState<number | null>(null);
-  const [selectedCharacterId, setSelectedCharacterId] = useState<number | null>(null);
-  const [textAdMode, setTextAdMode] = useState<'upload' | 'paste'>('upload');
-  const [rawTextAd, setRawTextAd] = useState<string>('');
-  const [processedTextAd, setProcessedTextAd] = useState<string>('');
-  
-  // Step 2: Text Ad Document (moved from STEP 1)
+  // Step 1: Text Ad
   const [adDocument, setAdDocument] = useState<File | null>(null);
   const [adLines, setAdLines] = useState<AdLine[]>([]);
   
@@ -134,6 +125,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // Step 2: Manual prompt textarea
   const [manualPromptText, setManualPromptText] = useState('');
   const [promptMode, setPromptMode] = useState<'hardcoded' | 'custom' | 'manual'>('hardcoded');
+  
+  // Step 3: Image mode selector
+  const [imageMode, setImageMode] = useState<'upload' | 'library'>('upload');
   
   // Update currentTime la fiecare minut pentru "Edited X min ago"
   useEffect(() => {
@@ -186,22 +180,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const { data: libraryCharacters = [] } = trpc.imageLibrary.getCharacters.useQuery({
     userId: localCurrentUser.id,
   });
-  
-  // Category queries
-  const { data: coreBeliefs = [], refetch: refetchCoreBeliefs } = trpc.coreBeliefs.list.useQuery({
-    userId: localCurrentUser.id,
-  });
-  const { data: emotionalAngles = [], refetch: refetchEmotionalAngles } = trpc.emotionalAngles.listByCoreBeliefId.useQuery(
-    { coreBeliefId: selectedCoreBeliefId! },
-    { enabled: !!selectedCoreBeliefId }
-  );
-  const { data: ads = [], refetch: refetchAds } = trpc.ads.listByEmotionalAngleId.useQuery(
-    { emotionalAngleId: selectedEmotionalAngleId! },
-    { enabled: !!selectedEmotionalAngleId }
-  );
-  const { data: categoryCharacters = [], refetch: refetchCharacters } = trpc.categoryCharacters.list.useQuery({
-    userId: localCurrentUser.id,
-  });
 
   // Mutations
   const parseAdMutation = trpc.video.parseAdDocument.useMutation();
@@ -209,15 +187,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const uploadImageMutation = trpc.video.uploadImage.useMutation();
   const generateBatchMutation = trpc.video.generateBatchVideos.useMutation();
   const generateMultipleVariantsMutation = trpc.video.generateMultipleVariants.useMutation();
-  
-  // Category mutations
-  const createCoreBeliefMutation = trpc.coreBeliefs.create.useMutation();
-  const createEmotionalAngleMutation = trpc.emotionalAngles.create.useMutation();
-  const createAdMutation = trpc.ads.create.useMutation();
-  const createCharacterMutation = trpc.categoryCharacters.create.useMutation();
-  
-  // Text processing mutation
-  const processTextAdMutation = trpc.video.processTextAd.useMutation();
+  const checkVideoStatusMutation = trpc.video.checkVideoStatus.useMutation();
   
   // Session mutations
   const createSessionMutation = trpc.appSession.create.useMutation();
@@ -555,36 +525,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     [videoResults]
   );
   
-  // ========== STEP 1: Process text ad ==========
-  const processText = async () => {
-    if (!rawTextAd || rawTextAd.trim().length === 0) {
-      toast.error('Please enter or upload text first!');
-      return;
-    }
-
-    try {
-      const result = await processTextAdMutation.mutateAsync({
-        text: rawTextAd,
-      });
-      
-      setProcessedTextAd(result.processedText);
-      toast.success('Text processed successfully!');
-      setCurrentStep(2);
-    } catch (error: any) {
-      toast.error(`Error processing text: ${error.message}`);
-    }
-  };
-
-  const handleTextFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const text = await file.text();
-      setRawTextAd(text);
-      toast.success('Text file loaded!');
-    }
-  };
-
-  // ========== STEP 2: Handle ad document upload ==========
+  // ========== STEP 1: Handle ad document upload ==========
   const handleAdDocumentDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
@@ -786,12 +727,18 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     const defaultImage = images[0];
     
     // Găsește prima linie cu "carte", "cartea", "rescrie", sau "lacrimi" (cu sau fără diacritice)
-    let firstCarteIndex = -1;
+    let firstCtaIndex = -1;
     const ctaKeywords = ['carte', 'cartea', 'rescrie', 'lacrimi', 'lacrami'];
+    
+    // Normalizare text pentru comparație (elimină diacritice)
+    const normalizeDiacritics = (text: string) => {
+      return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    };
+    
     for (let i = 0; i < adLines.length; i++) {
-      const lowerText = adLines[i].text.toLowerCase();
-      if (ctaKeywords.some(keyword => lowerText.includes(keyword))) {
-        firstCarteIndex = i;
+      const normalizedText = normalizeDiacritics(adLines[i].text);
+      if (ctaKeywords.some(keyword => normalizedText.includes(normalizeDiacritics(keyword)))) {
+        firstCtaIndex = i;
         break;
       }
     }
@@ -800,8 +747,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     const newCombinations: Combination[] = adLines.map((line, index) => {
       let selectedImage = defaultImage;
       
-      // Dacă există poză CTA și suntem după prima linie cu "carte"
-      if (ctaImage && firstCarteIndex !== -1 && index >= firstCarteIndex) {
+      // Regulă CTA: mapează imaginea CTA DOAR dacă:
+      // 1. Există imagine CTA
+      // 2. S-a găsit o linie cu cuvintele cheie
+      // 3. Suntem la sau după acea linie
+      if (ctaImage && firstCtaIndex !== -1 && index >= firstCtaIndex) {
         selectedImage = ctaImage;
       }
       
@@ -821,8 +771,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     setDeletedCombinations([]);
     setCurrentStep(4);
     
-    if (ctaImage && firstCarteIndex !== -1) {
-      toast.success(`${newCombinations.length} combinații create. Poza CTA mapata pe liniile cu "carte"`);
+    if (ctaImage && firstCtaIndex !== -1) {
+      toast.success(`${newCombinations.length} combinații create. Poza CTA mapata de la linia ${firstCtaIndex + 1} în jos`);
+    } else if (ctaImage && firstCtaIndex === -1) {
+      toast.warning(`Poza CTA detectată, dar nu s-au găsit cuvintele cheie (carte/rescrie/lacrimi). Folosind imaginea default.`);
+      toast.success(`${newCombinations.length} combinații create cu mapare automată`);
     } else {
       toast.success(`${newCombinations.length} combinații create cu mapare automată`);
     }
@@ -884,6 +837,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
   // Step 5: Generate videos
   const generateVideos = async () => {
+    // Validate API key
+    if (!localCurrentUser.kieApiKey) {
+      toast.error("Trebuie să setezi Kie API Key în Settings!");
+      return;
+    }
+
     if (combinations.length === 0) {
       toast.error("Nu există combinații de generat");
       return;
@@ -949,6 +908,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         }
 
         const result = await generateBatchMutation.mutateAsync({
+          userId: localCurrentUser.id,
           promptTemplate: promptTemplate,
           combinations: combos.map(combo => ({
             text: combo.text,
@@ -992,47 +952,20 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     try {
       console.log(`Checking status for taskId: ${taskId}, index: ${index}`);
       
-      const response = await fetch(`https://api.kie.ai/api/v1/veo/record-info?taskId=${taskId}`, {
-        headers: {
-          'Authorization': 'Bearer a4089052f1c04c6b8be02b026ce87fe8',
-        },
+      const data = await checkVideoStatusMutation.mutateAsync({
+        userId: localCurrentUser.id,
+        taskId: taskId,
       });
 
-      const data = await response.json();
       console.log('Status response:', data);
 
-      if (data.code === 200 && data.data) {
-        let status: 'pending' | 'success' | 'failed' = 'pending';
-        let videoUrl: string | undefined;
-        let errorMessage: string | undefined;
+      // Backend returns processed response: { success, status, videoUrl, errorMessage }
+      if (data.success) {
+        const status = data.status;
+        const videoUrl = data.videoUrl;
+        const errorMessage = data.errorMessage;
 
-        console.log('Processing video status - successFlag:', data.data.successFlag);
-        console.log('Full API response:', JSON.stringify(data.data, null, 2));
-        
-        if (data.data.successFlag === 1) {
-          status = 'success';
-          // Verificare alternativă pentru resultUrls (poate fi în data.data sau data.data.response)
-          videoUrl = data.data.resultUrls?.[0] || data.data.response?.resultUrls?.[0];
-          console.log('Video SUCCESS - URL:', videoUrl);
-          console.log('resultUrls location:', data.data.resultUrls ? 'data.data.resultUrls' : 'data.data.response.resultUrls');
-        } else if (data.data.successFlag === -1 || data.data.successFlag === 2) {
-          // successFlag === -1 sau 2 înseamnă failed
-          status = 'failed';
-          errorMessage = data.data.errorMessage || data.data.error || data.data.msg || 'Unknown error';
-          console.log('Video FAILED - Error:', errorMessage);
-        } else if (data.data.errorMessage || data.data.error) {
-          // Dacă există errorMessage dar successFlag nu e -1, tot considerăm failed
-          status = 'failed';
-          errorMessage = data.data.errorMessage || data.data.error;
-          console.log('Video FAILED (detected via errorMessage) - Error:', errorMessage);
-        } else if (data.data.successFlag === 0) {
-          // successFlag === 0 înseamnă pending
-          status = 'pending';
-          console.log('Video PENDING - successFlag:', data.data.successFlag);
-        } else {
-          console.log('Video status UNKNOWN - successFlag:', data.data.successFlag);
-          console.log('Setting as pending by default');
-        }
+        console.log('Processing video status:', { status, videoUrl, errorMessage });
 
         setVideoResults(prev =>
           prev.map((v, i) =>
@@ -1213,6 +1146,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         }
 
         const result = await generateBatchMutation.mutateAsync({
+          userId: localCurrentUser.id,
           promptTemplate: promptTemplate,
           combinations: items.map(({ combo }) => ({
             text: combo.text,
@@ -1300,6 +1234,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       }
 
       const result = await generateBatchMutation.mutateAsync({
+        userId: localCurrentUser.id,
         promptTemplate: promptTemplate,
         combinations: [{
           text: modifyDialogueText, // Folosește textul modificat
@@ -1384,6 +1319,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       }
 
       const result = await generateBatchMutation.mutateAsync({
+        userId: localCurrentUser.id,
         promptTemplate: promptTemplate,
         combinations: [{
           text: combo.text,
@@ -1595,7 +1531,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             variant="outline"
             className="border-blue-300 text-blue-900 hover:bg-blue-50"
           >
-            Edit Profile
+            Settings
           </Button>
           <Button
             onClick={onLogout}
@@ -1607,7 +1543,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         </div>
       </div>
       
-      {/* Edit Profile Modal */}
+      {/* Settings Modal */}
       <EditProfileModal
         isOpen={isEditProfileOpen}
         onClose={() => setIsEditProfileOpen(false)}
@@ -1631,220 +1567,97 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           <p className="text-blue-700">Generează videouri AI în masă cu Kie.ai Veo 3.1</p>
         </div>
 
-        {/* Context Selector */}
-        <div className="mb-8 p-6 bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-300 rounded-xl shadow-lg">
-          <div className="mb-4">
-            <h2 className="text-2xl font-bold text-blue-900 mb-2 flex items-center gap-2">
-              <span className="text-3xl">🎯</span>
-              Select Your Working Context
-            </h2>
-            <p className="text-sm text-gray-600">Choose all 4 categories to start working. This context will apply to all steps.</p>
-          </div>
-          
-          <div className="grid grid-cols-4 gap-4">
-            {/* Core Belief */}
-            <div>
-              <Label className="text-sm font-semibold text-blue-900 mb-2 block">
-                1. Core Belief
-              </Label>
-              <Select 
-                value={selectedCoreBeliefId?.toString() || ''} 
-                onValueChange={async (value) => {
-                  if (value === 'new') {
-                    const name = prompt('Enter new Core Belief name:');
-                    if (name && name.trim()) {
-                      const result = await createCoreBeliefMutation.mutateAsync({
-                        userId: localCurrentUser.id,
-                        name: name.trim(),
-                      });
-                      setSelectedCoreBeliefId(result.id);
-                      refetchCoreBeliefs();
-                      toast.success('Core Belief created!');
+        {/* Session Management */}
+        <div className="mb-6 p-4 bg-white border-2 border-blue-200 rounded-lg">
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-blue-900 mb-2">
+                Sesiune Curentă:
+              </label>
+              <select
+                key={currentSessionId}
+                value={currentSessionId}
+                onChange={(e) => {
+                  const sessionId = e.target.value;
+                  if (sessionId === 'new') {
+                    // New session
+                    if (confirm('Vrei să începi o sesiune nouă? Sesiunea curentă va fi salvată automat.')) {
+                      setCurrentSessionId(`session-${Date.now()}`);
+                      // Reset all states
+                      setCurrentStep(1);
+                      setAdLines([]);
+                      setPrompts([]);
+                      setImages([]);
+                      setCombinations([]);
+                      setDeletedCombinations([]);
+                      setVideoResults([]);
+                      setReviewHistory([]);
+                      setSelectedVideoIndex(-1);
+                      setRegenerateMultiple(false);
+                      setRegenerateVariantCount(1);
+                      setRegenerateVariants([]);
+                      toast.success('Sesiune nouă creată!');
                     }
-                  } else if (value) {
-                    setSelectedCoreBeliefId(parseInt(value));
-                    // Reset dependent selections
-                    setSelectedEmotionalAngleId(null);
-                    setSelectedAdId(null);
-                    setSelectedCharacterId(null);
+                  } else {
+                    // Load session
+                    loadSession(sessionId);
                   }
                 }}
+                className="w-full p-3 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <SelectTrigger className="w-full bg-white">
-                  <SelectValue placeholder="Select Core Belief" />
-                </SelectTrigger>
-                <SelectContent>
-                  {coreBeliefs.map((cb) => (
-                    <SelectItem key={cb.id} value={cb.id.toString()}>{cb.name}</SelectItem>
-                  ))}
-                  <SelectItem value="new">+ New Core Belief</SelectItem>
-                </SelectContent>
-              </Select>
+                <option value="default">Default Session</option>
+                {getSavedSessions().map(session => (
+                  <option key={session.id} value={session.id}>
+                    {session.name} (STEP {session.currentStep}, {session.videoCount} videos) - {new Date(session.timestamp).toLocaleString('ro-RO')}
+                  </option>
+                ))}
+                <option value="new">+ Sesiune Nouă</option>
+              </select>
             </div>
-
-            {/* Emotional Angle */}
-            <div>
-              <Label className="text-sm font-semibold text-blue-900 mb-2 block">
-                2. Emotional Angle
-              </Label>
-              <Select 
-                value={selectedEmotionalAngleId?.toString() || ''}
-                disabled={!selectedCoreBeliefId}
-                onValueChange={async (value) => {
-                  if (value === 'new') {
-                    const name = prompt('Enter new Emotional Angle name:');
-                    if (name && name.trim()) {
-                      const result = await createEmotionalAngleMutation.mutateAsync({
-                        userId: localCurrentUser.id,
-                        coreBeliefId: selectedCoreBeliefId,
-                        name: name.trim(),
-                      });
-                      setSelectedEmotionalAngleId(result.id);
-                      refetchEmotionalAngles();
-                      toast.success('Emotional Angle created!');
-                    }
-                  } else if (value) {
-                    setSelectedEmotionalAngleId(parseInt(value));
-                    // Reset dependent selections
-                    setSelectedAdId(null);
-                    setSelectedCharacterId(null);
+            
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={() => {
+                  const name = prompt('Nume sesiune:', `Session ${new Date().toLocaleDateString('ro-RO')}`);
+                  if (name) {
+                    saveSession(name);
                   }
                 }}
+                className="bg-green-600 hover:bg-green-700"
               >
-                <SelectTrigger className="w-full bg-white">
-                  <SelectValue placeholder="Select Emotional Angle" />
-                </SelectTrigger>
-                <SelectContent>
-                  {emotionalAngles.map((ea) => (
-                    <SelectItem key={ea.id} value={ea.id.toString()}>{ea.name}</SelectItem>
-                  ))}
-                  <SelectItem value="new">+ New Emotional Angle</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Ad */}
-            <div>
-              <Label className="text-sm font-semibold text-blue-900 mb-2 block">
-                3. Ad
-              </Label>
-              <Select 
-                value={selectedAdId?.toString() || ''}
-                disabled={!selectedEmotionalAngleId}
-                onValueChange={async (value) => {
-                  if (value === 'new') {
-                    const name = prompt('Enter new Ad name:');
-                    if (name && name.trim()) {
-                      const result = await createAdMutation.mutateAsync({
-                        userId: localCurrentUser.id,
-                        emotionalAngleId: selectedEmotionalAngleId,
-                        name: name.trim(),
-                      });
-                      setSelectedAdId(result.id);
-                      refetchAds();
-                      toast.success('Ad created!');
-                    }
-                  } else if (value) {
-                    setSelectedAdId(parseInt(value));
-                    // Reset character
-                    setSelectedCharacterId(null);
+                Save Session
+              </Button>
+              
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => {
+                  if (currentSessionId === 'default') {
+                    toast.error('Nu poți șterge sesiunea default!');
+                    return;
+                  }
+                  if (confirm('Sigur vrei să ștergi sesiunea curentă?')) {
+                    deleteSession(currentSessionId);
                   }
                 }}
+                className="bg-red-600 hover:bg-red-700"
               >
-                <SelectTrigger className="w-full bg-white">
-                  <SelectValue placeholder="Select Ad" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ads.map((ad) => (
-                    <SelectItem key={ad.id} value={ad.id.toString()}>{ad.name}</SelectItem>
-                  ))}
-                  <SelectItem value="new">+ New Ad</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Character (Required) */}
-            <div>
-              <Label className="text-sm font-semibold text-blue-900 mb-2 block">
-                4. Character *
-              </Label>
-              <Select 
-                value={selectedCharacterId?.toString() || ''}
-                disabled={!selectedAdId}
-                onValueChange={async (value) => {
-                  if (value === 'new') {
-                    const name = prompt('Enter new Character name:');
-                    if (name && name.trim()) {
-                      const result = await createCharacterMutation.mutateAsync({
-                        userId: localCurrentUser.id,
-                        name: name.trim(),
-                      });
-                      setSelectedCharacterId(result.id);
-                      refetchCharacters();
-                      toast.success('Character created!');
-                    }
-                  } else if (value) {
-                    setSelectedCharacterId(parseInt(value));
-                  }
-                }}
-              >
-                <SelectTrigger className="w-full bg-white">
-                  <SelectValue placeholder="Select Character" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categoryCharacters.map((char) => (
-                    <SelectItem key={char.id} value={char.id.toString()}>{char.name}</SelectItem>
-                  ))}
-                  <SelectItem value="new">+ New Character</SelectItem>
-                </SelectContent>
-              </Select>
+                Delete
+              </Button>
             </div>
           </div>
-          
-          {/* Context Status */}
-          {selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId && (
-            <div className="mt-4 p-4 bg-green-50 border border-green-300 rounded-lg">
-              <p className="text-green-900 font-medium flex items-center gap-2">
-                <span className="text-xl">✅</span>
-                Context complete! You can now access all steps.
-              </p>
-            </div>
-          )}
-          
-          {(!selectedCoreBeliefId || !selectedEmotionalAngleId || !selectedAdId || !selectedCharacterId) && (
-            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-300 rounded-lg">
-              <p className="text-yellow-900 font-medium flex items-center gap-2">
-                <span className="text-xl">⚠️</span>
-                Please select all 4 categories to continue.
-              </p>
-            </div>
-          )}
         </div>
 
-        {/* Context Required Warning */}
-        {(!selectedCoreBeliefId || !selectedEmotionalAngleId || !selectedAdId || !selectedCharacterId) && (
-          <div className="mb-8 p-6 bg-red-50 border-2 border-red-300 rounded-lg">
-            <h3 className="text-xl font-bold text-red-900 mb-2 flex items-center gap-2">
-              <span className="text-2xl">⛔</span>
-              Context Required
-            </h3>
-            <p className="text-red-700">
-              Please select all 4 categories (Core Belief, Emotional Angle, Ad, Character) in the context selector above to access the workflow steps.
-            </p>
-          </div>
-        )}
-
         {/* Breadcrumbs */}
-        {selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId && (
         <div className="flex justify-between items-center mb-8 px-4">
           {[
-            { num: 1, label: "Prepare Ad", icon: FileText },
-            { num: 2, label: "Text Ad", icon: FileText },
-            { num: 3, label: "Prompts", icon: FileText },
-            { num: 4, label: "Images", icon: ImageIcon },
-            { num: 5, label: "Mapping", icon: Map },
-            { num: 6, label: "Generate", icon: Play },
-            { num: 7, label: "Check\u00A0Videos", icon: Video },
+            { num: 1, label: "Text Ad", icon: FileText },
+            { num: 2, label: "Prompts", icon: FileText },
+            { num: 3, label: "Images", icon: ImageIcon },
+            { num: 4, label: "Mapping", icon: Map },
+            { num: 5, label: "Generate", icon: Play },
+            { num: 6, label: "Check\u00A0Videos", icon: Video },
           ].map((step, index) => (
             <div key={step.num} className="flex items-center flex-1">
               <div className="flex flex-col items-center flex-1">
@@ -1881,12 +1694,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   }`}
                 />
               )}
-            </div>          ))}
+            </div>
+          ))}
         </div>
-        )}
 
         {/* Back Button */}
-        {selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId && currentStep > 1 && (
+        {currentStep > 1 && (
           <div className="mb-4">
             <Button
               onClick={goBack}
@@ -1900,290 +1713,33 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           </div>
         )}
         
-        {/* All Steps - Only show if context is complete */}
-        {selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId && (
-        <>
-        {/* STEP 1: Prepare Text Ad */}
+        {/* STEP 1: Text Ad Upload */}
         {currentStep === 1 && (
           <Card className="mb-8 border-2 border-blue-200">
             <CardHeader className="bg-blue-50">
               <CardTitle className="flex items-center gap-2 text-blue-900">
                 <FileText className="w-5 h-5" />
-                STEP 1 - Prepare Text Ad
-              </CardTitle>
-              <CardDescription>
-                Selectează categoriile și pregătește textul ad-ului (118-125 caractere).
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-8 px-8 pb-8">
-              {/* Context Info */}
-              <div className="mb-6 p-4 bg-blue-50/50 border-2 border-blue-200 rounded-lg">
-                <h3 className="text-lg font-semibold text-blue-900 mb-4">Current Context</h3>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <span className="font-medium text-gray-600">Core Belief:</span>
-                    <p className="text-blue-900 font-semibold">{coreBeliefs.find(cb => cb.id === selectedCoreBeliefId)?.name || 'Not selected'}</p>
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-600">Emotional Angle:</span>
-                    <p className="text-blue-900 font-semibold">{emotionalAngles.find(ea => ea.id === selectedEmotionalAngleId)?.name || 'Not selected'}</p>
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-600">Ad:</span>
-                    <p className="text-blue-900 font-semibold">{ads.find(ad => ad.id === selectedAdId)?.name || 'Not selected'}</p>
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-600">Character:</span>
-                    <p className="text-blue-900 font-semibold">{categoryCharacters.find(char => char.id === selectedCharacterId)?.name || 'Not selected'}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* OLD CATEGORIES - TO BE REMOVED */}
-              <div className="hidden">
-                <div className="mb-4">
-                  <Label className="text-blue-900 font-medium mb-2 block">Core Belief:</Label>
-                  <Select 
-                    value={selectedCoreBeliefId?.toString() || ''} 
-                    onValueChange={async (value) => {
-                      if (value === 'new') {
-                        const name = prompt('Enter new Core Belief name:');
-                        if (name && name.trim()) {
-                          const result = await createCoreBeliefMutation.mutateAsync({
-                            userId: localCurrentUser.id,
-                            name: name.trim(),
-                          });
-                          await refetchCoreBeliefs();
-                          setSelectedCoreBeliefId(result.id);
-                          setSelectedEmotionalAngleId(null);
-                          setSelectedAdId(null);
-                          toast.success('Core Belief created!');
-                        }
-                      } else {
-                        setSelectedCoreBeliefId(parseInt(value));
-                        setSelectedEmotionalAngleId(null);
-                        setSelectedAdId(null);
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select Core Belief" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {coreBeliefs.map((cb) => (
-                        <SelectItem key={cb.id} value={cb.id.toString()}>{cb.name}</SelectItem>
-                      ))}
-                      <SelectItem value="new">+ New Core Belief</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Emotional Angle */}
-                {selectedCoreBeliefId && (
-                  <div className="mb-4">
-                    <Label className="text-blue-900 font-medium mb-2 block">Emotional Angle:</Label>
-                    <Select 
-                      value={selectedEmotionalAngleId?.toString() || ''} 
-                      onValueChange={async (value) => {
-                        if (value === 'new') {
-                          const name = prompt('Enter new Emotional Angle name:');
-                          if (name && name.trim()) {
-                            const result = await createEmotionalAngleMutation.mutateAsync({
-                              userId: localCurrentUser.id,
-                              coreBeliefId: selectedCoreBeliefId,
-                              name: name.trim(),
-                            });
-                            await refetchEmotionalAngles();
-                            setSelectedEmotionalAngleId(result.id);
-                            setSelectedAdId(null);
-                            toast.success('Emotional Angle created!');
-                          }
-                        } else {
-                          setSelectedEmotionalAngleId(parseInt(value));
-                          setSelectedAdId(null);
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select Emotional Angle" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {emotionalAngles.map((ea) => (
-                          <SelectItem key={ea.id} value={ea.id.toString()}>{ea.name}</SelectItem>
-                        ))}
-                        <SelectItem value="new">+ New Emotional Angle</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {/* Ad */}
-                {selectedEmotionalAngleId && (
-                  <div className="mb-4">
-                    <Label className="text-blue-900 font-medium mb-2 block">Ad:</Label>
-                    <Select 
-                      value={selectedAdId?.toString() || ''} 
-                      onValueChange={async (value) => {
-                        if (value === 'new') {
-                          const name = prompt('Enter new Ad name:');
-                          if (name && name.trim()) {
-                            const result = await createAdMutation.mutateAsync({
-                              userId: localCurrentUser.id,
-                              emotionalAngleId: selectedEmotionalAngleId,
-                              name: name.trim(),
-                            });
-                            await refetchAds();
-                            setSelectedAdId(result.id);
-                            toast.success('Ad created!');
-                          }
-                        } else {
-                          setSelectedAdId(parseInt(value));
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select Ad" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ads.map((ad) => (
-                          <SelectItem key={ad.id} value={ad.id.toString()}>{ad.name}</SelectItem>
-                        ))}
-                        <SelectItem value="new">+ New Ad</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {/* Character (Optional) */}
-                {selectedAdId && (
-                  <div className="mb-4">
-                    <Label className="text-blue-900 font-medium mb-2 block">Character (Optional):</Label>
-                    <Select 
-                      value={selectedCharacterId?.toString() || 'none'} 
-                      onValueChange={async (value) => {
-                        if (value === 'new') {
-                          const name = prompt('Enter new Character name:');
-                          if (name && name.trim()) {
-                            const result = await createCharacterMutation.mutateAsync({
-                              userId: localCurrentUser.id,
-                              name: name.trim(),
-                            });
-                            await refetchCharacters();
-                            setSelectedCharacterId(result.id);
-                            toast.success('Character created!');
-                          }
-                        } else if (value === 'none') {
-                          setSelectedCharacterId(null);
-                        } else {
-                          setSelectedCharacterId(parseInt(value));
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select Character (Optional)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">None</SelectItem>
-                        {categoryCharacters.map((char) => (
-                          <SelectItem key={char.id} value={char.id.toString()}>{char.name}</SelectItem>
-                        ))}
-                        <SelectItem value="new">+ New Character</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-              </div>
-
-              {/* Show text input section only after all required categories are selected */}
-              {selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId && (
-                <>
-                  {/* Input Method Selector */}
-                  <div className="mb-6">
-                    <Label className="text-blue-900 font-medium mb-2 block">Input Method:</Label>
-                    <Select value={textAdMode} onValueChange={(value: 'upload' | 'paste') => setTextAdMode(value)}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="upload">Upload Ad</SelectItem>
-                        <SelectItem value="paste">Paste Ad</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  {/* Upload Mode */}
-                  {textAdMode === 'upload' && (
-                    <div className="mb-6">
-                      <div
-                        className="border-2 border-dashed border-blue-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors cursor-pointer bg-blue-50/50"
-                        onClick={() => document.getElementById('text-upload')?.click()}
-                      >
-                        <Upload className="w-12 h-12 text-blue-500 mx-auto mb-4" />
-                        <p className="text-blue-900 font-medium mb-2">
-                          {rawTextAd ? 'Text loaded! Click to change' : 'Drop text file here or click to upload'}
-                        </p>
-                        <p className="text-sm text-gray-500 italic">Suportă .txt</p>
-                        <input
-                          id="text-upload"
-                          type="file"
-                          accept=".txt"
-                          className="hidden"
-                          onChange={handleTextFileUpload}
-                        />
-                      </div>
-                      {rawTextAd && (
-                        <div className="mt-4 p-4 bg-white border border-blue-200 rounded-lg">
-                          <p className="text-sm text-gray-700 mb-2"><strong>Preview:</strong></p>
-                          <p className="text-sm text-gray-600 whitespace-pre-wrap">{rawTextAd.substring(0, 200)}{rawTextAd.length > 200 ? '...' : ''}</p>
-                          <p className="text-xs text-gray-500 mt-2">{rawTextAd.length} characters</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Paste Mode */}
-                  {textAdMode === 'paste' && (
-                    <div className="mb-6">
-                      <Label className="text-blue-900 font-medium mb-2 block">Paste your ad text:</Label>
-                      <textarea
-                        value={rawTextAd}
-                        onChange={(e) => setRawTextAd(e.target.value)}
-                        className="w-full h-40 p-4 border-2 border-blue-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                        placeholder="Paste your ad text here..."
-                      />
-                      {rawTextAd && (
-                        <p className="text-xs text-gray-500 mt-2">{rawTextAd.length} characters</p>
-                      )}
-                    </div>
-                  )}
-
-                  <Button
-                    onClick={processText}
-                    disabled={!rawTextAd || rawTextAd.trim().length === 0 || processTextAdMutation.isPending}
-                    className="mt-4 bg-blue-600 hover:bg-blue-700"
-                  >
-                    {processTextAdMutation.isPending ? 'Processing...' : 'Process & Continue to STEP 2'}
-                  </Button>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* STEP 2: Text Ad Document */}
-        {currentStep === 2 && (
-          <Card className="mb-8 border-2 border-blue-200">
-            <CardHeader className="bg-blue-50">
-              <CardTitle className="flex items-center gap-2 text-blue-900">
-                <FileText className="w-5 h-5" />
-                STEP 2 - Text Ad Document
+                STEP 1 - Text Ad Upload
               </CardTitle>
               <CardDescription>
                 Încărcă documentul cu ad-ul (.docx). Liniile vor fi extrase automat.
               </CardDescription>
             </CardHeader>
-            <CardContent className="pt-6">
-              {/* Document Upload */}
+            <CardContent className="pt-8 px-8 pb-8">
+              {/* TEMPORARY: Buton pentru încărcare sample videos */}
+              <div className="mb-6 p-4 bg-purple-50 border-2 border-purple-300 rounded-lg">
+                <Button
+                  onClick={loadSampleVideos}
+                  className="bg-purple-600 hover:bg-purple-700 w-full py-4 text-base border-2 border-purple-300"
+                >
+                  <Play className="w-5 h-5 mr-2" />
+                  Continue with Sample Videos (TEMP)
+                </Button>
+                <p className="text-xs text-gray-500 mt-2 text-center">
+                  Încărcă 4 task ID-uri sample pentru testare când Kie.ai nu funcționează
+                </p>
+              </div>
+              
               <div
                 onDrop={handleAdDocumentDrop}
                 onDragOver={(e) => e.preventDefault()}
@@ -2242,16 +1798,31 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     ))}
                   </div>
                   <Button
-                    onClick={() => setCurrentStep(3)}
+                    onClick={() => setCurrentStep(2)}
                     className="mt-4 bg-blue-600 hover:bg-blue-700"
                   >
-                    Continuă la STEP 3
+                    Continuă la STEP 2
                   </Button>
                 </div>
               )}
-              
-              {/* OLD CONTENT - TO BE REMOVED */}
-              <div className="hidden">
+            </CardContent>
+          </Card>
+        )}
+
+        {/* STEP 2: Prompts (3 prompts) */}
+        {currentStep === 2 && (
+          <Card className="mb-8 border-2 border-blue-200">
+            <CardHeader className="bg-blue-50">
+              <CardTitle className="flex items-center gap-2 text-blue-900">
+                <FileText className="w-5 h-5" />
+                STEP 2 - Prompts
+              </CardTitle>
+              <CardDescription>
+                Prompturile hardcodate sunt întotdeauna active. Poți adăuga și prompturi custom (.docx).
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6">
+              {/* Selector pentru prompt mode */}
               <div className="mb-6">
                 <Label className="text-blue-900 font-medium mb-2 block">Tip prompturi:</Label>
                 <Select value={promptMode} onValueChange={(value: 'hardcoded' | 'custom' | 'manual') => setPromptMode(value)}>
@@ -2259,9 +1830,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="hardcoded">Prompturi hardcodate</SelectItem>
-                    <SelectItem value="custom">Adaugă prompturi custom</SelectItem>
-                    <SelectItem value="manual">Manual prompt</SelectItem>
+                    <SelectItem value="hardcoded">Default Prompts</SelectItem>
+                    <SelectItem value="custom">Upload Custom Prompts</SelectItem>
+                    <SelectItem value="manual">Write Custom Prompts</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -2397,26 +1968,39 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               >
                 Continuă la STEP 3
               </Button>
-              </div>
-              {/* END OLD CONTENT */}
             </CardContent>
           </Card>
         )}
 
-        {/* STEP 3: Prompts */}
+        {/* STEP 3: Images */}
         {currentStep === 3 && (
           <Card className="mb-8 border-2 border-blue-200">
             <CardHeader className="bg-blue-50">
               <CardTitle className="flex items-center gap-2 text-blue-900">
-                <FileText className="w-5 h-5" />
-                STEP 3 - Prompts
+                <ImageIcon className="w-5 h-5" />
+                STEP 3 - Images Upload
               </CardTitle>
               <CardDescription>
-                Prompturile hardcodate sunt întotdeauna active. Poți adăuga și prompturi custom (.docx).
+                Încarcă imaginile pentru videouri (format 9:16). Poți încărca multiple imagini.
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-6">
-              {/* Upload Section */}
+              {/* Image Mode Selector */}
+              <div className="mb-6">
+                <Label className="text-blue-900 font-medium mb-2 block">Image Source:</Label>
+                <Select value={imageMode} onValueChange={(value: 'upload' | 'library') => setImageMode(value)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="upload">Add Images</SelectItem>
+                    <SelectItem value="library">Select from Library</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Upload Section - only show when imageMode is 'upload' */}
+              {imageMode === 'upload' && (
               <div
                 onDrop={handleImageDrop}
                 onDragOver={(e) => e.preventDefault()}
@@ -2435,9 +2019,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   onChange={handleImageSelect}
                 />
               </div>
+              )}
               
-              {/* Library Images Section */}
-              {libraryImages.length > 0 && (
+              {/* Library Images Section - only show when imageMode is 'library' */}
+              {imageMode === 'library' && libraryImages.length > 0 && (
                 <div className="mt-8 p-4 bg-purple-50 border-2 border-purple-300 rounded-lg">
                   <div className="mb-4">
                     <h3 className="font-bold text-purple-900 flex items-center gap-2 mb-4">
@@ -4194,8 +3779,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               )}
             </CardContent>
           </Card>
-        )}
-        </>
         )}
       </div>
     </div>

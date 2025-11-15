@@ -14,7 +14,8 @@ import { promisify } from 'util';
 const execAsync = promisify(exec);
 import { saveVideoTask, updateVideoTask } from "./videoCache";
 import { parseAdDocument, parsePromptDocument, replaceInsertText, parseAdDocumentWithSections, PromptType } from "./documentParser";
-import { createAppUser, getAppUserByUsername, getAppUserById, updateAppUser, createAppSession, getAppSessionsByUserId, updateAppSession, deleteAppSession, createUserImage, getUserImagesByUserId, getUserImagesByCharacter, updateUserImage, deleteUserImage, getUniqueCharacterNames, createUserPrompt, getUserPromptsByUserId, getUserPromptById, updateUserPrompt, deleteUserPrompt } from "./db";
+import { processAdDocument, addRedOnLine1 } from "./text-processor";
+import { createAppUser, getAppUserByUsername, getAppUserById, updateAppUser, createAppSession, getAppSessionsByUserId, updateAppSession, deleteAppSession, createUserImage, getUserImagesByUserId, getUserImagesByCharacter, updateUserImage, deleteUserImage, getUniqueCharacterNames, createUserPrompt, getUserPromptsByUserId, getUserPromptById, updateUserPrompt, deleteUserPrompt, createCoreBelief, getCoreBeliefsByUserId, getCoreBeliefById, updateCoreBelief, deleteCoreBelief, createEmotionalAngle, getEmotionalAnglesByUserId, getEmotionalAnglesByCoreBeliefId, getEmotionalAngleById, updateEmotionalAngle, deleteEmotionalAngle, createAd, getAdsByUserId, getAdsByEmotionalAngleId, getAdById, updateAd, deleteAd, createCharacter, getCharactersByUserId, getCharacterById, updateCharacter, deleteCharacter, getContextSession, upsertContextSession, deleteContextSession } from "./db";
 import { seedDefaultPromptsForUser } from "./seedDefaultPrompts";
 
 export const appRouter = router({
@@ -120,11 +121,13 @@ export const appRouter = router({
         userId: z.number(),
         password: z.string().optional(),
         profileImageUrl: z.string().optional(),
+        kieApiKey: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
-        const updateData: Partial<{ password: string; profileImageUrl: string | null }> = {};
+        const updateData: Partial<{ password: string; profileImageUrl: string | null; kieApiKey: string | null }> = {};
         if (input.password) updateData.password = input.password;
         if (input.profileImageUrl !== undefined) updateData.profileImageUrl = input.profileImageUrl;
+        if (input.kieApiKey !== undefined) updateData.kieApiKey = input.kieApiKey;
 
         await updateAppUser(input.userId, updateData);
 
@@ -135,6 +138,7 @@ export const appRouter = router({
             id: user.id,
             username: user.username,
             profileImageUrl: user.profileImageUrl,
+            kieApiKey: user.kieApiKey,
           } : null,
         };
       }),
@@ -281,15 +285,22 @@ export const appRouter = router({
     // Generare video cu Kie.ai
     generateVideo: publicProcedure
       .input(z.object({
+        userId: z.number(),
         prompt: z.string(),
         imageUrl: z.string(),
       }))
       .mutation(async ({ input }) => {
         try {
+          // Get user's API key
+          const user = await getAppUserById(input.userId);
+          if (!user?.kieApiKey) {
+            throw new Error('Kie API Key not configured. Please set it in Settings.');
+          }
+
           const response = await fetch('https://api.kie.ai/api/v1/veo/generate', {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${ENV.kieApiKey}`,
+              'Authorization': `Bearer ${user.kieApiKey}`,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
@@ -360,15 +371,22 @@ export const appRouter = router({
     // Verificare status video
     checkVideoStatus: publicProcedure
       .input(z.object({
+        userId: z.number(),
         taskId: z.string(),
       }))
-      .query(async ({ input }) => {
+      .mutation(async ({ input }) => {
         try {
+          // Get user's API key
+          const user = await getAppUserById(input.userId);
+          if (!user?.kieApiKey) {
+            throw new Error('Kie API Key not configured. Please set it in Settings.');
+          }
+
           const response = await fetch(
             `https://api.kie.ai/api/v1/veo/record-info?taskId=${input.taskId}`,
             {
               headers: {
-                'Authorization': `Bearer ${ENV.kieApiKey}`,
+                'Authorization': `Bearer ${user.kieApiKey}`,
               },
             }
           );
@@ -447,6 +465,33 @@ export const appRouter = router({
         }
       }),
 
+    // Process text ad (STEP 1 - Prepare Text Ad)
+    processTextAd: publicProcedure
+      .input(z.object({
+        rawText: z.string(),
+        applyDiacritics: z.boolean().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          // Phase 1: Process text to 118-125 chars
+          const outputData = processAdDocument(input.rawText);
+          
+          // Phase 2: Add red on Line 1 for overlap pairs
+          const finalData = addRedOnLine1(outputData);
+          
+          return {
+            success: true,
+            processedLines: finalData,
+          };
+        } catch (error: any) {
+          console.error('Error processing text ad:', error);
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Failed to process text ad: ${error.message || 'Unknown error'}`,
+          });
+        }
+      }),
+
     // Parsare document ad cu detectare secțiuni
     parseAdDocument: publicProcedure
       .input(z.object({
@@ -500,6 +545,7 @@ export const appRouter = router({
     // Generare batch videouri
     generateBatchVideos: publicProcedure
       .input(z.object({
+        userId: z.number(),
         promptTemplate: z.string(),
         combinations: z.array(z.object({
           text: z.string(),
@@ -508,6 +554,12 @@ export const appRouter = router({
       }))
       .mutation(async ({ input }) => {
         try {
+          // Get user's API key
+          const user = await getAppUserById(input.userId);
+          if (!user?.kieApiKey) {
+            throw new Error('Kie API Key not configured. Please set it in Settings.');
+          }
+
           const results: Array<{
             success: boolean;
             taskId?: string;
@@ -535,7 +587,7 @@ export const appRouter = router({
               const response = await fetch('https://api.kie.ai/api/v1/veo/generate', {
                 method: 'POST',
                 headers: {
-                  'Authorization': `Bearer ${ENV.kieApiKey}`,
+                  'Authorization': `Bearer ${user.kieApiKey}`,
                   'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
@@ -669,7 +721,7 @@ export const appRouter = router({
               const response = await fetch('https://api.kie.ai/api/v1/veo/generate', {
                 method: 'POST',
                 headers: {
-                  'Authorization': `Bearer ${ENV.kieApiKey}`,
+                  'Authorization': `Bearer ${user.kieApiKey}`,
                   'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
@@ -1027,6 +1079,222 @@ export const appRouter = router({
             message: `Failed to delete prompt: ${error.message}`,
           });
         }
+      }),
+  }),
+
+  // Core Beliefs router
+  coreBeliefs: router({
+    list: publicProcedure
+      .input(z.object({ userId: z.number() }))
+      .query(async ({ input }) => {
+        return await getCoreBeliefsByUserId(input.userId);
+      }),
+    
+    create: publicProcedure
+      .input(z.object({
+        userId: z.number(),
+        name: z.string().min(1).max(255),
+      }))
+      .mutation(async ({ input }) => {
+        const result = await createCoreBelief({
+          userId: input.userId,
+          name: input.name,
+        });
+        return { success: true, id: result[0].insertId };
+      }),
+    
+    update: publicProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().min(1).max(255),
+      }))
+      .mutation(async ({ input }) => {
+        await updateCoreBelief(input.id, { name: input.name });
+        return { success: true };
+      }),
+    
+    delete: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteCoreBelief(input.id);
+        return { success: true };
+      }),
+  }),
+
+  // Emotional Angles router
+  emotionalAngles: router({
+    list: publicProcedure
+      .input(z.object({ userId: z.number() }))
+      .query(async ({ input }) => {
+        return await getEmotionalAnglesByUserId(input.userId);
+      }),
+    
+    listByCoreBeliefId: publicProcedure
+      .input(z.object({ coreBeliefId: z.number() }))
+      .query(async ({ input }) => {
+        return await getEmotionalAnglesByCoreBeliefId(input.coreBeliefId);
+      }),
+    
+    create: publicProcedure
+      .input(z.object({
+        userId: z.number(),
+        coreBeliefId: z.number(),
+        name: z.string().min(1).max(255),
+      }))
+      .mutation(async ({ input }) => {
+        const result = await createEmotionalAngle({
+          userId: input.userId,
+          coreBeliefId: input.coreBeliefId,
+          name: input.name,
+        });
+        return { success: true, id: result[0].insertId };
+      }),
+    
+    update: publicProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().min(1).max(255),
+      }))
+      .mutation(async ({ input }) => {
+        await updateEmotionalAngle(input.id, { name: input.name });
+        return { success: true };
+      }),
+    
+    delete: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteEmotionalAngle(input.id);
+        return { success: true };
+      }),
+  }),
+
+  // Ads router
+  ads: router({
+    list: publicProcedure
+      .input(z.object({ userId: z.number() }))
+      .query(async ({ input }) => {
+        return await getAdsByUserId(input.userId);
+      }),
+    
+    listByEmotionalAngleId: publicProcedure
+      .input(z.object({ emotionalAngleId: z.number() }))
+      .query(async ({ input }) => {
+        return await getAdsByEmotionalAngleId(input.emotionalAngleId);
+      }),
+    
+    create: publicProcedure
+      .input(z.object({
+        userId: z.number(),
+        emotionalAngleId: z.number(),
+        name: z.string().min(1).max(255),
+      }))
+      .mutation(async ({ input }) => {
+        const result = await createAd({
+          userId: input.userId,
+          emotionalAngleId: input.emotionalAngleId,
+          name: input.name,
+        });
+        return { success: true, id: result[0].insertId };
+      }),
+    
+    update: publicProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().min(1).max(255),
+      }))
+      .mutation(async ({ input }) => {
+        await updateAd(input.id, { name: input.name });
+        return { success: true };
+      }),
+    
+    delete: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteAd(input.id);
+        return { success: true };
+      }),
+  }),
+
+  // Characters router
+  categoryCharacters: router({
+    list: publicProcedure
+      .input(z.object({ userId: z.number() }))
+      .query(async ({ input }) => {
+        return await getCharactersByUserId(input.userId);
+      }),
+    
+    create: publicProcedure
+      .input(z.object({
+        userId: z.number(),
+        name: z.string().min(1).max(255),
+      }))
+      .mutation(async ({ input }) => {
+        const result = await createCharacter({
+          userId: input.userId,
+          name: input.name,
+        });
+        return { success: true, id: result[0].insertId };
+      }),
+    
+    update: publicProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().min(1).max(255),
+      }))
+      .mutation(async ({ input }) => {
+        await updateCharacter(input.id, { name: input.name });
+        return { success: true };
+      }),
+    
+    delete: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteCharacter(input.id);
+        return { success: true };
+      }),
+  }),
+
+  // Context Sessions
+  contextSessions: router({
+    get: publicProcedure
+      .input(z.object({
+        userId: z.number(),
+        coreBeliefId: z.number(),
+        emotionalAngleId: z.number(),
+        adId: z.number(),
+        characterId: z.number(),
+      }))
+      .query(async ({ input }) => {
+        return await getContextSession(input);
+      }),
+
+    upsert: publicProcedure
+      .input(z.object({
+        userId: z.number(),
+        coreBeliefId: z.number(),
+        emotionalAngleId: z.number(),
+        adId: z.number(),
+        characterId: z.number(),
+        currentStep: z.number().optional(),
+        rawTextAd: z.string().optional(),
+        processedTextAd: z.string().optional(),
+        adLines: z.any().optional(),
+        prompts: z.any().optional(),
+        images: z.any().optional(),
+        combinations: z.any().optional(),
+        deletedCombinations: z.any().optional(),
+        videoResults: z.any().optional(),
+        reviewHistory: z.any().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        return await upsertContextSession(input);
+      }),
+
+    delete: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteContextSession(input.id);
+        return { success: true };
       }),
   }),
 });

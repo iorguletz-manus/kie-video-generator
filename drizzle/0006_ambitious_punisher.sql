@@ -1,0 +1,21 @@
+CREATE TABLE `context_sessions` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`userId` int NOT NULL,
+	`coreBeliefId` int NOT NULL,
+	`emotionalAngleId` int NOT NULL,
+	`adId` int NOT NULL,
+	`characterId` int NOT NULL,
+	`currentStep` int NOT NULL DEFAULT 1,
+	`rawTextAd` text,
+	`processedTextAd` text,
+	`adLines` json,
+	`prompts` json,
+	`images` json,
+	`combinations` json,
+	`deletedCombinations` json,
+	`videoResults` json,
+	`reviewHistory` json,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `context_sessions_id` PRIMARY KEY(`id`)
+);

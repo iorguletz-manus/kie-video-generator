@@ -1,6 +1,6 @@
 import { eq, and } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, appUsers, InsertAppUser, appSessions, InsertAppSession, userImages, InsertUserImage, userPrompts, InsertUserPrompt } from "../drizzle/schema";
+import { InsertUser, users, appUsers, InsertAppUser, appSessions, InsertAppSession, userImages, InsertUserImage, userPrompts, InsertUserPrompt, coreBeliefs, InsertCoreBelief, emotionalAngles, InsertEmotionalAngle, ads, InsertAd, characters, InsertCharacter, contextSessions, InsertContextSession } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -341,4 +341,247 @@ export async function deleteUserPrompt(id: number) {
     console.error("[Database] Failed to delete user prompt:", error);
     throw error;
   }
+}
+
+// ============================================================================
+// CORE BELIEFS CRUD
+// ============================================================================
+
+export async function createCoreBelief(data: InsertCoreBelief) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(coreBeliefs).values(data);
+  return result;
+}
+
+export async function getCoreBeliefsByUserId(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db.select().from(coreBeliefs).where(eq(coreBeliefs.userId, userId));
+}
+
+export async function getCoreBeliefById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select().from(coreBeliefs).where(eq(coreBeliefs.id, id));
+  return result[0] || null;
+}
+
+export async function updateCoreBelief(id: number, data: Partial<InsertCoreBelief>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return await db.update(coreBeliefs).set(data).where(eq(coreBeliefs.id, id));
+}
+
+export async function deleteCoreBelief(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return await db.delete(coreBeliefs).where(eq(coreBeliefs.id, id));
+}
+
+// ============================================================================
+// EMOTIONAL ANGLES CRUD
+// ============================================================================
+
+export async function createEmotionalAngle(data: InsertEmotionalAngle) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(emotionalAngles).values(data);
+  return result;
+}
+
+export async function getEmotionalAnglesByUserId(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db.select().from(emotionalAngles).where(eq(emotionalAngles.userId, userId));
+}
+
+export async function getEmotionalAnglesByCoreBeliefId(coreBeliefId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db.select().from(emotionalAngles).where(eq(emotionalAngles.coreBeliefId, coreBeliefId));
+}
+
+export async function getEmotionalAngleById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select().from(emotionalAngles).where(eq(emotionalAngles.id, id));
+  return result[0] || null;
+}
+
+export async function updateEmotionalAngle(id: number, data: Partial<InsertEmotionalAngle>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return await db.update(emotionalAngles).set(data).where(eq(emotionalAngles.id, id));
+}
+
+export async function deleteEmotionalAngle(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return await db.delete(emotionalAngles).where(eq(emotionalAngles.id, id));
+}
+
+// ============================================================================
+// ADS CRUD
+// ============================================================================
+
+export async function createAd(data: InsertAd) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(ads).values(data);
+  return result;
+}
+
+export async function getAdsByUserId(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db.select().from(ads).where(eq(ads.userId, userId));
+}
+
+export async function getAdsByEmotionalAngleId(emotionalAngleId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db.select().from(ads).where(eq(ads.emotionalAngleId, emotionalAngleId));
+}
+
+export async function getAdById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select().from(ads).where(eq(ads.id, id));
+  return result[0] || null;
+}
+
+export async function updateAd(id: number, data: Partial<InsertAd>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return await db.update(ads).set(data).where(eq(ads.id, id));
+}
+
+export async function deleteAd(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return await db.delete(ads).where(eq(ads.id, id));
+}
+
+// ============================================================================
+// CHARACTERS CRUD
+// ============================================================================
+
+export async function createCharacter(data: InsertCharacter) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(characters).values(data);
+  return result;
+}
+
+export async function getCharactersByUserId(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db.select().from(characters).where(eq(characters.userId, userId));
+}
+
+export async function getCharacterById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select().from(characters).where(eq(characters.id, id));
+  return result[0] || null;
+}
+
+export async function updateCharacter(id: number, data: Partial<InsertCharacter>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return await db.update(characters).set(data).where(eq(characters.id, id));
+}
+
+export async function deleteCharacter(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return await db.delete(characters).where(eq(characters.id, id));
+}
+
+// ============================================
+// Context Sessions
+// ============================================
+
+export async function getContextSession(params: {
+  userId: number;
+  coreBeliefId: number;
+  emotionalAngleId: number;
+  adId: number;
+  characterId: number;
+}) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const result = await db
+    .select()
+    .from(contextSessions)
+    .where(
+      and(
+        eq(contextSessions.userId, params.userId),
+        eq(contextSessions.coreBeliefId, params.coreBeliefId),
+        eq(contextSessions.emotionalAngleId, params.emotionalAngleId),
+        eq(contextSessions.adId, params.adId),
+        eq(contextSessions.characterId, params.characterId)
+      )
+    )
+    .limit(1);
+
+  return result[0] || null;
+}
+
+export async function upsertContextSession(session: InsertContextSession) {
+  const db = await getDb();
+  if (!db) return null;
+
+  // Check if session exists
+  const existing = await getContextSession({
+    userId: session.userId,
+    coreBeliefId: session.coreBeliefId,
+    emotionalAngleId: session.emotionalAngleId,
+    adId: session.adId,
+    characterId: session.characterId,
+  });
+
+  if (existing) {
+    // Update existing session
+    await db
+      .update(contextSessions)
+      .set(session)
+      .where(eq(contextSessions.id, existing.id));
+    return { ...existing, ...session };
+  } else {
+    // Insert new session
+    const result = await db.insert(contextSessions).values(session);
+    return { id: Number(result.insertId), ...session };
+  }
+}
+
+export async function deleteContextSession(id: number) {
+  const db = await getDb();
+  if (!db) return;
+
+  await db.delete(contextSessions).where(eq(contextSessions.id, id));
 }

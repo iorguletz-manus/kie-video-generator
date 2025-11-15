@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { int, json, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -34,6 +34,7 @@ export const appUsers = mysqlTable("app_users", {
   username: varchar("username", { length: 64 }).notNull().unique(),
   password: text("password").notNull(), // Plain text per requirement (no hashing)
   profileImageUrl: text("profileImageUrl"), // BunnyCDN URL for profile image
+  kieApiKey: text("kieApiKey"), // Kling AI API key per user
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -93,3 +94,96 @@ export const userPrompts = mysqlTable("user_prompts", {
 
 export type UserPrompt = typeof userPrompts.$inferSelect;
 export type InsertUserPrompt = typeof userPrompts.$inferInsert;
+
+/**
+ * Core Beliefs table
+ * Top-level category for organizing ads
+ */
+export const coreBeliefs = mysqlTable("core_beliefs", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(), // Foreign key to app_users.id
+  name: varchar("name", { length: 255 }).notNull(), // Core belief name
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type CoreBelief = typeof coreBeliefs.$inferSelect;
+export type InsertCoreBelief = typeof coreBeliefs.$inferInsert;
+
+/**
+ * Emotional Angles table
+ * Second-level category under Core Beliefs
+ */
+export const emotionalAngles = mysqlTable("emotional_angles", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(), // Foreign key to app_users.id
+  coreBeliefId: int("coreBeliefId").notNull(), // Foreign key to core_beliefs.id
+  name: varchar("name", { length: 255 }).notNull(), // Emotional angle name
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type EmotionalAngle = typeof emotionalAngles.$inferSelect;
+export type InsertEmotionalAngle = typeof emotionalAngles.$inferInsert;
+
+/**
+ * Ads table
+ * Third-level category under Emotional Angles
+ */
+export const ads = mysqlTable("ads", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(), // Foreign key to app_users.id
+  emotionalAngleId: int("emotionalAngleId").notNull(), // Foreign key to emotional_angles.id
+  name: varchar("name", { length: 255 }).notNull(), // Ad name
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Ad = typeof ads.$inferSelect;
+export type InsertAd = typeof ads.$inferInsert;
+
+/**
+ * Characters table
+ * Optional fourth-level category under Ads
+ */
+export const characters = mysqlTable("characters", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(), // Foreign key to app_users.id
+  name: varchar("name", { length: 255 }).notNull(), // Character name
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Character = typeof characters.$inferSelect;
+export type InsertCharacter = typeof characters.$inferInsert;
+
+/**
+ * Context sessions table for storing workflow data per context
+ * Each context (Core Belief + Emotional Angle + Ad + Character) has its own session data
+ */
+export const contextSessions = mysqlTable("context_sessions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  coreBeliefId: int("coreBeliefId").notNull(),
+  emotionalAngleId: int("emotionalAngleId").notNull(),
+  adId: int("adId").notNull(),
+  characterId: int("characterId").notNull(),
+  
+  // Workflow data stored as JSON
+  currentStep: int("currentStep").default(1).notNull(),
+  rawTextAd: text("rawTextAd"),
+  processedTextAd: text("processedTextAd"),
+  adLines: json("adLines"), // Array of ad lines
+  prompts: json("prompts"), // Array of prompts
+  images: json("images"), // Array of images
+  combinations: json("combinations"), // Array of combinations
+  deletedCombinations: json("deletedCombinations"), // Array of deleted combinations
+  videoResults: json("videoResults"), // Array of video results
+  reviewHistory: json("reviewHistory"), // Array of review history
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ContextSession = typeof contextSessions.$inferSelect;
+export type InsertContextSession = typeof contextSessions.$inferInsert;

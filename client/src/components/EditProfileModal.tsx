@@ -7,8 +7,8 @@ import { toast } from 'sonner';
 interface EditProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
-  currentUser: { id: number; username: string; profileImageUrl: string | null };
-  onProfileUpdated: (user: { id: number; username: string; profileImageUrl: string | null }) => void;
+  currentUser: { id: number; username: string; profileImageUrl: string | null; kieApiKey: string | null };
+  onProfileUpdated: (user: { id: number; username: string; profileImageUrl: string | null; kieApiKey: string | null }) => void;
 }
 
 export default function EditProfileModal({ isOpen, onClose, currentUser, onProfileUpdated }: EditProfileModalProps) {
@@ -16,6 +16,7 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
   const [confirmPassword, setConfirmPassword] = useState('');
   const [profileImage, setProfileImage] = useState<File | null>(null);
   const [profileImagePreview, setProfileImagePreview] = useState<string | null>(currentUser.profileImageUrl);
+  const [kieApiKey, setKieApiKey] = useState(currentUser.kieApiKey || '');
 
   const updateProfileMutation = trpc.appAuth.updateProfile.useMutation();
   const uploadImageMutation = trpc.video.uploadImage.useMutation();
@@ -64,6 +65,7 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
               userId: currentUser.id,
               password: newPassword || undefined,
               profileImageUrl: profileImageUrl || undefined,
+              kieApiKey: kieApiKey || undefined,
             });
 
             if (updateResult.success && updateResult.user) {
@@ -78,10 +80,11 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
         };
         reader.readAsDataURL(profileImage);
       } else {
-        // Update only password
+        // Update password and/or API key
         const updateResult = await updateProfileMutation.mutateAsync({
           userId: currentUser.id,
           password: newPassword || undefined,
+          kieApiKey: kieApiKey || undefined,
         });
 
         if (updateResult.success && updateResult.user) {
@@ -100,7 +103,7 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold text-blue-900">Edit Profile</DialogTitle>
+          <DialogTitle className="text-2xl font-bold text-blue-900">Settings</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
@@ -162,6 +165,20 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
               />
             </div>
           )}
+
+          {/* Kie API Key */}
+          <div>
+            <label className="block text-sm font-medium text-blue-900 mb-2">
+              Kie API Key
+            </label>
+            <input
+              type="text"
+              value={kieApiKey}
+              onChange={(e) => setKieApiKey(e.target.value)}
+              className="w-full px-4 py-3 border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Introdu API key-ul tău de la kie.ai"
+            />
+          </div>
 
           {/* Buttons */}
           <div className="flex gap-3">
