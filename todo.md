@@ -1228,3 +1228,47 @@
 - [x] Schimbare din buton mare violet în link mic gri (secundar) - text-sm text-gray-500 hover:text-gray-700 underline
 - [x] Poziționare sub butonul "Check Videos" (nu mare și proeminent)
 - [x] Testare vizual: link mic gri, nu buton
+
+
+## Images Library Feature - Complete System
+
+### Database Schema
+- [x] Creare tabel `userImages` (id, userId, characterName, imageName, imageUrl, imageKey, createdAt)
+- [x] Adăugare index pe userId și characterName pentru query rapid
+- [x] Push schema cu `pnpm db:push` - SUCCESS!
+
+### Backend (tRPC Procedures)
+- [x] `imageLibrary.upload` - Upload imagine cu characterName și imageName - BunnyCDN + database
+- [ ] `imageLibrary.bulkUpload` - Upload multiple imagini cu progress tracking - TODO: Implement în frontend
+- [x] `imageLibrary.list` - List toate imaginile user-ului (cu filter pe characterName)
+- [x] `imageLibrary.delete` - Delete imagine din S3 și database
+- [x] `imageLibrary.updateName` - Update imageName sau characterName
+- [x] `imageLibrary.getCharacters` - List toate character names unice pentru user
+
+### Frontend - ImagesLibraryModal Component
+- [x] Creare componenta ImagesLibraryModal.tsx
+- [x] Buton "Images Library" lângă Edit Profile în header - buton purple
+- [x] Modal cu tabs: "Characters" și "All Images"
+- [x] Tab Characters: Grid cu avatare (character name + thumbnail count)
+- [x] Tab All Images: Grid cu toate pozele (thumbnail + nume + character badge)
+- [x] Create Character dialog: Input nume + drag & drop poze
+- [x] Bulk upload cu progress bar (evit freeze pentru 10+ poze) - Promise loop cu progress tracking
+- [x] Edit inline pentru imageName și characterName
+- [x] Delete confirmation dialog - confirm()
+- [x] Search bar pentru filtrare după nume (character sau image)
+
+### STEP 3 Integration
+- [x] Adăugare search bar în STEP 3 pentru căutare imagini din library
+- [x] Thumbnail grid cu imagini din library (select în loc de doar upload) - grid 4x8 cu max-height 300px
+- [x] Checkbox select pentru imagini din library - click pe thumbnail pentru select/deselect
+- [x] Păstrare funcționalitate upload direct (drag & drop + file picker)
+- [x] Display badge "From Library" pentru imagini selectate din library - purple badge top-left
+- [x] Sincronizare: imagini selectate din library + imagini uploadate = lista finală - Add Selected button
+
+### UX & Design
+- [ ] Responsive grid layout pentru thumbnails (3 col mobile, 6 col desktop)
+- [ ] Hover effects pe thumbnails (zoom + overlay cu actions)
+- [ ] Loading skeletons pentru thumbnails
+- [ ] Empty states frumoase ("No images yet", "No characters yet")
+- [ ] Toast notifications pentru success/error
+- [ ] Keyboard shortcuts (ESC = close modal, Enter = confirm)

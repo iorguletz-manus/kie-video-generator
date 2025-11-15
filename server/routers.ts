@@ -14,7 +14,7 @@ import { promisify } from 'util';
 const execAsync = promisify(exec);
 import { saveVideoTask, updateVideoTask } from "./videoCache";
 import { parseAdDocument, parsePromptDocument, replaceInsertText, parseAdDocumentWithSections, PromptType } from "./documentParser";
-import { createAppUser, getAppUserByUsername, getAppUserById, updateAppUser, createAppSession, getAppSessionsByUserId, updateAppSession, deleteAppSession } from "./db";
+import { createAppUser, getAppUserByUsername, getAppUserById, updateAppUser, createAppSession, getAppSessionsByUserId, updateAppSession, deleteAppSession, createUserImage, getUserImagesByUserId, getUserImagesByCharacter, updateUserImage, deleteUserImage, getUniqueCharacterNames } from "./db";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -735,6 +735,145 @@ export const appRouter = router({
           throw new TRPCError({
             code: 'INTERNAL_SERVER_ERROR',
             message: `Failed to generate multiple variants: ${error.message || 'Unknown error'}`,
+          });
+        }
+      }),
+  }),
+
+  // Images Library router
+  imageLibrary: router({
+    // Upload single image
+    upload: publicProcedure
+      .input(z.object({
+        userId: z.number(),
+        characterName: z.string().default("Unnamed"),
+        imageName: z.string(),
+        imageData: z.string(), // base64
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          // Upload to BunnyCDN (reuse logic from video.uploadImage)
+          const base64Data = input.imageData.replace(/^data:image\/\w+;base64,/, "");
+          const buffer = Buffer.from(base64Data, 'base64');
+          
+          const randomSuffix = Math.random().toString(36).substring(2, 15);
+          const timestamp = Date.now();
+          const fileName = `user-${input.userId}/library/${input.characterName}/${input.imageName}-${timestamp}-${randomSuffix}.png`;
+          
+          // BunnyCDN configuration
+          const BUNNYCDN_STORAGE_PASSWORD = '4c9257d6-aede-4ff1-bb0f9fc95279-997e-412b';
+          const BUNNYCDN_STORAGE_ZONE = 'manus-storage';
+          const BUNNYCDN_PULL_ZONE_URL = 'https://manus.b-cdn.net';
+          
+          const storageUrl = `https://storage.bunnycdn.com/${BUNNYCDN_STORAGE_ZONE}/${fileName}`;
+          
+          const uploadResponse = await fetch(storageUrl, {
+            method: 'PUT',
+            headers: {
+              'AccessKey': BUNNYCDN_STORAGE_PASSWORD,
+              'Content-Type': 'image/png',
+            },
+            body: buffer,
+          });
+          
+          if (!uploadResponse.ok) {
+            const errorText = await uploadResponse.text();
+            throw new Error(`BunnyCDN upload failed: ${uploadResponse.status} ${errorText}`);
+          }
+          
+          const imageUrl = `${BUNNYCDN_PULL_ZONE_URL}/${fileName}`;
+          
+          // Save to database
+          await createUserImage({
+            userId: input.userId,
+            characterName: input.characterName,
+            imageName: input.imageName,
+            imageUrl: imageUrl,
+            imageKey: fileName,
+          });
+          
+          return { success: true, imageUrl };
+        } catch (error: any) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Failed to upload image: ${error.message}`,
+          });
+        }
+      }),
+
+    // List all images for user
+    list: publicProcedure
+      .input(z.object({
+        userId: z.number(),
+        characterName: z.string().optional(),
+      }))
+      .query(async ({ input }) => {
+        try {
+          if (input.characterName) {
+            return await getUserImagesByCharacter(input.userId, input.characterName);
+          }
+          return await getUserImagesByUserId(input.userId);
+        } catch (error: any) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Failed to list images: ${error.message}`,
+          });
+        }
+      }),
+
+    // Get unique character names
+    getCharacters: publicProcedure
+      .input(z.object({
+        userId: z.number(),
+      }))
+      .query(async ({ input }) => {
+        try {
+          return await getUniqueCharacterNames(input.userId);
+        } catch (error: any) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Failed to get characters: ${error.message}`,
+          });
+        }
+      }),
+
+    // Update image name or character
+    updateName: publicProcedure
+      .input(z.object({
+        id: z.number(),
+        imageName: z.string().optional(),
+        characterName: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          const updateData: any = {};
+          if (input.imageName) updateData.imageName = input.imageName;
+          if (input.characterName) updateData.characterName = input.characterName;
+          
+          await updateUserImage(input.id, updateData);
+          return { success: true };
+        } catch (error: any) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Failed to update image: ${error.message}`,
+          });
+        }
+      }),
+
+    // Delete image
+    delete: publicProcedure
+      .input(z.object({
+        id: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          // TODO: Delete from S3 as well (need imageKey)
+          await deleteUserImage(input.id);
+          return { success: true };
+        } catch (error: any) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Failed to delete image: ${error.message}`,
           });
         }
       }),

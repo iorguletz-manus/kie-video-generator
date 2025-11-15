@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, appUsers, InsertAppUser, appSessions, InsertAppSession } from "../drizzle/schema";
+import { InsertUser, users, appUsers, InsertAppUser, appSessions, InsertAppSession, userImages, InsertUserImage } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -191,4 +191,87 @@ export async function deleteAppSession(id: number) {
     console.error("[Database] Failed to delete app session:", error);
     throw error;
   }
+}
+
+
+// User Images Library helpers
+export async function createUserImage(image: InsertUserImage) {
+  const db = await getDb();
+  if (!db) {
+    throw new Error("Database not available");
+  }
+
+  try {
+    const result = await db.insert(userImages).values(image);
+    return result;
+  } catch (error) {
+    console.error("[Database] Failed to create user image:", error);
+    throw error;
+  }
+}
+
+export async function getUserImagesByUserId(userId: number) {
+  const db = await getDb();
+  if (!db) {
+    return [];
+  }
+
+  const result = await db.select().from(userImages).where(eq(userImages.userId, userId));
+  return result;
+}
+
+export async function getUserImagesByCharacter(userId: number, characterName: string) {
+  const db = await getDb();
+  if (!db) {
+    return [];
+  }
+
+  const result = await db.select().from(userImages)
+    .where(and(
+      eq(userImages.userId, userId),
+      eq(userImages.characterName, characterName)
+    ));
+  return result;
+}
+
+export async function updateUserImage(id: number, data: Partial<InsertUserImage>) {
+  const db = await getDb();
+  if (!db) {
+    throw new Error("Database not available");
+  }
+
+  try {
+    await db.update(userImages).set(data).where(eq(userImages.id, id));
+  } catch (error) {
+    console.error("[Database] Failed to update user image:", error);
+    throw error;
+  }
+}
+
+export async function deleteUserImage(id: number) {
+  const db = await getDb();
+  if (!db) {
+    throw new Error("Database not available");
+  }
+
+  try {
+    await db.delete(userImages).where(eq(userImages.id, id));
+  } catch (error) {
+    console.error("[Database] Failed to delete user image:", error);
+    throw error;
+  }
+}
+
+export async function getUniqueCharacterNames(userId: number): Promise<string[]> {
+  const db = await getDb();
+  if (!db) {
+    return [];
+  }
+
+  const result = await db.select({ characterName: userImages.characterName })
+    .from(userImages)
+    .where(eq(userImages.userId, userId))
+    .groupBy(userImages.characterName);
+  
+  return result.map(r => r.characterName);
 }
