@@ -716,12 +716,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       
       const extractedLines: AdLine[] = [];
       
-      // Get context IDs for video naming
-      // Format: T{tamId}_C{coreBeliefId}_E{emotionalAngleId}_AD{adId}_{SECTION}{lineNum}_{CHARACTER}
-      const tamId = selectedTamId || 1;
-      const coreBeliefId = selectedCoreBeliefId || 1;
-      const emotionalAngleId = selectedEmotionalAngleId || 1;
-      const adId = selectedAdId || 1;
+      // Get context for video naming
+      // Format: T{tamNum}_C{cbNum}_E{eaNum}_AD{adNum}_{SECTION}{lineNum}_{CHARACTER}
+      // Use position/counter (1, 2, 3...) NOT database IDs!
+      
+      // Find position of selected items in their respective lists
+      const tamNum = tams.findIndex(t => t.id === selectedTamId) + 1 || 1;
+      const cbNum = coreBeliefs.findIndex(cb => cb.id === selectedCoreBeliefId) + 1 || 1;
+      const eaNum = emotionalAngles.findIndex(ea => ea.id === selectedEmotionalAngleId) + 1 || 1;
+      const adNum = ads.findIndex(ad => ad.id === selectedAdId) + 1 || 1;
+      
       const characterName = selectedCharacterId ? 
         (categoryCharacters?.find(c => c.id === selectedCharacterId)?.name || 'UNKNOWN').toUpperCase() : 
         'UNKNOWN';
@@ -802,7 +806,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             suffix = String.fromCharCode(66 + lineNumberUnderLabel - 2);
           }
           
-          const videoName = `T${tamId}_C${coreBeliefId}_E${emotionalAngleId}_AD${adId}_${sectionName}${sectionLineNum}${suffix}_${characterName}`;
+          const videoName = `T${tamNum}_C${cbNum}_E${eaNum}_AD${adNum}_${sectionName}${sectionLineNum}${suffix}_${characterName}`;
           
           extractedLines.push({
             id: `line-${Date.now()}-${extractedLines.length}`,
