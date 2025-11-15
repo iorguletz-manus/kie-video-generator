@@ -1350,3 +1350,19 @@
 - [ ] Păstrare funcționalitate select imagini din library în STEP 3
 - [ ] Query imagini din library în STEP 3 (nu redirect la pagină)
 - [ ] Thumbnail grid compact în STEP 3 (4x8) pentru quick select
+
+
+## STEP 2 Integration cu Prompts Library
+
+- [ ] Query prompts din Prompts Library în STEP 2 (trpc.promptLibrary.list)
+- [ ] Replace hardcoded prompts dropdown cu dynamic dropdown din library
+- [ ] Display promptName în dropdown (ex: "PROMPT_NEUTRAL", "My Custom Prompt")
+- [ ] Păstrare funcționalitate select 3 prompts (neutral, smiling, CTA)
+- [ ] Update state pentru a stoca promptId și promptTemplate
+
+## Character Avatar Preview în Images Library
+
+- [ ] Modificare tRPC procedure getCharacters pentru a returna și prima imagine
+- [ ] Update ImagesLibraryPage pentru a afișa thumbnail în character filter dropdown
+- [ ] Fallback icon dacă character nu are imagini
+- [ ] Testare vizual: thumbnail vizibil în dropdown
