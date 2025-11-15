@@ -2263,13 +2263,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   if (value === 'new') {
                     const name = prompt('Enter new Character name:');
                     if (name && name.trim()) {
-                      const result = await createCharacterMutation.mutateAsync({
-                        userId: localCurrentUser.id,
-                        name: name.trim(),
-                      });
-                      setSelectedCharacterId(result.id);
-                      refetchCharacters();
-                      toast.success('Character created!');
+                      try {
+                        const result = await createCharacterMutation.mutateAsync({
+                          userId: localCurrentUser.id,
+                          name: name.trim(),
+                        });
+                        await refetchCharacters();
+                        setSelectedCharacterId(result.id);
+                        toast.success('Character created!');
+                      } catch (error: any) {
+                        toast.error(`Failed to create character: ${error.message}`);
+                      }
                     }
                   } else if (value) {
                     setSelectedCharacterId(parseInt(value));

@@ -139,10 +139,16 @@ export function ImagesLibraryModal({ open, onClose, userId }: ImagesLibraryModal
       setUploadProgress(Math.round(((i + 1) / uploadingFiles.length) * 100));
     }
     
+    // Switch to the character we just uploaded to
+    setSelectedCharacter(characterName);
     setUploadingFiles([]);
     setNewCharacterName("");
     setIsCreatingCharacter(false);
     toast.success(`${uploadingFiles.length} images uploaded!`);
+    
+    // Refetch to ensure new images appear
+    await refetchImages();
+    await refetchCharacters();
   }, [uploadingFiles, selectedCharacter, newCharacterName, userId, uploadMutation]);
 
   // Filtered images based on search
@@ -350,73 +356,68 @@ export function ImagesLibraryModal({ open, onClose, userId }: ImagesLibraryModal
                       className="w-full h-full object-cover"
                     />
                     
-                    {/* Overlay with actions */}
-                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-2">
+                    {/* Info overlay at bottom */}
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
+                      <p className="text-blue-300 text-xs truncate">{img.characterName}</p>
+                      
                       {editingImageId === img.id ? (
-                        <div className="w-full space-y-2">
+                        <div className="flex items-center gap-1 mt-1">
                           <Input
                             value={editingImageName}
                             onChange={(e) => setEditingImageName(e.target.value)}
-                            className="text-xs"
+                            className="text-xs h-6 px-2 flex-1"
                             autoFocus
-                          />
-                          <div className="flex gap-1">
-                            <Button
-                              size="sm"
-                              onClick={() => {
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
                                 updateNameMutation.mutate({
                                   id: img.id,
                                   imageName: editingImageName,
                                 });
-                              }}
-                              className="flex-1 text-xs"
-                            >
-                              Save
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setEditingImageId(null)}
-                              className="flex-1 text-xs"
-                            >
-                              Cancel
-                            </Button>
-                          </div>
+                              } else if (e.key === 'Escape') {
+                                setEditingImageId(null);
+                              }
+                            }}
+                          />
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              updateNameMutation.mutate({
+                                id: img.id,
+                                imageName: editingImageName,
+                              });
+                            }}
+                            className="h-6 px-2 bg-green-600 hover:bg-green-700 text-xs"
+                          >
+                            Save
+                          </Button>
                         </div>
                       ) : (
-                        <>
-                          <p className="text-white text-xs font-bold text-center truncate w-full">
+                        <div className="flex items-center gap-1 mt-1">
+                          <p className="text-white text-xs truncate flex-1 font-medium">
                             {img.imageName}
                           </p>
-                          <p className="text-blue-300 text-xs text-center truncate w-full">
-                            {img.characterName}
-                          </p>
-                          <div className="flex gap-1 mt-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setEditingImageId(img.id);
-                                setEditingImageName(img.imageName);
-                              }}
-                              className="bg-white/20 hover:bg-white/30 border-white/50"
-                            >
-                              <Edit2 className="w-3 h-3" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                if (confirm("Delete this image?")) {
-                                  deleteMutation.mutate({ id: img.id });
-                                }
-                              }}
-                              className="bg-red-500/80 hover:bg-red-600 border-red-300"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        </>
+                          <button
+                            onClick={() => {
+                              setEditingImageId(img.id);
+                              setEditingImageName(img.imageName);
+                            }}
+                            className="p-1 hover:bg-white/20 rounded transition-colors"
+                            title="Edit name"
+                          >
+                            <Edit2 className="w-3 h-3 text-white" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm("Delete this image?")) {
+                                deleteMutation.mutate({ id: img.id });
+                              }
+                            }}
+                            className="p-1 hover:bg-red-500/50 rounded transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3 h-3 text-red-400" />
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
