@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
@@ -183,6 +184,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [librarySearchQuery, setLibrarySearchQuery] = useState("");
   const [libraryCharacterFilter, setLibraryCharacterFilter] = useState<string>("all");
   const [selectedLibraryImages, setSelectedLibraryImages] = useState<number[]>([]);
+  
+  // WYSIWYG Editor for STEP 2
+  const [editingLineId, setEditingLineId] = useState<string | null>(null);
+  const [editingLineText, setEditingLineText] = useState<string>('');
+  const [editingLineRedStart, setEditingLineRedStart] = useState<number>(-1);
+  const [editingLineRedEnd, setEditingLineRedEnd] = useState<number>(-1);
 
   // Queries
   const { data: libraryImages = [] } = trpc.imageLibrary.list.useQuery({
@@ -1300,6 +1307,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         }
 
         const result = await generateBatchMutation.mutateAsync({
+          userId: currentUser.id,
           promptTemplate: promptTemplate,
           combinations: combos.map(combo => ({
             text: combo.text,
@@ -1565,6 +1573,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         }
 
         const result = await generateBatchMutation.mutateAsync({
+          userId: currentUser.id,
           promptTemplate: promptTemplate,
           combinations: items.map(({ combo }) => ({
             text: combo.text,
@@ -1652,6 +1661,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       }
 
       const result = await generateBatchMutation.mutateAsync({
+        userId: currentUser.id,
         promptTemplate: promptTemplate,
         combinations: [{
           text: modifyDialogueText, // Folosește textul modificat
@@ -1736,6 +1746,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       }
 
       const result = await generateBatchMutation.mutateAsync({
+        userId: currentUser.id,
         promptTemplate: promptTemplate,
         combinations: [{
           text: combo.text,
@@ -2695,13 +2706,28 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       const redAtStart = hasRedText && line.redStart === 0;
                       
                       return (
-                        <div key={line.id} className="p-3 bg-white rounded border border-blue-200 text-sm ml-4">
+                        <div key={line.id} className="p-3 bg-white rounded border border-blue-200 text-sm ml-4 relative">
+                          {/* Edit Button */}
+                          <Button
+                            onClick={() => {
+                              setEditingLineId(line.id);
+                              setEditingLineText(line.text);
+                              setEditingLineRedStart(line.redStart ?? -1);
+                              setEditingLineRedEnd(line.redEnd ?? -1);
+                            }}
+                            variant="outline"
+                            size="sm"
+                            className="absolute top-2 right-2"
+                          >
+                            Edit
+                          </Button>
+                          
                           {/* Name above text in italic small font */}
                           <div className="mb-1">
                             <span className="text-xs text-gray-500 italic">{line.videoName}</span>
                           </div>
                           {/* Text with red highlighting */}
-                          <p className="text-gray-800 mb-2">
+                          <p className="text-gray-800 mb-2 pr-16">
                             {redAtStart && <span className="text-red-600 font-medium">{redText}</span>}
                             {whiteBeforeRed}
                             {!redAtStart && hasRedText && <span className="text-red-600 font-medium">{redText}</span>}
@@ -2876,6 +2902,145 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             </CardContent>
           </Card>
         )}
+
+        {/* WYSIWYG Editor Dialog */}
+        <Dialog open={editingLineId !== null} onOpenChange={(open) => !open && setEditingLineId(null)}>
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>Edit Text Line</DialogTitle>
+              <DialogDescription>
+                Select text and apply RED or BLACK color. Character count updates live.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              {/* Color Toolbar */}
+              <div className="flex gap-2 p-2 bg-gray-100 rounded">
+                <Button
+                  onClick={() => {
+                    document.execCommand('foreColor', false, '#dc2626'); // RED-600
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="bg-red-600 text-white hover:bg-red-700"
+                >
+                  RED
+                </Button>
+                <Button
+                  onClick={() => {
+                    document.execCommand('foreColor', false, '#000000'); // BLACK
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="bg-black text-white hover:bg-gray-800"
+                >
+                  BLACK
+                </Button>
+                <Button
+                  onClick={() => {
+                    document.execCommand('removeFormat', false, '');
+                  }}
+                  variant="outline"
+                  size="sm"
+                >
+                  Clear Format
+                </Button>
+              </div>
+              
+              {/* Editable Content */}
+              <div
+                contentEditable
+                suppressContentEditableWarning
+                onInput={(e) => {
+                  const text = e.currentTarget.textContent || '';
+                  setEditingLineText(text);
+                }}
+                className="min-h-[150px] p-4 border-2 border-gray-300 rounded focus:outline-none focus:border-blue-500"
+                style={{ whiteSpace: 'pre-wrap' }}
+                dangerouslySetInnerHTML={{
+                  __html: (() => {
+                    if (editingLineRedStart >= 0 && editingLineRedEnd > editingLineRedStart) {
+                      const before = editingLineText.substring(0, editingLineRedStart);
+                      const red = editingLineText.substring(editingLineRedStart, editingLineRedEnd);
+                      const after = editingLineText.substring(editingLineRedEnd);
+                      return `${before}<span style="color: #dc2626; font-weight: 500;">${red}</span>${after}`;
+                    }
+                    return editingLineText;
+                  })()
+                }}
+              />
+              
+              {/* Character Count */}
+              <div className="flex justify-between items-center">
+                <div className={`text-sm ${
+                  editingLineText.length > 125 ? 'text-orange-600 font-bold' : 'text-gray-600'
+                }`}>
+                  {editingLineText.length} / 125 characters
+                  {editingLineText.length > 125 && (
+                    <span className="ml-2">⚠️ Warning: Exceeds 125 characters!</span>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setEditingLineId(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (!editingLineId) return;
+                  
+                  // Extract HTML from contentEditable
+                  const editorDiv = document.querySelector('[contenteditable="true"]');
+                  if (!editorDiv) return;
+                  
+                  const html = editorDiv.innerHTML;
+                  const text = editorDiv.textContent || '';
+                  
+                  // Parse HTML to find RED text positions
+                  let redStart = -1;
+                  let redEnd = -1;
+                  
+                  // Simple regex to find <span style="color: rgb(220, 38, 38)..."> or similar
+                  const redSpanRegex = /<span[^>]*style="[^"]*color:\s*(?:#dc2626|rgb\(220,\s*38,\s*38\))[^"]*"[^>]*>([^<]*)<\/span>/gi;
+                  const match = redSpanRegex.exec(html);
+                  
+                  if (match) {
+                    const redText = match[1];
+                    redStart = text.indexOf(redText);
+                    if (redStart >= 0) {
+                      redEnd = redStart + redText.length;
+                    }
+                  }
+                  
+                  // Update adLines
+                  setAdLines(prev => prev.map(line => {
+                    if (line.id === editingLineId) {
+                      return {
+                        ...line,
+                        text: text,
+                        charCount: text.length,
+                        redStart: redStart,
+                        redEnd: redEnd,
+                      };
+                    }
+                    return line;
+                  }));
+                  
+                  toast.success('Text saved!');
+                  setEditingLineId(null);
+                }}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                Save
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* STEP 3: Prompts */}
         {currentStep === 3 && (
