@@ -30,9 +30,11 @@ const CATEGORY_NAMES = [
   'MIRROR',
   'DCS',
   'TRANZITION',
-  'CAUSE',
+  'NEW CAUSE',      // Also matches NEW-CAUSE
+  'NEW-CAUSE',
   'MECHANISM',
-  'EMOTIONAL',
+  'EMOTIONAL PROOF', // Also matches EMOTIONAL-PROOF
+  'EMOTIONAL-PROOF',
   'TRANSFORMATION',
   'CTA'
 ];
@@ -63,8 +65,11 @@ function findCategories(text: string): Array<{category: string; position: number
         }
       }
       
+      // Normalize category name (replace spaces with hyphens)
+      const normalizedCategory = catName.toUpperCase().replace(/\s+/g, '-');
+      
       found.push({
-        category: catName.toUpperCase(),
+        category: normalizedCategory,
         position: match.index,
         fullMatch: fullMatch
       });
@@ -106,7 +111,10 @@ function splitIntoSections(text: string): Array<{category: string; subcategory: 
     // Extract content from current position to next category (or end of text)
     const startPos = current.position + current.fullMatch.length;
     const endPos = next ? next.position : text.length;
-    const content = text.substring(startPos, endPos).trim();
+    let content = text.substring(startPos, endPos).trim();
+    
+    // Remove leading colon and space if present (e.g., ": Pentru femeile..." -> "Pentru femeile...")
+    content = content.replace(/^:\s*/, '');
     
     // Determine if this is a subcategory (H1-H100)
     const isHSubcategory = current.fullMatch.match(/^H\d{1,3}$/i);
@@ -122,91 +130,234 @@ function splitIntoSections(text: string): Array<{category: string; subcategory: 
 }
 
 /**
- * Process text to 118-125 characters (simplified version)
+ * Split text into sentences based on . ! ?
  */
-function processTextSimple(text: string): ProcessedLine[] {
+function splitIntoSentences(text: string): string[] {
+  const sentences: string[] = [];
+  let current: string[] = [];
+  const words = text.split(/\s+/);
+  
+  for (const word of words) {
+    current.push(word);
+    // Only split on . ! ? not on :
+    if (word.match(/[.!?]$/)) {
+      sentences.push(current.join(' ').trim());
+      current = [];
+    }
+  }
+  
+  if (current.length > 0) {
+    sentences.push(current.join(' ').trim());
+  }
+  
+  return sentences;
+}
+
+/**
+ * Process short text (< 118 chars) by adding words from beginning
+ */
+function processShortText(text: string, minC: number = 118, maxC: number = 125): ProcessedLine {
+  const target = Math.floor(Math.random() * (maxC - minC + 1)) + minC;
+  const needed = target - text.length;
+  
+  if (needed <= 0) {
+    return { text, redStart: -1, redEnd: -1, charCount: text.length };
+  }
+  
+  // Add WORDS from beginning
+  const words = text.split(/\s+/);
+  const addedWords: string[] = [];
+  
+  // Keep adding words until we reach target
+  for (let cycle = 0; cycle < 10; cycle++) {
+    for (const word of words) {
+      const testText = text + ' ' + [...addedWords, word].join(' ');
+      const testLen = testText.length;
+      
+      if (testLen <= maxC) {
+        addedWords.push(word);
+        if (testLen >= minC && testLen >= target) {
+          break;
+        }
+      } else {
+        break;
+      }
+    }
+    
+    const currentLen = (text + ' ' + addedWords.join(' ')).length;
+    if (currentLen >= minC) {
+      break;
+    }
+  }
+  
+  let addedText = addedWords.join(' ');
+  let fullText = text + ' ' + addedText;
+  
+  // Trim if over maxC (word by word)
+  while (fullText.length > maxC && addedWords.length > 0) {
+    addedWords.pop();
+    addedText = addedWords.join(' ');
+    fullText = text + ' ' + addedText;
+  }
+  
+  const redStart = text.length + 1;
+  const redEnd = fullText.length;
+  
+  return { text: fullText, redStart, redEnd, charCount: fullText.length };
+}
+
+/**
+ * Process long sentence (> 125 chars) with strategic overlap
+ */
+function processLongSentenceWithOverlap(text: string, minC: number = 118, maxC: number = 125): ProcessedLine[] {
+  const results: ProcessedLine[] = [];
+  
+  // Version 1: First part
+  const rand1 = Math.floor(Math.random() * (maxC - minC + 1)) + minC;
+  let version1 = text.substring(0, rand1).trimEnd();
+  
+  // Adjust to end at word boundary
+  if (version1.includes(' ')) {
+    const words = version1.split(/\s+/);
+    version1 = words.join(' ');
+  }
+  
+  // Version 2: Last part
+  const rand2 = Math.floor(Math.random() * (maxC - minC + 1)) + minC;
+  let version2 = text.substring(text.length - rand2).trimStart();
+  
+  // Adjust to start at word boundary
+  if (version2.includes(' ')) {
+    const words = version2.split(/\s+/);
+    version2 = words.join(' ');
+  }
+  
+  // Add version 1 (no red)
+  results.push({ text: version1, redStart: -1, redEnd: -1, charCount: version1.length });
+  
+  // Find strategic CUT point in version2
+  const words = version2.split(/\s+/);
+  let strategicCutIdx = -1;
+  
+  // Look for punctuation marks that indicate idea change
+  for (let i = 0; i < words.length; i++) {
+    if (words[i].match(/[:,]$/)) {
+      const remaining = words.slice(i + 1).join(' ');
+      if (remaining.length >= 50) {
+        strategicCutIdx = i + 1;
+        break;
+      }
+    }
+  }
+  
+  // If no good punctuation found, look for transition words
+  if (strategicCutIdx === -1) {
+    const transitionWords = ['dar', 'și', 'iar', 'pentru', 'astfel', 'când', 'dacă'];
+    for (let i = 0; i < words.length; i++) {
+      const wordClean = words[i].toLowerCase().replace(/[.,!?:;]/g, '');
+      if (transitionWords.includes(wordClean)) {
+        const remaining = words.slice(i).join(' ');
+        if (remaining.length >= 50) {
+          strategicCutIdx = i;
+          break;
+        }
+      }
+    }
+  }
+  
+  // If still not found, use 30% of text as fallback
+  if (strategicCutIdx === -1) {
+    const targetLen = Math.floor(version2.length * 0.3);
+    let currentLen = 0;
+    for (let i = 0; i < words.length; i++) {
+      currentLen += words[i].length + 1;
+      if (currentLen >= targetLen) {
+        const remaining = words.slice(i + 1).join(' ');
+        if (remaining.length >= 50) {
+          strategicCutIdx = i + 1;
+          break;
+        }
+      }
+    }
+  }
+  
+  // Apply red marking
+  if (strategicCutIdx > 0) {
+    const redText = words.slice(0, strategicCutIdx).join(' ');
+    const redEnd = redText.length;
+    results.push({ text: version2, redStart: 0, redEnd, charCount: version2.length });
+  } else {
+    // Fallback: no red
+    results.push({ text: version2, redStart: -1, redEnd: -1, charCount: version2.length });
+  }
+  
+  return results;
+}
+
+/**
+ * Main text processing function following Python logic
+ */
+function processText(text: string, minC: number = 118, maxC: number = 125): ProcessedLine[] {
+  text = text.trim();
   if (!text || text.length < 10) {
     return [];
   }
   
-  const minC = 118;
-  const maxC = 125;
+  const length = text.length;
+  
+  // Rule 1: If 118-125, keep as is
+  if (length >= minC && length <= maxC) {
+    return [{ text, redStart: -1, redEnd: -1, charCount: length }];
+  }
+  
+  // Rule 2: If < 118, add from beginning
+  if (length < minC) {
+    return [processShortText(text, minC, maxC)];
+  }
+  
+  // Rule 3: If > 125
+  const sentences = splitIntoSentences(text);
+  
+  // Single sentence > 125 - use overlap strategy
+  if (sentences.length === 1) {
+    return processLongSentenceWithOverlap(text, minC, maxC);
+  }
+  
+  // Multiple sentences - process sequentially
   const results: ProcessedLine[] = [];
-  
-  // Split into sentences
-  const sentences = text.split(/(?<=[.!?])\s+/);
-  
   let i = 0;
+  
   while (i < sentences.length) {
-    let current = sentences[i];
-    
-    // If already in range, use as-is
-    if (current.length >= minC && current.length <= maxC) {
-      results.push({
-        text: current,
-        redStart: -1,
-        redEnd: -1,
-        charCount: current.length
-      });
-      i++;
-      continue;
+    // Try combining 3 sentences
+    if (i + 2 < sentences.length) {
+      const combined3 = sentences.slice(i, i + 3).join(' ');
+      if (combined3.length >= minC && combined3.length <= maxC) {
+        results.push({ text: combined3, redStart: -1, redEnd: -1, charCount: combined3.length });
+        i += 3;
+        continue;
+      } else if (combined3.length < minC) {
+        results.push(processShortText(combined3, minC, maxC));
+        i += 3;
+        continue;
+      }
     }
     
-    // If too short, add next sentence
-    if (current.length < minC && i + 1 < sentences.length) {
-      const combined = current + ' ' + sentences[i + 1];
-      if (combined.length <= maxC) {
-        results.push({
-          text: combined,
-          redStart: -1,
-          redEnd: -1,
-          charCount: combined.length
-        });
+    // Try combining 2 sentences
+    if (i + 1 < sentences.length) {
+      const combined2 = sentences.slice(i, i + 2).join(' ');
+      if (combined2.length >= minC && combined2.length <= maxC) {
+        results.push({ text: combined2, redStart: -1, redEnd: -1, charCount: combined2.length });
+        i += 2;
+        continue;
+      } else if (combined2.length < minC) {
+        results.push(processShortText(combined2, minC, maxC));
         i += 2;
         continue;
       }
     }
     
-    // If too long or can't combine, split it
-    if (current.length > maxC) {
-      const words = current.split(' ');
-      const mid = Math.floor(words.length / 2);
-      
-      const part1 = words.slice(0, mid).join(' ');
-      const part2 = words.slice(mid).join(' ');
-      
-      // Find overlap words
-      const overlapWords = words.slice(mid - 2, mid + 2).join(' ');
-      
-      results.push({
-        text: part1 + ' ' + overlapWords,
-        redStart: part1.length + 1,
-        redEnd: (part1 + ' ' + overlapWords).length,
-        charCount: (part1 + ' ' + overlapWords).length
-      });
-      
-      results.push({
-        text: overlapWords + ' ' + part2,
-        redStart: 0,
-        redEnd: overlapWords.length,
-        charCount: (overlapWords + ' ' + part2).length
-      });
-    } else {
-      // Too short and can't combine - pad with beginning words
-      const words = current.split(' ');
-      let padded = current;
-      for (let j = 0; j < words.length && padded.length < minC; j++) {
-        padded += ' ' + words[j];
-      }
-      
-      results.push({
-        text: padded,
-        redStart: current.length + 1,
-        redEnd: padded.length,
-        charCount: padded.length
-      });
-    }
-    
+    // Process single sentence
+    results.push(...processText(sentences[i], minC, maxC));
     i++;
   }
   
@@ -238,7 +389,7 @@ export function processAdDocument(rawText: string): OutputItem[] {
     
     // Process content text
     if (section.content) {
-      const processedLines = processTextSimple(section.content);
+      const processedLines = processText(section.content);
       
       for (const line of processedLines) {
         outputData.push({
@@ -259,6 +410,6 @@ export function processAdDocument(rawText: string): OutputItem[] {
 
 // Export for compatibility
 export function addRedOnLine1(data: OutputItem[]): OutputItem[] {
-  // Already handled in processTextSimple
+  // Already handled in processText
   return data;
 }
