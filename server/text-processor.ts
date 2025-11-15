@@ -238,13 +238,19 @@ function processLongSentenceWithOverlap(text: string, minC: number = 118, maxC: 
   }
   
   // Step 3: Find logical CUT POINT (after complete idea)
+  // IMPORTANT: Both Line 1 WHITE and Line 2 WHITE must be >= 40 chars
+  const minPartLength = 40;
   let cutPoint = -1;
   
   // Look for punctuation marks
   const punctuationMarks = [', ', ': ', '; ', '! ', '? '];
   for (const mark of punctuationMarks) {
     const idx = line1Full.lastIndexOf(mark);
-    if (idx > cutPoint && idx > line1Full.length * 0.4) {
+    const part1Length = idx + mark.length;
+    const part2Length = text.length - (idx + mark.length);
+    
+    // Check both parts are >= 40 chars
+    if (idx > cutPoint && part1Length >= minPartLength && part2Length >= minPartLength) {
       cutPoint = idx + mark.length;
     }
   }
@@ -254,19 +260,23 @@ function processLongSentenceWithOverlap(text: string, minC: number = 118, maxC: 
     const transitionWords = [' dar ', ' și ', ' iar ', ' pentru ', ' astfel ', ' când ', ' dacă ', ' ca ', ' că ', ' pot ', ' pot fi '];
     for (const word of transitionWords) {
       const idx = line1Full.lastIndexOf(word);
-      if (idx > cutPoint && idx > line1Full.length * 0.4) {
+      const part1Length = idx + word.length;
+      const part2Length = text.length - (idx + word.length);
+      
+      // Check both parts are >= 40 chars
+      if (idx > cutPoint && part1Length >= minPartLength && part2Length >= minPartLength) {
         cutPoint = idx + word.length;
       }
     }
   }
   
-  // Fallback: cut at 60% of line1Full
+  // Fallback: cut at 50% of text
   if (cutPoint === -1) {
-    cutPoint = Math.floor(line1Full.length * 0.6);
-    while (cutPoint < line1Full.length && line1Full[cutPoint] !== ' ') {
+    cutPoint = Math.floor(text.length * 0.5);
+    while (cutPoint < text.length && text[cutPoint] !== ' ') {
       cutPoint++;
     }
-    if (cutPoint < line1Full.length) cutPoint++;
+    if (cutPoint < text.length) cutPoint++;
   }
   
   // Step 4: Split Line 1 into WHITE and RED
