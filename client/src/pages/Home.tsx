@@ -710,6 +710,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       // Section-specific line counters for video naming
       const sectionCounters: Record<string, number> = {};
       
+      // Label-specific line counters for multi-line suffix (B, C, D)
+      const labelLineCounters: Record<string, number> = {};
+      let currentLabel = '';
+      
       const extractedLines: AdLine[] = [];
       
       // Get context IDs for video naming
@@ -742,6 +746,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           };
           
           currentSection = categoryToSection[category] || 'OTHER';
+          
+          // Track current label for multi-line suffix
+          currentLabel = displayName; // e.g., "H1", "H2", "MIRROR", "CTA"
+          labelLineCounters[currentLabel] = 0; // Reset counter for this label
           
           // Add label as a marker line (will be displayed as section header)
           extractedLines.push({
@@ -782,7 +790,19 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             sectionLineNum = sectionCounters[sectionName];
           }
           
-          const videoName = `T${tamId}_C${coreBeliefId}_E${emotionalAngleId}_AD${adId}_${sectionName}${sectionLineNum}_${characterName}`;
+          // Multi-line suffix: If a label has multiple lines, add B, C, D suffix
+          // Increment line counter for current label
+          labelLineCounters[currentLabel]++;
+          const lineNumberUnderLabel = labelLineCounters[currentLabel];
+          
+          // Generate suffix for 2nd, 3rd, 4th lines (B, C, D)
+          let suffix = '';
+          if (lineNumberUnderLabel > 1) {
+            // lineNumberUnderLabel = 2 → B (66), 3 → C (67), 4 → D (68)
+            suffix = String.fromCharCode(66 + lineNumberUnderLabel - 2);
+          }
+          
+          const videoName = `T${tamId}_C${coreBeliefId}_E${emotionalAngleId}_AD${adId}_${sectionName}${sectionLineNum}${suffix}_${characterName}`;
           
           extractedLines.push({
             id: `line-${Date.now()}-${extractedLines.length}`,
