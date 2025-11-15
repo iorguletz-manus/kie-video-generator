@@ -79,6 +79,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [, setLocation] = useLocation();
   
   // Step 1: Categories
+  const [selectedTamId, setSelectedTamId] = useState<number | null>(null);
   const [selectedCoreBeliefId, setSelectedCoreBeliefId] = useState<number | null>(null);
   const [selectedEmotionalAngleId, setSelectedEmotionalAngleId] = useState<number | null>(null);
   const [selectedAdId, setSelectedAdId] = useState<number | null>(null);
@@ -192,9 +193,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   });
   
   // Category queries
-  const { data: coreBeliefs = [], refetch: refetchCoreBeliefs } = trpc.coreBeliefs.list.useQuery({
+  const { data: tams = [], refetch: refetchTams } = trpc.tams.list.useQuery({
     userId: localCurrentUser.id,
   });
+  const { data: coreBeliefs = [], refetch: refetchCoreBeliefs } = trpc.coreBeliefs.listByTamId.useQuery(
+    { tamId: selectedTamId! },
+    { enabled: !!selectedTamId }
+  );
   const { data: emotionalAngles = [], refetch: refetchEmotionalAngles } = trpc.emotionalAngles.listByCoreBeliefId.useQuery(
     { coreBeliefId: selectedCoreBeliefId! },
     { enabled: !!selectedCoreBeliefId }
@@ -217,7 +222,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       characterId: selectedCharacterId!,
     },
     {
-      enabled: !!(selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId),
+      enabled: !!(selectedTamId && selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId),
     }
   );
 
@@ -229,6 +234,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const generateMultipleVariantsMutation = trpc.video.generateMultipleVariants.useMutation();
   
   // Category mutations
+  const createTamMutation = trpc.tams.create.useMutation();
   const createCoreBeliefMutation = trpc.coreBeliefs.create.useMutation();
   const createEmotionalAngleMutation = trpc.emotionalAngles.create.useMutation();
   const createAdMutation = trpc.ads.create.useMutation();
@@ -487,7 +493,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       if (contextSession.reviewHistory) setReviewHistory(contextSession.reviewHistory as any[]);
       
       toast.success('Context data loaded!');
-    } else if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
+    } else if (selectedTamId && selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
       // Context selected but no session exists - clear all data
       console.log('[Context Session] No session found, clearing data');
       setCurrentStep(1);
@@ -501,7 +507,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       setVideoResults([]);
       setReviewHistory([]);
     }
-  }, [contextSession, selectedCoreBeliefId, selectedEmotionalAngleId, selectedAdId, selectedCharacterId]);
+  }, [contextSession, selectedTamId, selectedCoreBeliefId, selectedEmotionalAngleId, selectedAdId, selectedCharacterId]);
   
   // Auto-save session la fiecare schimbare (debounced)
   useEffect(() => {
@@ -550,7 +556,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   
   // Auto-save to context session when data changes (debounced)
   useEffect(() => {
-    if (!selectedCoreBeliefId || !selectedEmotionalAngleId || !selectedAdId || !selectedCharacterId) {
+    if (!selectedTamId || !selectedCoreBeliefId || !selectedEmotionalAngleId || !selectedAdId || !selectedCharacterId) {
       return; // Don't save if context not complete
     }
     
@@ -1865,23 +1871,66 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               <span className="text-3xl">🎯</span>
               Select Your Working Context
             </h2>
-            <p className="text-sm text-gray-600">Choose all 4 categories to start working. This context will apply to all steps.</p>
+            <p className="text-sm text-gray-600">Choose all 5 categories to start working. This context will apply to all steps.</p>
           </div>
           
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-5 gap-4">
+            {/* TAM */}
+            <div>
+              <Label className="text-sm font-semibold text-blue-900 mb-2 block">
+                1. TAM
+              </Label>
+              <Select 
+                value={selectedTamId?.toString() || ''} 
+                onValueChange={async (value) => {
+                  if (value === 'new') {
+                    const name = prompt('Enter new TAM name:');
+                    if (name && name.trim()) {
+                      const result = await createTamMutation.mutateAsync({
+                        userId: localCurrentUser.id,
+                        name: name.trim(),
+                      });
+                      setSelectedTamId(result.id);
+                      refetchTams();
+                      toast.success('TAM created!');
+                    }
+                  } else if (value) {
+                    setSelectedTamId(parseInt(value));
+                    // Reset dependent selections
+                    setSelectedCoreBeliefId(null);
+                    setSelectedEmotionalAngleId(null);
+                    setSelectedAdId(null);
+                    setSelectedCharacterId(null);
+                  }
+                }}
+              >
+                <SelectTrigger className="w-full bg-white">
+                  <SelectValue placeholder="Select TAM" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tams.map((tam) => (
+                    <SelectItem key={tam.id} value={tam.id.toString()}>{tam.name}</SelectItem>
+                  ))}
+                  <SelectItem value="new">+ New TAM</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Core Belief */}
             <div>
               <Label className="text-sm font-semibold text-blue-900 mb-2 block">
-                1. Core Belief
+                2. Core Belief
               </Label>
               <Select 
-                value={selectedCoreBeliefId?.toString() || ''} 
+                value={selectedCoreBeliefId?.toString() || ''}
+                disabled={!selectedTamId}
                 onValueChange={async (value) => {
                   if (value === 'new') {
                     const name = prompt('Enter new Core Belief name:');
                     if (name && name.trim()) {
                       const result = await createCoreBeliefMutation.mutateAsync({
                         userId: localCurrentUser.id,
+                        tamId: selectedTamId,
                         name: name.trim(),
                       });
                       setSelectedCoreBeliefId(result.id);
@@ -1912,7 +1961,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             {/* Emotional Angle */}
             <div>
               <Label className="text-sm font-semibold text-blue-900 mb-2 block">
-                2. Emotional Angle
+                3. Emotional Angle
               </Label>
               <Select 
                 value={selectedEmotionalAngleId?.toString() || ''}
@@ -1953,7 +2002,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             {/* Ad */}
             <div>
               <Label className="text-sm font-semibold text-blue-900 mb-2 block">
-                3. Ad
+                4. Ad
               </Label>
               <Select 
                 value={selectedAdId?.toString() || ''}
@@ -1993,7 +2042,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             {/* Character (Required) */}
             <div>
               <Label className="text-sm font-semibold text-blue-900 mb-2 block">
-                4. Character *
+                5. Character *
               </Label>
               <Select 
                 value={selectedCharacterId?.toString() || ''}
@@ -2029,7 +2078,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           </div>
           
           {/* Context Status */}
-          {selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId && (
+          {selectedTamId && selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId && (
             <div className="mt-4 p-4 bg-green-50 border border-green-300 rounded-lg">
               <p className="text-green-900 font-medium flex items-center gap-2">
                 <span className="text-xl">✅</span>
@@ -2038,31 +2087,29 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             </div>
           )}
           
-          {(!selectedCoreBeliefId || !selectedEmotionalAngleId || !selectedAdId || !selectedCharacterId) && (
+          {(!selectedTamId || !selectedCoreBeliefId || !selectedEmotionalAngleId || !selectedAdId || !selectedCharacterId) && (
             <div className="mt-4 p-4 bg-yellow-50 border border-yellow-300 rounded-lg">
               <p className="text-yellow-900 font-medium flex items-center gap-2">
                 <span className="text-xl">⚠️</span>
-                Please select all 4 categories to continue.
+                Please select all 5 categories to continue.
               </p>
             </div>
           )}
         </div>
 
         {/* Context Required Warning */}
-        {(!selectedCoreBeliefId || !selectedEmotionalAngleId || !selectedAdId || !selectedCharacterId) && (
+        {(!selectedTamId || !selectedCoreBeliefId || !selectedEmotionalAngleId || !selectedAdId || !selectedCharacterId) && (
           <div className="mb-8 p-6 bg-red-50 border-2 border-red-300 rounded-lg">
             <h3 className="text-xl font-bold text-red-900 mb-2 flex items-center gap-2">
               <span className="text-2xl">⛔</span>
               Context Required
             </h3>
-            <p className="text-red-700">
-              Please select all 4 categories (Core Belief, Emotional Angle, Ad, Character) in the context selector above to access the workflow steps.
-            </p>
+            <p className="text-red-700">Please select all 5 categories (TAM, Core Belief, Emotional Angle, Ad, Character) in the context selector above to access the workflow steps.</p>
           </div>
         )}
 
         {/* Breadcrumbs */}
-        {selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId && (
+        {selectedTamId && selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId && (
         <div className="flex justify-between items-center mb-8 px-4">
           {[
             { num: 1, label: "Prepare Ad", icon: FileText },
@@ -2113,7 +2160,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         )}
 
         {/* Back Button */}
-        {selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId && currentStep > 1 && (
+        {selectedTamId && selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId && currentStep > 1 && (
           <div className="mb-4">
             <Button
               onClick={goBack}
@@ -2128,7 +2175,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         )}
         
         {/* All Steps - Only show if context is complete */}
-        {selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId && (
+        {selectedTamId && selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId && (
         <>
         {/* STEP 1: Prepare Text Ad */}
         {currentStep === 1 && (
@@ -2322,7 +2369,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               </div>
 
               {/* Show text input section only after all required categories are selected */}
-              {selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId && (
+              {selectedTamId && selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId && (
                 <>
                   {/* Input Method Selector */}
                   <div className="mb-6">

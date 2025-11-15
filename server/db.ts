@@ -1,6 +1,6 @@
 import { eq, and } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, appUsers, InsertAppUser, appSessions, InsertAppSession, userImages, InsertUserImage, userPrompts, InsertUserPrompt, coreBeliefs, InsertCoreBelief, emotionalAngles, InsertEmotionalAngle, ads, InsertAd, characters, InsertCharacter, contextSessions, InsertContextSession } from "../drizzle/schema";
+import { InsertUser, users, appUsers, InsertAppUser, appSessions, InsertAppSession, userImages, InsertUserImage, userPrompts, InsertUserPrompt, tams, coreBeliefs, InsertCoreBelief, emotionalAngles, InsertEmotionalAngle, ads, InsertAd, characters, InsertCharacter, contextSessions, InsertContextSession } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -344,6 +344,46 @@ export async function deleteUserPrompt(id: number) {
 }
 
 // ============================================================================
+// TAMs CRUD
+// ============================================================================
+
+export async function createTam(data: any) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(tams).values(data);
+  return result;
+}
+
+export async function getTamsByUserId(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db.select().from(tams).where(eq(tams.userId, userId));
+}
+
+export async function getTamById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const results = await db.select().from(tams).where(eq(tams.id, id));
+  return results[0] || null;
+}
+
+export async function updateTam(id: number, data: Partial<any>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(tams).set(data).where(eq(tams.id, id));
+}
+
+export async function deleteTam(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.delete(tams).where(eq(tams.id, id));
+}
+
 // CORE BELIEFS CRUD
 // ============================================================================
 
@@ -360,6 +400,13 @@ export async function getCoreBeliefsByUserId(userId: number) {
   if (!db) return [];
   
   return await db.select().from(coreBeliefs).where(eq(coreBeliefs.userId, userId));
+}
+
+export async function getCoreBeliefsByTamId(tamId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db.select().from(coreBeliefs).where(eq(coreBeliefs.tamId, tamId));
 }
 
 export async function getCoreBeliefById(id: number) {

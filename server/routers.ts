@@ -15,7 +15,7 @@ const execAsync = promisify(exec);
 import { saveVideoTask, updateVideoTask } from "./videoCache";
 import { parseAdDocument, parsePromptDocument, replaceInsertText, parseAdDocumentWithSections, PromptType } from "./documentParser";
 import { processAdDocument, addRedOnLine1 } from "./text-processor";
-import { createAppUser, getAppUserByUsername, getAppUserById, updateAppUser, createAppSession, getAppSessionsByUserId, updateAppSession, deleteAppSession, createUserImage, getUserImagesByUserId, getUserImagesByCharacter, updateUserImage, deleteUserImage, getUniqueCharacterNames, createUserPrompt, getUserPromptsByUserId, getUserPromptById, updateUserPrompt, deleteUserPrompt, createCoreBelief, getCoreBeliefsByUserId, getCoreBeliefById, updateCoreBelief, deleteCoreBelief, createEmotionalAngle, getEmotionalAnglesByUserId, getEmotionalAnglesByCoreBeliefId, getEmotionalAngleById, updateEmotionalAngle, deleteEmotionalAngle, createAd, getAdsByUserId, getAdsByEmotionalAngleId, getAdById, updateAd, deleteAd, createCharacter, getCharactersByUserId, getCharacterById, updateCharacter, deleteCharacter, getContextSession, upsertContextSession, deleteContextSession } from "./db";
+import { createAppUser, getAppUserByUsername, getAppUserById, updateAppUser, createAppSession, getAppSessionsByUserId, updateAppSession, deleteAppSession, createUserImage, getUserImagesByUserId, getUserImagesByCharacter, updateUserImage, deleteUserImage, getUniqueCharacterNames, createUserPrompt, getUserPromptsByUserId, getUserPromptById, updateUserPrompt, deleteUserPrompt, createTam, getTamsByUserId, getTamById, updateTam, deleteTam, createCoreBelief, getCoreBeliefsByUserId, getCoreBeliefsByTamId, getCoreBeliefById, updateCoreBelief, deleteCoreBelief, createEmotionalAngle, getEmotionalAnglesByUserId, getEmotionalAnglesByCoreBeliefId, getEmotionalAngleById, updateEmotionalAngle, deleteEmotionalAngle, createAd, getAdsByUserId, getAdsByEmotionalAngleId, getAdById, updateAd, deleteAd, createCharacter, getCharactersByUserId, getCharacterById, updateCharacter, deleteCharacter, getContextSession, upsertContextSession, deleteContextSession } from "./db";
 import { seedDefaultPromptsForUser } from "./seedDefaultPrompts";
 
 export const appRouter = router({
@@ -1082,12 +1082,12 @@ export const appRouter = router({
       }),
   }),
 
-  // Core Beliefs router
-  coreBeliefs: router({
+  // TAMs router
+  tams: router({
     list: publicProcedure
       .input(z.object({ userId: z.number() }))
       .query(async ({ input }) => {
-        return await getCoreBeliefsByUserId(input.userId);
+        return await getTamsByUserId(input.userId);
       }),
     
     create: publicProcedure
@@ -1096,8 +1096,38 @@ export const appRouter = router({
         name: z.string().min(1).max(255),
       }))
       .mutation(async ({ input }) => {
+        const result = await createTam({
+          userId: input.userId,
+          name: input.name,
+        });
+        return { success: true, id: result[0].insertId };
+      }),
+  }),
+
+  // Core Beliefs router
+  coreBeliefs: router({
+    list: publicProcedure
+      .input(z.object({ userId: z.number() }))
+      .query(async ({ input }) => {
+        return await getCoreBeliefsByUserId(input.userId);
+      }),
+    
+    listByTamId: publicProcedure
+      .input(z.object({ tamId: z.number() }))
+      .query(async ({ input }) => {
+        return await getCoreBeliefsByTamId(input.tamId);
+      }),
+    
+    create: publicProcedure
+      .input(z.object({
+        userId: z.number(),
+        tamId: z.number(),
+        name: z.string().min(1).max(255),
+      }))
+      .mutation(async ({ input }) => {
         const result = await createCoreBelief({
           userId: input.userId,
+          tamId: input.tamId,
           name: input.name,
         });
         return { success: true, id: result[0].insertId };

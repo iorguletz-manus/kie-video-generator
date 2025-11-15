@@ -96,12 +96,28 @@ export type UserPrompt = typeof userPrompts.$inferSelect;
 export type InsertUserPrompt = typeof userPrompts.$inferInsert;
 
 /**
+ * TAM (Target Audience Market) table
+ * Top-level parent category before Core Beliefs
+ */
+export const tams = mysqlTable("tams", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(), // Foreign key to app_users.id
+  name: varchar("name", { length: 255 }).notNull(), // TAM name
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Tam = typeof tams.$inferSelect;
+export type InsertTam = typeof tams.$inferInsert;
+
+/**
  * Core Beliefs table
- * Top-level category for organizing ads
+ * Second-level category under TAM
  */
 export const coreBeliefs = mysqlTable("core_beliefs", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(), // Foreign key to app_users.id
+  tamId: int("tamId").notNull(), // Foreign key to tams.id
   name: varchar("name", { length: 255 }).notNull(), // Core belief name
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -159,11 +175,12 @@ export type InsertCharacter = typeof characters.$inferInsert;
 
 /**
  * Context sessions table for storing workflow data per context
- * Each context (Core Belief + Emotional Angle + Ad + Character) has its own session data
+ * Each context (TAM + Core Belief + Emotional Angle + Ad + Character) has its own session data
  */
 export const contextSessions = mysqlTable("context_sessions", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
+  tamId: int("tamId").notNull(),
   coreBeliefId: int("coreBeliefId").notNull(),
   emotionalAngleId: int("emotionalAngleId").notNull(),
   adId: int("adId").notNull(),
