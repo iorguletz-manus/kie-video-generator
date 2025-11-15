@@ -84,6 +84,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [rawTextAd, setRawTextAd] = useState<string>('');
   const [processedTextAd, setProcessedTextAd] = useState<string>('');
   
+  // STEP 2: Document source selector
+  const [documentSource, setDocumentSource] = useState<'inherited' | 'upload'>('inherited');
+  
   // Step 2: Text Ad Document (moved from STEP 1)
   const [adDocument, setAdDocument] = useState<File | null>(null);
   const [adLines, setAdLines] = useState<AdLine[]>([]);
@@ -675,19 +678,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         rawText: rawTextAd,
       });
       
-      // Convert processedLines array to string
-      const processedText = result.processedLines
-        .map((line: any) => {
-          if (line.type === 'label') {
-            return line.text;
-          } else {
-            return line.text + ` (${line.charCount} chars)`;
-          }
-        })
-        .join('\n');
+      // Extract only text lines (not labels) for STEP 2
+      const extractedLines = result.processedLines
+        .filter((line: any) => line.type === 'text')
+        .map((line: any) => line.text);
       
-      setProcessedTextAd(processedText);
-      toast.success('Text processed successfully!');
+      // Set extracted lines for STEP 2
+      setExtractedLines(extractedLines);
+      
+      toast.success(`Text processed! ${extractedLines.length} lines extracted.`);
       setCurrentStep(2);
     } catch (error: any) {
       toast.error(`Error processing text: ${error.message}`);
@@ -2344,7 +2343,22 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-6">
-              {/* Document Upload */}
+              {/* Document Source Selector */}
+              <div className="mb-6">
+                <Label className="text-blue-900 font-medium mb-2 block">Document Source:</Label>
+                <Select value={documentSource} onValueChange={(value: 'inherited' | 'upload') => setDocumentSource(value)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="inherited">Inherited from STEP 1</SelectItem>
+                    <SelectItem value="upload">Upload New Document</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* Upload Mode */}
+              {documentSource === 'upload' && (
               <div
                 onDrop={handleAdDocumentDrop}
                 onDragOver={(e) => e.preventDefault()}
@@ -2383,6 +2397,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     Șterge document
                   </Button>
                 </div>
+              )}
               )}
 
               {adLines.length > 0 && (

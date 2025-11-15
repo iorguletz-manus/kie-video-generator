@@ -18,11 +18,36 @@ interface OutputItem {
   charCount?: number;
 }
 
-const LABELS = [
-  'HOOKS:', 'H1:', 'H2:', 'H3:', 'H4:', 'H5:', 'H6:', 'H7:', 'H8:', 'H9:',
-  'MIRROR1', 'DCS & IDENTITY1', 'TRANZITIE1', 'NEW CAUSE1', 'MECHANISM1',
-  'EMOTIONAL PROOF1', 'TRANSFORMATION1', 'CTA1'
+// Base labels without numbers/separators
+const BASE_LABELS = [
+  'HOOKS', 'H', 'MIRROR', 'DCS', 'IDENTITY', 'TRANZITIE', 'TRANZITION', 'NEW CAUSE', 'MECHANISM',
+  'EMOTIONAL PROOF', 'TRANSFORMATION', 'CTA'
 ];
+
+/**
+ * Check if a line is a label (flexible matching)
+ * Matches: HOOKS:, H1:, NEW-CAUSE2, EMOTIONAL_PROOF, etc.
+ */
+function isLabel(line: string): boolean {
+  const trimmed = line.trim().toUpperCase();
+  
+  // Remove trailing colon if present
+  const withoutColon = trimmed.endsWith(':') ? trimmed.slice(0, -1) : trimmed;
+  
+  // Normalize separators (-, _, space) to single space
+  const normalized = withoutColon.replace(/[-_]/g, ' ');
+  
+  // Remove trailing digits
+  const withoutDigits = normalized.replace(/\d+$/, '').trim();
+  
+  // Check if matches any base label
+  return BASE_LABELS.some(label => {
+    const normalizedLabel = label.replace(/[-_]/g, ' ');
+    return withoutDigits === normalizedLabel || 
+           withoutDigits.startsWith(normalizedLabel + ' ') ||
+           normalized === normalizedLabel;
+  });
+}
 
 /**
  * Add Romanian diacritics to text
@@ -317,7 +342,10 @@ function processText(text: string, minC: number = 118, maxC: number = 125): Proc
  * Process full document text
  */
 export function processAdDocument(rawText: string): OutputItem[] {
-  const lines = rawText.split('\n');
+  // Remove [HEADER]...[/HEADER] sections
+  let cleanedText = rawText.replace(/\[HEADER\][\s\S]*?\[\/HEADER\]/gi, '');
+  
+  const lines = cleanedText.split('\n');
   const outputData: OutputItem[] = [];
   let currentText: string[] = [];
 
@@ -327,9 +355,9 @@ export function processAdDocument(rawText: string): OutputItem[] {
       continue;
     }
 
-    const isLabel = LABELS.some(lbl => trimmedLine === lbl || trimmedLine.startsWith(lbl));
+    const lineIsLabel = isLabel(trimmedLine);
 
-    if (isLabel) {
+    if (lineIsLabel) {
       if (currentText.length > 0) {
         const full = currentText.join(' ');
         const processed = processText(full);
