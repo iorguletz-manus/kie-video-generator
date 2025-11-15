@@ -743,8 +743,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             'DCS': 'DCS',
             'TRANZITION': 'TRANZITION',
             'NEW CAUSE': 'NEW_CAUSE',
+            'NEW-CAUSE': 'NEW_CAUSE',  // Backend sends hyphenated version
             'MECHANISM': 'MECHANISM',
             'EMOTIONAL PROOF': 'EMOTIONAL_PROOF',
+            'EMOTIONAL-PROOF': 'EMOTIONAL_PROOF',  // Backend sends hyphenated version
             'TRANSFORMATION': 'TRANSFORMATION',
             'CTA': 'CTA',
           };
