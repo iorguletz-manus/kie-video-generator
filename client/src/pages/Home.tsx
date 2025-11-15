@@ -723,7 +723,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       const emotionalAngleId = selectedEmotionalAngleId || 1;
       const adId = selectedAdId || 1;
       const characterName = selectedCharacterId ? 
-        (characters?.find(c => c.id === selectedCharacterId)?.name || 'UNKNOWN').toUpperCase() : 
+        (categoryCharacters?.find(c => c.id === selectedCharacterId)?.name || 'UNKNOWN').toUpperCase() : 
         'UNKNOWN';
       
       for (const line of result.processedLines) {
