@@ -675,7 +675,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         rawText: rawTextAd,
       });
       
-      // Convert processedLines array to string
+      // Convert processedLines array to string for display
       const processedText = result.processedLines
         .map((line: any) => {
           if (line.type === 'label') {
@@ -687,7 +687,22 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         .join('\n');
       
       setProcessedTextAd(processedText);
-      toast.success('Text processed successfully!');
+      
+      // Convert processedLines to AdLine[] format for STEP 2
+      const extractedLines: AdLine[] = result.processedLines
+        .filter((line: any) => line.type === 'text') // Only text lines, not labels
+        .map((line: any, index: number) => ({
+          id: `line-${Date.now()}-${index}`,
+          text: line.text,
+          section: 'OTHER' as SectionType, // Default section
+          promptType: 'PROMPT_NEUTRAL' as PromptType, // Default prompt
+          videoName: `video_${index + 1}`,
+          categoryNumber: index + 1,
+          charCount: line.charCount || line.text.length,
+        }));
+      
+      setAdLines(extractedLines);
+      toast.success(`Text processed successfully! ${extractedLines.length} lines extracted.`);
       setCurrentStep(2);
     } catch (error: any) {
       toast.error(`Error processing text: ${error.message}`);
@@ -2344,26 +2359,62 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-6">
-              {/* Document Upload */}
+              {/* Document Source Selector */}
+              <div className="mb-6">
+                <Label className="text-blue-900 font-medium mb-3 block">Document Source:</Label>
+                <div className="flex gap-4">
+                  <Button
+                    onClick={() => {
+                      // Keep lines from STEP 1 - already in adLines
+                      toast.success('Using lines inherited from STEP 1');
+                    }}
+                    variant={adDocument ? 'outline' : 'default'}
+                    className={adDocument ? '' : 'bg-blue-600 hover:bg-blue-700'}
+                    disabled={adLines.length === 0}
+                  >
+                    Inherited from STEP 1 {adLines.length > 0 && `(${adLines.length} lines)`}
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      document.getElementById('ad-upload')?.click();
+                    }}
+                    variant={adDocument ? 'default' : 'outline'}
+                    className={adDocument ? 'bg-blue-600 hover:bg-blue-700' : ''}
+                  >
+                    Upload New Document
+                  </Button>
+                </div>
+              </div>
+
+              {/* Document Upload (only shown when Upload New Document is active) */}
+              {!adDocument && adLines.length === 0 && (
+                <div className="mb-6 p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-yellow-900 text-sm">
+                    ⚠️ No lines available from STEP 1. Please upload a document or go back to STEP 1 to process text.
+                  </p>
+                </div>
+              )}
+              
               <div
                 onDrop={handleAdDocumentDrop}
                 onDragOver={(e) => e.preventDefault()}
                 className="border-2 border-dashed border-blue-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors cursor-pointer bg-blue-50/50"
                 onClick={() => !adDocument && document.getElementById('ad-upload')?.click()}
+                style={{ display: adDocument || adLines.length > 0 ? 'none' : 'block' }}
               >
                 <Upload className="w-12 h-12 text-blue-500 mx-auto mb-4" />
                 <p className="text-blue-900 font-medium mb-2">
-                  {adDocument ? adDocument.name : "Drop document here or click to upload"}
+                  Drop document here or click to upload
                 </p>
                 <p className="text-sm text-gray-500 italic">Suportă .docx, .doc</p>
-                <input
-                  id="ad-upload"
-                  type="file"
-                  accept=".docx,.doc"
-                  className="hidden"
-                  onChange={handleAdDocumentSelect}
-                />
               </div>
+              <input
+                id="ad-upload"
+                type="file"
+                accept=".docx,.doc"
+                className="hidden"
+                onChange={handleAdDocumentSelect}
+              />
               
               {/* Buton șterge document */}
               {adDocument && (
