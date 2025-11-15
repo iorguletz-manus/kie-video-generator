@@ -714,6 +714,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       const labelLineCounters: Record<string, number> = {};
       let currentLabel = '';
       
+      // Track section name for each label (to preserve across multiple lines)
+      const labelSectionNames: Record<string, string> = {};
+      
       const extractedLines: AdLine[] = [];
       
       // Get context for video naming
@@ -774,27 +777,40 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           // Generate video name based on section and context
           // Format: T{tamNum}_C{cbNum}_E{eaNum}_AD{adNum}_{SECTION}{lineNum}_{CHARACTER}
           
-          // Normalize section name: remove underscores only (keep hyphens)
-          // EMOTIONAL_PROOF → EMOTIONAL-PROOF, NEW_CAUSE → NEW-CAUSE
-          let sectionName = currentSection.replace(/_/g, '-');
+          let sectionName = '';
           let sectionLineNum = '';
           
-          // Get the label that precedes this line (to handle H1, H2, etc.)
-          const precedingLabel = extractedLines.length > 0 ? extractedLines[extractedLines.length - 1] : null;
-          
-          // EXCEPTION: For HOOKS subcategories (H1, H2, H3, etc.) → use HOOK1, HOOK2, HOOK3
-          if (currentSection === 'HOOKS' && precedingLabel && precedingLabel.categoryNumber === 0) {
-            const labelText = precedingLabel.text; // e.g., "H1", "H2", "H3"
-            const hookMatch = labelText.match(/^H(\d+)$/);
-            if (hookMatch) {
-              // H1 → HOOK1 (number already included in sectionName)
-              sectionName = `HOOK${hookMatch[1]}`;
-              sectionLineNum = ''; // Don't add line number for HOOKS (already in HOOK1, HOOK2, etc.)
-            }
+          // Check if we already have a section name for this label (for 2nd, 3rd lines)
+          if (labelSectionNames[currentLabel]) {
+            // Reuse the section name from first line
+            sectionName = labelSectionNames[currentLabel];
+            sectionLineNum = ''; // Already included in sectionName for HOOKS
           } else {
-            // For other sections, use line number under current label
-            // First line of MIRROR → MIRROR1, second line → MIRROR1B (with suffix B)
-            sectionLineNum = '1'; // Always 1 for first line of a label
+            // First line under this label - determine section name
+            // Normalize section name: remove underscores only (keep hyphens)
+            // EMOTIONAL_PROOF → EMOTIONAL-PROOF, NEW_CAUSE → NEW-CAUSE
+            sectionName = currentSection.replace(/_/g, '-');
+            
+            // Get the label that precedes this line (to handle H1, H2, etc.)
+            const precedingLabel = extractedLines.length > 0 ? extractedLines[extractedLines.length - 1] : null;
+            
+            // EXCEPTION: For HOOKS subcategories (H1, H2, H3, etc.) → use HOOK1, HOOK2, HOOK3
+            if (currentSection === 'HOOKS' && precedingLabel && precedingLabel.categoryNumber === 0) {
+              const labelText = precedingLabel.text; // e.g., "H1", "H2", "H3"
+              const hookMatch = labelText.match(/^H(\d+)$/);
+              if (hookMatch) {
+                // H1 → HOOK1 (number already included in sectionName)
+                sectionName = `HOOK${hookMatch[1]}`;
+                sectionLineNum = ''; // Don't add line number for HOOKS (already in HOOK1, HOOK2, etc.)
+              }
+            } else {
+              // For other sections, use line number under current label
+              // First line of MIRROR → MIRROR1, second line → MIRROR1B (with suffix B)
+              sectionLineNum = '1'; // Always 1 for first line of a label
+            }
+            
+            // Save section name for this label (for subsequent lines)
+            labelSectionNames[currentLabel] = sectionName;
           }
           
           // Multi-line suffix: If a label has multiple lines, add B, C, D suffix
