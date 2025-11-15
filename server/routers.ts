@@ -866,15 +866,24 @@ export const appRouter = router({
           // Check if this is the first image for this character
           const existingImages = await getUserImagesByCharacter(input.userId, normalizedCharacterName);
           if (existingImages.length === 1) {
-            // This is the first image! Update character with thumbnail
-            console.log('[imageLibrary.upload] First image for character, updating thumbnail');
+            // This is the first image! Create or update character
+            console.log('[imageLibrary.upload] First image for character, creating/updating character');
             
             // Find the character by name
             const characters = await getCharactersByUserId(input.userId);
-            const character = characters.find(c => c.name === normalizedCharacterName);
+            let character = characters.find(c => c.name === normalizedCharacterName);
             
-            if (character) {
-              // Use the same image URL as thumbnail (no cropping for now, just use original)
+            if (!character) {
+              // Character doesn't exist in categoryCharacters, create it!
+              console.log('[imageLibrary.upload] Character not found, creating new categoryCharacter:', normalizedCharacterName);
+              character = await createCharacter({
+                userId: input.userId,
+                name: normalizedCharacterName,
+                thumbnailUrl: imageUrl,
+              });
+              console.log('[imageLibrary.upload] Character created:', character.id);
+            } else {
+              // Character exists, just update thumbnail
               await updateCharacter(character.id, {
                 thumbnailUrl: imageUrl,
               });
