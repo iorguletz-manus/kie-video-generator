@@ -1235,14 +1235,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     const newCombinations: Combination[] = textLines.map((line, index) => {
       let selectedImage = defaultImage;
       
-      // Dacă există poză CTA, verifică dacă LINIA CURENTĂ conține keywords CTA
-      if (ctaImage) {
-        const lowerText = line.text.toLowerCase();
-        const hasCTAKeyword = ctaKeywords.some(keyword => lowerText.includes(keyword));
-        
-        if (hasCTAKeyword) {
-          selectedImage = ctaImage;
-        }
+      // Dacă există poză CTA și suntem de la prima linie cu keyword CTA până la sfârșit
+      if (ctaImage && firstCarteIndex !== -1 && index >= firstCarteIndex) {
+        selectedImage = ctaImage;
       }
       
       return {
@@ -1264,11 +1259,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     console.log('[Create Mappings] Created', newCombinations.length, 'combinations from', textLines.length, 'text lines');
     console.log('[Create Mappings] First 3 texts:', textLines.slice(0, 3).map(l => l.text.substring(0, 50)));
     
-    // Count how many lines got CTA image
-    const ctaLinesCount = newCombinations.filter(c => c.imageId === ctaImage?.id).length;
-    
-    if (ctaImage && ctaLinesCount > 0) {
-      toast.success(`${newCombinations.length} combinații create. Poza CTA mapata pe ${ctaLinesCount} linii cu keywords CTA`);
+    if (ctaImage && firstCarteIndex !== -1) {
+      const ctaLinesCount = textLines.length - firstCarteIndex;
+      toast.success(`${newCombinations.length} combinații create. Poza CTA mapata de la linia ${firstCarteIndex + 1} până la sfârșit (${ctaLinesCount} linii)`);
     } else {
       toast.success(`${newCombinations.length} combinații create cu mapare automată`);
     }
