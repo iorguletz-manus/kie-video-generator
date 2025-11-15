@@ -671,6 +671,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
 
     try {
+      // RESET: Clear all previous data before processing
+      setAdLines([]);
+      setAdDocument(null);
+      setProcessedTextAd('');
+      
       const result = await processTextAdMutation.mutateAsync({
         rawText: rawTextAd,
       });
@@ -689,20 +694,68 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       setProcessedTextAd(processedText);
       
       // Convert processedLines to AdLine[] format for STEP 2
-      const extractedLines: AdLine[] = result.processedLines
-        .filter((line: any) => line.type === 'text') // Only text lines, not labels
-        .map((line: any, index: number) => ({
-          id: `line-${Date.now()}-${index}`,
-          text: line.text,
-          section: 'OTHER' as SectionType, // Default section
-          promptType: 'PROMPT_NEUTRAL' as PromptType, // Default prompt
-          videoName: `video_${index + 1}`,
-          categoryNumber: index + 1,
-          charCount: line.charCount || line.text.length,
-        }));
+      // Keep track of current section from labels
+      let currentSection: SectionType = 'OTHER';
+      let lineCounter = 0;
+      
+      const extractedLines: AdLine[] = [];
+      
+      for (const line of result.processedLines) {
+        if (line.type === 'label') {
+          // Update current section based on label
+          const labelUpper = line.text.toUpperCase().trim().replace(/[:\s-_]+$/, '');
+          
+          // Map label to SectionType
+          if (labelUpper.startsWith('HOOK') || labelUpper.startsWith('H')) {
+            currentSection = 'HOOKS';
+          } else if (labelUpper.includes('MIRROR')) {
+            currentSection = 'MIRROR';
+          } else if (labelUpper.includes('DCS')) {
+            currentSection = 'DCS';
+          } else if (labelUpper.includes('TRANZIT')) {
+            currentSection = 'TRANZITION';
+          } else if (labelUpper.includes('NEW') && labelUpper.includes('CAUSE')) {
+            currentSection = 'NEW_CAUSE';
+          } else if (labelUpper.includes('MECHANISM')) {
+            currentSection = 'MECHANISM';
+          } else if (labelUpper.includes('EMOTIONAL') && labelUpper.includes('PROOF')) {
+            currentSection = 'EMOTIONAL_PROOF';
+          } else if (labelUpper.includes('TRANSFORMATION')) {
+            currentSection = 'TRANSFORMATION';
+          } else if (labelUpper.includes('CTA')) {
+            currentSection = 'CTA';
+          } else {
+            currentSection = 'OTHER';
+          }
+          
+          // Add label as a marker line (will be displayed as section header)
+          extractedLines.push({
+            id: `label-${Date.now()}-${extractedLines.length}`,
+            text: line.text, // Keep original label text (e.g., "H1", "MIRROR", "CTA")
+            section: currentSection,
+            promptType: 'PROMPT_NEUTRAL' as PromptType,
+            videoName: '', // Empty for labels
+            categoryNumber: 0, // 0 indicates this is a label, not a content line
+            charCount: 0,
+          });
+        } else if (line.type === 'text') {
+          // Add text line under current section
+          lineCounter++;
+          extractedLines.push({
+            id: `line-${Date.now()}-${extractedLines.length}`,
+            text: line.text,
+            section: currentSection,
+            promptType: 'PROMPT_NEUTRAL' as PromptType,
+            videoName: `video_${lineCounter}`,
+            categoryNumber: lineCounter,
+            charCount: line.charCount || line.text.length,
+          });
+        }
+      }
       
       setAdLines(extractedLines);
-      toast.success(`Text processed successfully! ${extractedLines.length} lines extracted.`);
+      const contentLineCount = extractedLines.filter(l => l.categoryNumber > 0).length;
+      toast.success(`Text processed successfully! ${contentLineCount} lines extracted.`);
       setCurrentStep(2);
     } catch (error: any) {
       toast.error(`Error processing text: ${error.message}`);
@@ -2439,19 +2492,32 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               {adLines.length > 0 && (
                 <div className="mt-6">
                   <p className="font-medium text-blue-900 mb-3">
-                    {adLines.length} linii extrase:
+                    {adLines.filter(l => l.categoryNumber > 0).length} linii extrase:
                   </p>
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {adLines.map((line, index) => (
-                      <div key={line.id} className="p-3 bg-white rounded border border-blue-200 text-sm">
-                        <div className="flex justify-between items-start mb-1">
-                          <span className="font-medium text-blue-700">#{index + 1}:</span>
-                          <span className="text-xs text-gray-500">{line.charCount} caractere</span>
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {adLines.map((line) => {
+                      // If categoryNumber is 0, this is a label (section header)
+                      if (line.categoryNumber === 0) {
+                        return (
+                          <div key={line.id} className="mt-4 mb-2">
+                            <h3 className="font-bold text-blue-800 text-lg border-b-2 border-blue-300 pb-1">
+                              {line.text}
+                            </h3>
+                          </div>
+                        );
+                      }
+                      
+                      // Otherwise, it's a content line
+                      return (
+                        <div key={line.id} className="p-3 bg-white rounded border border-blue-200 text-sm ml-4">
+                          <div className="flex justify-between items-start mb-1">
+                            <span className="text-xs text-gray-500">{line.charCount} caractere</span>
+                          </div>
+                          <p className="text-gray-800">{line.text}</p>
+                          <span className="text-xs text-gray-500">({line.promptType})</span>
                         </div>
-                        <p>{line.text}</p>
-                        <span className="text-xs text-gray-500">({line.promptType})</span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                   <Button
                     onClick={() => setCurrentStep(3)}
