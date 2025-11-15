@@ -55,6 +55,7 @@ const CATEGORY_MAPPINGS: Record<string, { category: string; display: string }> =
   // EMOTIONAL PROOF
   'EMOTIONAL PROOF': { category: 'EMOTIONAL PROOF', display: 'EMOTIONAL PROOF' },
   'EMOTIONAL_PROOF': { category: 'EMOTIONAL PROOF', display: 'EMOTIONAL PROOF' },
+  'EMOTIONAL-PROOF': { category: 'EMOTIONAL PROOF', display: 'EMOTIONAL PROOF' },
   
   // TRANSFORMATION
   'TRANSFORMATION': { category: 'TRANSFORMATION', display: 'TRANSFORMATION' },
@@ -109,12 +110,31 @@ function normalizeCategory(rawLabel: string): { category: string; subcategory: s
 }
 
 /**
+ * Build smart regex pattern from known category labels
+ * Matches H1-H100 and all known category labels (including multi-word ones)
+ */
+function buildLabelPattern(): RegExp {
+  // Get all known labels from CATEGORY_MAPPINGS
+  const knownLabels = Object.keys(CATEGORY_MAPPINGS);
+  
+  // Sort by length (longest first) to match "NEW CAUSE" before "CAUSE"
+  const sorted = knownLabels.sort((a, b) => b.length - a.length);
+  
+  // Escape special regex chars and join with |
+  const escapedLabels = sorted.map(l => l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  
+  // Pattern: H1-H100 OR known labels, followed by optional colon/space and content
+  const pattern = `^(H\\d{1,3}|${escapedLabels.join('|')})(?::|\\s+|$)(.*)$`;
+  
+  return new RegExp(pattern, 'i');
+}
+
+// Build the pattern once at module load
+const LABEL_PATTERN = buildLabelPattern();
+
+/**
  * Check if a line is a label and extract category info
- * Supports 4 formats:
- * 1. "H1" (standalone)
- * 2. "H1:" (with colon)
- * 3. "H1 [content]" (space + content)
- * 4. "H1: [content]" (colon + content)
+ * Uses smart regex that matches known labels (including multi-word like "NEW CAUSE")
  */
 function parseLabel(line: string): { isLabel: boolean; categoryInfo: any; content: string | null } {
   const trimmed = line.trim();
@@ -123,39 +143,26 @@ function parseLabel(line: string): { isLabel: boolean; categoryInfo: any; conten
     return { isLabel: false, categoryInfo: null, content: null };
   }
   
-  // Debug logging - log ALL lines to see what's happening
-  console.log('[parseLabel] Input:', JSON.stringify(trimmed));
+  // Try to match against known labels
+  const match = trimmed.match(LABEL_PATTERN);
   
-  if (trimmed.includes('MIRROR') || trimmed.includes('CTA') || trimmed.includes('DCS')) {
-    console.log('[parseLabel] ⚠️ IMPORTANT LINE:', trimmed);
-  }
-  
-  // Format 1 & 2: "H1" or "H1:" (standalone)
-  const standaloneMatch = trimmed.match(/^([A-Z0-9\s_-]+):?\s*$/i);
-  if (standaloneMatch) {
-    const categoryInfo = normalizeCategory(standaloneMatch[1]);
-    if (categoryInfo) {
-      return { isLabel: true, categoryInfo, content: null };
-    }
-  }
-  
-  // Format 3 & 4: "H1 [content]" or "H1: [content]"
-  const prefixMatch = trimmed.match(/^([A-Z0-9\s_-]+):?\s+(.+)$/i);
-  if (prefixMatch) {
-    const potentialLabel = prefixMatch[1];
-    let potentialContent = prefixMatch[2];
+  if (match) {
+    const potentialLabel = match[1];
+    let potentialContent = match[2]?.trim() || null;
     
-    // Only treat as label if it's short enough and valid
-    if (potentialLabel.length <= 30) {
-      const categoryInfo = normalizeCategory(potentialLabel);
-      if (categoryInfo) {
-        // Special case: if label is "DCS" and content starts with "& IDENTITY", trim it
-        if (categoryInfo.category === 'DCS' && potentialContent.match(/^&\s*IDENTITY\s*/i)) {
-          potentialContent = potentialContent.replace(/^&\s*IDENTITY\s*/i, '').trim();
-        }
-        
-        return { isLabel: true, categoryInfo, content: potentialContent || null };
+    const categoryInfo = normalizeCategory(potentialLabel);
+    if (categoryInfo) {
+      // Special case: DCS followed by "& IDENTITY"
+      if (categoryInfo.category === 'DCS' && potentialContent?.match(/^&\s*IDENTITY\s*/i)) {
+        potentialContent = potentialContent.replace(/^&\s*IDENTITY\s*/i, '').trim() || null;
       }
+      
+      // Special case: DCS followed by a number (e.g., "DCS 1")
+      if (categoryInfo.category === 'DCS' && potentialContent?.match(/^\d+\s+/)) {
+        potentialContent = potentialContent.replace(/^\d+\s+/, '').trim() || null;
+      }
+      
+      return { isLabel: true, categoryInfo, content: potentialContent };
     }
   }
   
@@ -464,13 +471,78 @@ function processText(text: string, minC: number = 118, maxC: number = 125): Proc
 }
 
 /**
+ * Pre-process text to split by known labels even if no newlines
+ * This handles documents that are a single long line
+ */
+function splitByLabels(text: string): string[] {
+  // Build pattern from all known labels
+  const knownLabels = Object.keys(CATEGORY_MAPPINGS);
+  const sorted = knownLabels.sort((a, b) => b.length - a.length);
+  const escapedLabels = sorted.map(l => l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  
+  // Pattern: (H\d{1,3}|KNOWN_LABEL)(?::|\s)
+  // This matches labels at word boundaries
+  const labelPattern = `(H\\d{1,3}|${escapedLabels.join('|')})(?=:|\\s|$)`;
+  const regex = new RegExp(labelPattern, 'gi');
+  
+  // Split by labels but keep the labels
+  const parts: string[] = [];
+  let lastIndex = 0;
+  let match;
+  
+  // Reset regex
+  regex.lastIndex = 0;
+  
+  while ((match = regex.exec(text)) !== null) {
+    // Add text before this label
+    if (match.index > lastIndex) {
+      const beforeText = text.substring(lastIndex, match.index).trim();
+      if (beforeText) {
+        parts.push(beforeText);
+      }
+    }
+    
+    // Add the label + rest of line
+    const labelStart = match.index;
+    const nextMatch = regex.exec(text);
+    
+    if (nextMatch) {
+      // There's another label after this one
+      const labelLine = text.substring(labelStart, nextMatch.index).trim();
+      if (labelLine) {
+        parts.push(labelLine);
+      }
+      // Reset for next iteration
+      regex.lastIndex = nextMatch.index;
+      lastIndex = nextMatch.index;
+    } else {
+      // This is the last label
+      const labelLine = text.substring(labelStart).trim();
+      if (labelLine) {
+        parts.push(labelLine);
+      }
+      break;
+    }
+  }
+  
+  return parts;
+}
+
+/**
  * Process full document text
  */
 export function processAdDocument(rawText: string): OutputItem[] {
   // Remove [HEADER]...[/HEADER] sections
   let cleanedText = rawText.replace(/\[HEADER\][\s\S]*?\[\/HEADER\]/gi, '');
   
-  const lines = cleanedText.split('\n');
+  // First, try to split by newlines
+  let lines = cleanedText.split('\n');
+  
+  // If we have very long lines (document without proper line breaks), split by known labels
+  const hasLongLines = lines.some(line => line.length > 500);
+  if (hasLongLines) {
+    lines = splitByLabels(cleanedText);
+  }
   const outputData: OutputItem[] = [];
   let currentText: string[] = [];
 
