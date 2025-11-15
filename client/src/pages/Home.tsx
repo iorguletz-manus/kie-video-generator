@@ -5,6 +5,7 @@ import { ImagesLibraryModal } from '@/components/ImagesLibraryModal';
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -123,6 +124,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   
   // Step 2: Manual prompt textarea
   const [manualPromptText, setManualPromptText] = useState('');
+  const [promptMode, setPromptMode] = useState<'hardcoded' | 'custom' | 'manual'>('hardcoded');
   
   // Update currentTime la fiecare minut pentru "Edited X min ago"
   useEffect(() => {
@@ -1821,19 +1823,37 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-6">
-              {/* Prompturi hardcodate - întotdeauna active */}
-              <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-                <div className="mb-2">
-                  <span className="font-medium text-green-900">Prompturi hardcodate (întotdeauna active)</span>
-                </div>
-                <div className="text-sm text-green-700 space-y-1">
-                  <p>✓ PROMPT_NEUTRAL - pentru secțiuni până la TRANSFORMATION</p>
-                  <p>✓ PROMPT_SMILING - pentru TRANSFORMATION și CTA</p>
-                  <p>✓ PROMPT_CTA - pentru CTA cu carte</p>
-                </div>
+              {/* Selector pentru prompt mode */}
+              <div className="mb-6">
+                <Label className="text-blue-900 font-medium mb-2 block">Tip prompturi:</Label>
+                <Select value={promptMode} onValueChange={(value: 'hardcoded' | 'custom' | 'manual') => setPromptMode(value)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="hardcoded">Prompturi hardcodate</SelectItem>
+                    <SelectItem value="custom">Adaugă prompturi custom</SelectItem>
+                    <SelectItem value="manual">Manual prompt</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
-              {/* Upload prompturi custom - opțional */}
+              {/* Mode: Prompturi hardcodate */}
+              {promptMode === 'hardcoded' && (
+                <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="mb-2">
+                    <span className="font-medium text-green-900">Prompturi hardcodate (întotdeauna active)</span>
+                  </div>
+                  <div className="text-sm text-green-700 space-y-1">
+                    <p>✓ PROMPT_NEUTRAL - pentru secțiuni până la TRANSFORMATION</p>
+                    <p>✓ PROMPT_SMILING - pentru TRANSFORMATION și CTA</p>
+                    <p>✓ PROMPT_CTA - pentru CTA cu carte</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Mode: Upload prompturi custom */}
+              {promptMode === 'custom' && (
               <div className="mb-4">
                 <p className="font-medium text-blue-900 mb-3">Adaugă prompturi custom (opțional):</p>
                 
@@ -1858,10 +1878,49 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     onChange={handlePromptDocumentSelect}
                   />
                 </div>
-                
-                {/* SAU Textarea Manual */}
+
+                {prompts.length > 0 && (
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="font-medium text-blue-900">
+                        {prompts.length} prompturi custom încărcate:
+                      </p>
+                      <Button
+                        onClick={() => {
+                          setPrompts([]);
+                          const input = document.getElementById('prompt-upload') as HTMLInputElement;
+                          if (input) input.value = '';
+                          toast.success('Toate prompturile custom au fost șterse.');
+                        }}
+                        variant="outline"
+                        size="sm"
+                        className="border-red-300 text-red-700 hover:bg-red-50"
+                      >
+                        <X className="w-4 h-4 mr-1" />
+                        Șterge toate
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      {prompts.map((prompt) => (
+                        <div key={prompt.id} className="p-3 bg-white rounded border border-blue-200 flex items-center justify-between">
+                          <span className="text-sm font-medium text-blue-900">{prompt.name}</span>
+                          <button
+                            onClick={() => removePrompt(prompt.id)}
+                            className="p-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                 )}
+              </div>
+              )}
+
+              {/* Mode: Manual prompt */}
+              {promptMode === 'manual' && (
                 <div className="mb-4">
-                  <p className="text-sm text-gray-600 mb-2 text-center font-medium">SAU</p>
                   <div className="border-2 border-blue-300 rounded-lg p-4 bg-white">
                     <label className="block text-sm font-medium text-blue-900 mb-2">
                       Scrie prompt manual (trebuie să conțină [INSERT TEXT]):
@@ -1901,44 +1960,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     </Button>
                   </div>
                 </div>
-
-                {prompts.length > 0 && (
-                  <div className="mt-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="font-medium text-blue-900">
-                        {prompts.length} prompturi custom încărcate:
-                      </p>
-                      <Button
-                        onClick={() => {
-                          setPrompts([]);
-                          const input = document.getElementById('prompt-upload') as HTMLInputElement;
-                          if (input) input.value = '';
-                          toast.success('Toate prompturile custom au fost șterse.');
-                        }}
-                        variant="outline"
-                        size="sm"
-                        className="border-red-300 text-red-700 hover:bg-red-50"
-                      >
-                        <X className="w-4 h-4 mr-1" />
-                        Șterge toate
-                      </Button>
-                    </div>
-                    <div className="space-y-2">
-                      {prompts.map((prompt) => (
-                        <div key={prompt.id} className="p-3 bg-white rounded border border-blue-200 flex items-center justify-between">
-                          <span className="text-sm font-medium text-blue-900">{prompt.name}</span>
-                          <button
-                            onClick={() => removePrompt(prompt.id)}
-                            className="p-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+              )}
 
               {/* Buton continuare - întotdeauna vizibil */}
               <Button

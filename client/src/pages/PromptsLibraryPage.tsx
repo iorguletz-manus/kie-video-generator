@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { ChevronLeft, Plus, Edit2, Copy, Trash2, FileText } from "lucide-react";
@@ -332,41 +333,65 @@ export default function PromptsLibraryPage({ currentUser }: PromptsLibraryPagePr
                     </div>
 
                     <div className="flex gap-2 ml-4">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleEdit(prompt.id)}
-                        className={
-                          prompt.isDefault === 1
-                            ? "border-gray-400 text-gray-600"
-                            : "border-blue-300 text-blue-700"
-                        }
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </Button>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleEdit(prompt.id)}
+                              disabled={prompt.isDefault === 1}
+                              className={
+                                prompt.isDefault === 1
+                                  ? "border-gray-300 text-gray-400 cursor-not-allowed"
+                                  : "border-blue-300 text-blue-700 hover:bg-blue-50"
+                              }
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{prompt.isDefault === 1 ? "Cannot edit default prompts" : "Edit prompt"}</p>
+                          </TooltipContent>
+                        </Tooltip>
 
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleDuplicate(prompt.id)}
-                        className="border-purple-300 text-purple-700"
-                      >
-                        <Copy className="w-4 h-4" />
-                      </Button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleDuplicate(prompt.id)}
+                              className="border-purple-300 text-purple-700 hover:bg-purple-50"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Duplicate prompt</p>
+                          </TooltipContent>
+                        </Tooltip>
 
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleDelete(prompt.id)}
-                        disabled={prompt.isDefault === 1}
-                        className={
-                          prompt.isDefault === 1
-                            ? "border-gray-300 text-gray-400 cursor-not-allowed"
-                            : "border-red-300 text-red-700 hover:bg-red-50"
-                        }
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleDelete(prompt.id)}
+                              disabled={prompt.isDefault === 1}
+                              className={
+                                prompt.isDefault === 1
+                                  ? "border-gray-300 text-gray-400 cursor-not-allowed"
+                                  : "border-red-300 text-red-700 hover:bg-red-50"
+                              }
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{prompt.isDefault === 1 ? "Cannot delete default prompts" : "Delete prompt"}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </div>
                   </div>
                 </CardHeader>

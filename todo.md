@@ -1399,3 +1399,24 @@
 - [x] Implementare filtrare dublă: search (după imageName) + character filter
 - [x] Layout: search bar + character dropdown pe același rând - grid-cols-2 gap-4
 - [ ] Testare: search "alina" + filter "No Character" → rezultate corecte
+
+
+## Prompts Library Fixes
+
+- [x] Disable edit button pentru default prompts (isDefault=1) - disabled + gray
+- [x] Disable delete button pentru default prompts (isDefault=1) - disabled + gray
+- [x] Allow doar duplicate pentru default prompts - duplicate button enabled
+- [x] Add tooltips pe hover: "Edit prompt", "Delete prompt", "Duplicate prompt" - Tooltip component
+- [ ] Testare: hover pe butoane → tooltips apar
+
+## STEP 2 Simplificare - Prompt Modes Selector
+
+- [x] Add selector dropdown cu 3 opțiuni:
+  - "Prompturi hardcodate" (default)
+  - "Adaugă prompturi custom"
+  - "Manual prompt"
+- [x] Mode "Prompturi hardcodate": show lista verde cu ✓ (existing)
+- [x] Mode "Adaugă prompturi custom": show drag & drop zone pentru upload - remove "SAU" textarea
+- [x] Mode "Manual prompt": show textarea pentru manual input - separate mode
+- [x] Hide secțiuni nefolosite bazat pe selector - conditional rendering
+- [ ] Testare: switch între modes → UI se schimbă corect
