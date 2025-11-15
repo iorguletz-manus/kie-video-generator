@@ -707,7 +707,20 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       let currentSection: SectionType = 'OTHER';
       let lineCounter = 0;
       
+      // Section-specific line counters for video naming
+      const sectionCounters: Record<string, number> = {};
+      
       const extractedLines: AdLine[] = [];
+      
+      // Get context IDs for video naming
+      // Format: T{tamId}_C{coreBeliefId}_E{emotionalAngleId}_AD{adId}_{SECTION}{lineNum}_{CHARACTER}
+      const tamId = selectedTamId || 1;
+      const coreBeliefId = selectedCoreBeliefId || 1;
+      const emotionalAngleId = selectedEmotionalAngleId || 1;
+      const adId = selectedAdId || 1;
+      const characterName = selectedCharacterId ? 
+        (characters?.find(c => c.id === selectedCharacterId)?.name || 'UNKNOWN').toUpperCase() : 
+        'UNKNOWN';
       
       for (const line of result.processedLines) {
         if (line.type === 'label') {
@@ -743,12 +756,40 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         } else if (line.type === 'text') {
           // Add text line under current section
           lineCounter++;
+          
+          // Generate video name based on section and context
+          // Format: T{tamId}_C{coreBeliefId}_E{emotionalAngleId}_AD{adId}_{SECTION}{lineNum}_{CHARACTER}
+          let sectionName = currentSection;
+          let sectionLineNum = 1;
+          
+          // Get the label that precedes this line (to handle H1, H2, etc.)
+          const precedingLabel = extractedLines.length > 0 ? extractedLines[extractedLines.length - 1] : null;
+          
+          // EXCEPTION: For HOOKS subcategories (H1, H2, H3, etc.) → use HOOK1, HOOK2, HOOK3
+          if (currentSection === 'HOOKS' && precedingLabel && precedingLabel.categoryNumber === 0) {
+            const labelText = precedingLabel.text; // e.g., "H1", "H2", "H3"
+            const hookMatch = labelText.match(/^H(\d+)$/);
+            if (hookMatch) {
+              sectionName = `HOOK${hookMatch[1]}`; // H1 → HOOK1, H2 → HOOK2
+              sectionLineNum = 1; // Always 1 for first line under each hook
+            }
+          } else {
+            // For other sections, increment counter
+            if (!sectionCounters[sectionName]) {
+              sectionCounters[sectionName] = 0;
+            }
+            sectionCounters[sectionName]++;
+            sectionLineNum = sectionCounters[sectionName];
+          }
+          
+          const videoName = `T${tamId}_C${coreBeliefId}_E${emotionalAngleId}_AD${adId}_${sectionName}${sectionLineNum}_${characterName}`;
+          
           extractedLines.push({
             id: `line-${Date.now()}-${extractedLines.length}`,
             text: line.text,
             section: currentSection,
             promptType: 'PROMPT_NEUTRAL' as PromptType,
-            videoName: `video_${lineCounter}`,
+            videoName: videoName,
             categoryNumber: lineCounter,
             charCount: line.charCount || line.text.length,
             redStart: line.redStart,  // Include red text markers from backend
@@ -1341,12 +1382,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       const sampleResults: VideoResult[] = sampleData.map((data, index) => {
         // Pentru HOOKS folosește HOOK (singular) în nume
         const categoryName = data.section === 'HOOKS' ? 'HOOK' : data.section;
-        // Toate sample videos sunt prima linie din categoria lor (categoryNumber = 1)
+        // Video names are now generated in STEP 2 based on full context
+        // For sample videos, use a placeholder format
         const categoryNumber = 1;
         
         return {
           taskId: data.taskId,
-          videoName: `CB1_A1_${categoryName}${categoryNumber}`,
+          videoName: `SAMPLE_${categoryName}${categoryNumber}`,
           text: data.text,
           imageUrl: 'https://via.placeholder.com/270x480/blue/white?text=Sample',
           status: 'success' as const,
@@ -1372,7 +1414,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           imageUrl: 'https://via.placeholder.com/270x480/blue/white?text=Sample',
           imageId: `sample-img-${index}`,
           promptType: 'PROMPT_NEUTRAL' as PromptType,
-          videoName: `CB1_A1_${categoryName}${categoryNumber}`,
+          videoName: `SAMPLE_${categoryName}${categoryNumber}`,
           section: data.section,
           categoryNumber: categoryNumber,
         };
