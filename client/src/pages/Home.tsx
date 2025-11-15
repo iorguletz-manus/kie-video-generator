@@ -616,6 +616,46 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     reviewHistory,
     isRestoringSession,
   ]);
+  
+  // Auto-select first TAM when TAMs are loaded
+  useEffect(() => {
+    if (tams.length > 0 && !selectedTamId) {
+      console.log('[Auto-select] Setting first TAM:', tams[0].name);
+      setSelectedTamId(tams[0].id);
+    }
+  }, [tams, selectedTamId]);
+  
+  // Auto-select first Core Belief when Core Beliefs are loaded
+  useEffect(() => {
+    if (coreBeliefs.length > 0 && !selectedCoreBeliefId) {
+      console.log('[Auto-select] Setting first Core Belief:', coreBeliefs[0].name);
+      setSelectedCoreBeliefId(coreBeliefs[0].id);
+    }
+  }, [coreBeliefs, selectedCoreBeliefId]);
+  
+  // Auto-select first Emotional Angle when Emotional Angles are loaded
+  useEffect(() => {
+    if (emotionalAngles.length > 0 && !selectedEmotionalAngleId) {
+      console.log('[Auto-select] Setting first Emotional Angle:', emotionalAngles[0].name);
+      setSelectedEmotionalAngleId(emotionalAngles[0].id);
+    }
+  }, [emotionalAngles, selectedEmotionalAngleId]);
+  
+  // Auto-select first Ad when Ads are loaded
+  useEffect(() => {
+    if (ads.length > 0 && !selectedAdId) {
+      console.log('[Auto-select] Setting first Ad:', ads[0].name);
+      setSelectedAdId(ads[0].id);
+    }
+  }, [ads, selectedAdId]);
+  
+  // Auto-select first Character when Characters are loaded
+  useEffect(() => {
+    if (categoryCharacters.length > 0 && !selectedCharacterId) {
+      console.log('[Auto-select] Setting first Character:', categoryCharacters[0].name);
+      setSelectedCharacterId(categoryCharacters[0].id);
+    }
+  }, [categoryCharacters, selectedCharacterId]);
 
   // ========== COMPUTED VALUES (MEMOIZED) ==========
   // Filtered video lists (evită re-compute la fiecare render)
