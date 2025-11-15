@@ -274,8 +274,8 @@ function processLongSentenceWithOverlap(text: string, minC: number = 118, maxC: 
   const line1Red = line1Full.substring(cutPoint).trim();
   
   // Step 5: Line 2 WHITE = continuation from original text
-  const line1WhiteEndInOriginal = text.indexOf(line1White) + line1White.length;
-  const line2White = text.substring(line1WhiteEndInOriginal).trim();
+  // Use exact cut point position, not indexOf (which finds first occurrence)
+  const line2White = text.substring(cutPoint).trim();
   
   // Step 6: Generate random length for Line 2 (118-125)
   const line2TargetLength = Math.floor(Math.random() * (maxC - minC + 1)) + minC;
