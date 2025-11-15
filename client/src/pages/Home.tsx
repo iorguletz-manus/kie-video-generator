@@ -1778,9 +1778,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 py-8">
       <div className="container max-w-6xl">
-        {/* Header cu User Info */}
-        <div className="mb-6 p-4 bg-white border-2 border-blue-200 rounded-lg flex items-center justify-between">
-        <div className="flex items-center justify-end mb-6">
+        {/* User Dropdown - Top Right */}
+        <div className="fixed top-4 right-4 z-50">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors">
@@ -1833,7 +1832,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>  </div>
+        </div>
       
       {/* Edit Profile Modal */}
       <EditProfileModal
