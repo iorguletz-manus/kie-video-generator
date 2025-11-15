@@ -123,9 +123,11 @@ function parseLabel(line: string): { isLabel: boolean; categoryInfo: any; conten
     return { isLabel: false, categoryInfo: null, content: null };
   }
   
-  // Debug logging
-  if (trimmed.includes('MIRROR') || trimmed.includes('CTA')) {
-    console.log('[parseLabel] Processing line:', trimmed);
+  // Debug logging - log ALL lines to see what's happening
+  console.log('[parseLabel] Input:', JSON.stringify(trimmed));
+  
+  if (trimmed.includes('MIRROR') || trimmed.includes('CTA') || trimmed.includes('DCS')) {
+    console.log('[parseLabel] ⚠️ IMPORTANT LINE:', trimmed);
   }
   
   // Format 1 & 2: "H1" or "H1:" (standalone)
