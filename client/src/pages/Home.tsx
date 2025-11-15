@@ -203,6 +203,20 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     userId: localCurrentUser.id,
   });
 
+  // Context session query - load workflow data for selected context
+  const { data: contextSession, refetch: refetchContextSession } = trpc.contextSessions.get.useQuery(
+    {
+      userId: localCurrentUser.id,
+      coreBeliefId: selectedCoreBeliefId!,
+      emotionalAngleId: selectedEmotionalAngleId!,
+      adId: selectedAdId!,
+      characterId: selectedCharacterId!,
+    },
+    {
+      enabled: !!(selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId),
+    }
+  );
+
   // Mutations
   const parseAdMutation = trpc.video.parseAdDocument.useMutation();
   const parsePromptMutation = trpc.video.parsePromptDocument.useMutation();
@@ -218,6 +232,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   
   // Text processing mutation
   const processTextAdMutation = trpc.video.processTextAd.useMutation();
+  
+  // Context session mutation
+  const upsertContextSessionMutation = trpc.contextSessions.upsert.useMutation();
   
   // Session mutations
   const createSessionMutation = trpc.appSession.create.useMutation();
@@ -448,6 +465,40 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
   }, []);
   
+  // Load data from context session when context changes
+  useEffect(() => {
+    if (contextSession) {
+      console.log('[Context Session] Loading data:', contextSession);
+      
+      // Load all workflow data from context session
+      if (contextSession.currentStep) setCurrentStep(contextSession.currentStep);
+      if (contextSession.rawTextAd) setRawTextAd(contextSession.rawTextAd);
+      if (contextSession.processedTextAd) setProcessedTextAd(contextSession.processedTextAd);
+      if (contextSession.adLines) setAdLines(contextSession.adLines as AdLine[]);
+      if (contextSession.prompts) setPrompts(contextSession.prompts as UploadedPrompt[]);
+      if (contextSession.images) setImages(contextSession.images as UploadedImage[]);
+      if (contextSession.combinations) setCombinations(contextSession.combinations as Combination[]);
+      if (contextSession.deletedCombinations) setDeletedCombinations(contextSession.deletedCombinations as Combination[]);
+      if (contextSession.videoResults) setVideoResults(contextSession.videoResults as VideoResult[]);
+      if (contextSession.reviewHistory) setReviewHistory(contextSession.reviewHistory as any[]);
+      
+      toast.success('Context data loaded!');
+    } else if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
+      // Context selected but no session exists - clear all data
+      console.log('[Context Session] No session found, clearing data');
+      setCurrentStep(1);
+      setRawTextAd('');
+      setProcessedTextAd('');
+      setAdLines([]);
+      setPrompts([]);
+      setImages([]);
+      setCombinations([]);
+      setDeletedCombinations([]);
+      setVideoResults([]);
+      setReviewHistory([]);
+    }
+  }, [contextSession, selectedCoreBeliefId, selectedEmotionalAngleId, selectedAdId, selectedCharacterId]);
+  
   // Auto-save session la fiecare schimbare (debounced)
   useEffect(() => {
     if (isRestoringSession) return; // Nu salva în timpul restore
@@ -490,6 +541,62 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     regenerateMultiple,
     regenerateVariantCount,
     regenerateVariants,
+    isRestoringSession,
+  ]);
+  
+  // Auto-save to context session when data changes (debounced)
+  useEffect(() => {
+    if (!selectedCoreBeliefId || !selectedEmotionalAngleId || !selectedAdId || !selectedCharacterId) {
+      return; // Don't save if context not complete
+    }
+    
+    if (isRestoringSession) return; // Don't save during restore
+    
+    const timeoutId = setTimeout(() => {
+      console.log('[Context Session] Auto-saving...');
+      
+      upsertContextSessionMutation.mutate({
+        userId: localCurrentUser.id,
+        coreBeliefId: selectedCoreBeliefId,
+        emotionalAngleId: selectedEmotionalAngleId,
+        adId: selectedAdId,
+        characterId: selectedCharacterId,
+        currentStep,
+        rawTextAd,
+        processedTextAd,
+        adLines,
+        prompts,
+        images,
+        combinations,
+        deletedCombinations,
+        videoResults,
+        reviewHistory,
+      }, {
+        onSuccess: () => {
+          console.log('[Context Session] Auto-saved successfully');
+        },
+        onError: (error) => {
+          console.error('[Context Session] Auto-save failed:', error);
+        },
+      });
+    }, 2000); // Debounce 2 seconds
+    
+    return () => clearTimeout(timeoutId);
+  }, [
+    selectedCoreBeliefId,
+    selectedEmotionalAngleId,
+    selectedAdId,
+    selectedCharacterId,
+    currentStep,
+    rawTextAd,
+    processedTextAd,
+    adLines,
+    prompts,
+    images,
+    combinations,
+    deletedCombinations,
+    videoResults,
+    reviewHistory,
     isRestoringSession,
   ]);
 
