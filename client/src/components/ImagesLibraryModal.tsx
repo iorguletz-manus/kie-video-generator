@@ -23,6 +23,7 @@ export function ImagesLibraryModal({ open, onClose, userId }: ImagesLibraryModal
   const [uploadProgress, setUploadProgress] = useState(0);
   const [editingImageId, setEditingImageId] = useState<number | null>(null);
   const [editingImageName, setEditingImageName] = useState("");
+  const [selectedImageIds, setSelectedImageIds] = useState<number[]>([]);
 
   // Queries
   const { data: images = [], refetch: refetchImages } = trpc.imageLibrary.list.useQuery({
@@ -66,6 +67,18 @@ export function ImagesLibraryModal({ open, onClose, userId }: ImagesLibraryModal
     },
     onError: (error) => {
       toast.error(`Delete failed: ${error.message}`);
+    },
+  });
+  
+  const batchDeleteMutation = trpc.imageLibrary.batchDelete.useMutation({
+    onSuccess: (data) => {
+      refetchImages();
+      refetchCharacters();
+      setSelectedImageIds([]);
+      toast.success(`${data.count} image(s) deleted!`);
+    },
+    onError: (error) => {
+      toast.error(`Batch delete failed: ${error.message}`);
     },
   });
 
@@ -148,6 +161,39 @@ export function ImagesLibraryModal({ open, onClose, userId }: ImagesLibraryModal
 
           {/* All Images Tab */}
           <TabsContent value="all" className="space-y-4">
+            {/* Batch Actions Toolbar */}
+            {selectedImageIds.length > 0 && (
+              <div className="p-3 bg-blue-50 border-2 border-blue-300 rounded-lg flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-bold text-blue-900">
+                    {selectedImageIds.length} image(s) selected
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setSelectedImageIds([])}
+                    className="text-xs"
+                  >
+                    Deselect All
+                  </Button>
+                </div>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => {
+                    if (confirm(`Delete ${selectedImageIds.length} selected image(s)?`)) {
+                      batchDeleteMutation.mutate({ ids: selectedImageIds });
+                    }
+                  }}
+                  disabled={batchDeleteMutation.isPending}
+                  className="bg-red-600 hover:bg-red-700"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Selected
+                </Button>
+              </div>
+            )}
+            
             {/* Search Bar */}
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
@@ -159,6 +205,22 @@ export function ImagesLibraryModal({ open, onClose, userId }: ImagesLibraryModal
                   className="pl-10"
                 />
               </div>
+              {filteredImages.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    if (selectedImageIds.length === filteredImages.length) {
+                      setSelectedImageIds([]);
+                    } else {
+                      setSelectedImageIds(filteredImages.map(img => img.id));
+                    }
+                  }}
+                  className="text-xs"
+                >
+                  {selectedImageIds.length === filteredImages.length ? 'Deselect All' : 'Select All'}
+                </Button>
+              )}
               <Button
                 onClick={() => setIsCreatingCharacter(true)}
                 className="bg-blue-600 hover:bg-blue-700"
@@ -242,8 +304,29 @@ export function ImagesLibraryModal({ open, onClose, userId }: ImagesLibraryModal
                 {filteredImages.map((img) => (
                   <div
                     key={img.id}
-                    className="group relative aspect-square rounded-lg overflow-hidden border-2 border-gray-200 hover:border-blue-400 transition-all"
+                    className={`group relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
+                      selectedImageIds.includes(img.id)
+                        ? 'border-blue-500 ring-2 ring-blue-300'
+                        : 'border-gray-200 hover:border-blue-400'
+                    }`}
                   >
+                    {/* Checkbox */}
+                    <div className="absolute top-2 left-2 z-10">
+                      <input
+                        type="checkbox"
+                        checked={selectedImageIds.includes(img.id)}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          if (selectedImageIds.includes(img.id)) {
+                            setSelectedImageIds(prev => prev.filter(id => id !== img.id));
+                          } else {
+                            setSelectedImageIds(prev => [...prev, img.id]);
+                          }
+                        }}
+                        className="w-5 h-5 cursor-pointer accent-blue-600"
+                      />
+                    </div>
+                    
                     <img
                       src={img.imageUrl}
                       alt={img.imageName}

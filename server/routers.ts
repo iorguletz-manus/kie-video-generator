@@ -950,6 +950,36 @@ export const appRouter = router({
           });
         }
       }),
+      
+    // Batch delete images
+    batchDelete: publicProcedure
+      .input(z.object({
+        ids: z.array(z.number()),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          console.log('[imageLibrary.batchDelete] Deleting images:', input.ids);
+          
+          // Delete all images
+          let deletedCount = 0;
+          for (const id of input.ids) {
+            try {
+              await deleteUserImage(id);
+              deletedCount++;
+            } catch (error) {
+              console.error(`[imageLibrary.batchDelete] Failed to delete image ${id}:`, error);
+            }
+          }
+          
+          console.log('[imageLibrary.batchDelete] Deleted', deletedCount, 'images');
+          return { success: true, count: deletedCount };
+        } catch (error: any) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Failed to batch delete images: ${error.message}`,
+          });
+        }
+      }),
   }),
 
   // Prompts Library router
