@@ -1214,3 +1214,17 @@
 - [x] Adăugare useMemo pentru computed values (videosWithoutDecision, acceptedVideosWithUrl)
 - [x] Înlocuire toate videoResults.filter() din JSX cu computed values
 - [x] Testare performance: verificare că re-renders sunt reduse
+
+
+## Bug Fixes - User Reported
+
+### Fix Modify & Regenerate în STEP 5
+- [x] Investigare de ce butonul Modify & Regenerate nu funcționează pentru videouri marcate în STEP 6 - FIXED!
+- [x] Fix logică afișare buton Modify & Regenerate pentru videouri cu reviewStatus === 'regenerate' - Folosit videoResults.findIndex(v => v.videoName === result.videoName)
+- [x] Testare: marcare video în STEP 6 → revenire STEP 5 → verificare buton funcțional
+
+### UI Improvements - Continue with Sample Videos
+- [x] Mutare "Continue with Sample Videos" de la STEP 1 sub butonul verde "Check Videos" în STEP 5
+- [x] Schimbare din buton mare violet în link mic gri (secundar) - text-sm text-gray-500 hover:text-gray-700 underline
+- [x] Poziționare sub butonul "Check Videos" (nu mare și proeminent)
+- [x] Testare vizual: link mic gri, nu buton

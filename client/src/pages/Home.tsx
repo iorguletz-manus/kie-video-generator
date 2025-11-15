@@ -2182,13 +2182,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                     size="sm"
                                     variant="outline"
                                     onClick={() => {
-                                      setModifyingVideoIndex(index);
-                                      const currentPromptType = combinations[index]?.promptType || 'PROMPT_NEUTRAL';
+                                      // FIX: Găsește index-ul real în videoResults bazat pe videoName
+                                      const realIndex = videoResults.findIndex(v => v.videoName === result.videoName);
+                                      setModifyingVideoIndex(realIndex);
+                                      const currentPromptType = combinations[realIndex]?.promptType || 'PROMPT_NEUTRAL';
                                       setModifyPromptType(currentPromptType);
                                       
                                       // Dacă video are PROMPT_CUSTOM salvat → afișează-l
-                                      if (currentPromptType === 'PROMPT_CUSTOM' && customPrompts[index]) {
-                                        setModifyPromptText(customPrompts[index]);
+                                      if (currentPromptType === 'PROMPT_CUSTOM' && customPrompts[realIndex]) {
+                                        setModifyPromptText(customPrompts[realIndex]);
                                       } else {
                                         setModifyPromptText('');
                                       }
@@ -2222,7 +2224,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                 </div>
                                 
                                 {/* Modify & Regenerate Form */}
-                                {modifyingVideoIndex === index && (
+                                {modifyingVideoIndex === videoResults.findIndex(v => v.videoName === result.videoName) && (
                                   <div className="mt-4 p-4 bg-white border-2 border-orange-300 rounded-lg space-y-3">
                                     <h5 className="font-bold text-orange-900">Modify & Regenerate</h5>
                                     
@@ -2775,13 +2777,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                   size="sm"
                                   variant="outline"
                                   onClick={() => {
-                                    setModifyingVideoIndex(index);
-                                    const currentPromptType = combinations[index]?.promptType || 'PROMPT_NEUTRAL';
+                                    // FIX: Găsește index-ul real în videoResults bazat pe videoName
+                                    const realIndex = videoResults.findIndex(v => v.videoName === result.videoName);
+                                    setModifyingVideoIndex(realIndex);
+                                    const currentPromptType = combinations[realIndex]?.promptType || 'PROMPT_NEUTRAL';
                                     setModifyPromptType(currentPromptType);
                                     
                                     // Dacă video are PROMPT_CUSTOM salvat → afișează-l
-                                    if (currentPromptType === 'PROMPT_CUSTOM' && customPrompts[index]) {
-                                      setModifyPromptText(customPrompts[index]);
+                                    if (currentPromptType === 'PROMPT_CUSTOM' && customPrompts[realIndex]) {
+                                      setModifyPromptText(customPrompts[realIndex]);
                                     } else {
                                       setModifyPromptText('');
                                     }
@@ -2794,11 +2798,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                 </Button>
                                 
                                 {/* Edited X min ago */}
-                                {editTimestamps[index] && (
+                                {editTimestamps[videoResults.findIndex(v => v.videoName === result.videoName)] && (
                                   <div className="flex items-center gap-1 mt-2">
                                     <Clock className="w-3 h-3 text-orange-500" />
                                     <p className="text-xs text-orange-500 font-bold">
-                                      Edited {Math.floor((currentTime - editTimestamps[index]) / 60000)} min ago
+                                      Edited {Math.floor((currentTime - editTimestamps[videoResults.findIndex(v => v.videoName === result.videoName)]) / 60000)} min ago
                                     </p>
                                   </div>
                                 )}
@@ -2847,22 +2851,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   </Button>
                 </div>
               )}
-              
-              {/* TEMPORARY: Buton pentru sample videos (când Kie.ai nu funcționează) */}
-              <div className="mt-6">
-                <Button
-                  onClick={loadSampleVideos}
-                  className="bg-purple-600 hover:bg-purple-700 w-full py-4 text-base border-2 border-purple-300"
-                >
-                  <Play className="w-5 h-5 mr-2" />
-                  Continue with Sample Videos (TEMP)
-                </Button>
-                <p className="text-xs text-gray-500 mt-2 text-center">
-                  Încarcă 6 task ID-uri sample pentru testare când Kie.ai nu funcționează
-                </p>
-              </div>
-              
-              {/* Buton pentru a trece la STEP 6 */}
+                      {/* Buton pentru a trece la STEP 6 */}
               {videoResults.some(v => v.status === 'success') && (
                 <div className="mt-6">
                   <Button
@@ -2872,6 +2861,19 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     <Check className="w-5 h-5 mr-2" />
                     Check Videos (Review)
                   </Button>
+                  
+                  {/* Link Continue with Sample Videos (secundar, sub butonul verde) */}
+                  <div className="mt-3 text-center">
+                    <button
+                      onClick={loadSampleVideos}
+                      className="text-sm text-gray-500 hover:text-gray-700 underline"
+                    >
+                      Continue with Sample Videos (TEMP)
+                    </button>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Încarcă 6 task ID-uri sample pentru testare
+                    </p>
+                  </div>
                 </div>
               )}
             </CardContent>
