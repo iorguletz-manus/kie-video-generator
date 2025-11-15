@@ -1993,8 +1993,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   <SelectValue placeholder="Select TAM" />
                 </SelectTrigger>
                 <SelectContent>
-                  {tams.map((tam) => (
-                    <SelectItem key={tam.id} value={tam.id.toString()}>{tam.name}</SelectItem>
+                  {tams.map((tam, index) => (
+                    <SelectItem key={tam.id} value={tam.id.toString()}>{tam.id}. {tam.name}</SelectItem>
                   ))}
                   <SelectItem value="new">+ New TAM</SelectItem>
                 </SelectContent>
@@ -2036,7 +2036,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 </SelectTrigger>
                 <SelectContent>
                   {coreBeliefs.map((cb) => (
-                    <SelectItem key={cb.id} value={cb.id.toString()}>{cb.name}</SelectItem>
+                    <SelectItem key={cb.id} value={cb.id.toString()}>{cb.id}. {cb.name}</SelectItem>
                   ))}
                   <SelectItem value="new">+ New Core Belief</SelectItem>
                 </SelectContent>
@@ -2077,7 +2077,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 </SelectTrigger>
                 <SelectContent>
                   {emotionalAngles.map((ea) => (
-                    <SelectItem key={ea.id} value={ea.id.toString()}>{ea.name}</SelectItem>
+                    <SelectItem key={ea.id} value={ea.id.toString()}>{ea.id}. {ea.name}</SelectItem>
                   ))}
                   <SelectItem value="new">+ New Emotional Angle</SelectItem>
                 </SelectContent>
@@ -2117,7 +2117,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 </SelectTrigger>
                 <SelectContent>
                   {ads.map((ad) => (
-                    <SelectItem key={ad.id} value={ad.id.toString()}>{ad.name}</SelectItem>
+                    <SelectItem key={ad.id} value={ad.id.toString()}>{ad.id}. {ad.name}</SelectItem>
                   ))}
                   <SelectItem value="new">+ New Ad</SelectItem>
                 </SelectContent>
