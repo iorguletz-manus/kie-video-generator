@@ -184,7 +184,7 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 p-8">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 p-3 md:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
@@ -197,12 +197,12 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
             Back to Home
           </Button>
 
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
             <div>
-              <h1 className="text-4xl font-bold text-purple-900 mb-2">
+              <h1 className="text-2xl md:text-4xl font-bold text-purple-900 mb-2">
                 Images Library
               </h1>
-              <p className="text-purple-700">
+              <p className="text-sm md:text-base text-purple-700">
                 Manage your character images and avatars
               </p>
             </div>
@@ -231,7 +231,7 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
           <Card className="border-2 border-purple-300 bg-purple-50">
             <CardContent className="pt-6">
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label>Character</Label>
                     <Select value={uploadCharacterSelection} onValueChange={setUploadCharacterSelection}>
@@ -332,7 +332,7 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                     </span>
                   </h2>
 
-                  <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
                     {characterImages.map((image) => (
                       <Card
                         key={image.id}
@@ -415,7 +415,7 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
           </div>
         ) : (
           // Single Character View
-          <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
             {filteredImages.map((image) => (
               <Card
                 key={image.id}

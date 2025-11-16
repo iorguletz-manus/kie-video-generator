@@ -1,14 +1,17 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
 import EditProfileModal from '@/components/EditProfileModal';
 import { ImagesLibraryModal } from '@/components/ImagesLibraryModal';
-import { trpc } from "@/lib/trpc";
+import { trpc } from '../lib/trpc';
+import mammoth from 'mammoth';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { Upload, X, Check, Loader2, Video, FileText, Image as ImageIcon, Map, Play, Download, Undo2, ChevronLeft, RefreshCw, Clock, Search } from "lucide-react";
 
@@ -23,6 +26,8 @@ interface AdLine {
   videoName: string;
   categoryNumber: number;
   charCount: number;
+  redStart?: number;  // Start index of added text (red)
+  redEnd?: number;    // End index of added text (red)
 }
 
 interface UploadedPrompt {
@@ -74,7 +79,17 @@ interface HomeProps {
 export default function Home({ currentUser, onLogout }: HomeProps) {
   const [, setLocation] = useLocation();
   
-  // Step 1: Text Ad
+  // Step 1: Categories
+  const [selectedTamId, setSelectedTamId] = useState<number | null>(null);
+  const [selectedCoreBeliefId, setSelectedCoreBeliefId] = useState<number | null>(null);
+  const [selectedEmotionalAngleId, setSelectedEmotionalAngleId] = useState<number | null>(null);
+  const [selectedAdId, setSelectedAdId] = useState<number | null>(null);
+  const [selectedCharacterId, setSelectedCharacterId] = useState<number | null>(null);
+  const [textAdMode, setTextAdMode] = useState<'upload' | 'paste'>('upload');
+  const [rawTextAd, setRawTextAd] = useState<string>('');
+  const [processedTextAd, setProcessedTextAd] = useState<string>('');
+  
+  // Step 2: Text Ad Document (moved from STEP 1)
   const [adDocument, setAdDocument] = useState<File | null>(null);
   const [adLines, setAdLines] = useState<AdLine[]>([]);
   
@@ -95,6 +110,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [modifyPromptType, setModifyPromptType] = useState<PromptType>('PROMPT_NEUTRAL');
   const [modifyPromptText, setModifyPromptText] = useState('');
   const [modifyDialogueText, setModifyDialogueText] = useState('');
+  const [modifyRedStart, setModifyRedStart] = useState<number>(-1);
+  const [modifyRedEnd, setModifyRedEnd] = useState<number>(-1);
+  const modifyEditorRef = useRef<HTMLDivElement>(null);
   
   // State pentru custom prompts (fiecare video poate avea propriul custom prompt)
   const [customPrompts, setCustomPrompts] = useState<Record<number, string>>({});
@@ -108,15 +126,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // State pentru edit timestamps (când user dă SAVE în Modify & Regenerate)
   const [editTimestamps, setEditTimestamps] = useState<Record<number, number>>({});
   
-  // State pentru regenerări multiple
-  const [multipleRegenerations, setMultipleRegenerations] = useState(false); // Da/Nu
-  const [regenerationCount, setRegenerationCount] = useState(1); // 1-10
-  const [regenerationVariants, setRegenerationVariants] = useState<Array<{
-    promptType: PromptType;
-    promptText: string;
-    dialogueText: string;
-    imageUrl: string;
-  }>>([]);
   const [currentTime, setCurrentTime] = useState(Date.now());
   
   // State pentru tracking modificări (pentru blocare navigare)
@@ -125,18 +134,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // Step 2: Manual prompt textarea
   const [manualPromptText, setManualPromptText] = useState('');
   const [promptMode, setPromptMode] = useState<'hardcoded' | 'custom' | 'manual'>('hardcoded');
-  
-  // Step 3: Image mode selector
-  const [imageMode, setImageMode] = useState<'upload' | 'library'>('upload');
-  
-  // Update currentTime la fiecare minut pentru "Edited X min ago"
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTime(Date.now());
-    }, 60000); // Update la fiecare 60 secunde
-    
-    return () => clearInterval(interval);
-  }, []);
   
   // Step 6: Regenerate (advanced)
   const [selectedVideoIndex, setSelectedVideoIndex] = useState<number>(-1);
@@ -172,6 +169,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [librarySearchQuery, setLibrarySearchQuery] = useState("");
   const [libraryCharacterFilter, setLibraryCharacterFilter] = useState<string>("all");
   const [selectedLibraryImages, setSelectedLibraryImages] = useState<number[]>([]);
+  
+  // WYSIWYG Editor for STEP 2
+  const [editingLineId, setEditingLineId] = useState<string | null>(null);
+  const [editingLineText, setEditingLineText] = useState<string>('');
+  const [editingLineRedStart, setEditingLineRedStart] = useState<number>(-1);
+  const [editingLineRedEnd, setEditingLineRedEnd] = useState<number>(-1);
+  const editorRef = useRef<HTMLDivElement>(null);
 
   // Queries
   const { data: libraryImages = [] } = trpc.imageLibrary.list.useQuery({
@@ -180,6 +184,40 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const { data: libraryCharacters = [] } = trpc.imageLibrary.getCharacters.useQuery({
     userId: localCurrentUser.id,
   });
+  
+  // Category queries
+  const { data: tams = [], refetch: refetchTams } = trpc.tams.list.useQuery({
+    userId: localCurrentUser.id,
+  });
+  const { data: coreBeliefs = [], refetch: refetchCoreBeliefs } = trpc.coreBeliefs.listByTamId.useQuery(
+    { tamId: selectedTamId! },
+    { enabled: !!selectedTamId }
+  );
+  const { data: emotionalAngles = [], refetch: refetchEmotionalAngles } = trpc.emotionalAngles.listByCoreBeliefId.useQuery(
+    { coreBeliefId: selectedCoreBeliefId! },
+    { enabled: !!selectedCoreBeliefId }
+  );
+  const { data: ads = [], refetch: refetchAds } = trpc.ads.listByEmotionalAngleId.useQuery(
+    { emotionalAngleId: selectedEmotionalAngleId! },
+    { enabled: !!selectedEmotionalAngleId }
+  );
+  const { data: categoryCharacters = [], refetch: refetchCharacters } = trpc.categoryCharacters.list.useQuery({
+    userId: localCurrentUser.id,
+  });
+
+  // Context session query - load workflow data for selected context
+  const { data: contextSession, refetch: refetchContextSession } = trpc.contextSessions.get.useQuery(
+    {
+      userId: localCurrentUser.id,
+      coreBeliefId: selectedCoreBeliefId!,
+      emotionalAngleId: selectedEmotionalAngleId!,
+      adId: selectedAdId!,
+      characterId: selectedCharacterId!,
+    },
+    {
+      enabled: !!(selectedTamId && selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId),
+    }
+  );
 
   // Mutations
   const parseAdMutation = trpc.video.parseAdDocument.useMutation();
@@ -187,7 +225,22 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const uploadImageMutation = trpc.video.uploadImage.useMutation();
   const generateBatchMutation = trpc.video.generateBatchVideos.useMutation();
   const generateMultipleVariantsMutation = trpc.video.generateMultipleVariants.useMutation();
-  const checkVideoStatusMutation = trpc.video.checkVideoStatus.useMutation();
+  
+  // Category mutations
+  const createTamMutation = trpc.tams.create.useMutation();
+  const createCoreBeliefMutation = trpc.coreBeliefs.create.useMutation();
+  const createEmotionalAngleMutation = trpc.emotionalAngles.create.useMutation();
+  const createAdMutation = trpc.ads.create.useMutation();
+  const createCharacterMutation = trpc.categoryCharacters.create.useMutation();
+  
+  // Text processing mutation
+  const processTextAdMutation = trpc.video.processTextAd.useMutation();
+  
+  // Images Library mutation
+  const uploadLibraryImageMutation = trpc.imageLibrary.upload.useMutation();
+  
+  // Context session mutation
+  const upsertContextSessionMutation = trpc.contextSessions.upsert.useMutation();
   
   // Session mutations
   const createSessionMutation = trpc.appSession.create.useMutation();
@@ -229,6 +282,50 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     videoCount: number;
     timestamp: string;
   }
+  
+  // Update currentTime la fiecare secundă pentru "Edited X min/sec ago"
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000); // Update la fiecare secundă
+    
+    return () => clearInterval(interval);
+  }, []);
+  
+  // Initialize WYSIWYG editor with HTML content when dialog opens
+  useEffect(() => {
+    if (editingLineId && editorRef.current) {
+      // Set initial HTML with red text if exists
+      if (editingLineRedStart >= 0 && editingLineRedEnd > editingLineRedStart) {
+        const before = editingLineText.substring(0, editingLineRedStart);
+        const red = editingLineText.substring(editingLineRedStart, editingLineRedEnd);
+        const after = editingLineText.substring(editingLineRedEnd);
+        editorRef.current.innerHTML = `${before}<span style="color: #dc2626; font-weight: 500;">${red}</span>${after}`;
+      } else {
+        editorRef.current.textContent = editingLineText;
+      }
+    }
+  }, [editingLineId, editingLineText, editingLineRedStart, editingLineRedEnd]);
+    // Initialize Modify & Regenerate editor with HTML when dialog opens
+  useEffect(() => {
+    if (modifyingVideoIndex !== null && modifyEditorRef.current) {
+      // Only set HTML if editor is empty (just opened)
+      const currentContent = modifyEditorRef.current.textContent || '';
+      if (currentContent === '' || currentContent !== modifyDialogueText) {
+        // Set initial HTML with red text if exists
+        if (modifyRedStart >= 0 && modifyRedEnd > modifyRedStart) {
+          const before = modifyDialogueText.substring(0, modifyRedStart);
+          const red = modifyDialogueText.substring(modifyRedStart, modifyRedEnd);
+          const after = modifyDialogueText.substring(modifyRedEnd);
+          modifyEditorRef.current.innerHTML = `${before}<span style="color: #dc2626; font-weight: 500;">${red}</span>${after}`;
+          console.log('[Modify Editor Init] Set HTML with red text:', modifyRedStart, '-', modifyRedEnd);
+        } else {
+          modifyEditorRef.current.textContent = modifyDialogueText;
+          console.log('[Modify Editor Init] Set plain text (no red)');
+        }
+      }
+    }
+  }, [modifyingVideoIndex, modifyRedStart, modifyRedEnd, modifyDialogueText]); // Re-run when any changes
   
   const getSavedSessions = (): SavedSession[] => {
     // Return sessions from database
@@ -418,6 +515,30 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
   }, []);
   
+  // Load data from context session when context changes
+  useEffect(() => {
+    if (contextSession) {
+      console.log('[Context Session] Loading data from database:', contextSession);
+      
+      // Load all workflow data from context session (database)
+      if (contextSession.currentStep) setCurrentStep(contextSession.currentStep);
+      if (contextSession.rawTextAd) setRawTextAd(contextSession.rawTextAd);
+      if (contextSession.processedTextAd) setProcessedTextAd(contextSession.processedTextAd);
+      if (contextSession.adLines) setAdLines(contextSession.adLines as AdLine[]);
+      if (contextSession.prompts) setPrompts(contextSession.prompts as UploadedPrompt[]);
+      if (contextSession.images) setImages(contextSession.images as UploadedImage[]);
+      if (contextSession.combinations) setCombinations(contextSession.combinations as Combination[]);
+      if (contextSession.deletedCombinations) setDeletedCombinations(contextSession.deletedCombinations as Combination[]);
+      if (contextSession.videoResults) setVideoResults(contextSession.videoResults as VideoResult[]);
+      if (contextSession.reviewHistory) setReviewHistory(contextSession.reviewHistory as any[]);
+      
+      toast.success('Context data loaded from database!');
+    } else {
+      // No context session in database - keep localStorage data (already restored on mount)
+      console.log('[Context Session] No database session found, keeping localStorage data');
+    }
+  }, [contextSession]);
+  
   // Auto-save session la fiecare schimbare (debounced)
   useEffect(() => {
     if (isRestoringSession) return; // Nu salva în timpul restore
@@ -462,6 +583,109 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     regenerateVariants,
     isRestoringSession,
   ]);
+  
+  // Auto-save to context session when data changes (debounced)
+  // ONLY save to database after video generation (STEP 6+)
+  useEffect(() => {
+    if (!selectedTamId || !selectedCoreBeliefId || !selectedEmotionalAngleId || !selectedAdId || !selectedCharacterId) {
+      return; // Don't save if context not complete
+    }
+    
+    if (isRestoringSession) return; // Don't save during restore
+    
+    // ONLY save to database when in STEP 6+ (after generation)
+    if (currentStep < 6) {
+      console.log('[Context Session] Skipping database save for STEP', currentStep, '- using localStorage only');
+      return;
+    }
+    
+    const timeoutId = setTimeout(() => {
+      console.log('[Context Session] Auto-saving...');
+      
+      upsertContextSessionMutation.mutate({
+        userId: localCurrentUser.id,
+        coreBeliefId: selectedCoreBeliefId,
+        emotionalAngleId: selectedEmotionalAngleId,
+        adId: selectedAdId,
+        characterId: selectedCharacterId,
+        currentStep,
+        rawTextAd,
+        processedTextAd,
+        adLines,
+        prompts,
+        images,
+        combinations,
+        deletedCombinations,
+        videoResults,
+        reviewHistory,
+      }, {
+        onSuccess: () => {
+          console.log('[Context Session] Auto-saved successfully');
+        },
+        onError: (error) => {
+          console.error('[Context Session] Auto-save failed:', error);
+        },
+      });
+    }, 2000); // Debounce 2 seconds
+    
+    return () => clearTimeout(timeoutId);
+  }, [
+    selectedCoreBeliefId,
+    selectedEmotionalAngleId,
+    selectedAdId,
+    selectedCharacterId,
+    currentStep,
+    rawTextAd,
+    processedTextAd,
+    adLines,
+    prompts,
+    images,
+    combinations,
+    deletedCombinations,
+    videoResults,
+    reviewHistory,
+    isRestoringSession,
+  ]);
+  
+  // Auto-select first TAM when TAMs are loaded
+  useEffect(() => {
+    if (tams.length > 0 && !selectedTamId) {
+      console.log('[Auto-select] Setting first TAM:', tams[0].name);
+      setSelectedTamId(tams[0].id);
+    }
+  }, [tams, selectedTamId]);
+  
+  // Auto-select first Core Belief when Core Beliefs are loaded
+  useEffect(() => {
+    if (coreBeliefs.length > 0 && !selectedCoreBeliefId) {
+      console.log('[Auto-select] Setting first Core Belief:', coreBeliefs[0].name);
+      setSelectedCoreBeliefId(coreBeliefs[0].id);
+    }
+  }, [coreBeliefs, selectedCoreBeliefId]);
+  
+  // Auto-select first Emotional Angle when Emotional Angles are loaded
+  useEffect(() => {
+    if (emotionalAngles.length > 0 && !selectedEmotionalAngleId) {
+      console.log('[Auto-select] Setting first Emotional Angle:', emotionalAngles[0].name);
+      setSelectedEmotionalAngleId(emotionalAngles[0].id);
+    }
+  }, [emotionalAngles, selectedEmotionalAngleId]);
+  
+  // Auto-select first Ad when Ads are loaded
+  useEffect(() => {
+    if (ads.length > 0 && !selectedAdId) {
+      console.log('[Auto-select] Setting first Ad:', ads[0].name);
+      setSelectedAdId(ads[0].id);
+    }
+  }, [ads, selectedAdId]);
+  
+  // Auto-select first Character when Characters are loaded
+  useEffect(() => {
+    if (categoryCharacters.length > 0 && !selectedCharacterId) {
+      console.log('[Auto-select] Setting first Character:', categoryCharacters[0].name);
+      setSelectedCharacterId(categoryCharacters[0].id);
+    }
+  }, [categoryCharacters, selectedCharacterId]);
 
   // ========== COMPUTED VALUES (MEMOIZED) ==========
   // Filtered video lists (evită re-compute la fiecare render)
@@ -525,7 +749,254 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     [videoResults]
   );
   
-  // ========== STEP 1: Handle ad document upload ==========
+  // ========== STEP 1: Process text ad ==========
+  const processText = async () => {
+    if (!rawTextAd || rawTextAd.trim().length === 0) {
+      toast.error('Please enter or upload text first!');
+      return;
+    }
+
+    try {
+      // RESET: Clear all previous data before processing
+      setAdLines([]);
+      setAdDocument(null);
+      setProcessedTextAd('');
+      setCombinations([]);
+      setVideoResults([]);
+      
+      const result = await processTextAdMutation.mutateAsync({
+        rawText: rawTextAd,
+      });
+      
+      // Convert processedLines array to string for display
+      const processedText = result.processedLines
+        .map((line: any) => {
+          if (line.type === 'label') {
+            return line.text;
+          } else {
+            return line.text + ` (${line.charCount} chars)`;
+          }
+        })
+        .join('\n');
+      
+      setProcessedTextAd(processedText);
+      
+      // Convert processedLines to AdLine[] format for STEP 2
+      // Keep track of current section from labels
+      let currentSection: SectionType = 'OTHER';
+      let lineCounter = 0;
+      
+      // Section-specific line counters for video naming
+      const sectionCounters: Record<string, number> = {};
+      
+      // Label-specific line counters for multi-line suffix (B, C, D)
+      const labelLineCounters: Record<string, number> = {};
+      let currentLabel = '';
+      
+      // Track section name and line number for each label (to preserve across multiple lines)
+      const labelSectionNames: Record<string, string> = {};
+      const labelSectionLineNums: Record<string, string> = {};
+      
+      const extractedLines: AdLine[] = [];
+      
+      // Get context for video naming
+      // Format: T{tamNum}_C{cbNum}_E{eaNum}_AD{adNum}_{SECTION}{lineNum}_{CHARACTER}
+      // Use position/counter (1, 2, 3...) NOT database IDs!
+      
+      // Find position of selected items in their respective lists
+      const tamNum = tams.findIndex(t => t.id === selectedTamId) + 1 || 1;
+      const cbNum = coreBeliefs.findIndex(cb => cb.id === selectedCoreBeliefId) + 1 || 1;
+      const eaNum = emotionalAngles.findIndex(ea => ea.id === selectedEmotionalAngleId) + 1 || 1;
+      const adNum = ads.findIndex(ad => ad.id === selectedAdId) + 1 || 1;
+      
+      const characterName = selectedCharacterId ? 
+        (categoryCharacters?.find(c => c.id === selectedCharacterId)?.name || 'UNKNOWN').toUpperCase() : 
+        'UNKNOWN';
+      
+      for (const line of result.processedLines) {
+        if (line.type === 'label') {
+          // Backend now provides normalized category info
+          const category = line.category || 'OTHER';
+          const displayName = line.displayName || line.text;
+          
+          // Map backend category to frontend SectionType
+          const categoryToSection: Record<string, SectionType> = {
+            'HOOKS': 'HOOKS',
+            'MIRROR': 'MIRROR',
+            'DCS': 'DCS',
+            'TRANZITION': 'TRANZITION',
+            'NEW CAUSE': 'NEW_CAUSE',
+            'NEW-CAUSE': 'NEW_CAUSE',  // Backend sends hyphenated version
+            'MECHANISM': 'MECHANISM',
+            'EMOTIONAL PROOF': 'EMOTIONAL_PROOF',
+            'EMOTIONAL-PROOF': 'EMOTIONAL_PROOF',  // Backend sends hyphenated version
+            'TRANSFORMATION': 'TRANSFORMATION',
+            'CTA': 'CTA',
+          };
+          
+          currentSection = categoryToSection[category] || 'OTHER';
+          
+          // Track current label for multi-line suffix
+          currentLabel = displayName; // e.g., "H1", "H2", "MIRROR", "CTA"
+          labelLineCounters[currentLabel] = 0; // Reset counter for this label
+          
+          // Add label as a marker line (will be displayed as section header)
+          extractedLines.push({
+            id: `label-${Date.now()}-${extractedLines.length}`,
+            text: displayName, // Use normalized display name (e.g., "H1", "MIRROR", "CTA")
+            section: currentSection,
+            promptType: 'PROMPT_NEUTRAL' as PromptType,
+            videoName: '', // Empty for labels
+            categoryNumber: 0, // 0 indicates this is a label, not a content line
+            charCount: 0,
+          });
+        } else if (line.type === 'text') {
+          // Add text line under current section
+          lineCounter++;
+          
+          // Generate video name based on section and context
+          // Format: T{tamNum}_C{cbNum}_E{eaNum}_AD{adNum}_{SECTION}{lineNum}_{CHARACTER}
+          
+          let sectionName = '';
+          let sectionLineNum = '';
+          
+          // Check if we already have a section name for this label (for 2nd, 3rd lines)
+          if (labelSectionNames[currentLabel]) {
+            // Reuse the section name and line number from first line
+            sectionName = labelSectionNames[currentLabel];
+            sectionLineNum = labelSectionLineNums[currentLabel];
+          } else {
+            // First line under this label - determine section name
+            // Normalize section name: remove underscores only (keep hyphens)
+            // EMOTIONAL_PROOF → EMOTIONAL-PROOF, NEW_CAUSE → NEW-CAUSE
+            sectionName = currentSection.replace(/_/g, '-');
+            
+            // Get the label that precedes this line (to handle H1, H2, etc.)
+            const precedingLabel = extractedLines.length > 0 ? extractedLines[extractedLines.length - 1] : null;
+            
+            // EXCEPTION: For HOOKS subcategories (H1, H2, H3, etc.) → use HOOK1, HOOK2, HOOK3
+            if (currentSection === 'HOOKS' && precedingLabel && precedingLabel.categoryNumber === 0) {
+              const labelText = precedingLabel.text; // e.g., "H1", "H2", "H3"
+              const hookMatch = labelText.match(/^H(\d+)$/);
+              if (hookMatch) {
+                // H1 → HOOK1 (number already included in sectionName)
+                sectionName = `HOOK${hookMatch[1]}`;
+                sectionLineNum = ''; // Don't add line number for HOOKS (already in HOOK1, HOOK2, etc.)
+              }
+            } else {
+              // For other sections, use line number under current label
+              // First line of MIRROR → MIRROR1, second line → MIRROR1B (with suffix B)
+              sectionLineNum = '1'; // Always 1 for first line of a label
+            }
+            
+            // Save section name and line number for this label (for subsequent lines)
+            labelSectionNames[currentLabel] = sectionName;
+            labelSectionLineNums[currentLabel] = sectionLineNum;
+          }
+          
+          // Multi-line suffix: If a label has multiple lines, add B, C, D suffix
+          // Increment line counter for current label
+          labelLineCounters[currentLabel]++;
+          const lineNumberUnderLabel = labelLineCounters[currentLabel];
+          
+          // Generate suffix for 2nd, 3rd, 4th lines (B, C, D)
+          let suffix = '';
+          if (lineNumberUnderLabel > 1) {
+            // lineNumberUnderLabel = 2 → B (66), 3 → C (67), 4 → D (68)
+            suffix = String.fromCharCode(66 + lineNumberUnderLabel - 2);
+          }
+          
+          const videoName = `T${tamNum}_C${cbNum}_E${eaNum}_AD${adNum}_${sectionName}${sectionLineNum}${suffix}_${characterName}`;
+          
+          // Intelligent prompt type mapping based on section
+          let promptType: PromptType = 'PROMPT_NEUTRAL';
+          
+          if (currentSection === 'TRANSFORMATION' || currentSection === 'CTA') {
+            // Check if CTA line contains "carte" keyword
+            const lowerText = line.text.toLowerCase();
+            const ctaKeywords = ['carte', 'cartea', 'rescrie', 'lacrimi', 'lacrami'];
+            const hasCTAKeyword = ctaKeywords.some(keyword => lowerText.includes(keyword));
+            
+            if (currentSection === 'CTA' && hasCTAKeyword) {
+              promptType = 'PROMPT_CTA';
+            } else {
+              promptType = 'PROMPT_SMILING';
+            }
+          }
+          
+          extractedLines.push({
+            id: `line-${Date.now()}-${extractedLines.length}`,
+            text: line.text,
+            section: currentSection,
+            promptType: promptType,
+            videoName: videoName,
+            categoryNumber: lineCounter,
+            charCount: line.charCount || line.text.length,
+            redStart: line.redStart,  // Include red text markers from backend
+            redEnd: line.redEnd,
+          });
+        }
+      }
+      
+      setAdLines(extractedLines);
+      const contentLineCount = extractedLines.filter(l => l.categoryNumber > 0).length;
+      toast.success(`Text processed successfully! ${contentLineCount} lines extracted.`);
+      setCurrentStep(2);
+    } catch (error: any) {
+      toast.error(`Error processing text: ${error.message}`);
+    }
+  };
+
+  const handleTextFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.name.endsWith('.txt')) {
+        const text = await file.text();
+        setRawTextAd(text);
+        toast.success('Text file loaded!');
+      } else if (file.name.endsWith('.docx') || file.name.endsWith('.doc')) {
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          const result = await mammoth.extractRawText({ arrayBuffer });
+          setRawTextAd(result.value);
+          toast.success('Word document loaded!');
+        } catch (error: any) {
+          toast.error(`Error reading Word document: ${error.message}`);
+        }
+      } else {
+        toast.error('Please upload a .txt, .doc, or .docx file.');
+      }
+    }
+  };
+
+  const handleTextFileDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      if (file.name.endsWith('.txt')) {
+        const text = await file.text();
+        setRawTextAd(text);
+        toast.success('Text file loaded!');
+      } else if (file.name.endsWith('.docx') || file.name.endsWith('.doc')) {
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          const result = await mammoth.extractRawText({ arrayBuffer });
+          setRawTextAd(result.value);
+          toast.success('Word document loaded!');
+        } catch (error: any) {
+          toast.error(`Error reading Word document: ${error.message}`);
+        }
+      } else {
+        toast.error('Please upload a .txt, .doc, or .docx file.');
+      }
+    }
+  };
+
+  const handleTextFileDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+  };
+
+  // ========== STEP 2: Handle ad document upload ==========
   const handleAdDocumentDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
@@ -634,6 +1105,27 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       return;
     }
     
+    // Check for duplicates in library
+    const characterName = selectedCharacterId ? 
+      (categoryCharacters?.find(c => c.id === selectedCharacterId)?.name || 'Unnamed') : 
+      'Unnamed';
+    
+    const duplicates: string[] = [];
+    for (const file of imageFiles) {
+      const imageName = file.name.replace(/\.[^/.]+$/, ''); // Remove extension
+      const existing = libraryImages.find(
+        img => img.imageName === imageName && img.characterName === characterName
+      );
+      if (existing) {
+        duplicates.push(file.name);
+      }
+    }
+    
+    if (duplicates.length > 0) {
+      toast.error(`Imaginile următoare există deja în library pentru ${characterName}: ${duplicates.join(', ')}`);
+      return;
+    }
+    
     try {
       const uploadPromises = imageFiles.map(async (file) => {
         return new Promise<UploadedImage>((resolve, reject) => {
@@ -657,6 +1149,22 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 fileName: file.name,
                 isCTA: isCTA,
               };
+              
+              // Auto-save to Images Library
+              try {
+                await uploadLibraryImageMutation.mutateAsync({
+                  userId: currentUser.id,
+                  characterName: selectedCharacterId ? 
+                    (categoryCharacters?.find(c => c.id === selectedCharacterId)?.name || 'Unnamed') : 
+                    'Unnamed',
+                  imageName: file.name.replace(/\.[^/.]+$/, ''), // Remove extension
+                  imageData: base64,
+                });
+                console.log('[Auto-save] Image saved to library:', file.name);
+              } catch (libError) {
+                console.error('[Auto-save] Failed to save to library:', libError);
+                // Don't fail the upload if library save fails
+              }
               
               resolve(newImage);
             } catch (error: any) {
@@ -726,34 +1234,43 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     const ctaImage = images.find(img => img.isCTA);
     const defaultImage = images[0];
     
+    console.log('[CTA Mapping] Images:', images.map(img => ({ fileName: img.fileName, isCTA: img.isCTA })));
+    console.log('[CTA Mapping] CTA Image found:', ctaImage ? ctaImage.fileName : 'NONE');
+    console.log('[CTA Mapping] Default Image:', defaultImage ? defaultImage.fileName : 'NONE');
+    
+    // Filter out labels (categoryNumber === 0) - only use actual text lines
+    const textLines = adLines.filter(line => line.categoryNumber > 0);
+    
     // Găsește prima linie cu "carte", "cartea", "rescrie", sau "lacrimi" (cu sau fără diacritice)
-    let firstCtaIndex = -1;
+    let firstCarteIndex = -1;
     const ctaKeywords = ['carte', 'cartea', 'rescrie', 'lacrimi', 'lacrami'];
     
-    // Normalizare text pentru comparație (elimină diacritice)
-    const normalizeDiacritics = (text: string) => {
-      return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-    };
-    
-    for (let i = 0; i < adLines.length; i++) {
-      const normalizedText = normalizeDiacritics(adLines[i].text);
-      if (ctaKeywords.some(keyword => normalizedText.includes(normalizeDiacritics(keyword)))) {
-        firstCtaIndex = i;
+    console.log('[CTA Mapping] Searching for keywords in', textLines.length, 'text lines...');
+    for (let i = 0; i < textLines.length; i++) {
+      const lowerText = textLines[i].text.toLowerCase();
+      const hasKeyword = ctaKeywords.some(keyword => lowerText.includes(keyword));
+      console.log(`[CTA Mapping] Line ${i}: "${textLines[i].text.substring(0, 50)}..." - Has keyword: ${hasKeyword}`);
+      if (hasKeyword) {
+        firstCarteIndex = i;
+        console.log(`[CTA Mapping] FOUND! First CTA keyword at index ${i}`);
         break;
       }
     }
-
-    // Crează combinații cu mapare inteligentă CTA
-    const newCombinations: Combination[] = adLines.map((line, index) => {
+    
+    console.log('[CTA Mapping] First CTA index:', firstCarteIndex);
+    
+    // Creează combinații cu mapare inteligentă CTA
+    const newCombinations: Combination[] = textLines.map((line, index) => {
       let selectedImage = defaultImage;
       
-      // Regulă CTA: mapează imaginea CTA DOAR dacă:
-      // 1. Există imagine CTA
-      // 2. S-a găsit o linie cu cuvintele cheie
-      // 3. Suntem la sau după acea linie
-      if (ctaImage && firstCtaIndex !== -1 && index >= firstCtaIndex) {
+      // DOAR dacă există poză CTA ȘI există cel puțin o linie cu keyword CTA ȘI suntem de la prima linie cu keyword până la sfârșit
+      // Dacă nu există nicio linie cu keywords (firstCarteIndex === -1), CTA image NU se folosește!
+      const shouldUseCTA = ctaImage && firstCarteIndex !== -1 && index >= firstCarteIndex;
+      if (shouldUseCTA) {
         selectedImage = ctaImage;
       }
+      
+      console.log(`[CTA Mapping] Line ${index}: "${line.text.substring(0, 40)}..." -> Image: ${selectedImage.fileName} (CTA: ${shouldUseCTA})`);
       
       return {
         id: `combo-${index}`,
@@ -769,13 +1286,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
     setCombinations(newCombinations);
     setDeletedCombinations([]);
-    setCurrentStep(4);
+    setCurrentStep(5); // Go to STEP 5 - Mapping
     
-    if (ctaImage && firstCtaIndex !== -1) {
-      toast.success(`${newCombinations.length} combinații create. Poza CTA mapata de la linia ${firstCtaIndex + 1} în jos`);
-    } else if (ctaImage && firstCtaIndex === -1) {
-      toast.warning(`Poza CTA detectată, dar nu s-au găsit cuvintele cheie (carte/rescrie/lacrimi). Folosind imaginea default.`);
-      toast.success(`${newCombinations.length} combinații create cu mapare automată`);
+    console.log('[Create Mappings] Created', newCombinations.length, 'combinations from', textLines.length, 'text lines');
+    console.log('[Create Mappings] First 3 texts:', textLines.slice(0, 3).map(l => l.text.substring(0, 50)));
+    
+    if (ctaImage && firstCarteIndex !== -1) {
+      const ctaLinesCount = textLines.length - firstCarteIndex;
+      toast.success(`${newCombinations.length} combinații create. Poza CTA mapata de la linia ${firstCarteIndex + 1} până la sfârșit (${ctaLinesCount} linii)`);
     } else {
       toast.success(`${newCombinations.length} combinații create cu mapare automată`);
     }
@@ -837,12 +1355,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
   // Step 5: Generate videos
   const generateVideos = async () => {
-    // Validate API key
-    if (!localCurrentUser.kieApiKey) {
-      toast.error("Trebuie să setezi Kie API Key în Settings!");
-      return;
-    }
-
     if (combinations.length === 0) {
       toast.error("Nu există combinații de generat");
       return;
@@ -851,7 +1363,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     // Prompturile hardcodate sunt întotdeauna active, nu mai verificăm prompts.length
 
     try {
-      setCurrentStep(5);
+      setCurrentStep(6); // Go to STEP 6 - Generate
       
       // Inițializează rezultatele
       const initialResults: VideoResult[] = combinations.map(combo => ({
@@ -908,7 +1420,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         }
 
         const result = await generateBatchMutation.mutateAsync({
-          userId: localCurrentUser.id,
+          userId: currentUser.id,
           promptTemplate: promptTemplate,
           combinations: combos.map(combo => ({
             text: combo.text,
@@ -943,6 +1455,35 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       if (failedCount > 0) {
         toast.error(`${failedCount} videouri au eșuat`);
       }
+      
+      // SAVE TO DATABASE after generation
+      console.log('[Database Save] Saving session after video generation...');
+      upsertContextSessionMutation.mutate({
+        userId: localCurrentUser.id,
+        tamId: selectedTamId,
+        coreBeliefId: selectedCoreBeliefId,
+        emotionalAngleId: selectedEmotionalAngleId,
+        adId: selectedAdId,
+        characterId: selectedCharacterId,
+        currentStep: 6,
+        rawTextAd,
+        processedTextAd,
+        adLines,
+        prompts,
+        images,
+        combinations,
+        deletedCombinations,
+        videoResults: allResults,
+        reviewHistory,
+      }, {
+        onSuccess: () => {
+          console.log('[Database Save] Session saved successfully after generation!');
+        },
+        onError: (error) => {
+          console.error('[Database Save] Failed to save session:', error);
+          toast.error('Sesiunea nu a putut fi salvată în database, dar e salvată local');
+        },
+      });
     } catch (error: any) {
       toast.error(`Eroare la generarea videourilo: ${error.message}`);
     }
@@ -952,20 +1493,47 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     try {
       console.log(`Checking status for taskId: ${taskId}, index: ${index}`);
       
-      const data = await checkVideoStatusMutation.mutateAsync({
-        userId: localCurrentUser.id,
-        taskId: taskId,
+      const response = await fetch(`https://api.kie.ai/api/v1/veo/record-info?taskId=${taskId}`, {
+        headers: {
+          'Authorization': 'Bearer a4089052f1c04c6b8be02b026ce87fe8',
+        },
       });
 
+      const data = await response.json();
       console.log('Status response:', data);
 
-      // Backend returns processed response: { success, status, videoUrl, errorMessage }
-      if (data.success) {
-        const status = data.status;
-        const videoUrl = data.videoUrl;
-        const errorMessage = data.errorMessage;
+      if (data.code === 200 && data.data) {
+        let status: 'pending' | 'success' | 'failed' = 'pending';
+        let videoUrl: string | undefined;
+        let errorMessage: string | undefined;
 
-        console.log('Processing video status:', { status, videoUrl, errorMessage });
+        console.log('Processing video status - successFlag:', data.data.successFlag);
+        console.log('Full API response:', JSON.stringify(data.data, null, 2));
+        
+        if (data.data.successFlag === 1) {
+          status = 'success';
+          // Verificare alternativă pentru resultUrls (poate fi în data.data sau data.data.response)
+          videoUrl = data.data.resultUrls?.[0] || data.data.response?.resultUrls?.[0];
+          console.log('Video SUCCESS - URL:', videoUrl);
+          console.log('resultUrls location:', data.data.resultUrls ? 'data.data.resultUrls' : 'data.data.response.resultUrls');
+        } else if (data.data.successFlag === -1 || data.data.successFlag === 2) {
+          // successFlag === -1 sau 2 înseamnă failed
+          status = 'failed';
+          errorMessage = data.data.errorMessage || data.data.error || data.data.msg || 'Unknown error';
+          console.log('Video FAILED - Error:', errorMessage);
+        } else if (data.data.errorMessage || data.data.error) {
+          // Dacă există errorMessage dar successFlag nu e -1, tot considerăm failed
+          status = 'failed';
+          errorMessage = data.data.errorMessage || data.data.error;
+          console.log('Video FAILED (detected via errorMessage) - Error:', errorMessage);
+        } else if (data.data.successFlag === 0) {
+          // successFlag === 0 înseamnă pending
+          status = 'pending';
+          console.log('Video PENDING - successFlag:', data.data.successFlag);
+        } else {
+          console.log('Video status UNKNOWN - successFlag:', data.data.successFlag);
+          console.log('Setting as pending by default');
+        }
 
         setVideoResults(prev =>
           prev.map((v, i) =>
@@ -1043,12 +1611,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       const sampleResults: VideoResult[] = sampleData.map((data, index) => {
         // Pentru HOOKS folosește HOOK (singular) în nume
         const categoryName = data.section === 'HOOKS' ? 'HOOK' : data.section;
-        // Toate sample videos sunt prima linie din categoria lor (categoryNumber = 1)
+        // Video names are now generated in STEP 2 based on full context
+        // For sample videos, use a placeholder format
         const categoryNumber = 1;
         
         return {
           taskId: data.taskId,
-          videoName: `CB1_A1_${categoryName}${categoryNumber}`,
+          videoName: `SAMPLE_${categoryName}${categoryNumber}`,
           text: data.text,
           imageUrl: 'https://via.placeholder.com/270x480/blue/white?text=Sample',
           status: 'success' as const,
@@ -1074,14 +1643,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           imageUrl: 'https://via.placeholder.com/270x480/blue/white?text=Sample',
           imageId: `sample-img-${index}`,
           promptType: 'PROMPT_NEUTRAL' as PromptType,
-          videoName: `CB1_A1_${categoryName}${categoryNumber}`,
+          videoName: `SAMPLE_${categoryName}${categoryNumber}`,
           section: data.section,
           categoryNumber: categoryNumber,
         };
       });
       
       setCombinations(sampleCombinations);
-      setCurrentStep(6); // Trece la STEP 6 (Check Videos)
+      setCurrentStep(7); // Go to STEP 7 - Check Videos
       
       toast.success(`4/4 sample videos încărcate cu succes!`);
       console.log('Sample videos loaded:', sampleResults.map(v => v.videoName));
@@ -1090,20 +1659,21 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
   };
   
-  // Regenerare toate videouri failed
-  const regenerateAllFailed = async () => {
-    const failedIndexes = videoResults
+  // Regenerare toate videouri (failed + rejected)
+  const regenerateAll = async () => {
+    // Colectează toate videouri care trebuie regenerate: failed SAU rejected
+    const toRegenerateIndexes = videoResults
       .map((v, i) => ({ video: v, index: i }))
-      .filter(({ video }) => video.status === 'failed')
+      .filter(({ video }) => video.status === 'failed' || video.reviewStatus === 'regenerate')
       .map(({ index }) => index);
     
-    if (failedIndexes.length === 0) {
-      toast.error('Nu există videouri failed de regenerat');
+    if (toRegenerateIndexes.length === 0) {
+      toast.error('Nu există videouri de regenerat');
       return;
     }
 
     try {
-      toast.info(`Se retrimite ${failedIndexes.length} videouri...`);
+      toast.info(`Se regenerează ${toRegenerateIndexes.length} videouri...`);
       
       // Grupează pe tip de prompt
       const combinationsByPrompt: Record<PromptType, Array<{ combo: typeof combinations[0], index: number }>> = {
@@ -1113,7 +1683,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         PROMPT_CUSTOM: [],
       };
 
-      failedIndexes.forEach(index => {
+      toRegenerateIndexes.forEach(index => {
         const combo = combinations[index];
         if (combo) {
           combinationsByPrompt[combo.promptType].push({ combo, index });
@@ -1146,7 +1716,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         }
 
         const result = await generateBatchMutation.mutateAsync({
-          userId: localCurrentUser.id,
+          userId: currentUser.id,
           promptTemplate: promptTemplate,
           combinations: items.map(({ combo }) => ({
             text: combo.text,
@@ -1161,12 +1731,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           setVideoResults(prev =>
             prev.map((v, idx) =>
               idx === originalIndex
-                ? {
+                  ? {
                     ...v,
                     taskId: newResult.taskId,
                     status: newResult.success ? 'pending' as const : 'failed' as const,
                     error: newResult.error,
                     videoUrl: undefined,
+                    reviewStatus: undefined, // Reset review status
                   }
                 : v
             )
@@ -1199,14 +1770,41 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       toast.error('Combinație nu găsită');
       return;
     }
+    
+    if (!modifyEditorRef.current) {
+      toast.error('Editor not ready');
+      return;
+    }
 
-    // Validare text (nu mai blochez dacă > 125 caractere)
-    // User poate genera chiar dacă depășește 125 caractere
-
-    if (modifyDialogueText.trim().length === 0) {
+    // Extract text and red positions from editor
+    const html = modifyEditorRef.current.innerHTML;
+    const text = modifyEditorRef.current.textContent || '';
+    
+    // Validare text
+    if (text.trim().length === 0) {
       toast.error('Textul nu poate fi gol!');
       return;
     }
+    
+    // Parse HTML to find RED text positions
+    let redStart = -1;
+    let redEnd = -1;
+    
+    const redSpanRegex = /<span[^>]*style="[^"]*color:\s*(?:#dc2626|rgb\(220,\s*38,\s*38\))[^"]*"[^>]*>([^<]*)<\/span>/gi;
+    const matches = [...html.matchAll(redSpanRegex)];
+    
+    if (matches.length > 0) {
+      const redText = matches[0][1];
+      redStart = text.indexOf(redText);
+      if (redStart >= 0) {
+        redEnd = redStart + redText.length;
+      }
+    }
+    
+    // Update state with extracted text and red positions
+    setModifyDialogueText(text);
+    setModifyRedStart(redStart);
+    setModifyRedEnd(redEnd);
 
     try {
       // Determină prompt template
@@ -1234,10 +1832,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       }
 
       const result = await generateBatchMutation.mutateAsync({
-        userId: localCurrentUser.id,
+        userId: currentUser.id,
         promptTemplate: promptTemplate,
         combinations: [{
-          text: modifyDialogueText, // Folosește textul modificat
+          text: text, // Folosește textul extras din editor
           imageUrl: combo.imageUrl,
         }],
       });
@@ -1250,7 +1848,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           i === index
             ? {
                 ...v,
-                text: modifyDialogueText, // Update text
+                text: text, // Update text
                 taskId: newResult.taskId,
                 status: newResult.success ? 'pending' as const : 'failed' as const,
                 error: newResult.error,
@@ -1266,12 +1864,26 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           i === index
             ? {
                 ...c,
-                text: modifyDialogueText,
+                text: text,
                 promptType: modifyPromptType,
               }
             : c
         )
       );
+      
+      // Update adLines with red text positions
+      setAdLines(prev => prev.map(line => {
+        if (line.text === combo.text) {
+          return {
+            ...line,
+            text: text,
+            charCount: text.length,
+            redStart: redStart,
+            redEnd: redEnd,
+          };
+        }
+        return line;
+      }));
 
       // Închide form-ul
       setModifyingVideoIndex(null);
@@ -1319,7 +1931,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       }
 
       const result = await generateBatchMutation.mutateAsync({
-        userId: localCurrentUser.id,
+        userId: currentUser.id,
         promptTemplate: promptTemplate,
         combinations: [{
           text: combo.text,
@@ -1361,7 +1973,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     const pendingVideos = videoResults.filter(v => v.status === 'pending');
     if (pendingVideos.length === 0) return;
 
-    // Check-uri din 10 în 10 secunde de la început
+    // Check-uri din 5 în 5 secunde de la început
     const interval = setInterval(() => {
       const stillPending = videoResults.filter(v => v.status === 'pending');
       if (stillPending.length === 0) {
@@ -1375,7 +1987,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           checkVideoStatus(video.taskId, actualIndex);
         }
       });
-    }, 10000);
+    }, 5000); // 5 secunde
 
     return () => {
       clearInterval(interval);
@@ -1463,7 +2075,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   }, [reviewHistory]);
 
   const goToCheckVideos = () => {
-    setCurrentStep(6);
+    setCurrentStep(7); // Go to STEP 7 - Check Videos
   };
 
   // Navigation
@@ -1487,63 +2099,65 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 py-8">
-      <div className="container max-w-6xl">
-        {/* Header cu User Info */}
-        <div className="mb-6 p-4 bg-white border-2 border-blue-200 rounded-lg flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          {localCurrentUser.profileImageUrl && (
-            <img
-              src={localCurrentUser.profileImageUrl}
-              alt="Profile"
-              className="w-12 h-12 rounded-full border-2 border-blue-300 object-cover"
-            />
-          )}
-          {!localCurrentUser.profileImageUrl && (
-            <div className="w-12 h-12 rounded-full border-2 border-blue-300 bg-blue-100 flex items-center justify-center">
-              <span className="text-blue-900 font-bold text-xl">
-                {localCurrentUser.username.charAt(0).toUpperCase()}
-              </span>
-            </div>
-          )}
-          <div>
-            <p className="text-sm text-blue-700">Logat ca:</p>
-            <p className="text-lg font-bold text-blue-900">{localCurrentUser.username}</p>
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 py-4 md:py-8 px-2 md:px-4">
+      <div className="container max-w-6xl mx-auto">
+        {/* User Dropdown - Top Right */}
+        <div className="fixed top-2 right-2 md:top-4 md:right-4 z-50">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-1 md:gap-2 px-2 md:px-3 py-1.5 md:py-2 rounded-lg hover:bg-gray-100 transition-colors bg-white shadow-md">
+                {localCurrentUser.profileImageUrl && (
+                  <img
+                    src={localCurrentUser.profileImageUrl}
+                    alt="Profile"
+                    className="w-6 h-6 md:w-8 md:h-8 rounded-full border border-gray-300 object-cover"
+                  />
+                )}
+                {!localCurrentUser.profileImageUrl && (
+                  <div className="w-6 h-6 md:w-8 md:h-8 rounded-full border border-gray-300 bg-gray-100 flex items-center justify-center">
+                    <span className="text-gray-700 font-medium text-sm">
+                      {localCurrentUser.username.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                )}
+                <span className="hidden md:inline text-sm font-medium text-gray-700">{localCurrentUser.username}</span>
+                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => setLocation("/images-library")} className="cursor-pointer">
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Images Library
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setLocation("/prompts-library")} className="cursor-pointer">
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Prompts Library
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setIsEditProfileOpen(true)} className="cursor-pointer">
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Settings
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onLogout} className="cursor-pointer text-red-600">
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-        <div className="flex gap-3">
-          <Button
-            onClick={() => setLocation("/images-library")}
-            variant="outline"
-            className="border-purple-300 text-purple-900 hover:bg-purple-50"
-          >
-            Images Library
-          </Button>
-          <Button
-            onClick={() => setLocation("/prompts-library")}
-            variant="outline"
-            className="border-green-300 text-green-900 hover:bg-green-50"
-          >
-            Prompts Library
-          </Button>
-          <Button
-            onClick={() => setIsEditProfileOpen(true)}
-            variant="outline"
-            className="border-blue-300 text-blue-900 hover:bg-blue-50"
-          >
-            Settings
-          </Button>
-          <Button
-            onClick={onLogout}
-            variant="destructive"
-            className="bg-red-600 hover:bg-red-700"
-          >
-            Logout
-          </Button>
-        </div>
-      </div>
       
-      {/* Settings Modal */}
+      {/* Edit Profile Modal */}
       <EditProfileModal
         isOpen={isEditProfileOpen}
         onClose={() => setIsEditProfileOpen(false)}
@@ -1562,102 +2176,281 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         userId={localCurrentUser.id}
       />
 
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-blue-900 mb-2">Kie.ai Video Generator</h1>
-          <p className="text-blue-700">Generează videouri AI în masă cu Kie.ai Veo 3.1</p>
+        <div className="text-center mb-6 md:mb-12">
+          <h1 className="text-2xl md:text-4xl font-bold text-blue-900 mb-2">A.I Ads Engine</h1>
+          <p className="text-sm md:text-base text-blue-700">Generează videouri AI în masă cu Veo 3.1</p>
         </div>
 
-        {/* Session Management */}
-        <div className="mb-6 p-4 bg-white border-2 border-blue-200 rounded-lg">
-          <div className="flex items-center gap-4">
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-blue-900 mb-2">
-                Sesiune Curentă:
-              </label>
-              <select
-                key={currentSessionId}
-                value={currentSessionId}
-                onChange={(e) => {
-                  const sessionId = e.target.value;
-                  if (sessionId === 'new') {
-                    // New session
-                    if (confirm('Vrei să începi o sesiune nouă? Sesiunea curentă va fi salvată automat.')) {
-                      setCurrentSessionId(`session-${Date.now()}`);
-                      // Reset all states
-                      setCurrentStep(1);
-                      setAdLines([]);
-                      setPrompts([]);
-                      setImages([]);
-                      setCombinations([]);
-                      setDeletedCombinations([]);
-                      setVideoResults([]);
-                      setReviewHistory([]);
-                      setSelectedVideoIndex(-1);
-                      setRegenerateMultiple(false);
-                      setRegenerateVariantCount(1);
-                      setRegenerateVariants([]);
-                      toast.success('Sesiune nouă creată!');
+        {/* Context Selector */}
+        <div className="mb-6 md:mb-8 p-3 md:p-6 bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-300 rounded-xl shadow-lg">
+          <div className="mb-4">
+            <h2 className="text-lg md:text-2xl font-bold text-blue-900 mb-2 flex items-center gap-2">
+              <span className="text-2xl md:text-3xl">🎯</span>
+              Select Your Working Context
+            </h2>
+            <p className="text-sm text-gray-600">Choose all 5 categories to start working. This context will apply to all steps.</p>
+          </div>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            {/* TAM */}
+            <div>
+              <Label className="text-sm font-semibold text-blue-900 mb-2 block">
+                1. TAM
+              </Label>
+              <Select 
+                value={selectedTamId?.toString() || ''} 
+                onValueChange={async (value) => {
+                  if (value === 'new') {
+                    const name = prompt('Enter new TAM name:');
+                    if (name && name.trim()) {
+                      const result = await createTamMutation.mutateAsync({
+                        userId: localCurrentUser.id,
+                        name: name.trim(),
+                      });
+                      setSelectedTamId(result.id);
+                      refetchTams();
+                      toast.success('TAM created!');
                     }
-                  } else {
-                    // Load session
-                    loadSession(sessionId);
+                  } else if (value) {
+                    setSelectedTamId(parseInt(value));
+                    // Reset dependent selections
+                    setSelectedCoreBeliefId(null);
+                    setSelectedEmotionalAngleId(null);
+                    setSelectedAdId(null);
+                    setSelectedCharacterId(null);
                   }
                 }}
-                className="w-full p-3 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="default">Default Session</option>
-                {getSavedSessions().map(session => (
-                  <option key={session.id} value={session.id}>
-                    {session.name} (STEP {session.currentStep}, {session.videoCount} videos) - {new Date(session.timestamp).toLocaleString('ro-RO')}
-                  </option>
-                ))}
-                <option value="new">+ Sesiune Nouă</option>
-              </select>
+                <SelectTrigger className="w-full bg-white">
+                  <SelectValue placeholder="Select TAM" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tams.map((tam, index) => (
+                    <SelectItem key={tam.id} value={tam.id.toString()}>{tam.id}. {tam.name}</SelectItem>
+                  ))}
+                  <SelectItem value="new">+ New TAM</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                onClick={() => {
-                  const name = prompt('Nume sesiune:', `Session ${new Date().toLocaleDateString('ro-RO')}`);
-                  if (name) {
-                    saveSession(name);
+
+            {/* Core Belief */}
+            <div>
+              <Label className="text-sm font-semibold text-blue-900 mb-2 block">
+                2. Core Belief
+              </Label>
+              <Select 
+                value={selectedCoreBeliefId?.toString() || ''}
+                disabled={!selectedTamId}
+                onValueChange={async (value) => {
+                  if (value === 'new') {
+                    const name = prompt('Enter new Core Belief name:');
+                    if (name && name.trim()) {
+                      const result = await createCoreBeliefMutation.mutateAsync({
+                        userId: localCurrentUser.id,
+                        tamId: selectedTamId,
+                        name: name.trim(),
+                      });
+                      setSelectedCoreBeliefId(result.id);
+                      refetchCoreBeliefs();
+                      toast.success('Core Belief created!');
+                    }
+                  } else if (value) {
+                    setSelectedCoreBeliefId(parseInt(value));
+                    // Reset dependent selections
+                    setSelectedEmotionalAngleId(null);
+                    setSelectedAdId(null);
+                    setSelectedCharacterId(null);
                   }
                 }}
-                className="bg-green-600 hover:bg-green-700"
               >
-                Save Session
-              </Button>
-              
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={() => {
-                  if (currentSessionId === 'default') {
-                    toast.error('Nu poți șterge sesiunea default!');
-                    return;
-                  }
-                  if (confirm('Sigur vrei să ștergi sesiunea curentă?')) {
-                    deleteSession(currentSessionId);
+                <SelectTrigger className="w-full bg-white">
+                  <SelectValue placeholder="Select Core Belief" />
+                </SelectTrigger>
+                <SelectContent>
+                  {coreBeliefs.map((cb) => (
+                    <SelectItem key={cb.id} value={cb.id.toString()}>{cb.id}. {cb.name}</SelectItem>
+                  ))}
+                  <SelectItem value="new">+ New Core Belief</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Emotional Angle */}
+            <div>
+              <Label className="text-sm font-semibold text-blue-900 mb-2 block">
+                3. Emotional Angle
+              </Label>
+              <Select 
+                value={selectedEmotionalAngleId?.toString() || ''}
+                disabled={!selectedCoreBeliefId}
+                onValueChange={async (value) => {
+                  if (value === 'new') {
+                    const name = prompt('Enter new Emotional Angle name:');
+                    if (name && name.trim()) {
+                      const result = await createEmotionalAngleMutation.mutateAsync({
+                        userId: localCurrentUser.id,
+                        coreBeliefId: selectedCoreBeliefId,
+                        name: name.trim(),
+                      });
+                      setSelectedEmotionalAngleId(result.id);
+                      refetchEmotionalAngles();
+                      toast.success('Emotional Angle created!');
+                    }
+                  } else if (value) {
+                    setSelectedEmotionalAngleId(parseInt(value));
+                    // Reset dependent selections
+                    setSelectedAdId(null);
+                    setSelectedCharacterId(null);
                   }
                 }}
-                className="bg-red-600 hover:bg-red-700"
               >
-                Delete
-              </Button>
+                <SelectTrigger className="w-full bg-white">
+                  <SelectValue placeholder="Select Emotional Angle" />
+                </SelectTrigger>
+                <SelectContent>
+                  {emotionalAngles.map((ea) => (
+                    <SelectItem key={ea.id} value={ea.id.toString()}>{ea.id}. {ea.name}</SelectItem>
+                  ))}
+                  <SelectItem value="new">+ New Emotional Angle</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Ad */}
+            <div>
+              <Label className="text-sm font-semibold text-blue-900 mb-2 block">
+                4. Ad
+              </Label>
+              <Select 
+                value={selectedAdId?.toString() || ''}
+                disabled={!selectedEmotionalAngleId}
+                onValueChange={async (value) => {
+                  if (value === 'new') {
+                    const name = prompt('Enter new Ad name:');
+                    if (name && name.trim()) {
+                      const result = await createAdMutation.mutateAsync({
+                        userId: localCurrentUser.id,
+                        emotionalAngleId: selectedEmotionalAngleId,
+                        name: name.trim(),
+                      });
+                      setSelectedAdId(result.id);
+                      refetchAds();
+                      toast.success('Ad created!');
+                    }
+                  } else if (value) {
+                    setSelectedAdId(parseInt(value));
+                    // Reset character
+                    setSelectedCharacterId(null);
+                  }
+                }}
+              >
+                <SelectTrigger className="w-full bg-white">
+                  <SelectValue placeholder="Select Ad" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ads.map((ad) => (
+                    <SelectItem key={ad.id} value={ad.id.toString()}>{ad.id}. {ad.name}</SelectItem>
+                  ))}
+                  <SelectItem value="new">+ New Ad</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Character (Required) */}
+            <div>
+              <Label className="text-sm font-semibold text-blue-900 mb-2 block">
+                5. Character *
+              </Label>
+              <Select 
+                value={selectedCharacterId?.toString() || ''}
+                disabled={!selectedAdId}
+                onValueChange={async (value) => {
+                  if (value === 'new') {
+                    const name = prompt('Enter new Character name:');
+                    if (name && name.trim()) {
+                      try {
+                        const result = await createCharacterMutation.mutateAsync({
+                          userId: localCurrentUser.id,
+                          name: name.trim(),
+                        });
+                        await refetchCharacters();
+                        setSelectedCharacterId(result.id);
+                        toast.success('Character created!');
+                      } catch (error: any) {
+                        toast.error(`Failed to create character: ${error.message}`);
+                      }
+                    }
+                  } else if (value) {
+                    setSelectedCharacterId(parseInt(value));
+                  }
+                }}
+              >
+                <SelectTrigger className="w-full bg-white">
+                  <SelectValue placeholder="Select Character" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categoryCharacters.map((char) => (
+                    <SelectItem key={char.id} value={char.id.toString()}>
+                      <div className="flex items-center gap-2">
+                        {char.thumbnailUrl && (
+                          <img 
+                            src={char.thumbnailUrl} 
+                            alt={char.name}
+                            className="w-6 h-6 rounded-full object-cover"
+                          />
+                        )}
+                        <span>{char.name}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="new">+ New Character</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
+          
+          {/* Context Status */}
+          {selectedTamId && selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId && (
+            <div className="mt-4 p-4 bg-green-50 border border-green-300 rounded-lg">
+              <p className="text-green-900 font-medium flex items-center gap-2">
+                <span className="text-xl">✅</span>
+                Context complete! You can now access all steps.
+              </p>
+            </div>
+          )}
+          
+          {(!selectedTamId || !selectedCoreBeliefId || !selectedEmotionalAngleId || !selectedAdId || !selectedCharacterId) && (
+            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-300 rounded-lg">
+              <p className="text-yellow-900 font-medium flex items-center gap-2">
+                <span className="text-xl">⚠️</span>
+                Please select all 5 categories to continue.
+              </p>
+            </div>
+          )}
         </div>
 
+        {/* Context Required Warning */}
+        {(!selectedTamId || !selectedCoreBeliefId || !selectedEmotionalAngleId || !selectedAdId || !selectedCharacterId) && (
+          <div className="mb-8 p-6 bg-red-50 border-2 border-red-300 rounded-lg">
+            <h3 className="text-xl font-bold text-red-900 mb-2 flex items-center gap-2">
+              <span className="text-2xl">⛔</span>
+              Context Required
+            </h3>
+            <p className="text-red-700">Please select all 5 categories (TAM, Core Belief, Emotional Angle, Ad, Character) in the context selector above to access the workflow steps.</p>
+          </div>
+        )}
+
         {/* Breadcrumbs */}
-        <div className="flex justify-between items-center mb-8 px-4">
+        {selectedTamId && selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId && (
+        <div className="hidden md:flex justify-between items-center mb-8 px-4">
           {[
-            { num: 1, label: "Text Ad", icon: FileText },
-            { num: 2, label: "Prompts", icon: FileText },
-            { num: 3, label: "Images", icon: ImageIcon },
-            { num: 4, label: "Mapping", icon: Map },
-            { num: 5, label: "Generate", icon: Play },
-            { num: 6, label: "Check\u00A0Videos", icon: Video },
+            { num: 1, label: "Prepare Ad", icon: FileText },
+            { num: 2, label: "Text Ad", icon: FileText },
+            { num: 3, label: "Prompts", icon: FileText },
+            { num: 4, label: "Images", icon: ImageIcon },
+            { num: 5, label: "Mapping", icon: Map },
+            { num: 6, label: "Generate", icon: Play },
+            { num: 7, label: "Check\u00A0Videos", icon: Video },
           ].map((step, index) => (
             <div key={step.num} className="flex items-center flex-1">
               <div className="flex flex-col items-center flex-1">
@@ -1687,19 +2480,19 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   {step.label}
                 </span>
               </div>
-              {index < 5 && (
+              {index < 6 && (
                 <div
                   className={`h-1 flex-1 mx-2 transition-all ${
                     currentStep > step.num ? "bg-blue-600" : "bg-gray-200"
                   }`}
                 />
               )}
-            </div>
-          ))}
+            </div>          ))}
         </div>
+        )}
 
         {/* Back Button */}
-        {currentStep > 1 && (
+        {selectedTamId && selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId && currentStep > 1 && (
           <div className="mb-4">
             <Button
               onClick={goBack}
@@ -1713,52 +2506,356 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           </div>
         )}
         
-        {/* STEP 1: Text Ad Upload */}
+        {/* All Steps - Only show if context is complete */}
+        {selectedTamId && selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId && (
+        <>
+        {/* STEP 1: Prepare Text Ad */}
         {currentStep === 1 && (
           <Card className="mb-8 border-2 border-blue-200">
             <CardHeader className="bg-blue-50">
               <CardTitle className="flex items-center gap-2 text-blue-900">
                 <FileText className="w-5 h-5" />
-                STEP 1 - Text Ad Upload
+                STEP 1 - Prepare Text Ad
+              </CardTitle>
+              <CardDescription>
+                Selectează categoriile și pregătește textul ad-ului (118-125 caractere).
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-4 md:pt-8 px-3 md:px-8 pb-4 md:pb-8">
+              {/* Context Info */}
+              <div className="mb-6 p-4 bg-blue-50/50 border-2 border-blue-200 rounded-lg">
+                <h3 className="text-lg font-semibold text-blue-900 mb-4">Current Context</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="font-medium text-gray-600">Core Belief:</span>
+                    <p className="text-blue-900 font-semibold">{coreBeliefs.find(cb => cb.id === selectedCoreBeliefId)?.name || 'Not selected'}</p>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-600">Emotional Angle:</span>
+                    <p className="text-blue-900 font-semibold">{emotionalAngles.find(ea => ea.id === selectedEmotionalAngleId)?.name || 'Not selected'}</p>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-600">Ad:</span>
+                    <p className="text-blue-900 font-semibold">{ads.find(ad => ad.id === selectedAdId)?.name || 'Not selected'}</p>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-600">Character:</span>
+                    <div className="flex items-center gap-2 mt-1">
+                      {selectedCharacterId && categoryCharacters.find(char => char.id === selectedCharacterId)?.thumbnailUrl && (
+                        <img 
+                          src={categoryCharacters.find(char => char.id === selectedCharacterId)?.thumbnailUrl || ''} 
+                          alt="Character"
+                          className="w-8 h-8 rounded-full object-cover border-2 border-blue-300"
+                        />
+                      )}
+                      <p className="text-blue-900 font-semibold">{categoryCharacters.find(char => char.id === selectedCharacterId)?.name || 'Not selected'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* OLD CATEGORIES - TO BE REMOVED */}
+              <div className="hidden">
+                <div className="mb-4">
+                  <Label className="text-blue-900 font-medium mb-2 block">Core Belief:</Label>
+                  <Select 
+                    value={selectedCoreBeliefId?.toString() || ''} 
+                    onValueChange={async (value) => {
+                      if (value === 'new') {
+                        const name = prompt('Enter new Core Belief name:');
+                        if (name && name.trim()) {
+                          const result = await createCoreBeliefMutation.mutateAsync({
+                            userId: localCurrentUser.id,
+                            name: name.trim(),
+                          });
+                          await refetchCoreBeliefs();
+                          setSelectedCoreBeliefId(result.id);
+                          setSelectedEmotionalAngleId(null);
+                          setSelectedAdId(null);
+                          toast.success('Core Belief created!');
+                        }
+                      } else {
+                        setSelectedCoreBeliefId(parseInt(value));
+                        setSelectedEmotionalAngleId(null);
+                        setSelectedAdId(null);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select Core Belief" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {coreBeliefs.map((cb) => (
+                        <SelectItem key={cb.id} value={cb.id.toString()}>{cb.name}</SelectItem>
+                      ))}
+                      <SelectItem value="new">+ New Core Belief</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Emotional Angle */}
+                {selectedCoreBeliefId && (
+                  <div className="mb-4">
+                    <Label className="text-blue-900 font-medium mb-2 block">Emotional Angle:</Label>
+                    <Select 
+                      value={selectedEmotionalAngleId?.toString() || ''} 
+                      onValueChange={async (value) => {
+                        if (value === 'new') {
+                          const name = prompt('Enter new Emotional Angle name:');
+                          if (name && name.trim()) {
+                            const result = await createEmotionalAngleMutation.mutateAsync({
+                              userId: localCurrentUser.id,
+                              coreBeliefId: selectedCoreBeliefId,
+                              name: name.trim(),
+                            });
+                            await refetchEmotionalAngles();
+                            setSelectedEmotionalAngleId(result.id);
+                            setSelectedAdId(null);
+                            toast.success('Emotional Angle created!');
+                          }
+                        } else {
+                          setSelectedEmotionalAngleId(parseInt(value));
+                          setSelectedAdId(null);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select Emotional Angle" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {emotionalAngles.map((ea) => (
+                          <SelectItem key={ea.id} value={ea.id.toString()}>{ea.name}</SelectItem>
+                        ))}
+                        <SelectItem value="new">+ New Emotional Angle</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Ad */}
+                {selectedEmotionalAngleId && (
+                  <div className="mb-4">
+                    <Label className="text-blue-900 font-medium mb-2 block">Ad:</Label>
+                    <Select 
+                      value={selectedAdId?.toString() || ''} 
+                      onValueChange={async (value) => {
+                        if (value === 'new') {
+                          const name = prompt('Enter new Ad name:');
+                          if (name && name.trim()) {
+                            const result = await createAdMutation.mutateAsync({
+                              userId: localCurrentUser.id,
+                              emotionalAngleId: selectedEmotionalAngleId,
+                              name: name.trim(),
+                            });
+                            await refetchAds();
+                            setSelectedAdId(result.id);
+                            toast.success('Ad created!');
+                          }
+                        } else {
+                          setSelectedAdId(parseInt(value));
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select Ad" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ads.map((ad) => (
+                          <SelectItem key={ad.id} value={ad.id.toString()}>{ad.name}</SelectItem>
+                        ))}
+                        <SelectItem value="new">+ New Ad</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Character (Optional) */}
+                {selectedAdId && (
+                  <div className="mb-4">
+                    <Label className="text-blue-900 font-medium mb-2 block">Character (Optional):</Label>
+                    <Select 
+                      value={selectedCharacterId?.toString() || 'none'} 
+                      onValueChange={async (value) => {
+                        if (value === 'new') {
+                          const name = prompt('Enter new Character name:');
+                          if (name && name.trim()) {
+                            const result = await createCharacterMutation.mutateAsync({
+                              userId: localCurrentUser.id,
+                              name: name.trim(),
+                            });
+                            await refetchCharacters();
+                            setSelectedCharacterId(result.id);
+                            toast.success('Character created!');
+                          }
+                        } else if (value === 'none') {
+                          setSelectedCharacterId(null);
+                        } else {
+                          setSelectedCharacterId(parseInt(value));
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select Character (Optional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        {categoryCharacters.map((char) => (
+                          <SelectItem key={char.id} value={char.id.toString()}>{char.name}</SelectItem>
+                        ))}
+                        <SelectItem value="new">+ New Character</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+
+              {/* Show text input section only after all required categories are selected */}
+              {selectedTamId && selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId && (
+                <>
+                  {/* Input Method Selector */}
+                  <div className="mb-6">
+                    <Label className="text-blue-900 font-medium mb-2 block">Input Method:</Label>
+                    <Select value={textAdMode} onValueChange={(value: 'upload' | 'paste') => setTextAdMode(value)}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="upload">Upload Ad</SelectItem>
+                        <SelectItem value="paste">Paste Ad</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* Upload Mode */}
+                  {textAdMode === 'upload' && (
+                    <div className="mb-6">
+                      <div
+                        className="border-2 border-dashed border-blue-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors cursor-pointer bg-blue-50/50"
+                        onClick={() => document.getElementById('text-upload')?.click()}
+                        onDrop={handleTextFileDrop}
+                        onDragOver={handleTextFileDragOver}
+                      >
+                        <Upload className="w-12 h-12 text-blue-500 mx-auto mb-4" />
+                        <p className="text-blue-900 font-medium mb-2">
+                          {rawTextAd ? 'Text loaded! Click to change' : 'Drop text file here or click to upload'}
+                        </p>
+                        <p className="text-sm text-gray-500 italic">Suportă .txt, .doc, .docx</p>
+                        <input
+                          id="text-upload"
+                          type="file"
+                          accept=".txt,.doc,.docx"
+                          className="hidden"
+                          onChange={handleTextFileUpload}
+                        />
+                      </div>
+                      {rawTextAd && (
+                        <div className="mt-4 p-4 bg-white border border-blue-200 rounded-lg">
+                          <p className="text-sm text-gray-700 mb-2"><strong>Preview:</strong></p>
+                          <p className="text-sm text-gray-600 whitespace-pre-wrap">{rawTextAd.substring(0, 200)}{rawTextAd.length > 200 ? '...' : ''}</p>
+                          <p className="text-xs text-gray-500 mt-2">{rawTextAd.length} characters</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Paste Mode */}
+                  {textAdMode === 'paste' && (
+                    <div className="mb-6">
+                      <Label className="text-blue-900 font-medium mb-2 block">Paste your ad text:</Label>
+                      <textarea
+                        value={rawTextAd}
+                        onChange={(e) => setRawTextAd(e.target.value)}
+                        className="w-full h-40 p-4 border-2 border-blue-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                        placeholder="Paste your ad text here..."
+                      />
+                      {rawTextAd && (
+                        <p className="text-xs text-gray-500 mt-2">{rawTextAd.length} characters</p>
+                      )}
+                    </div>
+                  )}
+
+                  <Button
+                    onClick={processText}
+                    disabled={!rawTextAd || rawTextAd.trim().length === 0 || processTextAdMutation.isPending}
+                    className="mt-4 bg-blue-600 hover:bg-blue-700"
+                  >
+                    {processTextAdMutation.isPending ? 'Processing...' : 'Process & Continue to STEP 2'}
+                  </Button>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* STEP 2: Text Ad Document */}
+        {currentStep === 2 && (
+          <Card className="mb-8 border-2 border-blue-200">
+            <CardHeader className="bg-blue-50">
+              <CardTitle className="flex items-center gap-2 text-blue-900">
+                <FileText className="w-5 h-5" />
+                STEP 2 - Text Ad Document
               </CardTitle>
               <CardDescription>
                 Încărcă documentul cu ad-ul (.docx). Liniile vor fi extrase automat.
               </CardDescription>
             </CardHeader>
-            <CardContent className="pt-8 px-8 pb-8">
-              {/* TEMPORARY: Buton pentru încărcare sample videos */}
-              <div className="mb-6 p-4 bg-purple-50 border-2 border-purple-300 rounded-lg">
-                <Button
-                  onClick={loadSampleVideos}
-                  className="bg-purple-600 hover:bg-purple-700 w-full py-4 text-base border-2 border-purple-300"
-                >
-                  <Play className="w-5 h-5 mr-2" />
-                  Continue with Sample Videos (TEMP)
-                </Button>
-                <p className="text-xs text-gray-500 mt-2 text-center">
-                  Încărcă 4 task ID-uri sample pentru testare când Kie.ai nu funcționează
-                </p>
+            <CardContent className="pt-4 md:pt-6 px-3 md:px-6">
+              {/* Document Source Selector */}
+              <div className="mb-6">
+                <Label className="text-blue-900 font-medium mb-3 block">Document Source:</Label>
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
+                  <Button
+                    onClick={() => {
+                      // Keep lines from STEP 1 - already in adLines
+                      toast.success('Using lines inherited from STEP 1');
+                    }}
+                    variant={adDocument ? 'outline' : 'default'}
+                    className={adDocument ? '' : 'bg-blue-600 hover:bg-blue-700'}
+                    disabled={adLines.length === 0}
+                  >
+                    Inherited from STEP 1 {adLines.length > 0 && `(${adLines.filter(l => l.categoryNumber > 0).length} lines)`}
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      document.getElementById('ad-upload')?.click();
+                    }}
+                    variant={adDocument ? 'default' : 'outline'}
+                    className={adDocument ? 'bg-blue-600 hover:bg-blue-700' : ''}
+                  >
+                    Upload New Document
+                  </Button>
+                </div>
               </div>
+
+              {/* Document Upload (only shown when Upload New Document is active) */}
+              {!adDocument && adLines.length === 0 && (
+                <div className="mb-6 p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-yellow-900 text-sm">
+                    ⚠️ No lines available from STEP 1. Please upload a document or go back to STEP 1 to process text.
+                  </p>
+                </div>
+              )}
               
               <div
                 onDrop={handleAdDocumentDrop}
                 onDragOver={(e) => e.preventDefault()}
                 className="border-2 border-dashed border-blue-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors cursor-pointer bg-blue-50/50"
                 onClick={() => !adDocument && document.getElementById('ad-upload')?.click()}
+                style={{ display: adDocument || adLines.length > 0 ? 'none' : 'block' }}
               >
                 <Upload className="w-12 h-12 text-blue-500 mx-auto mb-4" />
                 <p className="text-blue-900 font-medium mb-2">
-                  {adDocument ? adDocument.name : "Drop document here or click to upload"}
+                  Drop document here or click to upload
                 </p>
                 <p className="text-sm text-gray-500 italic">Suportă .docx, .doc</p>
-                <input
-                  id="ad-upload"
-                  type="file"
-                  accept=".docx,.doc"
-                  className="hidden"
-                  onChange={handleAdDocumentSelect}
-                />
               </div>
+              <input
+                id="ad-upload"
+                type="file"
+                accept=".docx,.doc"
+                className="hidden"
+                onChange={handleAdDocumentSelect}
+              />
               
               {/* Buton șterge document */}
               {adDocument && (
@@ -1783,46 +2880,87 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               {adLines.length > 0 && (
                 <div className="mt-6">
                   <p className="font-medium text-blue-900 mb-3">
-                    {adLines.length} linii extrase:
+                    {adLines.filter(l => l.categoryNumber > 0).length} linii extrase:
                   </p>
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {adLines.map((line, index) => (
-                      <div key={line.id} className="p-3 bg-white rounded border border-blue-200 text-sm">
-                        <div className="flex justify-between items-start mb-1">
-                          <span className="font-medium text-blue-700">#{index + 1}:</span>
-                          <span className="text-xs text-gray-500">{line.charCount} caractere</span>
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {adLines.map((line) => {
+                      // If categoryNumber is 0, this is a label (section header)
+                      if (line.categoryNumber === 0) {
+                        // Check if this is a subcategory (H1-H100) or main category
+                        const isSubcategory = /^H\d+$/.test(line.text);
+                        
+                        return (
+                          <div key={line.id} className="mt-4 mb-2">
+                            {isSubcategory ? (
+                              <h4 className="font-bold text-blue-700 text-base border-b border-blue-200 pb-1">
+                                {line.text}
+                              </h4>
+                            ) : (
+                              <h3 className="font-bold text-blue-800 text-lg border-b-2 border-blue-300 pb-1">
+                                {line.text}
+                              </h3>
+                            )}
+                          </div>
+                        );
+                      }
+                      
+                      // Otherwise, it's a content line
+                      // Split text into normal (black) and added (red) parts
+                      const hasRedText = line.redStart !== undefined && line.redStart >= 0 && line.redEnd !== undefined;
+                      const redText = hasRedText ? line.text.substring(line.redStart, line.redEnd) : '';
+                      const whiteBeforeRed = hasRedText ? line.text.substring(0, line.redStart) : '';
+                      const whiteAfterRed = hasRedText ? line.text.substring(line.redEnd) : line.text;
+                      
+                      // Determine display order: if RED is at start (redStart = 0), show RED first
+                      const redAtStart = hasRedText && line.redStart === 0;
+                      
+                      return (
+                        <div key={line.id} className="p-3 bg-white rounded border border-blue-200 text-sm ml-4 relative">
+                          {/* Edit Button */}
+                          <Button
+                            onClick={() => {
+                              setEditingLineId(line.id);
+                              setEditingLineText(line.text);
+                              setEditingLineRedStart(line.redStart ?? -1);
+                              setEditingLineRedEnd(line.redEnd ?? -1);
+                            }}
+                            variant="outline"
+                            size="sm"
+                            className="absolute top-2 right-2"
+                          >
+                            Edit
+                          </Button>
+                          
+                          {/* Name above text in italic small font */}
+                          <div className="mb-1">
+                            <span className="text-xs text-gray-500 italic">{line.videoName}</span>
+                          </div>
+                          {/* Text with red highlighting */}
+                          <p className="text-gray-800 mb-2 pr-16">
+                            {redAtStart && <span className="text-red-600 font-medium">{redText}</span>}
+                            {whiteBeforeRed}
+                            {!redAtStart && hasRedText && <span className="text-red-600 font-medium">{redText}</span>}
+                            {whiteAfterRed}
+                          </p>
+                          {/* Character count below text */}
+                          <div className="text-xs text-gray-500">
+                            {line.charCount} caractere
+                          </div>
                         </div>
-                        <p>{line.text}</p>
-                        <span className="text-xs text-gray-500">({line.promptType})</span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                   <Button
-                    onClick={() => setCurrentStep(2)}
-                    className="mt-4 bg-blue-600 hover:bg-blue-700"
+                    onClick={() => setCurrentStep(3)}
+                    className="mt-4 bg-blue-600 hover:bg-blue-700 px-6"
                   >
-                    Continuă la STEP 2
+                    Continuă la STEP 3
                   </Button>
                 </div>
               )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* STEP 2: Prompts (3 prompts) */}
-        {currentStep === 2 && (
-          <Card className="mb-8 border-2 border-blue-200">
-            <CardHeader className="bg-blue-50">
-              <CardTitle className="flex items-center gap-2 text-blue-900">
-                <FileText className="w-5 h-5" />
-                STEP 2 - Prompts
-              </CardTitle>
-              <CardDescription>
-                Prompturile hardcodate sunt întotdeauna active. Poți adăuga și prompturi custom (.docx).
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-6">
-              {/* Selector pentru prompt mode */}
+              
+              {/* OLD CONTENT - TO BE REMOVED */}
+              <div className="hidden">
               <div className="mb-6">
                 <Label className="text-blue-900 font-medium mb-2 block">Tip prompturi:</Label>
                 <Select value={promptMode} onValueChange={(value: 'hardcoded' | 'custom' | 'manual') => setPromptMode(value)}>
@@ -1830,9 +2968,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="hardcoded">Default Prompts</SelectItem>
-                    <SelectItem value="custom">Upload Custom Prompts</SelectItem>
-                    <SelectItem value="manual">Write Custom Prompts</SelectItem>
+                    <SelectItem value="hardcoded">Prompturi hardcodate</SelectItem>
+                    <SelectItem value="custom">Adaugă prompturi custom</SelectItem>
+                    <SelectItem value="manual">Manual prompt</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1968,39 +3106,258 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               >
                 Continuă la STEP 3
               </Button>
+              </div>
+              {/* END OLD CONTENT */}
             </CardContent>
           </Card>
         )}
 
-        {/* STEP 3: Images */}
+        {/* WYSIWYG Editor Dialog */}
+        <Dialog open={editingLineId !== null} onOpenChange={(open) => !open && setEditingLineId(null)}>
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>Edit Text Line</DialogTitle>
+              <DialogDescription>
+                Select text and apply RED or BLACK color. Character count updates live.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              {/* Color Toolbar */}
+              <div className="flex gap-2 p-2 bg-gray-100 rounded">
+                <Button
+                  onClick={() => {
+                    document.execCommand('foreColor', false, '#dc2626'); // RED-600
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="bg-red-600 text-white hover:bg-red-700"
+                >
+                  RED
+                </Button>
+                <Button
+                  onClick={() => {
+                    document.execCommand('foreColor', false, '#000000'); // BLACK
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="bg-black text-white hover:bg-gray-800"
+                >
+                  BLACK
+                </Button>
+                <Button
+                  onClick={() => {
+                    document.execCommand('removeFormat', false, '');
+                  }}
+                  variant="outline"
+                  size="sm"
+                >
+                  Clear Format
+                </Button>
+              </div>
+              
+              {/* Editable Content */}
+              <div
+                ref={editorRef}
+                contentEditable
+                suppressContentEditableWarning
+                onInput={(e) => {
+                  const text = e.currentTarget.textContent || '';
+                  setEditingLineText(text);
+                }}
+                className="min-h-[150px] p-4 border-2 border-gray-300 rounded focus:outline-none focus:border-blue-500"
+                style={{ whiteSpace: 'pre-wrap' }}
+              >
+                {editingLineText}
+              </div>
+              
+              {/* Character Count */}
+              <div className="flex justify-between items-center">
+                <div className={`text-sm ${
+                  editingLineText.length > 125 ? 'text-orange-600 font-bold' : 'text-gray-600'
+                }`}>
+                  {editingLineText.length} / 125 characters
+                  {editingLineText.length > 125 && (
+                    <span className="ml-2">⚠️ Warning: Exceeds 125 characters!</span>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setEditingLineId(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (!editingLineId || !editorRef.current) return;
+                  
+                  const html = editorRef.current.innerHTML;
+                  const text = editorRef.current.textContent || '';
+                  
+                  // Parse HTML to find RED text positions
+                  let redStart = -1;
+                  let redEnd = -1;
+                  
+                  // Find all red spans and get the first one
+                  const redSpanRegex = /<span[^>]*style="[^"]*color:\s*(?:#dc2626|rgb\(220,\s*38,\s*38\))[^"]*"[^>]*>([^<]*)<\/span>/gi;
+                  const matches = [...html.matchAll(redSpanRegex)];
+                  
+                  if (matches.length > 0) {
+                    const redText = matches[0][1];
+                    redStart = text.indexOf(redText);
+                    if (redStart >= 0) {
+                      redEnd = redStart + redText.length;
+                    }
+                  }
+                  
+                  // Update adLines
+                  setAdLines(prev => prev.map(line => {
+                    if (line.id === editingLineId) {
+                      return {
+                        ...line,
+                        text: text,
+                        charCount: text.length,
+                        redStart: redStart,
+                        redEnd: redEnd,
+                      };
+                    }
+                    return line;
+                  }));
+                  
+                  toast.success('Text saved!');
+                  setEditingLineId(null);
+                }}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                Save
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* STEP 3: Prompts */}
         {currentStep === 3 && (
           <Card className="mb-8 border-2 border-blue-200">
             <CardHeader className="bg-blue-50">
               <CardTitle className="flex items-center gap-2 text-blue-900">
-                <ImageIcon className="w-5 h-5" />
-                STEP 3 - Images Upload
+                <FileText className="w-5 h-5" />
+                STEP 3 - Prompts
               </CardTitle>
               <CardDescription>
-                Încarcă imaginile pentru videouri (format 9:16). Poți încărca multiple imagini.
+                Prompturile hardcodate sunt întotdeauna active. Poți adăuga și prompturi custom (.docx).
               </CardDescription>
             </CardHeader>
-            <CardContent className="pt-6">
-              {/* Image Mode Selector */}
-              <div className="mb-6">
-                <Label className="text-blue-900 font-medium mb-2 block">Image Source:</Label>
-                <Select value={imageMode} onValueChange={(value: 'upload' | 'library') => setImageMode(value)}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="upload">Add Images</SelectItem>
-                    <SelectItem value="library">Select from Library</SelectItem>
-                  </SelectContent>
-                </Select>
+            <CardContent className="pt-4 md:pt-6 px-3 md:px-6">
+              {/* Hardcoded Prompts Info */}
+              <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div className="mb-2">
+                  <span className="font-medium text-green-900">Prompturi hardcodate (întotdeauna active)</span>
+                </div>
+                <div className="text-sm text-green-700 space-y-1">
+                  <p>✓ PROMPT_NEUTRAL - pentru secțiuni până la TRANSFORMATION</p>
+                  <p>✓ PROMPT_SMILING - pentru TRANSFORMATION și CTA</p>
+                  <p>✓ PROMPT_CTA - pentru CTA cu carte</p>
+                </div>
               </div>
 
-              {/* Upload Section - only show when imageMode is 'upload' */}
-              {imageMode === 'upload' && (
+              {/* Upload Custom Prompts */}
+              <div className="mb-4">
+                <p className="font-medium text-blue-900 mb-3">Adaugă prompturi custom (opțional):</p>
+                
+                <div
+                  onDrop={handlePromptDocumentDrop}
+                  onDragOver={(e) => e.preventDefault()}
+                  className="border-2 border-dashed border-blue-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors cursor-pointer bg-blue-50/50 mb-4"
+                  onClick={() => document.getElementById('prompt-upload')?.click()}
+                >
+                  <Upload className="w-12 h-12 text-blue-500 mx-auto mb-4" />
+                  <p className="text-blue-900 font-medium mb-2">
+                    Drop prompt documents here or click to upload
+                  </p>
+                  <p className="text-sm text-gray-500 italic">Suportă .docx, .doc (maxim 3 fișiere)</p>
+                  <input
+                    id="prompt-upload"
+                    type="file"
+                    accept=".docx,.doc"
+                    multiple
+                    className="hidden"
+                    onChange={handlePromptDocumentSelect}
+                  />
+                </div>
+              </div>
+
+              {/* Display uploaded prompts */}
+              {prompts.length > 0 && (
+                <div className="mt-4">
+                  <p className="font-medium text-blue-900 mb-3">
+                    {prompts.length} prompturi custom încărcate:
+                  </p>
+                  <Button
+                    onClick={() => {
+                      setPrompts([]);
+                      const input = document.getElementById('prompt-upload') as HTMLInputElement;
+                      if (input) input.value = '';
+                      toast.success('Toate prompturile custom au fost șterse.');
+                    }}
+                    variant="outline"
+                    size="sm"
+                    className="mb-3"
+                  >
+                    Șterge toate prompturile
+                  </Button>
+                  <div className="space-y-2">
+                    {prompts.map((prompt) => (
+                      <div key={prompt.id} className="p-3 bg-white rounded border border-blue-200 flex justify-between items-center">
+                        <div className="flex-1">
+                          <p className="font-medium text-blue-900">{prompt.name}</p>
+                          <p className="text-xs text-gray-500 truncate">{prompt.template.substring(0, 100)}...</p>
+                        </div>
+                        <Button
+                          onClick={() => {
+                            setPrompts(prev => prev.filter(p => p.id !== prompt.id));
+                            toast.success(`Prompt "${prompt.name}" șters.`);
+                          }}
+                          variant="outline"
+                          size="sm"
+                          className="ml-2"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Continue Button */}
+              <Button
+                onClick={() => setCurrentStep(4)}
+                className="mt-6 bg-blue-600 hover:bg-blue-700 w-full"
+              >
+                Continuă la STEP 4 - Images
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* STEP 4: Images */}
+        {currentStep === 4 && (
+          <Card className="mb-8 border-2 border-blue-200">
+            <CardHeader className="bg-blue-50">
+              <CardTitle className="flex items-center gap-2 text-blue-900">
+                <ImageIcon className="w-5 h-5" />
+                STEP 4 - Images
+              </CardTitle>
+              <CardDescription>
+                Încărcați imagini sau selectați din library (format 9:16 recomandat).
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-4 md:pt-6 px-3 md:px-6">
+              {/* Upload Section */}
               <div
                 onDrop={handleImageDrop}
                 onDragOver={(e) => e.preventDefault()}
@@ -2019,20 +3376,19 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   onChange={handleImageSelect}
                 />
               </div>
-              )}
               
-              {/* Library Images Section - only show when imageMode is 'library' */}
-              {imageMode === 'library' && libraryImages.length > 0 && (
-                <div className="mt-8 p-4 bg-purple-50 border-2 border-purple-300 rounded-lg">
+              {/* Library Images Section */}
+              {libraryImages.length > 0 && (
+                <div className="mt-8 p-4 bg-green-50 border-2 border-green-300 rounded-lg">
                   <div className="mb-4">
-                    <h3 className="font-bold text-purple-900 flex items-center gap-2 mb-4">
+                    <h3 className="font-bold text-green-900 flex items-center gap-2 mb-4">
                       <ImageIcon className="w-4 h-4" />
                       Select from Library ({libraryImages.length} images)
                     </h3>
                   </div>
                   
                   {/* Search Bar + Character Filter */}
-                  <div className="mb-4 grid grid-cols-2 gap-4">
+                  <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <Input
@@ -2061,16 +3417,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   </div>
                   
                   {/* Library Images Grid */}
-                  <div className="grid grid-cols-4 md:grid-cols-8 gap-2 max-h-[300px] overflow-y-auto mb-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 max-h-[300px] overflow-y-auto mb-4">
                     {libraryImages
                       .filter((img) => {
-                        // Filter by search query (imageName only)
                         const query = librarySearchQuery.toLowerCase();
                         const matchesSearch = img.imageName.toLowerCase().includes(query);
-                        
-                        // Filter by character
                         const matchesCharacter = libraryCharacterFilter === "all" || img.characterName === libraryCharacterFilter;
-                        
                         return matchesSearch && matchesCharacter;
                       })
                       .map((img) => (
@@ -2078,8 +3430,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           key={img.id}
                           className={`relative group cursor-pointer rounded border-2 transition-all ${
                             selectedLibraryImages.includes(img.id)
-                              ? 'border-purple-500 ring-2 ring-purple-300'
-                              : 'border-gray-200 hover:border-purple-400'
+                              ? 'border-green-500 ring-2 ring-green-300'
+                              : 'border-gray-200 hover:border-green-400'
                           }`}
                           onClick={() => {
                             setSelectedLibraryImages((prev) =>
@@ -2110,23 +3462,31 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   {selectedLibraryImages.length > 0 && (
                     <Button
                       onClick={() => {
-                        // Add selected library images to images array
+                        // Filter out images that are already added
+                        const existingImageIds = images.map(img => img.id);
                         const newImages: UploadedImage[] = libraryImages
                           .filter((img) => selectedLibraryImages.includes(img.id))
+                          .filter((img) => !existingImageIds.includes(`library-${img.id}`)) // Prevent duplicates
                           .map((img) => ({
                             id: `library-${img.id}`,
                             url: img.imageUrl,
-                            file: null, // No file for library images
+                            file: null,
                             fileName: img.imageName,
                             isCTA: false,
                             fromLibrary: true,
                           }));
                         
+                        if (newImages.length === 0) {
+                          toast.warning('All selected images are already added!');
+                          setSelectedLibraryImages([]);
+                          return;
+                        }
+                        
                         setImages((prev) => [...prev, ...newImages]);
                         setSelectedLibraryImages([]);
                         toast.success(`${newImages.length} images added from library!`);
                       }}
-                      className="bg-purple-600 hover:bg-purple-700 w-full"
+                      className="bg-green-600 hover:bg-green-700 w-full"
                     >
                       Add {selectedLibraryImages.length} Selected Image(s)
                     </Button>
@@ -2134,12 +3494,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 </div>
               )}
 
+              {/* Display uploaded images */}
               {images.length > 0 && (
                 <div className="mt-6">
                   <p className="font-medium text-blue-900 mb-3">
                     {images.length} imagini încărcate:
                   </p>
-                  <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
                     {images.map((image) => (
                       <div key={image.id} className="relative group">
                         <img
@@ -2166,7 +3527,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     onClick={createMappings}
                     className="mt-4 bg-blue-600 hover:bg-blue-700"
                   >
-                    Continuă la STEP 4 - Mapare
+                    Continuă la STEP 5 - Mapare
                   </Button>
                 </div>
               )}
@@ -2174,19 +3535,19 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           </Card>
         )}
 
-        {/* STEP 4: Mapping */}
-        {currentStep === 4 && combinations.length > 0 && (
+        {/* STEP 5: Mapping */}
+        {currentStep === 5 && combinations.length > 0 && (
           <Card className="mb-8 border-2 border-blue-200">
             <CardHeader className="bg-blue-50">
               <CardTitle className="flex items-center gap-2 text-blue-900">
                 <Map className="w-5 h-5" />
-                STEP 4 - Mapping (Text + Image + Prompt)
+                STEP 5 - Mapping (Text + Image + Prompt)
               </CardTitle>
               <CardDescription>
                 Configurează combinațiile de text, imagine și prompt pentru fiecare video. Maparea este făcută automat.
               </CardDescription>
             </CardHeader>
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 md:pt-6 px-3 md:px-6">
               {deletedCombinations.length > 0 && (
                 <div className="mb-4">
                   <Button
@@ -2204,7 +3565,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               <div className="space-y-4 max-h-[600px] overflow-y-auto mb-6">
                 {combinations.map((combo, index) => (
                   <div key={combo.id} className="p-4 bg-white rounded-lg border-2 border-blue-200">
-                    <div className="flex gap-4">
+                    <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
                       {/* Image selector */}
                       <div className="flex-shrink-0">
                         <label className="block text-xs font-medium text-blue-900 mb-2">
@@ -2230,13 +3591,22 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
                       {/* Text and prompt selector */}
                       <div className="flex-1">
+                        {/* Video Name */}
+                        <label className="block text-xs font-medium text-blue-900 mb-1">
+                          Video Name
+                        </label>
+                        <div className="text-xs text-blue-700 mb-3 font-mono bg-blue-50 p-2 rounded border border-blue-200">
+                          {combo.videoName}
+                        </div>
+                        
                         <label className="block text-xs font-medium text-blue-900 mb-2">
                           Text pentru Dialogue
                         </label>
                         <Textarea
                           value={combo.text}
-                          onChange={(e) => updateCombinationText(combo.id, e.target.value)}
-                          className="text-sm mb-3 min-h-[80px]"
+                          readOnly
+                          disabled
+                          className="text-sm mb-3 min-h-[80px] bg-gray-100 text-gray-600 cursor-not-allowed"
                         />
                         
                         <label className="block text-xs font-medium text-blue-900 mb-2">
@@ -2295,21 +3665,21 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           </Card>
         )}
 
-        {/* STEP 5: Generate Results */}
-        {currentStep === 5 && videoResults.length > 0 && (
+        {/* STEP 6: Generate Results */}
+        {currentStep === 6 && videoResults.length > 0 && (
           <Card className="mb-8 border-2 border-blue-200">
             <CardHeader className="bg-blue-50">
               <CardTitle className="flex items-center gap-2 text-blue-900">
                 <Play className="w-5 h-5" />
-                STEP 5 - Videouri Generate
+                STEP 6 - Videouri Generate
               </CardTitle>
               <CardDescription>
                 Urmărește progresul generării videourilo și descarcă-le.
               </CardDescription>
             </CardHeader>
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 md:pt-6 px-3 md:px-6">
               {/* Filtru videouri STEP 5 */}
-              <div className="mb-6 flex items-center gap-4">
+              <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
                 <label className="text-sm font-medium text-blue-900">Filtrează videouri:</label>
                 <select
                   value={step5Filter}
@@ -2322,7 +3692,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 </select>
               </div>
               <div className="space-y-4">
-                {step5FilteredVideos.map((result, index) => (
+                {step5FilteredVideos.map((result, index) => {
+                  // Calculate real index in videoResults once to avoid multiple findIndex calls
+                  const realIndex = videoResults.findIndex(v => v.videoName === result.videoName);
+                  
+                  return (
                   <div key={index} className="p-4 bg-white rounded-lg border-2 border-blue-200">
                     <div className="flex items-start gap-4">
                       <img
@@ -2353,35 +3727,31 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           {result.status === 'pending' && (
                             <>
                               <Loader2 className="w-4 h-4 animate-spin text-orange-600" />
-                              <span className="text-sm text-orange-600 font-medium">În curs de generare...</span>
-                              {result.taskId && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => checkVideoStatus(result.taskId!, index)}
-                                  className="ml-auto border-orange-300 text-orange-700 hover:bg-orange-50"
-                                >
-                                  Verifică Status
-                                </Button>
-                              )}
+                              <span className="text-sm text-orange-600 font-medium">În curs de generare... (auto-refresh la 5s)</span>
                             </>
                           )}
                           {result.status === 'success' && result.videoUrl && (
                             <>
                               {result.reviewStatus === 'regenerate' ? (
-                                <div className="flex-1">
+                                <div className="flex items-center gap-2 justify-between w-full">
+                                  {/* Status Respinse - small, left */}
                                   <div className="flex items-center gap-2 bg-red-50 border-2 border-red-500 px-3 py-2 rounded-lg">
                                     <X className="w-5 h-5 text-red-600" />
                                     <span className="text-sm text-red-700 font-bold">Respinse</span>
                                   </div>
                                   
-                                  {/* Buton Modify & Regenerate pentru videouri respinse */}
+                                  {/* Buton Modify & Regenerate - small, right */}
                                   <Button
                                     size="sm"
                                     variant="outline"
                                     onClick={() => {
-                                      // FIX: Găsește index-ul real în videoResults bazat pe videoName
-                                      const realIndex = videoResults.findIndex(v => v.videoName === result.videoName);
+                                      console.log('[Modify & Regenerate] Clicked for rejected video:', result.videoName, 'realIndex:', realIndex);
+                                      
+                                      if (realIndex < 0) {
+                                        toast.error('Video nu găsit în videoResults');
+                                        return;
+                                      }
+                                      
                                       setModifyingVideoIndex(realIndex);
                                       const currentPromptType = combinations[realIndex]?.promptType || 'PROMPT_NEUTRAL';
                                       setModifyPromptType(currentPromptType);
@@ -2394,8 +3764,30 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                       }
                                       
                                       setModifyDialogueText(result.text);
+                                      
+                                      // Initialize red text positions from combination
+                                      const combo = combinations[realIndex];
+                                      if (combo) {
+                                        // Find the original line to get red text positions
+                                        const originalLine = adLines.find(l => l.text === combo.text);
+                                        if (originalLine) {
+                                          setModifyRedStart(originalLine.redStart ?? -1);
+                                          setModifyRedEnd(originalLine.redEnd ?? -1);
+                                        } else {
+                                          setModifyRedStart(-1);
+                                          setModifyRedEnd(-1);
+                                        }
+                                      }
+                                      
+                                      // Scroll to form
+                                      setTimeout(() => {
+                                        const formElement = document.querySelector(`[data-modify-form="${realIndex}"]`);
+                                        if (formElement) {
+                                          formElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                        }
+                                      }, 100);
                                     }}
-                                    className="mt-2 w-full border-orange-500 text-orange-700 hover:bg-orange-50"
+                                    className="border-orange-500 text-orange-700 hover:bg-orange-50"
                                   >
                                     Modify & Regenerate
                                   </Button>
@@ -2421,24 +3813,27 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                   </p>
                                 </div>
                                 
-                                {/* Modify & Regenerate Form */}
-                                {modifyingVideoIndex === videoResults.findIndex(v => v.videoName === result.videoName) && (
-                                  <div className="mt-4 p-4 bg-white border-2 border-orange-300 rounded-lg space-y-3">
+                                {/* Modify & Regenerate Form moved outside - see after failed section */}
+                                {false && modifyingVideoIndex === realIndex && (
+                                  <div 
+                                    data-modify-form={realIndex}
+                                    className="mt-4 p-4 bg-white border-2 border-orange-300 rounded-lg space-y-3"
+                                  >
                                     <h5 className="font-bold text-orange-900">Modify & Regenerate</h5>
                                     
                                     {/* Radio: Vrei să regenerezi mai multe videouri? */}
                                     <div className="p-3 bg-orange-50 border border-orange-200 rounded">
                                       <label className="text-sm font-medium text-gray-700 block mb-2">Vrei să regenerezi mai multe videouri?</label>
-                                      <div className="flex gap-4">
+                                      <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
                                         <label className="flex items-center gap-2 cursor-pointer">
                                           <input
                                             type="radio"
                                             name="multipleRegens"
-                                            checked={!multipleRegenerations}
+                                            checked={!regenerateMultiple}
                                             onChange={() => {
-                                              setMultipleRegenerations(false);
-                                              setRegenerationCount(1);
-                                              setRegenerationVariants([]);
+                                              setRegenerateMultiple(false);
+                                              setRegenerateVariantCount(1);
+                                              setRegenerateVariants([]);
                                             }}
                                             className="w-4 h-4"
                                           />
@@ -2448,17 +3843,21 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                           <input
                                             type="radio"
                                             name="multipleRegens"
-                                            checked={multipleRegenerations}
+                                            checked={regenerateMultiple}
                                             onChange={() => {
-                                              setMultipleRegenerations(true);
+                                              setRegenerateMultiple(true);
                                               // Inițializează variante cu valorile curente
+                                              const idx = modifyingVideoIndex !== null ? modifyingVideoIndex : 0;
                                               const initialVariant = {
                                                 promptType: modifyPromptType,
                                                 promptText: modifyPromptText,
                                                 dialogueText: modifyDialogueText,
-                                                imageUrl: videoResults[index]?.imageUrl || '',
+                                                imageUrl: videoResults[idx]?.imageUrl || combinations[idx]?.imageUrl || '',
                                               };
-                                              setRegenerationVariants([initialVariant]);
+                                              // Creează array cu regenerateVariantCount variante
+                                              const variants = Array(regenerateVariantCount).fill(null).map(() => ({ ...initialVariant }));
+                                              setRegenerateVariants(variants);
+                                              console.log('[Regenerate Multiple] Initialized', variants.length, 'variants');
                                             }}
                                             className="w-4 h-4"
                                           />
@@ -2468,24 +3867,25 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                     </div>
                                     
                                     {/* Selector număr regenerări (dacă Da) */}
-                                    {multipleRegenerations && (
+                                    {regenerateMultiple && (
                                       <div>
                                         <label className="text-sm font-medium text-gray-700 block mb-1">Câte regenerări vrei? (1-10):</label>
                                         <select
-                                          value={regenerationCount}
+                                          value={regenerateVariantCount}
                                           onChange={(e) => {
                                             const count = parseInt(e.target.value);
-                                            setRegenerationCount(count);
+                                            setRegenerateVariantCount(count);
                                             
                                             // Ajustează array-ul de variante
-                                            const currentVariants = [...regenerationVariants];
+                                            const currentVariants = [...regenerateVariants];
                                             if (count > currentVariants.length) {
                                               // Adaugă variante noi (copie după prima)
+                                              const idx = modifyingVideoIndex !== null ? modifyingVideoIndex : 0;
                                               const template = currentVariants[0] || {
                                                 promptType: modifyPromptType,
                                                 promptText: modifyPromptText,
                                                 dialogueText: modifyDialogueText,
-                                                imageId: combinations[index]?.imageId || '',
+                                                imageUrl: videoResults[idx]?.imageUrl || combinations[idx]?.imageUrl || '',
                                               };
                                               while (currentVariants.length < count) {
                                                 currentVariants.push({ ...template });
@@ -2494,7 +3894,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                               // Șterge variante în plus
                                               currentVariants.splice(count);
                                             }
-                                            setRegenerationVariants(currentVariants);
+                                            setRegenerateVariants(currentVariants);
                                           }}
                                           className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
                                         >
@@ -2506,7 +3906,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                     )}
                                     
                                     {/* Rendering dinamic: 1 secțiune (Nu) sau N secțiuni (Da) */}
-                                    {!multipleRegenerations ? (
+                                    {!regenerateMultiple ? (
                                       /* Mod single (Nu) - 1 secțiune */
                                       <>
                                     {/* Select Prompt Type */}
@@ -2564,18 +3964,65 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                       />
                                     </div>
                                     
-                                    {/* Edit Dialogue Text */}
+                                    {/* Edit Dialogue Text - WYSIWYG */}
                                     <div>
                                       <label className="text-sm font-medium text-gray-700 block mb-1">Edit Text:</label>
-                                      <Textarea
-                                        value={modifyDialogueText}
-                                        onChange={(e) => setModifyDialogueText(e.target.value)}
-                                        className="text-sm min-h-[60px]"
-                                      />
+                                      
+                                      {/* Color Toolbar */}
+                                      <div className="flex gap-2 p-2 bg-gray-100 rounded mb-2">
+                                        <Button
+                                          onClick={() => {
+                                            document.execCommand('foreColor', false, '#dc2626'); // RED-600
+                                          }}
+                                          variant="outline"
+                                          size="sm"
+                                          className="bg-red-600 text-white hover:bg-red-700"
+                                          type="button"
+                                        >
+                                          RED
+                                        </Button>
+                                        <Button
+                                          onClick={() => {
+                                            document.execCommand('foreColor', false, '#000000'); // BLACK
+                                          }}
+                                          variant="outline"
+                                          size="sm"
+                                          className="bg-black text-white hover:bg-gray-800"
+                                          type="button"
+                                        >
+                                          BLACK
+                                        </Button>
+                                        <Button
+                                          onClick={() => {
+                                            document.execCommand('removeFormat', false, '');
+                                          }}
+                                          variant="outline"
+                                          size="sm"
+                                          type="button"
+                                        >
+                                          Clear Format
+                                        </Button>
+                                      </div>
+                                      
+                                      {/* Editable Content */}
+                                      <div
+                                        ref={modifyEditorRef}
+                                        contentEditable
+                                        suppressContentEditableWarning
+                                        onInput={(e) => {
+                                          const text = e.currentTarget.textContent || '';
+                                          setModifyDialogueText(text);
+                                        }}
+                                        className="min-h-[80px] p-3 border-2 border-gray-300 rounded focus:outline-none focus:border-blue-500 text-sm"
+                                        style={{ whiteSpace: 'pre-wrap' }}
+                                      >
+                                        {modifyDialogueText}
+                                      </div>
+                                      
                                       <p className={`text-xs mt-1 ${
-                                        modifyDialogueText.length > 125 ? 'text-red-600 font-bold' : 'text-gray-500'
+                                        modifyDialogueText.length > 125 ? 'text-orange-600 font-bold' : 'text-gray-500'
                                       }`}>
-                                        {modifyDialogueText.length} caractere{modifyDialogueText.length > 125 ? ` - ${modifyDialogueText.length - 125} caractere depășite!` : ''}
+                                        {modifyDialogueText.length} caractere{modifyDialogueText.length > 125 ? ` ⚠️ Warning: ${modifyDialogueText.length - 125} caractere depășite!` : ''}
                                       </p>
                                     </div>
                                     
@@ -2585,6 +4032,34 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                         size="sm"
                                         onClick={() => {
                                           // SAVE: salvează modificări fără regenerare
+                                          
+                                          if (!modifyEditorRef.current) return;
+                                          
+                                          // Extract HTML and text from editor
+                                          const html = modifyEditorRef.current.innerHTML || '';
+                                          const text = modifyEditorRef.current.textContent || '';
+                                          
+                                          console.log('[Save Modify] Extracting red text from HTML:', html.substring(0, 100));
+                                          
+                                          // Parse HTML to find RED text positions
+                                          let redStart = -1;
+                                          let redEnd = -1;
+                                          
+                                          const redSpanRegex = /<span[^>]*style="[^"]*color:\s*(?:#dc2626|rgb\(220,\s*38,\s*38\))[^"]*"[^>]*>([^<]*)<\/span>/gi;
+                                          const matches = [...html.matchAll(redSpanRegex)];
+                                          console.log('[Save Modify] Found', matches.length, 'red spans');
+                                          
+                                          if (matches.length > 0) {
+                                            const redText = matches[0][1];
+                                            redStart = text.indexOf(redText);
+                                            if (redStart >= 0) {
+                                              redEnd = redStart + redText.length;
+                                            }
+                                          }
+                                          
+                                          // Update state
+                                          setModifyRedStart(redStart);
+                                          setModifyRedEnd(redEnd);
                                           
                                           // Dacă user a editat prompt text → salvează ca PROMPT_CUSTOM
                                           if (modifyPromptText.trim().length > 0) {
@@ -2597,23 +4072,81 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                           const updatedCombinations = [...combinations];
                                           updatedCombinations[index] = {
                                             ...updatedCombinations[index],
-                                            text: modifyDialogueText,
+                                            text: text,
                                             promptType: modifyPromptType,
                                           };
                                           setCombinations(updatedCombinations);
                                           
-                                          // Update videoResults cu noul text
+                                          // Update adLines with red text positions
+                                          setAdLines(prev => prev.map(line => {
+                                            if (line.text === combinations[index].text) {
+                                              return {
+                                                ...line,
+                                                text: text,
+                                                charCount: text.length,
+                                                redStart: redStart,
+                                                redEnd: redEnd,
+                                              };
+                                            }
+                                            return line;
+                                          }));
+                                          
+                                          // Update videoResults cu noul text ȘI red positions
                                           setVideoResults(prev =>
                                             prev.map((v, i) =>
-                                              i === index ? { ...v, text: modifyDialogueText } : v
+                                              i === index ? { 
+                                                ...v, 
+                                                text: text,
+                                                redStart: redStart,
+                                                redEnd: redEnd,
+                                              } : v
                                             )
                                           );
+                                          
+                                          console.log('[Save Modify] Updated videoResults[' + index + '] with red text:', redStart, '-', redEnd);
                                           
                                           // Salvează timestamp pentru "Edited X min ago"
                                           setEditTimestamps(prev => ({
                                             ...prev,
                                             [index]: Date.now(),
                                           }));
+                                          
+                                          // SAVE TO DATABASE
+                                          console.log('[Database Save] Saving after text modification...');
+                                          const updatedVideoResults = videoResults.map((v, i) =>
+                                            i === index ? { 
+                                              ...v, 
+                                              text: text,
+                                              redStart: redStart,
+                                              redEnd: redEnd,
+                                            } : v
+                                          );
+                                          
+                                          upsertContextSessionMutation.mutate({
+                                            userId: localCurrentUser.id,
+                                            tamId: selectedTamId,
+                                            coreBeliefId: selectedCoreBeliefId,
+                                            emotionalAngleId: selectedEmotionalAngleId,
+                                            adId: selectedAdId,
+                                            characterId: selectedCharacterId,
+                                            currentStep,
+                                            rawTextAd,
+                                            processedTextAd,
+                                            adLines,
+                                            prompts,
+                                            images,
+                                            combinations: updatedCombinations,
+                                            deletedCombinations,
+                                            videoResults: updatedVideoResults,
+                                            reviewHistory,
+                                          }, {
+                                            onSuccess: () => {
+                                              console.log('[Database Save] Modifications saved to database!');
+                                            },
+                                            onError: (error) => {
+                                              console.error('[Database Save] Failed:', error);
+                                            },
+                                          });
                                           
                                           toast.success('Modificări salvate!');
                                           setModifyingVideoIndex(null);
@@ -2652,7 +4185,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                     ) : (
                                       /* Mod multiple (Da) - N secțiuni */
                                       <>
-                                        {regenerationVariants.map((variant, variantIndex) => (
+                                        {regenerateVariants.map((variant, variantIndex) => (
                                           <div key={variantIndex} className="p-3 bg-gray-50 border border-gray-300 rounded space-y-2">
                                             <h6 className="font-bold text-gray-900">Varianta {variantIndex + 1}</h6>
                                             
@@ -2663,7 +4196,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                                 value={variant.promptType}
                                                 onChange={async (e) => {
                                                   const newType = e.target.value as PromptType;
-                                                  const updated = [...regenerationVariants];
+                                                  const updated = [...regenerateVariants];
                                                   updated[variantIndex] = { ...updated[variantIndex], promptType: newType };
                                                   
                                                   // Încărcă text hardcodat dacă nu e CUSTOM
@@ -2679,7 +4212,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                                     }
                                                   }
                                                   
-                                                  setRegenerationVariants(updated);
+                                                  setRegenerateVariants(updated);
                                                 }}
                                                 className="w-full border border-gray-300 rounded px-2 py-1 text-xs"
                                               >
@@ -2696,9 +4229,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                               <Textarea
                                                 value={variant.promptText}
                                                 onChange={(e) => {
-                                                  const updated = [...regenerationVariants];
+                                                  const updated = [...regenerateVariants];
                                                   updated[variantIndex] = { ...updated[variantIndex], promptText: e.target.value };
-                                                  setRegenerationVariants(updated);
+                                                  setRegenerateVariants(updated);
                                                 }}
                                                 placeholder="Introdu promptul aici"
                                                 className="text-xs min-h-[60px]"
@@ -2711,9 +4244,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                               <Textarea
                                                 value={variant.dialogueText}
                                                 onChange={(e) => {
-                                                  const updated = [...regenerationVariants];
+                                                  const updated = [...regenerateVariants];
                                                   updated[variantIndex] = { ...updated[variantIndex], dialogueText: e.target.value };
-                                                  setRegenerationVariants(updated);
+                                                  setRegenerateVariants(updated);
                                                 }}
                                                 className="text-xs min-h-[50px]"
                                               />
@@ -2730,9 +4263,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                               <select
                                                 value={variant.imageUrl}
                                                 onChange={(e) => {
-                                                  const updated = [...regenerationVariants];
+                                                  const updated = [...regenerateVariants];
                                                   updated[variantIndex] = { ...updated[variantIndex], imageUrl: e.target.value };
-                                                  setRegenerationVariants(updated);
+                                                  setRegenerateVariants(updated);
                                                 }}
                                                 className="w-full border border-gray-300 rounded px-2 py-1 text-xs"
                                               >
@@ -2751,7 +4284,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                               size="sm"
                                               onClick={() => {
                                                 // SAVE toate variantele
-                                                toast.success(`${regenerationVariants.length} variante salvate!`);
+                                                toast.success(`${regenerateVariants.length} variante salvate!`);
                                                 setModifyingVideoIndex(null);
                                               }}
                                               className="flex-1 bg-green-600 hover:bg-green-700"
@@ -2778,7 +4311,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                               }
                                               
                                               // Validare: toate variantele trebuie să aibă text valid
-                                              const invalidVariants = regenerationVariants.filter(v => 
+                                              const invalidVariants = regenerateVariants.filter(v => 
                                                 v.dialogueText.trim().length === 0
                                               );
                                               
@@ -2789,22 +4322,22 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                               
                                               try {
                                                 // Detectare setări identice
-                                                const firstVariant = regenerationVariants[0];
-                                                const allIdentical = regenerationVariants.every(v => 
+                                                const firstVariant = regenerateVariants[0];
+                                                const allIdentical = regenerateVariants.every(v => 
                                                   v.promptType === firstVariant.promptType &&
                                                   v.promptText === firstVariant.promptText &&
                                                   v.dialogueText === firstVariant.dialogueText &&
                                                   v.imageUrl === firstVariant.imageUrl
                                                 );
                                                 
-                                                if (allIdentical && regenerationVariants.length > 1) {
-                                                  toast.info(`Se vor face ${regenerationVariants.length} regenerări cu aceleași setări (nu se vor crea duplicate)`);
+                                                if (allIdentical && regenerateVariants.length > 1) {
+                                                  toast.info(`Se vor face ${regenerateVariants.length} regenerări cu aceleași setări (nu se vor crea duplicate)`);
                                                 } else {
-                                                  toast.info(`Se regenerează ${regenerationVariants.length} variant${regenerationVariants.length > 1 ? 'e' : 'ă'} în paralel...`);
+                                                  toast.info(`Se regenerează ${regenerateVariants.length} variant${regenerateVariants.length > 1 ? 'e' : 'ă'} în paralel...`);
                                                 }
                                                 
                                                 // Pregătește variantele pentru backend
-                                                const variantsForBackend = regenerationVariants.map((variant) => ({
+                                                const variantsForBackend = regenerateVariants.map((variant) => ({
                                                   promptType: variant.promptType,
                                                   promptText: variant.promptText || undefined,
                                                   dialogueText: variant.dialogueText,
@@ -2817,11 +4350,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                                 });
                                                 
                                                 // Procesează rezultatele
-                                                if (allIdentical && regenerationVariants.length > 1) {
+                                                if (allIdentical && regenerateVariants.length > 1) {
                                                   // Setări identice: TOATE regenerările înlocuiesc același video (nu creăm duplicate)
                                                   // Folosim doar prima variantă (toate sunt identice)
                                                   const firstResult = result.results[0];
-                                                  const firstVariant = regenerationVariants[0];
+                                                  const firstVariant = regenerateVariants[0];
                                                   
                                                   if (firstResult.success) {
                                                     setVideoResults(prev =>
@@ -2835,7 +4368,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                                               status: 'pending' as const,
                                                               error: undefined,
                                                               videoUrl: undefined,
-                                                              regenerationNote: `${regenerationVariants.length} regenerări cu aceleași setări`,
+                                                              regenerationNote: `${regenerateVariants.length} regenerări cu aceleași setări`,
                                                             }
                                                           : v
                                                       )
@@ -2858,7 +4391,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                                   // Setări diferite: creăm duplicate pentru variantele 2, 3, etc.
                                                   for (let variantIndex = 0; variantIndex < result.results.length; variantIndex++) {
                                                     const newResult = result.results[variantIndex];
-                                                    const variant = regenerationVariants[variantIndex];
+                                                    const variant = regenerateVariants[variantIndex];
                                                     
                                                     if (variantIndex === 0 && newResult.success) {
                                                       // Prima variantă înlocuiește videoul original
@@ -2938,7 +4471,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                                 
                                                 // Reset form
                                                 setModifyingVideoIndex(null);
-                                                setRegenerationVariants([]);
+                                                setRegenerateVariants([]);
                                               } catch (error: any) {
                                                 toast.error(`Eroare la regenerare: ${error.message}`);
                                               }
@@ -2952,7 +4485,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                                 Se regenerează...
                                               </>
                                             ) : (
-                                              `Regenerate All (${regenerationVariants.length} variante)`
+                                              `Regenerate All (${regenerateVariants.length} variante)`
                                             )}
                                           </Button>
                                         </div>
@@ -2975,8 +4508,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                   size="sm"
                                   variant="outline"
                                   onClick={() => {
-                                    // FIX: Găsește index-ul real în videoResults bazat pe videoName
-                                    const realIndex = videoResults.findIndex(v => v.videoName === result.videoName);
                                     setModifyingVideoIndex(realIndex);
                                     const currentPromptType = combinations[realIndex]?.promptType || 'PROMPT_NEUTRAL';
                                     setModifyPromptType(currentPromptType);
@@ -2988,19 +4519,40 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                       setModifyPromptText('');
                                     }
                                     
+                                    // Initialize text and red positions from videoResults
                                     setModifyDialogueText(result.text);
+                                    
+                                    // Load red text positions if they exist
+                                    if (result.redStart !== undefined && result.redEnd !== undefined && result.redStart >= 0) {
+                                      setModifyRedStart(result.redStart);
+                                      setModifyRedEnd(result.redEnd);
+                                      console.log('[Modify Dialog] Loading red text:', result.redStart, '-', result.redEnd);
+                                    } else {
+                                      setModifyRedStart(-1);
+                                      setModifyRedEnd(-1);
+                                      console.log('[Modify Dialog] No red text found');
+                                    }
                                   }}
                                   className="border-orange-500 text-orange-700 hover:bg-orange-50"
                                 >
                                   Modify & Regenerate
                                 </Button>
                                 
-                                {/* Edited X min ago */}
-                                {editTimestamps[videoResults.findIndex(v => v.videoName === result.videoName)] && (
+                                {/* Edited X min/sec ago */}
+                                {editTimestamps[realIndex] && (
                                   <div className="flex items-center gap-1 mt-2">
                                     <Clock className="w-3 h-3 text-orange-500" />
                                     <p className="text-xs text-orange-500 font-bold">
-                                      Edited {Math.floor((currentTime - editTimestamps[videoResults.findIndex(v => v.videoName === result.videoName)]) / 60000)} min ago
+                                      Edited {(() => {
+                                        const diffMs = currentTime - editTimestamps[realIndex];
+                                        const minutes = Math.floor(diffMs / 60000);
+                                        if (minutes >= 1) {
+                                          return `${minutes} min ago`;
+                                        } else {
+                                          const seconds = Math.floor(diffMs / 1000);
+                                          return `${seconds} sec ago`;
+                                        }
+                                      })()}
                                     </p>
                                   </div>
                                 )}
@@ -3011,45 +4563,53 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
               
-              {/* Buton Regenerate ALL Failed */}
-              {videoResults.some(v => v.status === 'failed') && (
+              {/* Buton Regenerate ALL (Failed + Rejected) */}
+              {videoResults.some(v => v.status === 'failed' || v.reviewStatus === 'regenerate') && (
                 <div className="mt-6">
                   <Button
-                    onClick={regenerateAllFailed}
+                    onClick={regenerateAll}
                     disabled={generateBatchMutation.isPending}
                     className="bg-red-600 hover:bg-red-700 w-full py-4 text-base"
                   >
                     {generateBatchMutation.isPending ? (
                       <>
                         <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                        Se retrimite...
+                        Se regenerează...
                       </>
                     ) : (
                       <>
-                        <X className="w-5 h-5 mr-2" />
-                        Regenerate ALL Failed ({(() => {
-                          const currentFailedCount = failedCount;
-                          const pendingRegenerations = videoResults.reduce((sum, v) => {
-                            if (v.regenerationNote) {
-                              // Parse "⚠️ 3 regenerări cu aceleași setări" → 3
-                              const match = v.regenerationNote.match(/(\d+)\s+regener[ăa]ri/);
-                              if (match) {
-                                return sum + parseInt(match[1], 10);
-                              }
-                            }
-                            return sum;
-                          }, 0);
-                          return failedCount + pendingRegenerations;
+                        <RefreshCw className="w-5 h-5 mr-2" />
+                        Regenerate ALL ({(() => {
+                          const failedCount = videoResults.filter(v => v.status === 'failed').length;
+                          const rejectedCount = videoResults.filter(v => v.reviewStatus === 'regenerate').length;
+                          // Rejected videos use regenerateVariantCount if regenerateMultiple is enabled
+                          const rejectedTotal = regenerateMultiple ? rejectedCount * regenerateVariantCount : rejectedCount;
+                          return failedCount + rejectedTotal;
                         })()})
                       </>
                     )}
                   </Button>
                 </div>
               )}
-                      {/* Buton pentru a trece la STEP 6 */}
+              
+              {/* Link Continue with Sample Videos (TEMP) - afișat întotdeauna */}
+              <div className="mt-6 text-center">
+                <button
+                  onClick={loadSampleVideos}
+                  className="text-sm text-gray-500 hover:text-gray-700 underline"
+                >
+                  Continue with Sample Videos (TEMP)
+                </button>
+                <p className="text-xs text-gray-400 mt-1">
+                  Încărcă 6 task ID-uri sample pentru testare
+                </p>
+              </div>
+              
+              {/* Buton pentru a trece la STEP 7 */}
               {videoResults.some(v => v.status === 'success') && (
                 <div className="mt-6">
                   <Button
@@ -3059,19 +4619,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     <Check className="w-5 h-5 mr-2" />
                     Check Videos (Review)
                   </Button>
-                  
-                  {/* Link Continue with Sample Videos (secundar, sub butonul verde) */}
-                  <div className="mt-3 text-center">
-                    <button
-                      onClick={loadSampleVideos}
-                      className="text-sm text-gray-500 hover:text-gray-700 underline"
-                    >
-                      Continue with Sample Videos (TEMP)
-                    </button>
-                    <p className="text-xs text-gray-400 mt-1">
-                      Încarcă 6 task ID-uri sample pentru testare
-                    </p>
-                  </div>
                 </div>
               )}
             </CardContent>
@@ -3090,7 +4637,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 Regenerează videouri cu setări personalizate. Poți crea multiple variante pentru fiecare video.
               </CardDescription>
             </CardHeader>
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 md:pt-6 px-3 md:px-6">
               {/* Selectare video pentru regenerare */}
               <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-lg">
                 <p className="font-medium text-orange-900 mb-3">
@@ -3321,7 +4868,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   </div>
 
                   {/* Butoane acțiune */}
-                  <div className="flex gap-4">
+                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
                     <Button
                       onClick={async () => {
                         if (selectedVideoIndex < 0) {
@@ -3460,9 +5007,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           setRegenerateMultiple(false);
                           setRegenerateVariantCount(1);
                           
-                          // Revino la STEP 5 pentru a verifica progresul
-                          setCurrentStep(5);
-                          toast.success('Regenerare completă! Verifică progresul la STEP 5.');
+                          // Revino la STEP 6 pentru a verifica progresul
+                          setCurrentStep(6);
+                          toast.success('Regenerare completă! Verifică progresul la STEP 6.');
                         } catch (error: any) {
                           toast.error(`Eroare la regenerare: ${error.message}`);
                         }
@@ -3490,9 +5037,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           </Card>
         )}
 
-        {/* STEP 6: Check Videos (Final Review) */}
-        {currentStep === 6 && videoResults.length > 0 && (() => {
-          console.log('STEP 6 RENDER - videoResults:', videoResults.map(v => ({
+        {/* STEP 7: Check Videos (Final Review) */}
+        {currentStep === 7 && videoResults.length > 0 && (() => {
+          console.log('STEP 7 RENDER - videoResults:', videoResults.map(v => ({
             videoName: v.videoName,
             status: v.status,
             hasVideoUrl: !!v.videoUrl,
@@ -3504,15 +5051,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             <CardHeader className="bg-green-50">
               <CardTitle className="flex items-center gap-2 text-green-900">
                 <Video className="w-5 h-5" />
-                STEP 6 - Check Videos
+                STEP 7 - Check Videos
               </CardTitle>
               <CardDescription>
                 Review videourilo generate. Acceptă sau marchează pentru regenerare.
               </CardDescription>
             </CardHeader>
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 md:pt-6 px-3 md:px-6">
               {/* Filtru videouri */}
-              <div className="mb-6 flex items-center gap-4">
+              <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
                 <label className="text-sm font-medium text-green-900">Filtrează videouri:</label>
                 <select
                   value={videoFilter}
@@ -3706,9 +5253,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     {videoResults.some(v => v.reviewStatus === 'regenerate') && (
                       <Button
                         onClick={() => {
-                          // TODO: Implementare regenerare și revenire la STEP 5
+                          // TODO: Implementare regenerare și revenire la STEP 6
                           toast.info('Regenerare videouri marcate...');
-                          setCurrentStep(5);
+                          setCurrentStep(6);
                         }}
                         className="w-full bg-red-600 hover:bg-red-700 py-6 text-lg"
                       >
@@ -3779,6 +5326,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               )}
             </CardContent>
           </Card>
+        )}
+        </>
         )}
       </div>
     </div>

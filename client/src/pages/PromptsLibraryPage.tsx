@@ -154,7 +154,7 @@ export default function PromptsLibraryPage({ currentUser }: PromptsLibraryPagePr
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-3 md:p-8">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-8">
@@ -167,12 +167,12 @@ export default function PromptsLibraryPage({ currentUser }: PromptsLibraryPagePr
             Back to Home
           </Button>
 
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div>
-              <h1 className="text-4xl font-bold text-blue-900 mb-2">
+              <h1 className="text-2xl md:text-4xl font-bold text-blue-900 mb-2">
                 Prompts Library
               </h1>
-              <p className="text-blue-700">
+              <p className="text-sm md:text-base text-blue-700">
                 Manage your video generation prompts
               </p>
             </div>

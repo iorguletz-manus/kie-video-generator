@@ -181,7 +181,7 @@ export type InsertCharacter = typeof characters.$inferInsert;
 export const contextSessions = mysqlTable("context_sessions", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
-  tamId: int("tamId").notNull(),
+  tamId: int("tamId"), // Nullable - may not be set initially
   coreBeliefId: int("coreBeliefId").notNull(),
   emotionalAngleId: int("emotionalAngleId").notNull(),
   adId: int("adId").notNull(),

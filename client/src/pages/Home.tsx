@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
 import EditProfileModal from '@/components/EditProfileModal';
 import { ImagesLibraryModal } from '@/components/ImagesLibraryModal';
@@ -110,6 +110,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [modifyPromptType, setModifyPromptType] = useState<PromptType>('PROMPT_NEUTRAL');
   const [modifyPromptText, setModifyPromptText] = useState('');
   const [modifyDialogueText, setModifyDialogueText] = useState('');
+  const [modifyRedStart, setModifyRedStart] = useState<number>(-1);
+  const [modifyRedEnd, setModifyRedEnd] = useState<number>(-1);
+  const modifyEditorRef = useRef<HTMLDivElement>(null);
   
   // State pentru custom prompts (fiecare video poate avea propriul custom prompt)
   const [customPrompts, setCustomPrompts] = useState<Record<number, string>>({});
@@ -123,15 +126,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // State pentru edit timestamps (când user dă SAVE în Modify & Regenerate)
   const [editTimestamps, setEditTimestamps] = useState<Record<number, number>>({});
   
-  // State pentru regenerări multiple
-  const [multipleRegenerations, setMultipleRegenerations] = useState(false); // Da/Nu
-  const [regenerationCount, setRegenerationCount] = useState(1); // 1-10
-  const [regenerationVariants, setRegenerationVariants] = useState<Array<{
-    promptType: PromptType;
-    promptText: string;
-    dialogueText: string;
-    imageUrl: string;
-  }>>([]);
   const [currentTime, setCurrentTime] = useState(Date.now());
   
   // State pentru tracking modificări (pentru blocare navigare)
@@ -140,15 +134,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // Step 2: Manual prompt textarea
   const [manualPromptText, setManualPromptText] = useState('');
   const [promptMode, setPromptMode] = useState<'hardcoded' | 'custom' | 'manual'>('hardcoded');
-  
-  // Update currentTime la fiecare minut pentru "Edited X min ago"
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTime(Date.now());
-    }, 60000); // Update la fiecare 60 secunde
-    
-    return () => clearInterval(interval);
-  }, []);
   
   // Step 6: Regenerate (advanced)
   const [selectedVideoIndex, setSelectedVideoIndex] = useState<number>(-1);
@@ -190,6 +175,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [editingLineText, setEditingLineText] = useState<string>('');
   const [editingLineRedStart, setEditingLineRedStart] = useState<number>(-1);
   const [editingLineRedEnd, setEditingLineRedEnd] = useState<number>(-1);
+  const editorRef = useRef<HTMLDivElement>(null);
 
   // Queries
   const { data: libraryImages = [] } = trpc.imageLibrary.list.useQuery({
@@ -296,6 +282,50 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     videoCount: number;
     timestamp: string;
   }
+  
+  // Update currentTime la fiecare secundă pentru "Edited X min/sec ago"
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000); // Update la fiecare secundă
+    
+    return () => clearInterval(interval);
+  }, []);
+  
+  // Initialize WYSIWYG editor with HTML content when dialog opens
+  useEffect(() => {
+    if (editingLineId && editorRef.current) {
+      // Set initial HTML with red text if exists
+      if (editingLineRedStart >= 0 && editingLineRedEnd > editingLineRedStart) {
+        const before = editingLineText.substring(0, editingLineRedStart);
+        const red = editingLineText.substring(editingLineRedStart, editingLineRedEnd);
+        const after = editingLineText.substring(editingLineRedEnd);
+        editorRef.current.innerHTML = `${before}<span style="color: #dc2626; font-weight: 500;">${red}</span>${after}`;
+      } else {
+        editorRef.current.textContent = editingLineText;
+      }
+    }
+  }, [editingLineId, editingLineText, editingLineRedStart, editingLineRedEnd]);
+    // Initialize Modify & Regenerate editor with HTML when dialog opens
+  useEffect(() => {
+    if (modifyingVideoIndex !== null && modifyEditorRef.current) {
+      // Only set HTML if editor is empty (just opened)
+      const currentContent = modifyEditorRef.current.textContent || '';
+      if (currentContent === '' || currentContent !== modifyDialogueText) {
+        // Set initial HTML with red text if exists
+        if (modifyRedStart >= 0 && modifyRedEnd > modifyRedStart) {
+          const before = modifyDialogueText.substring(0, modifyRedStart);
+          const red = modifyDialogueText.substring(modifyRedStart, modifyRedEnd);
+          const after = modifyDialogueText.substring(modifyRedEnd);
+          modifyEditorRef.current.innerHTML = `${before}<span style="color: #dc2626; font-weight: 500;">${red}</span>${after}`;
+          console.log('[Modify Editor Init] Set HTML with red text:', modifyRedStart, '-', modifyRedEnd);
+        } else {
+          modifyEditorRef.current.textContent = modifyDialogueText;
+          console.log('[Modify Editor Init] Set plain text (no red)');
+        }
+      }
+    }
+  }, [modifyingVideoIndex, modifyRedStart, modifyRedEnd, modifyDialogueText]); // Re-run when any changes
   
   const getSavedSessions = (): SavedSession[] => {
     // Return sessions from database
@@ -488,9 +518,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // Load data from context session when context changes
   useEffect(() => {
     if (contextSession) {
-      console.log('[Context Session] Loading data:', contextSession);
+      console.log('[Context Session] Loading data from database:', contextSession);
       
-      // Load all workflow data from context session
+      // Load all workflow data from context session (database)
       if (contextSession.currentStep) setCurrentStep(contextSession.currentStep);
       if (contextSession.rawTextAd) setRawTextAd(contextSession.rawTextAd);
       if (contextSession.processedTextAd) setProcessedTextAd(contextSession.processedTextAd);
@@ -502,22 +532,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       if (contextSession.videoResults) setVideoResults(contextSession.videoResults as VideoResult[]);
       if (contextSession.reviewHistory) setReviewHistory(contextSession.reviewHistory as any[]);
       
-      toast.success('Context data loaded!');
-    } else if (selectedTamId && selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
-      // Context selected but no session exists - clear all data
-      console.log('[Context Session] No session found, clearing data');
-      setCurrentStep(1);
-      setRawTextAd('');
-      setProcessedTextAd('');
-      setAdLines([]);
-      setPrompts([]);
-      setImages([]);
-      setCombinations([]);
-      setDeletedCombinations([]);
-      setVideoResults([]);
-      setReviewHistory([]);
+      toast.success('Context data loaded from database!');
+    } else {
+      // No context session in database - keep localStorage data (already restored on mount)
+      console.log('[Context Session] No database session found, keeping localStorage data');
     }
-  }, [contextSession, selectedTamId, selectedCoreBeliefId, selectedEmotionalAngleId, selectedAdId, selectedCharacterId]);
+  }, [contextSession]);
   
   // Auto-save session la fiecare schimbare (debounced)
   useEffect(() => {
@@ -565,12 +585,19 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   ]);
   
   // Auto-save to context session when data changes (debounced)
+  // ONLY save to database after video generation (STEP 6+)
   useEffect(() => {
     if (!selectedTamId || !selectedCoreBeliefId || !selectedEmotionalAngleId || !selectedAdId || !selectedCharacterId) {
       return; // Don't save if context not complete
     }
     
     if (isRestoringSession) return; // Don't save during restore
+    
+    // ONLY save to database when in STEP 6+ (after generation)
+    if (currentStep < 6) {
+      console.log('[Context Session] Skipping database save for STEP', currentStep, '- using localStorage only');
+      return;
+    }
     
     const timeoutId = setTimeout(() => {
       console.log('[Context Session] Auto-saving...');
@@ -1207,38 +1234,43 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     const ctaImage = images.find(img => img.isCTA);
     const defaultImage = images[0];
     
-    // Găsește prima linie cu "carte", "cartea", "rescrie", sau "lacrimi" (cu sau fără diacritice)
-    let firstCarteIndex = -1;
-    const ctaKeywords = ['carte', 'cartea', 'rescrie', 'lacrimi', 'lacrami'];
-    for (let i = 0; i < adLines.length; i++) {
-      const lowerText = adLines[i].text.toLowerCase();
-      if (ctaKeywords.some(keyword => lowerText.includes(keyword))) {
-        firstCarteIndex = i;
-        break;
-      }
-    }
-
+    console.log('[CTA Mapping] Images:', images.map(img => ({ fileName: img.fileName, isCTA: img.isCTA })));
+    console.log('[CTA Mapping] CTA Image found:', ctaImage ? ctaImage.fileName : 'NONE');
+    console.log('[CTA Mapping] Default Image:', defaultImage ? defaultImage.fileName : 'NONE');
+    
     // Filter out labels (categoryNumber === 0) - only use actual text lines
     const textLines = adLines.filter(line => line.categoryNumber > 0);
     
-    // Găsește prima linie cu "carte" în textLines (nu în adLines care include labels)
-    firstCarteIndex = -1;
+    // Găsește prima linie cu "carte", "cartea", "rescrie", sau "lacrimi" (cu sau fără diacritice)
+    let firstCarteIndex = -1;
+    const ctaKeywords = ['carte', 'cartea', 'rescrie', 'lacrimi', 'lacrami'];
+    
+    console.log('[CTA Mapping] Searching for keywords in', textLines.length, 'text lines...');
     for (let i = 0; i < textLines.length; i++) {
       const lowerText = textLines[i].text.toLowerCase();
-      if (ctaKeywords.some(keyword => lowerText.includes(keyword))) {
+      const hasKeyword = ctaKeywords.some(keyword => lowerText.includes(keyword));
+      console.log(`[CTA Mapping] Line ${i}: "${textLines[i].text.substring(0, 50)}..." - Has keyword: ${hasKeyword}`);
+      if (hasKeyword) {
         firstCarteIndex = i;
+        console.log(`[CTA Mapping] FOUND! First CTA keyword at index ${i}`);
         break;
       }
     }
     
-    // Crează combinații cu mapare inteligentă CTA
+    console.log('[CTA Mapping] First CTA index:', firstCarteIndex);
+    
+    // Creează combinații cu mapare inteligentă CTA
     const newCombinations: Combination[] = textLines.map((line, index) => {
       let selectedImage = defaultImage;
       
-      // Dacă există poză CTA și suntem de la prima linie cu keyword CTA până la sfârșit
-      if (ctaImage && firstCarteIndex !== -1 && index >= firstCarteIndex) {
+      // DOAR dacă există poză CTA ȘI există cel puțin o linie cu keyword CTA ȘI suntem de la prima linie cu keyword până la sfârșit
+      // Dacă nu există nicio linie cu keywords (firstCarteIndex === -1), CTA image NU se folosește!
+      const shouldUseCTA = ctaImage && firstCarteIndex !== -1 && index >= firstCarteIndex;
+      if (shouldUseCTA) {
         selectedImage = ctaImage;
       }
+      
+      console.log(`[CTA Mapping] Line ${index}: "${line.text.substring(0, 40)}..." -> Image: ${selectedImage.fileName} (CTA: ${shouldUseCTA})`);
       
       return {
         id: `combo-${index}`,
@@ -1423,6 +1455,35 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       if (failedCount > 0) {
         toast.error(`${failedCount} videouri au eșuat`);
       }
+      
+      // SAVE TO DATABASE after generation
+      console.log('[Database Save] Saving session after video generation...');
+      upsertContextSessionMutation.mutate({
+        userId: localCurrentUser.id,
+        tamId: selectedTamId,
+        coreBeliefId: selectedCoreBeliefId,
+        emotionalAngleId: selectedEmotionalAngleId,
+        adId: selectedAdId,
+        characterId: selectedCharacterId,
+        currentStep: 6,
+        rawTextAd,
+        processedTextAd,
+        adLines,
+        prompts,
+        images,
+        combinations,
+        deletedCombinations,
+        videoResults: allResults,
+        reviewHistory,
+      }, {
+        onSuccess: () => {
+          console.log('[Database Save] Session saved successfully after generation!');
+        },
+        onError: (error) => {
+          console.error('[Database Save] Failed to save session:', error);
+          toast.error('Sesiunea nu a putut fi salvată în database, dar e salvată local');
+        },
+      });
     } catch (error: any) {
       toast.error(`Eroare la generarea videourilo: ${error.message}`);
     }
@@ -1598,20 +1659,21 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
   };
   
-  // Regenerare toate videouri failed
-  const regenerateAllFailed = async () => {
-    const failedIndexes = videoResults
+  // Regenerare toate videouri (failed + rejected)
+  const regenerateAll = async () => {
+    // Colectează toate videouri care trebuie regenerate: failed SAU rejected
+    const toRegenerateIndexes = videoResults
       .map((v, i) => ({ video: v, index: i }))
-      .filter(({ video }) => video.status === 'failed')
+      .filter(({ video }) => video.status === 'failed' || video.reviewStatus === 'regenerate')
       .map(({ index }) => index);
     
-    if (failedIndexes.length === 0) {
-      toast.error('Nu există videouri failed de regenerat');
+    if (toRegenerateIndexes.length === 0) {
+      toast.error('Nu există videouri de regenerat');
       return;
     }
 
     try {
-      toast.info(`Se retrimite ${failedIndexes.length} videouri...`);
+      toast.info(`Se regenerează ${toRegenerateIndexes.length} videouri...`);
       
       // Grupează pe tip de prompt
       const combinationsByPrompt: Record<PromptType, Array<{ combo: typeof combinations[0], index: number }>> = {
@@ -1621,7 +1683,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         PROMPT_CUSTOM: [],
       };
 
-      failedIndexes.forEach(index => {
+      toRegenerateIndexes.forEach(index => {
         const combo = combinations[index];
         if (combo) {
           combinationsByPrompt[combo.promptType].push({ combo, index });
@@ -1669,12 +1731,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           setVideoResults(prev =>
             prev.map((v, idx) =>
               idx === originalIndex
-                ? {
+                  ? {
                     ...v,
                     taskId: newResult.taskId,
                     status: newResult.success ? 'pending' as const : 'failed' as const,
                     error: newResult.error,
                     videoUrl: undefined,
+                    reviewStatus: undefined, // Reset review status
                   }
                 : v
             )
@@ -1707,14 +1770,41 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       toast.error('Combinație nu găsită');
       return;
     }
+    
+    if (!modifyEditorRef.current) {
+      toast.error('Editor not ready');
+      return;
+    }
 
-    // Validare text (nu mai blochez dacă > 125 caractere)
-    // User poate genera chiar dacă depășește 125 caractere
-
-    if (modifyDialogueText.trim().length === 0) {
+    // Extract text and red positions from editor
+    const html = modifyEditorRef.current.innerHTML;
+    const text = modifyEditorRef.current.textContent || '';
+    
+    // Validare text
+    if (text.trim().length === 0) {
       toast.error('Textul nu poate fi gol!');
       return;
     }
+    
+    // Parse HTML to find RED text positions
+    let redStart = -1;
+    let redEnd = -1;
+    
+    const redSpanRegex = /<span[^>]*style="[^"]*color:\s*(?:#dc2626|rgb\(220,\s*38,\s*38\))[^"]*"[^>]*>([^<]*)<\/span>/gi;
+    const matches = [...html.matchAll(redSpanRegex)];
+    
+    if (matches.length > 0) {
+      const redText = matches[0][1];
+      redStart = text.indexOf(redText);
+      if (redStart >= 0) {
+        redEnd = redStart + redText.length;
+      }
+    }
+    
+    // Update state with extracted text and red positions
+    setModifyDialogueText(text);
+    setModifyRedStart(redStart);
+    setModifyRedEnd(redEnd);
 
     try {
       // Determină prompt template
@@ -1745,7 +1835,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         userId: currentUser.id,
         promptTemplate: promptTemplate,
         combinations: [{
-          text: modifyDialogueText, // Folosește textul modificat
+          text: text, // Folosește textul extras din editor
           imageUrl: combo.imageUrl,
         }],
       });
@@ -1758,7 +1848,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           i === index
             ? {
                 ...v,
-                text: modifyDialogueText, // Update text
+                text: text, // Update text
                 taskId: newResult.taskId,
                 status: newResult.success ? 'pending' as const : 'failed' as const,
                 error: newResult.error,
@@ -1774,12 +1864,26 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           i === index
             ? {
                 ...c,
-                text: modifyDialogueText,
+                text: text,
                 promptType: modifyPromptType,
               }
             : c
         )
       );
+      
+      // Update adLines with red text positions
+      setAdLines(prev => prev.map(line => {
+        if (line.text === combo.text) {
+          return {
+            ...line,
+            text: text,
+            charCount: text.length,
+            redStart: redStart,
+            redEnd: redEnd,
+          };
+        }
+        return line;
+      }));
 
       // Închide form-ul
       setModifyingVideoIndex(null);
@@ -1869,7 +1973,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     const pendingVideos = videoResults.filter(v => v.status === 'pending');
     if (pendingVideos.length === 0) return;
 
-    // Check-uri din 10 în 10 secunde de la început
+    // Check-uri din 5 în 5 secunde de la început
     const interval = setInterval(() => {
       const stillPending = videoResults.filter(v => v.status === 'pending');
       if (stillPending.length === 0) {
@@ -1883,7 +1987,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           checkVideoStatus(video.taskId, actualIndex);
         }
       });
-    }, 10000);
+    }, 5000); // 5 secunde
 
     return () => {
       clearInterval(interval);
@@ -1995,28 +2099,28 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 py-8">
-      <div className="container max-w-6xl">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 py-4 md:py-8 px-2 md:px-4">
+      <div className="container max-w-6xl mx-auto">
         {/* User Dropdown - Top Right */}
-        <div className="fixed top-4 right-4 z-50">
+        <div className="fixed top-2 right-2 md:top-4 md:right-4 z-50">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors">
+              <button className="flex items-center gap-1 md:gap-2 px-2 md:px-3 py-1.5 md:py-2 rounded-lg hover:bg-gray-100 transition-colors bg-white shadow-md">
                 {localCurrentUser.profileImageUrl && (
                   <img
                     src={localCurrentUser.profileImageUrl}
                     alt="Profile"
-                    className="w-8 h-8 rounded-full border border-gray-300 object-cover"
+                    className="w-6 h-6 md:w-8 md:h-8 rounded-full border border-gray-300 object-cover"
                   />
                 )}
                 {!localCurrentUser.profileImageUrl && (
-                  <div className="w-8 h-8 rounded-full border border-gray-300 bg-gray-100 flex items-center justify-center">
+                  <div className="w-6 h-6 md:w-8 md:h-8 rounded-full border border-gray-300 bg-gray-100 flex items-center justify-center">
                     <span className="text-gray-700 font-medium text-sm">
                       {localCurrentUser.username.charAt(0).toUpperCase()}
                     </span>
                   </div>
                 )}
-                <span className="text-sm font-medium text-gray-700">{localCurrentUser.username}</span>
+                <span className="hidden md:inline text-sm font-medium text-gray-700">{localCurrentUser.username}</span>
                 <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
@@ -2072,22 +2176,22 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         userId={localCurrentUser.id}
       />
 
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-blue-900 mb-2">A.I Ads Engine</h1>
-          <p className="text-blue-700">Generează videouri AI în masă cu Veo 3.1</p>
+        <div className="text-center mb-6 md:mb-12">
+          <h1 className="text-2xl md:text-4xl font-bold text-blue-900 mb-2">A.I Ads Engine</h1>
+          <p className="text-sm md:text-base text-blue-700">Generează videouri AI în masă cu Veo 3.1</p>
         </div>
 
         {/* Context Selector */}
-        <div className="mb-8 p-6 bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-300 rounded-xl shadow-lg">
+        <div className="mb-6 md:mb-8 p-3 md:p-6 bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-300 rounded-xl shadow-lg">
           <div className="mb-4">
-            <h2 className="text-2xl font-bold text-blue-900 mb-2 flex items-center gap-2">
-              <span className="text-3xl">🎯</span>
+            <h2 className="text-lg md:text-2xl font-bold text-blue-900 mb-2 flex items-center gap-2">
+              <span className="text-2xl md:text-3xl">🎯</span>
               Select Your Working Context
             </h2>
             <p className="text-sm text-gray-600">Choose all 5 categories to start working. This context will apply to all steps.</p>
           </div>
           
-          <div className="grid grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             {/* TAM */}
             <div>
               <Label className="text-sm font-semibold text-blue-900 mb-2 block">
@@ -2338,7 +2442,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
         {/* Breadcrumbs */}
         {selectedTamId && selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId && (
-        <div className="flex justify-between items-center mb-8 px-4">
+        <div className="hidden md:flex justify-between items-center mb-8 px-4">
           {[
             { num: 1, label: "Prepare Ad", icon: FileText },
             { num: 2, label: "Text Ad", icon: FileText },
@@ -2376,7 +2480,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   {step.label}
                 </span>
               </div>
-              {index < 5 && (
+              {index < 6 && (
                 <div
                   className={`h-1 flex-1 mx-2 transition-all ${
                     currentStep > step.num ? "bg-blue-600" : "bg-gray-200"
@@ -2417,11 +2521,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 Selectează categoriile și pregătește textul ad-ului (118-125 caractere).
               </CardDescription>
             </CardHeader>
-            <CardContent className="pt-8 px-8 pb-8">
+            <CardContent className="pt-4 md:pt-8 px-3 md:px-8 pb-4 md:pb-8">
               {/* Context Info */}
               <div className="mb-6 p-4 bg-blue-50/50 border-2 border-blue-200 rounded-lg">
                 <h3 className="text-lg font-semibold text-blue-900 mb-4">Current Context</h3>
-                <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                   <div>
                     <span className="font-medium text-gray-600">Core Belief:</span>
                     <p className="text-blue-900 font-semibold">{coreBeliefs.find(cb => cb.id === selectedCoreBeliefId)?.name || 'Not selected'}</p>
@@ -2695,11 +2799,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 Încărcă documentul cu ad-ul (.docx). Liniile vor fi extrase automat.
               </CardDescription>
             </CardHeader>
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 md:pt-6 px-3 md:px-6">
               {/* Document Source Selector */}
               <div className="mb-6">
                 <Label className="text-blue-900 font-medium mb-3 block">Document Source:</Label>
-                <div className="flex gap-4">
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
                   <Button
                     onClick={() => {
                       // Keep lines from STEP 1 - already in adLines
@@ -3054,6 +3158,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               
               {/* Editable Content */}
               <div
+                ref={editorRef}
                 contentEditable
                 suppressContentEditableWarning
                 onInput={(e) => {
@@ -3062,18 +3167,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 }}
                 className="min-h-[150px] p-4 border-2 border-gray-300 rounded focus:outline-none focus:border-blue-500"
                 style={{ whiteSpace: 'pre-wrap' }}
-                dangerouslySetInnerHTML={{
-                  __html: (() => {
-                    if (editingLineRedStart >= 0 && editingLineRedEnd > editingLineRedStart) {
-                      const before = editingLineText.substring(0, editingLineRedStart);
-                      const red = editingLineText.substring(editingLineRedStart, editingLineRedEnd);
-                      const after = editingLineText.substring(editingLineRedEnd);
-                      return `${before}<span style="color: #dc2626; font-weight: 500;">${red}</span>${after}`;
-                    }
-                    return editingLineText;
-                  })()
-                }}
-              />
+              >
+                {editingLineText}
+              </div>
               
               {/* Character Count */}
               <div className="flex justify-between items-center">
@@ -3097,25 +3193,21 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               </Button>
               <Button
                 onClick={() => {
-                  if (!editingLineId) return;
+                  if (!editingLineId || !editorRef.current) return;
                   
-                  // Extract HTML from contentEditable
-                  const editorDiv = document.querySelector('[contenteditable="true"]');
-                  if (!editorDiv) return;
-                  
-                  const html = editorDiv.innerHTML;
-                  const text = editorDiv.textContent || '';
+                  const html = editorRef.current.innerHTML;
+                  const text = editorRef.current.textContent || '';
                   
                   // Parse HTML to find RED text positions
                   let redStart = -1;
                   let redEnd = -1;
                   
-                  // Simple regex to find <span style="color: rgb(220, 38, 38)..."> or similar
+                  // Find all red spans and get the first one
                   const redSpanRegex = /<span[^>]*style="[^"]*color:\s*(?:#dc2626|rgb\(220,\s*38,\s*38\))[^"]*"[^>]*>([^<]*)<\/span>/gi;
-                  const match = redSpanRegex.exec(html);
+                  const matches = [...html.matchAll(redSpanRegex)];
                   
-                  if (match) {
-                    const redText = match[1];
+                  if (matches.length > 0) {
+                    const redText = matches[0][1];
                     redStart = text.indexOf(redText);
                     if (redStart >= 0) {
                       redEnd = redStart + redText.length;
@@ -3159,7 +3251,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 Prompturile hardcodate sunt întotdeauna active. Poți adăuga și prompturi custom (.docx).
               </CardDescription>
             </CardHeader>
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 md:pt-6 px-3 md:px-6">
               {/* Hardcoded Prompts Info */}
               <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
                 <div className="mb-2">
@@ -3264,7 +3356,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 Încărcați imagini sau selectați din library (format 9:16 recomandat).
               </CardDescription>
             </CardHeader>
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 md:pt-6 px-3 md:px-6">
               {/* Upload Section */}
               <div
                 onDrop={handleImageDrop}
@@ -3296,7 +3388,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   </div>
                   
                   {/* Search Bar + Character Filter */}
-                  <div className="mb-4 grid grid-cols-2 gap-4">
+                  <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <Input
@@ -3325,7 +3417,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   </div>
                   
                   {/* Library Images Grid */}
-                  <div className="grid grid-cols-4 md:grid-cols-8 gap-2 max-h-[300px] overflow-y-auto mb-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 max-h-[300px] overflow-y-auto mb-4">
                     {libraryImages
                       .filter((img) => {
                         const query = librarySearchQuery.toLowerCase();
@@ -3408,7 +3500,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   <p className="font-medium text-blue-900 mb-3">
                     {images.length} imagini încărcate:
                   </p>
-                  <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
                     {images.map((image) => (
                       <div key={image.id} className="relative group">
                         <img
@@ -3455,7 +3547,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 Configurează combinațiile de text, imagine și prompt pentru fiecare video. Maparea este făcută automat.
               </CardDescription>
             </CardHeader>
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 md:pt-6 px-3 md:px-6">
               {deletedCombinations.length > 0 && (
                 <div className="mb-4">
                   <Button
@@ -3473,7 +3565,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               <div className="space-y-4 max-h-[600px] overflow-y-auto mb-6">
                 {combinations.map((combo, index) => (
                   <div key={combo.id} className="p-4 bg-white rounded-lg border-2 border-blue-200">
-                    <div className="flex gap-4">
+                    <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
                       {/* Image selector */}
                       <div className="flex-shrink-0">
                         <label className="block text-xs font-medium text-blue-900 mb-2">
@@ -3585,9 +3677,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 Urmărește progresul generării videourilo și descarcă-le.
               </CardDescription>
             </CardHeader>
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 md:pt-6 px-3 md:px-6">
               {/* Filtru videouri STEP 5 */}
-              <div className="mb-6 flex items-center gap-4">
+              <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
                 <label className="text-sm font-medium text-blue-900">Filtrează videouri:</label>
                 <select
                   value={step5Filter}
@@ -3600,7 +3692,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 </select>
               </div>
               <div className="space-y-4">
-                {step5FilteredVideos.map((result, index) => (
+                {step5FilteredVideos.map((result, index) => {
+                  // Calculate real index in videoResults once to avoid multiple findIndex calls
+                  const realIndex = videoResults.findIndex(v => v.videoName === result.videoName);
+                  
+                  return (
                   <div key={index} className="p-4 bg-white rounded-lg border-2 border-blue-200">
                     <div className="flex items-start gap-4">
                       <img
@@ -3631,17 +3727,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           {result.status === 'pending' && (
                             <>
                               <Loader2 className="w-4 h-4 animate-spin text-orange-600" />
-                              <span className="text-sm text-orange-600 font-medium">În curs de generare...</span>
-                              {result.taskId && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => checkVideoStatus(result.taskId!, index)}
-                                  className="ml-auto border-orange-300 text-orange-700 hover:bg-orange-50"
-                                >
-                                  Verifică Status
-                                </Button>
-                              )}
+                              <span className="text-sm text-orange-600 font-medium">În curs de generare... (auto-refresh la 5s)</span>
                             </>
                           )}
                           {result.status === 'success' && result.videoUrl && (
@@ -3659,8 +3745,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                     size="sm"
                                     variant="outline"
                                     onClick={() => {
-                                      // FIX: Găsește index-ul real în videoResults bazat pe videoName
-                                      const realIndex = videoResults.findIndex(v => v.videoName === result.videoName);
                                       console.log('[Modify & Regenerate] Clicked for rejected video:', result.videoName, 'realIndex:', realIndex);
                                       
                                       if (realIndex < 0) {
@@ -3680,6 +3764,20 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                       }
                                       
                                       setModifyDialogueText(result.text);
+                                      
+                                      // Initialize red text positions from combination
+                                      const combo = combinations[realIndex];
+                                      if (combo) {
+                                        // Find the original line to get red text positions
+                                        const originalLine = adLines.find(l => l.text === combo.text);
+                                        if (originalLine) {
+                                          setModifyRedStart(originalLine.redStart ?? -1);
+                                          setModifyRedEnd(originalLine.redEnd ?? -1);
+                                        } else {
+                                          setModifyRedStart(-1);
+                                          setModifyRedEnd(-1);
+                                        }
+                                      }
                                       
                                       // Scroll to form
                                       setTimeout(() => {
@@ -3715,10 +3813,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                   </p>
                                 </div>
                                 
-                                {/* Modify & Regenerate Form */}
-                                {modifyingVideoIndex === videoResults.findIndex(v => v.videoName === result.videoName) && (
+                                {/* Modify & Regenerate Form moved outside - see after failed section */}
+                                {false && modifyingVideoIndex === realIndex && (
                                   <div 
-                                    data-modify-form={videoResults.findIndex(v => v.videoName === result.videoName)}
+                                    data-modify-form={realIndex}
                                     className="mt-4 p-4 bg-white border-2 border-orange-300 rounded-lg space-y-3"
                                   >
                                     <h5 className="font-bold text-orange-900">Modify & Regenerate</h5>
@@ -3726,16 +3824,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                     {/* Radio: Vrei să regenerezi mai multe videouri? */}
                                     <div className="p-3 bg-orange-50 border border-orange-200 rounded">
                                       <label className="text-sm font-medium text-gray-700 block mb-2">Vrei să regenerezi mai multe videouri?</label>
-                                      <div className="flex gap-4">
+                                      <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
                                         <label className="flex items-center gap-2 cursor-pointer">
                                           <input
                                             type="radio"
                                             name="multipleRegens"
-                                            checked={!multipleRegenerations}
+                                            checked={!regenerateMultiple}
                                             onChange={() => {
-                                              setMultipleRegenerations(false);
-                                              setRegenerationCount(1);
-                                              setRegenerationVariants([]);
+                                              setRegenerateMultiple(false);
+                                              setRegenerateVariantCount(1);
+                                              setRegenerateVariants([]);
                                             }}
                                             className="w-4 h-4"
                                           />
@@ -3745,17 +3843,21 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                           <input
                                             type="radio"
                                             name="multipleRegens"
-                                            checked={multipleRegenerations}
+                                            checked={regenerateMultiple}
                                             onChange={() => {
-                                              setMultipleRegenerations(true);
+                                              setRegenerateMultiple(true);
                                               // Inițializează variante cu valorile curente
+                                              const idx = modifyingVideoIndex !== null ? modifyingVideoIndex : 0;
                                               const initialVariant = {
                                                 promptType: modifyPromptType,
                                                 promptText: modifyPromptText,
                                                 dialogueText: modifyDialogueText,
-                                                imageUrl: videoResults[index]?.imageUrl || '',
+                                                imageUrl: videoResults[idx]?.imageUrl || combinations[idx]?.imageUrl || '',
                                               };
-                                              setRegenerationVariants([initialVariant]);
+                                              // Creează array cu regenerateVariantCount variante
+                                              const variants = Array(regenerateVariantCount).fill(null).map(() => ({ ...initialVariant }));
+                                              setRegenerateVariants(variants);
+                                              console.log('[Regenerate Multiple] Initialized', variants.length, 'variants');
                                             }}
                                             className="w-4 h-4"
                                           />
@@ -3765,24 +3867,25 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                     </div>
                                     
                                     {/* Selector număr regenerări (dacă Da) */}
-                                    {multipleRegenerations && (
+                                    {regenerateMultiple && (
                                       <div>
                                         <label className="text-sm font-medium text-gray-700 block mb-1">Câte regenerări vrei? (1-10):</label>
                                         <select
-                                          value={regenerationCount}
+                                          value={regenerateVariantCount}
                                           onChange={(e) => {
                                             const count = parseInt(e.target.value);
-                                            setRegenerationCount(count);
+                                            setRegenerateVariantCount(count);
                                             
                                             // Ajustează array-ul de variante
-                                            const currentVariants = [...regenerationVariants];
+                                            const currentVariants = [...regenerateVariants];
                                             if (count > currentVariants.length) {
                                               // Adaugă variante noi (copie după prima)
+                                              const idx = modifyingVideoIndex !== null ? modifyingVideoIndex : 0;
                                               const template = currentVariants[0] || {
                                                 promptType: modifyPromptType,
                                                 promptText: modifyPromptText,
                                                 dialogueText: modifyDialogueText,
-                                                imageId: combinations[index]?.imageId || '',
+                                                imageUrl: videoResults[idx]?.imageUrl || combinations[idx]?.imageUrl || '',
                                               };
                                               while (currentVariants.length < count) {
                                                 currentVariants.push({ ...template });
@@ -3791,7 +3894,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                               // Șterge variante în plus
                                               currentVariants.splice(count);
                                             }
-                                            setRegenerationVariants(currentVariants);
+                                            setRegenerateVariants(currentVariants);
                                           }}
                                           className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
                                         >
@@ -3803,7 +3906,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                     )}
                                     
                                     {/* Rendering dinamic: 1 secțiune (Nu) sau N secțiuni (Da) */}
-                                    {!multipleRegenerations ? (
+                                    {!regenerateMultiple ? (
                                       /* Mod single (Nu) - 1 secțiune */
                                       <>
                                     {/* Select Prompt Type */}
@@ -3861,18 +3964,65 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                       />
                                     </div>
                                     
-                                    {/* Edit Dialogue Text */}
+                                    {/* Edit Dialogue Text - WYSIWYG */}
                                     <div>
                                       <label className="text-sm font-medium text-gray-700 block mb-1">Edit Text:</label>
-                                      <Textarea
-                                        value={modifyDialogueText}
-                                        onChange={(e) => setModifyDialogueText(e.target.value)}
-                                        className="text-sm min-h-[60px]"
-                                      />
+                                      
+                                      {/* Color Toolbar */}
+                                      <div className="flex gap-2 p-2 bg-gray-100 rounded mb-2">
+                                        <Button
+                                          onClick={() => {
+                                            document.execCommand('foreColor', false, '#dc2626'); // RED-600
+                                          }}
+                                          variant="outline"
+                                          size="sm"
+                                          className="bg-red-600 text-white hover:bg-red-700"
+                                          type="button"
+                                        >
+                                          RED
+                                        </Button>
+                                        <Button
+                                          onClick={() => {
+                                            document.execCommand('foreColor', false, '#000000'); // BLACK
+                                          }}
+                                          variant="outline"
+                                          size="sm"
+                                          className="bg-black text-white hover:bg-gray-800"
+                                          type="button"
+                                        >
+                                          BLACK
+                                        </Button>
+                                        <Button
+                                          onClick={() => {
+                                            document.execCommand('removeFormat', false, '');
+                                          }}
+                                          variant="outline"
+                                          size="sm"
+                                          type="button"
+                                        >
+                                          Clear Format
+                                        </Button>
+                                      </div>
+                                      
+                                      {/* Editable Content */}
+                                      <div
+                                        ref={modifyEditorRef}
+                                        contentEditable
+                                        suppressContentEditableWarning
+                                        onInput={(e) => {
+                                          const text = e.currentTarget.textContent || '';
+                                          setModifyDialogueText(text);
+                                        }}
+                                        className="min-h-[80px] p-3 border-2 border-gray-300 rounded focus:outline-none focus:border-blue-500 text-sm"
+                                        style={{ whiteSpace: 'pre-wrap' }}
+                                      >
+                                        {modifyDialogueText}
+                                      </div>
+                                      
                                       <p className={`text-xs mt-1 ${
-                                        modifyDialogueText.length > 125 ? 'text-red-600 font-bold' : 'text-gray-500'
+                                        modifyDialogueText.length > 125 ? 'text-orange-600 font-bold' : 'text-gray-500'
                                       }`}>
-                                        {modifyDialogueText.length} caractere{modifyDialogueText.length > 125 ? ` - ${modifyDialogueText.length - 125} caractere depășite!` : ''}
+                                        {modifyDialogueText.length} caractere{modifyDialogueText.length > 125 ? ` ⚠️ Warning: ${modifyDialogueText.length - 125} caractere depășite!` : ''}
                                       </p>
                                     </div>
                                     
@@ -3882,6 +4032,34 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                         size="sm"
                                         onClick={() => {
                                           // SAVE: salvează modificări fără regenerare
+                                          
+                                          if (!modifyEditorRef.current) return;
+                                          
+                                          // Extract HTML and text from editor
+                                          const html = modifyEditorRef.current.innerHTML || '';
+                                          const text = modifyEditorRef.current.textContent || '';
+                                          
+                                          console.log('[Save Modify] Extracting red text from HTML:', html.substring(0, 100));
+                                          
+                                          // Parse HTML to find RED text positions
+                                          let redStart = -1;
+                                          let redEnd = -1;
+                                          
+                                          const redSpanRegex = /<span[^>]*style="[^"]*color:\s*(?:#dc2626|rgb\(220,\s*38,\s*38\))[^"]*"[^>]*>([^<]*)<\/span>/gi;
+                                          const matches = [...html.matchAll(redSpanRegex)];
+                                          console.log('[Save Modify] Found', matches.length, 'red spans');
+                                          
+                                          if (matches.length > 0) {
+                                            const redText = matches[0][1];
+                                            redStart = text.indexOf(redText);
+                                            if (redStart >= 0) {
+                                              redEnd = redStart + redText.length;
+                                            }
+                                          }
+                                          
+                                          // Update state
+                                          setModifyRedStart(redStart);
+                                          setModifyRedEnd(redEnd);
                                           
                                           // Dacă user a editat prompt text → salvează ca PROMPT_CUSTOM
                                           if (modifyPromptText.trim().length > 0) {
@@ -3894,23 +4072,81 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                           const updatedCombinations = [...combinations];
                                           updatedCombinations[index] = {
                                             ...updatedCombinations[index],
-                                            text: modifyDialogueText,
+                                            text: text,
                                             promptType: modifyPromptType,
                                           };
                                           setCombinations(updatedCombinations);
                                           
-                                          // Update videoResults cu noul text
+                                          // Update adLines with red text positions
+                                          setAdLines(prev => prev.map(line => {
+                                            if (line.text === combinations[index].text) {
+                                              return {
+                                                ...line,
+                                                text: text,
+                                                charCount: text.length,
+                                                redStart: redStart,
+                                                redEnd: redEnd,
+                                              };
+                                            }
+                                            return line;
+                                          }));
+                                          
+                                          // Update videoResults cu noul text ȘI red positions
                                           setVideoResults(prev =>
                                             prev.map((v, i) =>
-                                              i === index ? { ...v, text: modifyDialogueText } : v
+                                              i === index ? { 
+                                                ...v, 
+                                                text: text,
+                                                redStart: redStart,
+                                                redEnd: redEnd,
+                                              } : v
                                             )
                                           );
+                                          
+                                          console.log('[Save Modify] Updated videoResults[' + index + '] with red text:', redStart, '-', redEnd);
                                           
                                           // Salvează timestamp pentru "Edited X min ago"
                                           setEditTimestamps(prev => ({
                                             ...prev,
                                             [index]: Date.now(),
                                           }));
+                                          
+                                          // SAVE TO DATABASE
+                                          console.log('[Database Save] Saving after text modification...');
+                                          const updatedVideoResults = videoResults.map((v, i) =>
+                                            i === index ? { 
+                                              ...v, 
+                                              text: text,
+                                              redStart: redStart,
+                                              redEnd: redEnd,
+                                            } : v
+                                          );
+                                          
+                                          upsertContextSessionMutation.mutate({
+                                            userId: localCurrentUser.id,
+                                            tamId: selectedTamId,
+                                            coreBeliefId: selectedCoreBeliefId,
+                                            emotionalAngleId: selectedEmotionalAngleId,
+                                            adId: selectedAdId,
+                                            characterId: selectedCharacterId,
+                                            currentStep,
+                                            rawTextAd,
+                                            processedTextAd,
+                                            adLines,
+                                            prompts,
+                                            images,
+                                            combinations: updatedCombinations,
+                                            deletedCombinations,
+                                            videoResults: updatedVideoResults,
+                                            reviewHistory,
+                                          }, {
+                                            onSuccess: () => {
+                                              console.log('[Database Save] Modifications saved to database!');
+                                            },
+                                            onError: (error) => {
+                                              console.error('[Database Save] Failed:', error);
+                                            },
+                                          });
                                           
                                           toast.success('Modificări salvate!');
                                           setModifyingVideoIndex(null);
@@ -3949,7 +4185,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                     ) : (
                                       /* Mod multiple (Da) - N secțiuni */
                                       <>
-                                        {regenerationVariants.map((variant, variantIndex) => (
+                                        {regenerateVariants.map((variant, variantIndex) => (
                                           <div key={variantIndex} className="p-3 bg-gray-50 border border-gray-300 rounded space-y-2">
                                             <h6 className="font-bold text-gray-900">Varianta {variantIndex + 1}</h6>
                                             
@@ -3960,7 +4196,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                                 value={variant.promptType}
                                                 onChange={async (e) => {
                                                   const newType = e.target.value as PromptType;
-                                                  const updated = [...regenerationVariants];
+                                                  const updated = [...regenerateVariants];
                                                   updated[variantIndex] = { ...updated[variantIndex], promptType: newType };
                                                   
                                                   // Încărcă text hardcodat dacă nu e CUSTOM
@@ -3976,7 +4212,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                                     }
                                                   }
                                                   
-                                                  setRegenerationVariants(updated);
+                                                  setRegenerateVariants(updated);
                                                 }}
                                                 className="w-full border border-gray-300 rounded px-2 py-1 text-xs"
                                               >
@@ -3993,9 +4229,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                               <Textarea
                                                 value={variant.promptText}
                                                 onChange={(e) => {
-                                                  const updated = [...regenerationVariants];
+                                                  const updated = [...regenerateVariants];
                                                   updated[variantIndex] = { ...updated[variantIndex], promptText: e.target.value };
-                                                  setRegenerationVariants(updated);
+                                                  setRegenerateVariants(updated);
                                                 }}
                                                 placeholder="Introdu promptul aici"
                                                 className="text-xs min-h-[60px]"
@@ -4008,9 +4244,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                               <Textarea
                                                 value={variant.dialogueText}
                                                 onChange={(e) => {
-                                                  const updated = [...regenerationVariants];
+                                                  const updated = [...regenerateVariants];
                                                   updated[variantIndex] = { ...updated[variantIndex], dialogueText: e.target.value };
-                                                  setRegenerationVariants(updated);
+                                                  setRegenerateVariants(updated);
                                                 }}
                                                 className="text-xs min-h-[50px]"
                                               />
@@ -4027,9 +4263,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                               <select
                                                 value={variant.imageUrl}
                                                 onChange={(e) => {
-                                                  const updated = [...regenerationVariants];
+                                                  const updated = [...regenerateVariants];
                                                   updated[variantIndex] = { ...updated[variantIndex], imageUrl: e.target.value };
-                                                  setRegenerationVariants(updated);
+                                                  setRegenerateVariants(updated);
                                                 }}
                                                 className="w-full border border-gray-300 rounded px-2 py-1 text-xs"
                                               >
@@ -4048,7 +4284,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                               size="sm"
                                               onClick={() => {
                                                 // SAVE toate variantele
-                                                toast.success(`${regenerationVariants.length} variante salvate!`);
+                                                toast.success(`${regenerateVariants.length} variante salvate!`);
                                                 setModifyingVideoIndex(null);
                                               }}
                                               className="flex-1 bg-green-600 hover:bg-green-700"
@@ -4075,7 +4311,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                               }
                                               
                                               // Validare: toate variantele trebuie să aibă text valid
-                                              const invalidVariants = regenerationVariants.filter(v => 
+                                              const invalidVariants = regenerateVariants.filter(v => 
                                                 v.dialogueText.trim().length === 0
                                               );
                                               
@@ -4086,22 +4322,22 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                               
                                               try {
                                                 // Detectare setări identice
-                                                const firstVariant = regenerationVariants[0];
-                                                const allIdentical = regenerationVariants.every(v => 
+                                                const firstVariant = regenerateVariants[0];
+                                                const allIdentical = regenerateVariants.every(v => 
                                                   v.promptType === firstVariant.promptType &&
                                                   v.promptText === firstVariant.promptText &&
                                                   v.dialogueText === firstVariant.dialogueText &&
                                                   v.imageUrl === firstVariant.imageUrl
                                                 );
                                                 
-                                                if (allIdentical && regenerationVariants.length > 1) {
-                                                  toast.info(`Se vor face ${regenerationVariants.length} regenerări cu aceleași setări (nu se vor crea duplicate)`);
+                                                if (allIdentical && regenerateVariants.length > 1) {
+                                                  toast.info(`Se vor face ${regenerateVariants.length} regenerări cu aceleași setări (nu se vor crea duplicate)`);
                                                 } else {
-                                                  toast.info(`Se regenerează ${regenerationVariants.length} variant${regenerationVariants.length > 1 ? 'e' : 'ă'} în paralel...`);
+                                                  toast.info(`Se regenerează ${regenerateVariants.length} variant${regenerateVariants.length > 1 ? 'e' : 'ă'} în paralel...`);
                                                 }
                                                 
                                                 // Pregătește variantele pentru backend
-                                                const variantsForBackend = regenerationVariants.map((variant) => ({
+                                                const variantsForBackend = regenerateVariants.map((variant) => ({
                                                   promptType: variant.promptType,
                                                   promptText: variant.promptText || undefined,
                                                   dialogueText: variant.dialogueText,
@@ -4114,11 +4350,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                                 });
                                                 
                                                 // Procesează rezultatele
-                                                if (allIdentical && regenerationVariants.length > 1) {
+                                                if (allIdentical && regenerateVariants.length > 1) {
                                                   // Setări identice: TOATE regenerările înlocuiesc același video (nu creăm duplicate)
                                                   // Folosim doar prima variantă (toate sunt identice)
                                                   const firstResult = result.results[0];
-                                                  const firstVariant = regenerationVariants[0];
+                                                  const firstVariant = regenerateVariants[0];
                                                   
                                                   if (firstResult.success) {
                                                     setVideoResults(prev =>
@@ -4132,7 +4368,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                                               status: 'pending' as const,
                                                               error: undefined,
                                                               videoUrl: undefined,
-                                                              regenerationNote: `${regenerationVariants.length} regenerări cu aceleași setări`,
+                                                              regenerationNote: `${regenerateVariants.length} regenerări cu aceleași setări`,
                                                             }
                                                           : v
                                                       )
@@ -4155,7 +4391,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                                   // Setări diferite: creăm duplicate pentru variantele 2, 3, etc.
                                                   for (let variantIndex = 0; variantIndex < result.results.length; variantIndex++) {
                                                     const newResult = result.results[variantIndex];
-                                                    const variant = regenerationVariants[variantIndex];
+                                                    const variant = regenerateVariants[variantIndex];
                                                     
                                                     if (variantIndex === 0 && newResult.success) {
                                                       // Prima variantă înlocuiește videoul original
@@ -4235,7 +4471,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                                 
                                                 // Reset form
                                                 setModifyingVideoIndex(null);
-                                                setRegenerationVariants([]);
+                                                setRegenerateVariants([]);
                                               } catch (error: any) {
                                                 toast.error(`Eroare la regenerare: ${error.message}`);
                                               }
@@ -4249,7 +4485,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                                 Se regenerează...
                                               </>
                                             ) : (
-                                              `Regenerate All (${regenerationVariants.length} variante)`
+                                              `Regenerate All (${regenerateVariants.length} variante)`
                                             )}
                                           </Button>
                                         </div>
@@ -4272,8 +4508,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                   size="sm"
                                   variant="outline"
                                   onClick={() => {
-                                    // FIX: Găsește index-ul real în videoResults bazat pe videoName
-                                    const realIndex = videoResults.findIndex(v => v.videoName === result.videoName);
                                     setModifyingVideoIndex(realIndex);
                                     const currentPromptType = combinations[realIndex]?.promptType || 'PROMPT_NEUTRAL';
                                     setModifyPromptType(currentPromptType);
@@ -4285,19 +4519,40 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                       setModifyPromptText('');
                                     }
                                     
+                                    // Initialize text and red positions from videoResults
                                     setModifyDialogueText(result.text);
+                                    
+                                    // Load red text positions if they exist
+                                    if (result.redStart !== undefined && result.redEnd !== undefined && result.redStart >= 0) {
+                                      setModifyRedStart(result.redStart);
+                                      setModifyRedEnd(result.redEnd);
+                                      console.log('[Modify Dialog] Loading red text:', result.redStart, '-', result.redEnd);
+                                    } else {
+                                      setModifyRedStart(-1);
+                                      setModifyRedEnd(-1);
+                                      console.log('[Modify Dialog] No red text found');
+                                    }
                                   }}
                                   className="border-orange-500 text-orange-700 hover:bg-orange-50"
                                 >
                                   Modify & Regenerate
                                 </Button>
                                 
-                                {/* Edited X min ago */}
-                                {editTimestamps[videoResults.findIndex(v => v.videoName === result.videoName)] && (
+                                {/* Edited X min/sec ago */}
+                                {editTimestamps[realIndex] && (
                                   <div className="flex items-center gap-1 mt-2">
                                     <Clock className="w-3 h-3 text-orange-500" />
                                     <p className="text-xs text-orange-500 font-bold">
-                                      Edited {Math.floor((currentTime - editTimestamps[videoResults.findIndex(v => v.videoName === result.videoName)]) / 60000)} min ago
+                                      Edited {(() => {
+                                        const diffMs = currentTime - editTimestamps[realIndex];
+                                        const minutes = Math.floor(diffMs / 60000);
+                                        if (minutes >= 1) {
+                                          return `${minutes} min ago`;
+                                        } else {
+                                          const seconds = Math.floor(diffMs / 1000);
+                                          return `${seconds} sec ago`;
+                                        }
+                                      })()}
                                     </p>
                                   </div>
                                 )}
@@ -4308,45 +4563,53 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
               
-              {/* Buton Regenerate ALL Failed */}
-              {videoResults.some(v => v.status === 'failed') && (
+              {/* Buton Regenerate ALL (Failed + Rejected) */}
+              {videoResults.some(v => v.status === 'failed' || v.reviewStatus === 'regenerate') && (
                 <div className="mt-6">
                   <Button
-                    onClick={regenerateAllFailed}
+                    onClick={regenerateAll}
                     disabled={generateBatchMutation.isPending}
                     className="bg-red-600 hover:bg-red-700 w-full py-4 text-base"
                   >
                     {generateBatchMutation.isPending ? (
                       <>
                         <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                        Se retrimite...
+                        Se regenerează...
                       </>
                     ) : (
                       <>
-                        <X className="w-5 h-5 mr-2" />
-                        Regenerate ALL Failed ({(() => {
-                          const currentFailedCount = failedCount;
-                          const pendingRegenerations = videoResults.reduce((sum, v) => {
-                            if (v.regenerationNote) {
-                              // Parse "⚠️ 3 regenerări cu aceleași setări" → 3
-                              const match = v.regenerationNote.match(/(\d+)\s+regener[ăa]ri/);
-                              if (match) {
-                                return sum + parseInt(match[1], 10);
-                              }
-                            }
-                            return sum;
-                          }, 0);
-                          return failedCount + pendingRegenerations;
+                        <RefreshCw className="w-5 h-5 mr-2" />
+                        Regenerate ALL ({(() => {
+                          const failedCount = videoResults.filter(v => v.status === 'failed').length;
+                          const rejectedCount = videoResults.filter(v => v.reviewStatus === 'regenerate').length;
+                          // Rejected videos use regenerateVariantCount if regenerateMultiple is enabled
+                          const rejectedTotal = regenerateMultiple ? rejectedCount * regenerateVariantCount : rejectedCount;
+                          return failedCount + rejectedTotal;
                         })()})
                       </>
                     )}
                   </Button>
                 </div>
               )}
-                      {/* Buton pentru a trece la STEP 6 */}
+              
+              {/* Link Continue with Sample Videos (TEMP) - afișat întotdeauna */}
+              <div className="mt-6 text-center">
+                <button
+                  onClick={loadSampleVideos}
+                  className="text-sm text-gray-500 hover:text-gray-700 underline"
+                >
+                  Continue with Sample Videos (TEMP)
+                </button>
+                <p className="text-xs text-gray-400 mt-1">
+                  Încărcă 6 task ID-uri sample pentru testare
+                </p>
+              </div>
+              
+              {/* Buton pentru a trece la STEP 7 */}
               {videoResults.some(v => v.status === 'success') && (
                 <div className="mt-6">
                   <Button
@@ -4356,19 +4619,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     <Check className="w-5 h-5 mr-2" />
                     Check Videos (Review)
                   </Button>
-                  
-                  {/* Link Continue with Sample Videos (secundar, sub butonul verde) */}
-                  <div className="mt-3 text-center">
-                    <button
-                      onClick={loadSampleVideos}
-                      className="text-sm text-gray-500 hover:text-gray-700 underline"
-                    >
-                      Continue with Sample Videos (TEMP)
-                    </button>
-                    <p className="text-xs text-gray-400 mt-1">
-                      Încarcă 6 task ID-uri sample pentru testare
-                    </p>
-                  </div>
                 </div>
               )}
             </CardContent>
@@ -4387,7 +4637,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 Regenerează videouri cu setări personalizate. Poți crea multiple variante pentru fiecare video.
               </CardDescription>
             </CardHeader>
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 md:pt-6 px-3 md:px-6">
               {/* Selectare video pentru regenerare */}
               <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-lg">
                 <p className="font-medium text-orange-900 mb-3">
@@ -4618,7 +4868,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   </div>
 
                   {/* Butoane acțiune */}
-                  <div className="flex gap-4">
+                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
                     <Button
                       onClick={async () => {
                         if (selectedVideoIndex < 0) {
@@ -4807,9 +5057,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 Review videourilo generate. Acceptă sau marchează pentru regenerare.
               </CardDescription>
             </CardHeader>
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 md:pt-6 px-3 md:px-6">
               {/* Filtru videouri */}
-              <div className="mb-6 flex items-center gap-4">
+              <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
                 <label className="text-sm font-medium text-green-900">Filtrează videouri:</label>
                 <select
                   value={videoFilter}
