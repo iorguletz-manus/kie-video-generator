@@ -3698,11 +3698,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   
                   return (
                   <div key={index} className="p-3 md:p-4 bg-white rounded-lg border-2 border-blue-200">
-                    <div className="flex flex-col sm:flex-row items-start gap-3 sm:gap-4">
+                    <div className="flex flex-row items-start gap-3">
                       <img
                         src={result.imageUrl}
                         alt="Video thumbnail"
-                        className="w-full sm:w-12 max-w-[120px] sm:max-w-none aspect-[9/16] object-cover rounded border-2 border-blue-300"
+                        className="w-20 sm:w-12 flex-shrink-0 aspect-[9/16] object-cover rounded border-2 border-blue-300"
                       />
                       <div className="flex-1">
                         <p className="text-sm text-blue-900 mb-2">
@@ -3787,7 +3787,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                         }
                                       }, 100);
                                     }}
-                                    className="border-orange-500 text-orange-700 hover:bg-orange-50"
+                                    className="w-full sm:w-auto border-orange-500 text-orange-700 hover:bg-orange-50"
                                   >
                                     Modify & Regenerate
                                   </Button>
@@ -3803,19 +3803,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           {(result.status === 'failed' || result.reviewStatus === 'regenerate') && (
                             <>
                               <div className="flex-1">
-                                <div className="bg-red-50 border-2 border-red-500 px-4 py-2 rounded-lg">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <X className="w-5 h-5 text-red-600" />
-                                    <span className="text-base text-red-700 font-bold">
-                                      {result.status === 'failed' ? 'Failed' : 'Rejected'}
-                                    </span>
-                                  </div>
-                                  {result.status === 'failed' && (
-                                    <p className="text-sm text-red-600 ml-7">
-                                      {result.error || 'Unknown error'}
-                                    </p>
-                                  )}
+                                <div className="flex items-center gap-2 bg-red-50 border-2 border-red-500 px-3 py-2 rounded-lg mb-2">
+                                  <X className="w-5 h-5 text-red-600" />
+                                  <span className="text-sm text-red-700 font-bold">
+                                    {result.status === 'failed' ? 'Failed' : 'Rejected'}
+                                  </span>
                                 </div>
+                                {result.status === 'failed' && (
+                                  <p className="text-sm text-red-600">
+                                    {result.error || 'Unknown error'}
+                                  </p>
+                                )}
                                 
                                 {/* Modify & Regenerate Form */}
                                 {modifyingVideoIndex === realIndex && (
@@ -4537,7 +4535,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                       console.log('[Modify Dialog] No red text found');
                                     }
                                   }}
-                                  className="border-orange-500 text-orange-700 hover:bg-orange-50"
+                                  className="w-full sm:w-auto border-orange-500 text-orange-700 hover:bg-orange-50"
                                 >
                                   Modify & Regenerate
                                 </Button>
