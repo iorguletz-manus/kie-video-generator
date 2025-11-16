@@ -3697,12 +3697,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   const realIndex = videoResults.findIndex(v => v.videoName === result.videoName);
                   
                   return (
-                  <div key={index} className="p-4 bg-white rounded-lg border-2 border-blue-200">
-                    <div className="flex items-start gap-4">
+                  <div key={index} className="p-3 md:p-4 bg-white rounded-lg border-2 border-blue-200">
+                    <div className="flex flex-col sm:flex-row items-start gap-3 sm:gap-4">
                       <img
                         src={result.imageUrl}
                         alt="Video thumbnail"
-                        className="w-12 aspect-[9/16] object-cover rounded border-2 border-blue-300"
+                        className="w-full sm:w-12 max-w-[120px] sm:max-w-none aspect-[9/16] object-cover rounded border-2 border-blue-300"
                       />
                       <div className="flex-1">
                         <p className="text-sm text-blue-900 mb-2">
@@ -3821,7 +3821,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                 {modifyingVideoIndex === realIndex && (
                                   <div 
                                     data-modify-form={realIndex}
-                                    className="mt-4 p-4 bg-white border-2 border-orange-300 rounded-lg space-y-3"
+                                    className="mt-4 p-3 sm:p-4 bg-white border-2 border-orange-300 rounded-lg space-y-3"
                                   >
                                     <h5 className="font-bold text-orange-900">Modify & Regenerate</h5>
                                     
@@ -4031,7 +4031,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                     </div>
                                     
                                     {/* Buttons (mod single) */}
-                                    <div className="flex gap-2">
+                                    <div className="flex flex-col sm:flex-row gap-2">
                                       <Button
                                         size="sm"
                                         onClick={() => {
@@ -4499,7 +4499,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                 )}
                               </div>
                               
-                              <div className="flex flex-col gap-2">
+                              <div className="flex flex-col gap-2 w-full sm:w-auto">
                                 <Button
                                   size="sm"
                                   variant="destructive"
@@ -4572,7 +4572,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               </div>
               
               {/* Buton Regenerate ALL (Failed + Rejected) */}
-              {videoResults.some(v => v.status === 'failed' || v.reviewStatus === 'regenerate') && (
+              {videoResults.some(v => v.status === 'failed' || v.reviewStatus === 'regenerate') && modifyingVideoIndex === null && (
                 <div className="mt-6">
                   <Button
                     onClick={regenerateAll}
