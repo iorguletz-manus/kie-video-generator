@@ -1370,6 +1370,7 @@ export const appRouter = router({
         const character = await createCharacter({
           userId: input.userId,
           name: input.name,
+          thumbnailUrl: null, // Explicitly set to null instead of omitting
         });
         return { success: true, id: character.id };
       }),
