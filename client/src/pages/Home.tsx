@@ -3705,6 +3705,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         className="w-20 sm:w-12 flex-shrink-0 aspect-[9/16] object-cover rounded border-2 border-blue-300"
                       />
                       <div className="flex-1">
+                        <p className="text-xs text-blue-600 font-bold mb-1">
+                          {result.videoName}
+                        </p>
                         <p className="text-sm text-blue-900 mb-2">
                           <span className="font-medium">Text:</span> {result.text.substring(0, 100)}...
                         </p>
