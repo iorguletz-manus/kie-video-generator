@@ -532,7 +532,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       if (contextSession.videoResults) setVideoResults(contextSession.videoResults as VideoResult[]);
       if (contextSession.reviewHistory) setReviewHistory(contextSession.reviewHistory as any[]);
       
-      toast.success('Context data loaded from database!');
+      // toast.success('Context data loaded from database!'); // Hidden per user request
     } else {
       // No context session in database - keep localStorage data (already restored on mount)
       console.log('[Context Session] No database session found, keeping localStorage data');
@@ -3732,7 +3732,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           )}
                           {result.status === 'success' && result.videoUrl && (
                             <>
-                              {result.reviewStatus === 'regenerate' ? (
+                              {false && result.reviewStatus === 'regenerate' ? (
                                 <div className="flex items-center gap-2 justify-between w-full">
                                   {/* Status Respinse - small, left */}
                                   <div className="flex items-center gap-2 bg-red-50 border-2 border-red-500 px-3 py-2 rounded-lg">
@@ -3800,17 +3800,21 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                               )}
                             </>
                           )}
-                          {result.status === 'failed' && (
+                          {(result.status === 'failed' || result.reviewStatus === 'regenerate') && (
                             <>
                               <div className="flex-1">
                                 <div className="bg-red-50 border-2 border-red-500 px-4 py-2 rounded-lg">
                                   <div className="flex items-center gap-2 mb-1">
                                     <X className="w-5 h-5 text-red-600" />
-                                    <span className="text-base text-red-700 font-bold">Failed</span>
+                                    <span className="text-base text-red-700 font-bold">
+                                      {result.status === 'failed' ? 'Failed' : 'Rejected'}
+                                    </span>
                                   </div>
-                                  <p className="text-sm text-red-600 ml-7">
-                                    {result.error || 'Unknown error'}
-                                  </p>
+                                  {result.status === 'failed' && (
+                                    <p className="text-sm text-red-600 ml-7">
+                                      {result.error || 'Unknown error'}
+                                    </p>
+                                  )}
                                 </div>
                                 
                                 {/* Modify & Regenerate Form */}
