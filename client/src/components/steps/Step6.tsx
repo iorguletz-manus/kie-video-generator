@@ -241,7 +241,7 @@ export function Step6(props: Step6Props) {
                               )}
                             </>
                           )}
-                          {result.status === 'failed' && (
+                          {(result.status === 'failed' || result.reviewStatus === 'regenerate') && (
                             <>
                               <div className="flex-1">
                                 <div className="bg-red-50 border-2 border-red-500 px-4 py-2 rounded-lg">
