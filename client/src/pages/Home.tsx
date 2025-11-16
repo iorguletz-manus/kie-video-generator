@@ -3817,6 +3817,58 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                     {result.error || 'Unknown error'}
                                   </p>
                                 )}
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setModifyingVideoIndex(realIndex);
+                                    const currentPromptType = combinations[realIndex]?.promptType || 'PROMPT_NEUTRAL';
+                                    setModifyPromptType(currentPromptType);
+                                    
+                                    // Dacă video are PROMPT_CUSTOM salvat → afișează-l
+                                    if (currentPromptType === 'PROMPT_CUSTOM' && customPrompts[realIndex]) {
+                                      setModifyPromptText(customPrompts[realIndex]);
+                                    } else {
+                                      setModifyPromptText('');
+                                    }
+                                    
+                                    // Initialize text and red positions from videoResults
+                                    setModifyDialogueText(result.text);
+                                    
+                                    // Load red text positions if they exist
+                                    if (result.redStart !== undefined && result.redEnd !== undefined && result.redStart >= 0) {
+                                      setModifyRedStart(result.redStart);
+                                      setModifyRedEnd(result.redEnd);
+                                      console.log('[Modify Dialog] Loading red text:', result.redStart, '-', result.redEnd);
+                                    } else {
+                                      setModifyRedStart(-1);
+                                      setModifyRedEnd(-1);
+                                      console.log('[Modify Dialog] No red text found');
+                                    }
+                                  }}
+                                  className="w-full sm:w-auto border-orange-500 text-orange-700 hover:bg-orange-50"
+                                >
+                                  Modify & Regenerate
+                                </Button>
+                                
+                                {/* Edited X min/sec ago */}
+                                {editTimestamps[realIndex] && (
+                                  <div className="flex items-center gap-1 mt-2">
+                                    <Clock className="w-3 h-3 text-orange-500" />
+                                    <p className="text-xs text-orange-500 font-bold">
+                                      Edited {(() => {
+                                        const diffMs = currentTime - editTimestamps[realIndex];
+                                        const minutes = Math.floor(diffMs / 60000);
+                                        if (minutes >= 1) {
+                                          return `${minutes} min ago`;
+                                        } else {
+                                          const seconds = Math.floor(diffMs / 1000);
+                                          return `${seconds} sec ago`;
+                                        }
+                                      })()}
+                                    </p>
+                                  </div>
+                                )}
                                 
                                 {/* Modify & Regenerate Form */}
                                 {modifyingVideoIndex === realIndex && (
@@ -4500,68 +4552,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                 )}
                               </div>
                               
-                              <div className="flex flex-col gap-2 w-full sm:w-auto">
-                                {/* <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  onClick={() => regenerateSingleVideo(index)}
-                                  className="bg-red-600 hover:bg-red-700"
-                                >
-                                  Regenerate
-                                </Button> */}
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    setModifyingVideoIndex(realIndex);
-                                    const currentPromptType = combinations[realIndex]?.promptType || 'PROMPT_NEUTRAL';
-                                    setModifyPromptType(currentPromptType);
-                                    
-                                    // Dacă video are PROMPT_CUSTOM salvat → afișează-l
-                                    if (currentPromptType === 'PROMPT_CUSTOM' && customPrompts[realIndex]) {
-                                      setModifyPromptText(customPrompts[realIndex]);
-                                    } else {
-                                      setModifyPromptText('');
-                                    }
-                                    
-                                    // Initialize text and red positions from videoResults
-                                    setModifyDialogueText(result.text);
-                                    
-                                    // Load red text positions if they exist
-                                    if (result.redStart !== undefined && result.redEnd !== undefined && result.redStart >= 0) {
-                                      setModifyRedStart(result.redStart);
-                                      setModifyRedEnd(result.redEnd);
-                                      console.log('[Modify Dialog] Loading red text:', result.redStart, '-', result.redEnd);
-                                    } else {
-                                      setModifyRedStart(-1);
-                                      setModifyRedEnd(-1);
-                                      console.log('[Modify Dialog] No red text found');
-                                    }
-                                  }}
-                                  className="w-full sm:w-auto border-orange-500 text-orange-700 hover:bg-orange-50"
-                                >
-                                  Modify & Regenerate
-                                </Button>
-                                
-                                {/* Edited X min/sec ago */}
-                                {editTimestamps[realIndex] && (
-                                  <div className="flex items-center gap-1 mt-2">
-                                    <Clock className="w-3 h-3 text-orange-500" />
-                                    <p className="text-xs text-orange-500 font-bold">
-                                      Edited {(() => {
-                                        const diffMs = currentTime - editTimestamps[realIndex];
-                                        const minutes = Math.floor(diffMs / 60000);
-                                        if (minutes >= 1) {
-                                          return `${minutes} min ago`;
-                                        } else {
-                                          const seconds = Math.floor(diffMs / 1000);
-                                          return `${seconds} sec ago`;
-                                        }
-                                      })()}
-                                    </p>
-                                  </div>
-                                )}
-                              </div>
                             </>
                           )}
                         </div>
