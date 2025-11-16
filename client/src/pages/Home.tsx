@@ -3730,7 +3730,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                               <span className="text-sm text-orange-600 font-medium">În curs de generare... (auto-refresh la 5s)</span>
                             </>
                           )}
-                          {result.status === 'success' && result.videoUrl && (
+                          {result.status === 'success' && result.videoUrl && result.reviewStatus !== 'regenerate' && (
                             <>
                               {false && result.reviewStatus === 'regenerate' ? (
                                 <div className="flex items-center gap-2 justify-between w-full">
