@@ -4160,7 +4160,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                       >
                                         Save
                                       </Button>
-                                      <Button
+                                      {/* <Button
                                         size="sm"
                                         variant="outline"
                                         onClick={() => regenerateWithModifications(index)}
@@ -4175,7 +4175,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                         ) : (
                                           'Save & Regenerate'
                                         )}
-                                      </Button>
+                                      </Button> */}
                                       <Button
                                         size="sm"
                                         variant="outline"
@@ -4305,7 +4305,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                             </Button>
                                           </div>
                                           
-                                          {/* Regenerate All - trimite toate variantele pentru generare */}
+                                          {/* Regenerate All - trimite toate variantele pentru generare
                                           <Button
                                             size="sm"
                                             onClick={async () => {
@@ -4491,7 +4491,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                             ) : (
                                               `Regenerate All (${regenerateVariants.length} variante)`
                                             )}
-                                          </Button>
+                                          </Button> */}
                                         </div>
                                       </>
                                     )}
@@ -4500,14 +4500,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                               </div>
                               
                               <div className="flex flex-col gap-2 w-full sm:w-auto">
-                                <Button
+                                {/* <Button
                                   size="sm"
                                   variant="destructive"
                                   onClick={() => regenerateSingleVideo(index)}
                                   className="bg-red-600 hover:bg-red-700"
                                 >
                                   Regenerate
-                                </Button>
+                                </Button> */}
                                 <Button
                                   size="sm"
                                   variant="outline"
