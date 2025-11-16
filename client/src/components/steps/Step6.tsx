@@ -4,17 +4,111 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Play, Loader2, X, Check, Download, RefreshCw, Clock } from "lucide-react";
+import { toast as toastFn } from "sonner";
 
-// TODO: Add proper props interface
 interface Step6Props {
-  [key: string]: any; // Temporary - will be refined
+  videoResults: any[];
+  setVideoResults: (results: any[] | ((prev: any[]) => any[])) => void;
+  step5Filter: 'all' | 'accepted' | 'regenerate';
+  setStep5Filter: (filter: 'all' | 'accepted' | 'regenerate') => void;
+  step5FilteredVideos: any[];
+  acceptedCount: number;
+  regenerateCount: number;
+  combinations: any[];
+  modifyingVideoIndex: number | null;
+  setModifyingVideoIndex: (index: number | null) => void;
+  modifyDialogueText: string;
+  setModifyDialogueText: (text: string) => void;
+  modifyRedStart: number;
+  setModifyRedStart: (start: number) => void;
+  modifyRedEnd: number;
+  setModifyRedEnd: (end: number) => void;
+  modifyEditorRef: React.RefObject<HTMLDivElement>;
+  regenerateMultiple: boolean;
+  setRegenerateMultiple: (multiple: boolean) => void;
+  regenerateVariantCount: number;
+  setRegenerateVariantCount: (count: number) => void;
+  regenerateVariants: any[];
+  setRegenerateVariants: (variants: any[]) => void;
+  editTimestamps: Record<number, number>;
+  setEditTimestamps: (timestamps: Record<number, number> | ((prev: Record<number, number>) => Record<number, number>)) => void;
+  currentTime: number;
+  generateMultipleVariantsMutation: any;
+  generateBatchMutation: any;
+  regenerateAll: () => Promise<void>;
+  prompts: any[];
+  setCombinations: (combinations: any[]) => void;
+  modifyPromptText: string;
+  setModifyPromptText: (text: string) => void;
+  modifyPromptType: string;
+  setModifyPromptType: (type: any) => void;
+  selectedVideoIndex: number;
+  setSelectedVideoIndex: (index: number) => void;
+  loadSampleVideos: () => Promise<void>;
+  regenerateSingleVideo: (index: number) => Promise<void>;
+  regenerateWithModifications: (index: number) => Promise<void>;
+  goToCheckVideos: () => void;
+  images: any[];
+  setCurrentStep: (step: number) => void;
+  setAdLines: (lines: any[]) => void;
+  setCustomPrompts: (prompts: any[]) => void;
+  toast: typeof toastFn;
 }
 
 export function Step6(props: Step6Props) {
-  // TODO: Destructure props as needed
-  
+  const {
+    videoResults,
+    setVideoResults,
+    step5Filter,
+    setStep5Filter,
+    step5FilteredVideos,
+    acceptedCount,
+    regenerateCount,
+    combinations,
+    modifyingVideoIndex,
+    setModifyingVideoIndex,
+    modifyDialogueText,
+    setModifyDialogueText,
+    modifyRedStart,
+    setModifyRedStart,
+    modifyRedEnd,
+    setModifyRedEnd,
+    modifyEditorRef,
+    regenerateMultiple,
+    setRegenerateMultiple,
+    regenerateVariantCount,
+    setRegenerateVariantCount,
+    regenerateVariants,
+    setRegenerateVariants,
+    editTimestamps,
+    setEditTimestamps,
+    currentTime,
+    generateMultipleVariantsMutation,
+    generateBatchMutation,
+    regenerateAll,
+    prompts,
+    setCombinations,
+    modifyPromptText,
+    setModifyPromptText,
+    modifyPromptType,
+    setModifyPromptType,
+    selectedVideoIndex,
+    setSelectedVideoIndex,
+    loadSampleVideos,
+    regenerateSingleVideo,
+    regenerateWithModifications,
+    goToCheckVideos,
+    images,
+    setCurrentStep,
+    setAdLines,
+    setCustomPrompts,
+    toast,
+  } = props;
+
   return (
-          <Card className="mb-8 border-2 border-blue-200">
+    <Card className="mb-8 border-2 border-blue-200">
             <CardHeader className="bg-blue-50">
               <CardTitle className="flex items-center gap-2 text-blue-900">
                 <Play className="w-5 h-5" />
@@ -1381,9 +1475,6 @@ export function Step6(props: Step6Props) {
                 </>
               )}
             </CardContent>
-          </Card>
-        )}
-
-        {/* STEP 7: Check Videos (Final Review) */}
+    </Card>
   );
 }
