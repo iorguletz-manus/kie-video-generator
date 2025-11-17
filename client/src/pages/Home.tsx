@@ -69,11 +69,62 @@ interface VideoResult {
   categoryNumber: number;
   reviewStatus: 'pending' | 'accepted' | 'regenerate' | null;
   regenerationNote?: string; // Ex: "⚠️ 3 regenerări cu aceleași setări"
+  isDuplicate?: boolean; // true dacă e duplicate
+  duplicateNumber?: number; // 1, 2, 3, etc.
+  originalVideoName?: string; // videoName original (fără _D1, _D2)
 }
 
 interface HomeProps {
   currentUser: { id: number; username: string; profileImageUrl: string | null };
   onLogout: () => void;
+}
+
+// ========== HELPER FUNCTIONS FOR DUPLICATE VIDEOS ==========
+
+/**
+ * Generează numele pentru un video duplicate
+ * Ex: "T1_C1_E1_AD1_CTA1_ALINA" → "T1_C1_E1_AD1_CTA1_ALINA_D1"
+ */
+function generateDuplicateName(originalName: string, existingVideos: VideoResult[]): string {
+  // Găsește toate duplicate-urile existente pentru acest video
+  const duplicatePattern = new RegExp(`^${originalName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}_D(\\d+)$`);
+  const existingDuplicates = existingVideos
+    .map(v => {
+      const match = v.videoName.match(duplicatePattern);
+      return match ? parseInt(match[1]) : 0;
+    })
+    .filter(n => n > 0);
+  
+  // Găsește următorul număr disponibil
+  const nextNumber = existingDuplicates.length > 0 
+    ? Math.max(...existingDuplicates) + 1 
+    : 1;
+  
+  return `${originalName}_D${nextNumber}`;
+}
+
+/**
+ * Extrage videoName original din numele duplicate
+ * Ex: "T1_C1_E1_AD1_CTA1_ALINA_D1" → "T1_C1_E1_AD1_CTA1_ALINA"
+ */
+function getOriginalVideoName(videoName: string): string {
+  return videoName.replace(/_D\d+$/, '');
+}
+
+/**
+ * Verifică dacă un videoName este duplicate
+ */
+function isDuplicateVideo(videoName: string): boolean {
+  return /_D\d+$/.test(videoName);
+}
+
+/**
+ * Extrage numărul duplicate din videoName
+ * Ex: "T1_C1_E1_AD1_CTA1_ALINA_D2" → 2
+ */
+function getDuplicateNumber(videoName: string): number | null {
+  const match = videoName.match(/_D(\d+)$/);
+  return match ? parseInt(match[1]) : null;
 }
 
 export default function Home({ currentUser, onLogout }: HomeProps) {
@@ -185,6 +236,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     userId: localCurrentUser.id,
   });
   
+  // Prompt Library query - load all prompts from database
+  const { data: promptLibrary = [] } = trpc.promptLibrary.list.useQuery({
+    userId: localCurrentUser.id,
+  });
+  
   // Category queries
   const { data: tams = [], refetch: refetchTams } = trpc.tams.list.useQuery({
     userId: localCurrentUser.id,
@@ -238,6 +294,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   
   // Images Library mutation
   const uploadLibraryImageMutation = trpc.imageLibrary.upload.useMutation();
+  
+  // Prompt Library mutation
+  const createPromptMutation = trpc.promptLibrary.create.useMutation();
   
   // Context session mutation
   const upsertContextSessionMutation = trpc.contextSessions.upsert.useMutation();
@@ -307,25 +366,27 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
   }, [editingLineId, editingLineText, editingLineRedStart, editingLineRedEnd]);
     // Initialize Modify & Regenerate editor with HTML when dialog opens
+  const [isEditorInitialized, setIsEditorInitialized] = useState(false);
+  
   useEffect(() => {
-    if (modifyingVideoIndex !== null && modifyEditorRef.current) {
-      // Only set HTML if editor is empty (just opened)
-      const currentContent = modifyEditorRef.current.textContent || '';
-      if (currentContent === '' || currentContent !== modifyDialogueText) {
-        // Set initial HTML with red text if exists
-        if (modifyRedStart >= 0 && modifyRedEnd > modifyRedStart) {
-          const before = modifyDialogueText.substring(0, modifyRedStart);
-          const red = modifyDialogueText.substring(modifyRedStart, modifyRedEnd);
-          const after = modifyDialogueText.substring(modifyRedEnd);
-          modifyEditorRef.current.innerHTML = `${before}<span style="color: #dc2626; font-weight: 500;">${red}</span>${after}`;
-          console.log('[Modify Editor Init] Set HTML with red text:', modifyRedStart, '-', modifyRedEnd);
-        } else {
-          modifyEditorRef.current.textContent = modifyDialogueText;
-          console.log('[Modify Editor Init] Set plain text (no red)');
-        }
+    if (modifyingVideoIndex !== null && modifyEditorRef.current && modifyDialogueText && !isEditorInitialized) {
+      // Set HTML with red text if exists in session (from Step 1 & 2)
+      if (modifyRedStart >= 0 && modifyRedEnd > modifyRedStart && modifyRedEnd <= modifyDialogueText.length) {
+        const before = modifyDialogueText.substring(0, modifyRedStart);
+        const red = modifyDialogueText.substring(modifyRedStart, modifyRedEnd);
+        const after = modifyDialogueText.substring(modifyRedEnd);
+        modifyEditorRef.current.innerHTML = `${before}<span style="color: #dc2626; font-weight: 500;">${red}</span>${after}`;
+        console.log('[Modify Editor Init] Set HTML with red text from session:', modifyRedStart, '-', modifyRedEnd);
+      } else {
+        modifyEditorRef.current.textContent = modifyDialogueText;
+        console.log('[Modify Editor Init] Set plain text (no red in session)');
       }
+      setIsEditorInitialized(true);
+    } else if (modifyingVideoIndex === null) {
+      // Reset flag when dialog closes
+      setIsEditorInitialized(false);
     }
-  }, [modifyingVideoIndex, modifyRedStart, modifyRedEnd, modifyDialogueText]); // Re-run when any changes
+  }, [modifyingVideoIndex, modifyDialogueText, modifyRedStart, modifyRedEnd, isEditorInitialized]); // Re-run when dialog opens
   
   const getSavedSessions = (): SavedSession[] => {
     // Return sessions from database
@@ -700,7 +761,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   );
   
   const regenerateVideos = useMemo(
-    () => videoResults.filter(v => v.reviewStatus === 'regenerate'),
+    () => videoResults.filter(v => 
+      // Include toate video cardurile cu probleme (toate în afară de Generated)
+      v.reviewStatus === 'regenerate' || // Marcate pentru regenerare
+      v.status === 'failed' ||            // Failed
+      v.status === null                   // Not Generated Yet (duplicate-uri)
+    ),
     [videoResults]
   );
   
@@ -1661,10 +1727,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   
   // Regenerare toate videouri (failed + rejected)
   const regenerateAll = async () => {
-    // Colectează toate videouri care trebuie regenerate: failed SAU rejected
+    // Colectează toate videouri care trebuie regenerate: failed SAU rejected SAU duplicate negenerat (status null)
     const toRegenerateIndexes = videoResults
       .map((v, i) => ({ video: v, index: i }))
-      .filter(({ video }) => video.status === 'failed' || video.reviewStatus === 'regenerate')
+      .filter(({ video }) => 
+        video.status === 'failed' || 
+        video.reviewStatus === 'regenerate' ||
+        video.status === null  // Include duplicate-uri negenerate
+      )
       .map(({ index }) => index);
     
     if (toRegenerateIndexes.length === 0) {
@@ -1761,6 +1831,104 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       toast.error(`Eroare la regenerare batch: ${error.message}`);
     }
   };
+
+  // ========== DUPLICATE VIDEO FUNCTIONS ==========
+
+  /**
+   * Creează un duplicate al unui video card
+   * Duplicate-ul va avea status null și va fi regenerat când se apasă "Regenerate All"
+   */
+  const duplicateVideo = useCallback((videoName: string) => {
+    const videoIndex = videoResults.findIndex(v => v.videoName === videoName);
+    
+    if (videoIndex < 0) {
+      toast.error('Video nu găsit');
+      return;
+    }
+    
+    const originalVideo = videoResults[videoIndex];
+    const originalCombo = combinations[videoIndex];
+    
+    if (!originalCombo) {
+      toast.error('Combinație nu găsită');
+      return;
+    }
+    
+    // Generează nume duplicate
+    const originalName = getOriginalVideoName(videoName);
+    const duplicateName = generateDuplicateName(originalName, videoResults);
+    
+    // Creează duplicate video result
+    const duplicateVideoResult: VideoResult = {
+      text: originalVideo.text,
+      imageUrl: originalVideo.imageUrl,
+      status: null, // null = not generated yet
+      videoName: duplicateName,
+      section: originalVideo.section,
+      categoryNumber: originalVideo.categoryNumber,
+      reviewStatus: null,
+      isDuplicate: true,
+      duplicateNumber: getDuplicateNumber(duplicateName),
+      originalVideoName: originalName,
+    };
+    
+    // Creează duplicate combination
+    const duplicateCombo: Combination = {
+      ...originalCombo,
+      id: `combo-duplicate-${Date.now()}`,
+      videoName: duplicateName,
+    };
+    
+    // Adaugă duplicate după originalul său
+    setVideoResults(prev => {
+      const newResults = [...prev];
+      newResults.splice(videoIndex + 1, 0, duplicateVideoResult);
+      return newResults;
+    });
+    
+    setCombinations(prev => {
+      const newCombos = [...prev];
+      newCombos.splice(videoIndex + 1, 0, duplicateCombo);
+      return newCombos;
+    });
+    
+    toast.success(`Duplicate creat: ${duplicateName}`);
+  }, [videoResults, combinations]);
+
+  /**
+   * Șterge un video duplicate
+   * Poate șterge doar duplicate-uri (videoName cu _D1, _D2, etc.)
+   */
+  const deleteDuplicate = useCallback((videoName: string) => {
+    if (!isDuplicateVideo(videoName)) {
+      toast.error('Poți șterge doar duplicate-uri (videoName cu _D1, _D2, etc.)');
+      return;
+    }
+    
+    const videoIndex = videoResults.findIndex(v => v.videoName === videoName);
+    
+    if (videoIndex < 0) {
+      toast.error('Video nu găsit');
+      return;
+    }
+    
+    // Șterge din videoResults și combinations
+    setVideoResults(prev => prev.filter((_, i) => i !== videoIndex));
+    setCombinations(prev => prev.filter((_, i) => i !== videoIndex));
+    
+    toast.success(`Duplicate șters: ${videoName}`);
+  }, [videoResults]);
+
+  // Expune funcțiile pentru Step6
+  useEffect(() => {
+    (window as any).__duplicateVideo = duplicateVideo;
+    (window as any).__deleteDuplicate = deleteDuplicate;
+    
+    return () => {
+      delete (window as any).__duplicateVideo;
+      delete (window as any).__deleteDuplicate;
+    };
+  }, [duplicateVideo, deleteDuplicate]);
 
   // Regenerare video cu modificări (Modify & Regenerate)
   const regenerateWithModifications = async (index: number) => {
@@ -3817,39 +3985,66 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                     {result.error || 'Unknown error'}
                                   </p>
                                 )}
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    setModifyingVideoIndex(realIndex);
-                                    const currentPromptType = combinations[realIndex]?.promptType || 'PROMPT_NEUTRAL';
-                                    setModifyPromptType(currentPromptType);
-                                    
-                                    // Dacă video are PROMPT_CUSTOM salvat → afișează-l
-                                    if (currentPromptType === 'PROMPT_CUSTOM' && customPrompts[realIndex]) {
-                                      setModifyPromptText(customPrompts[realIndex]);
-                                    } else {
-                                      setModifyPromptText('');
-                                    }
-                                    
-                                    // Initialize text and red positions from videoResults
-                                    setModifyDialogueText(result.text);
-                                    
-                                    // Load red text positions if they exist
-                                    if (result.redStart !== undefined && result.redEnd !== undefined && result.redStart >= 0) {
-                                      setModifyRedStart(result.redStart);
-                                      setModifyRedEnd(result.redEnd);
-                                      console.log('[Modify Dialog] Loading red text:', result.redStart, '-', result.redEnd);
-                                    } else {
-                                      setModifyRedStart(-1);
-                                      setModifyRedEnd(-1);
-                                      console.log('[Modify Dialog] No red text found');
-                                    }
-                                  }}
-                                  className="w-full sm:w-auto border-orange-500 text-orange-700 hover:bg-orange-50"
-                                >
-                                  Modify & Regenerate
-                                </Button>
+                                <div className="flex flex-col sm:flex-row gap-2 w-full">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setModifyingVideoIndex(realIndex);
+                                      const currentPromptType = combinations[realIndex]?.promptType || 'PROMPT_NEUTRAL';
+                                      setModifyPromptType(currentPromptType);
+                                      
+                                      // Dacă video are PROMPT_CUSTOM salvat → afișează-l
+                                      if (currentPromptType === 'PROMPT_CUSTOM' && customPrompts[realIndex]) {
+                                        setModifyPromptText(customPrompts[realIndex]);
+                                      } else {
+                                        setModifyPromptText('');
+                                      }
+                                      
+                                      // Initialize text and red positions from videoResults
+                                      setModifyDialogueText(result.text);
+                                      
+                                      // Load red text positions if they exist
+                                      if (result.redStart !== undefined && result.redEnd !== undefined && result.redStart >= 0) {
+                                        setModifyRedStart(result.redStart);
+                                        setModifyRedEnd(result.redEnd);
+                                        console.log('[Modify Dialog] Loading red text:', result.redStart, '-', result.redEnd);
+                                      } else {
+                                        setModifyRedStart(-1);
+                                        setModifyRedEnd(-1);
+                                        console.log('[Modify Dialog] No red text found');
+                                      }
+                                    }}
+                                    className="flex-1 border-orange-500 text-orange-700 hover:bg-orange-50"
+                                  >
+                                    Modify & Regenerate
+                                  </Button>
+                                  
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      duplicateVideo(result.videoName);
+                                    }}
+                                    className="flex-1 border-blue-500 text-blue-700 hover:bg-blue-50"
+                                  >
+                                    Duplicate
+                                  </Button>
+                                  
+                                  {/* Delete Duplicate button (doar pentru duplicate-uri) */}
+                                  {result.isDuplicate && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        deleteDuplicate(result.videoName);
+                                      }}
+                                      className="flex-1 border-red-500 text-red-700 hover:bg-red-50"
+                                    >
+                                      Delete Duplicate
+                                    </Button>
+                                  )}
+                                </div>
                                 
                                 {/* Edited X min/sec ago */}
                                 {editTimestamps[realIndex] && (
@@ -3878,8 +4073,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                   >
                                     <h5 className="font-bold text-orange-900">Modify & Regenerate</h5>
                                     
-                                    {/* Radio: Vrei să regenerezi mai multe videouri? */}
-                                    <div className="p-3 bg-orange-50 border border-orange-200 rounded">
+                                    {/* Radio: Vrei să regenerezi mai multe videouri? - COMMENTED OUT */}
+                                    {/* <div className="p-3 bg-orange-50 border border-orange-200 rounded">
                                       <label className="text-sm font-medium text-gray-700 block mb-2">Vrei să regenerezi mai multe videouri?</label>
                                       <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
                                         <label className="flex items-center gap-2 cursor-pointer">
@@ -3911,7 +4106,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                                 dialogueText: modifyDialogueText,
                                                 imageUrl: videoResults[idx]?.imageUrl || combinations[idx]?.imageUrl || '',
                                               };
-                                              // Creează array cu regenerateVariantCount variante
+                                              // Crează array cu regenerateVariantCount variante
                                               const variants = Array(regenerateVariantCount).fill(null).map(() => ({ ...initialVariant }));
                                               setRegenerateVariants(variants);
                                               console.log('[Regenerate Multiple] Initialized', variants.length, 'variants');
@@ -3921,7 +4116,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                           <span className="text-sm">Da</span>
                                         </label>
                                       </div>
-                                    </div>
+                                    </div> */}
                                     
                                     {/* Selector număr regenerări (dacă Da) */}
                                     {regenerateMultiple && (
@@ -3979,10 +4174,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                           if (newType === 'PROMPT_CUSTOM' && customPrompts[modifyingVideoIndex!]) {
                                             setModifyPromptText(customPrompts[modifyingVideoIndex!]);
                                           } else if (newType !== 'PROMPT_CUSTOM') {
-                                            // Încarcă text din prompts state (salvat în session)
-                                            const promptFromState = prompts.find(p => p.name === newType);
-                                            if (promptFromState?.template) {
-                                              setModifyPromptText(promptFromState.template);
+                                            // Încarcă template din Prompt Library (database)
+                                            const promptFromLibrary = promptLibrary.find(p => p.promptName === newType);
+                                            if (promptFromLibrary?.promptTemplate) {
+                                              setModifyPromptText(promptFromLibrary.promptTemplate);
                                             } else {
                                               setModifyPromptText('');
                                               toast.warning(`Prompt ${newType} nu a fost găsit în sesiune`);
@@ -3991,10 +4186,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                         }}
                                         className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
                                       >
-                                        <option value="PROMPT_NEUTRAL">PROMPT_NEUTRAL</option>
-                                        <option value="PROMPT_SMILING">PROMPT_SMILING</option>
-                                        <option value="PROMPT_CTA">PROMPT_CTA</option>
-                                        <option value="PROMPT_CUSTOM">PROMPT_CUSTOM</option>
+                                        {/* Prompturi din Prompt Library (database) */}
+                                        {promptLibrary.map(p => (
+                                          <option key={p.id} value={p.promptName}>{p.promptName}</option>
+                                        ))}
+                                        {/* PROMPT_CUSTOM apare doar dacă există în sesiune pentru acest video */}
+                                        {modifyingVideoIndex !== null && customPrompts[modifyingVideoIndex] && (
+                                          <option value="PROMPT_CUSTOM">PROMPT_CUSTOM (session)</option>
+                                        )}
                                       </select>
                                     </div>
                                     
@@ -4007,9 +4206,22 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                           const newText = e.target.value;
                                           setModifyPromptText(newText);
                                           
-                                          // Când user editează prompt text → switch automat la PROMPT_CUSTOM
-                                          if (newText.trim().length > 0 && modifyPromptType !== 'PROMPT_CUSTOM') {
-                                            setModifyPromptType('PROMPT_CUSTOM');
+                                          // Când user editează prompt text → switch automat la PROMPT_CUSTOM și salvează în sesiune
+                                          if (newText.trim().length > 0) {
+                                            // Verifică dacă textul este diferit de template-ul original
+                                            const originalPrompt = promptLibrary.find(p => p.promptName === modifyPromptType);
+                                            const isModified = !originalPrompt || newText !== originalPrompt.promptTemplate;
+                                            
+                                            if (isModified && modifyPromptType !== 'PROMPT_CUSTOM') {
+                                              // Switch la PROMPT_CUSTOM și salvează în sesiune
+                                              setModifyPromptType('PROMPT_CUSTOM');
+                                              if (modifyingVideoIndex !== null) {
+                                                setCustomPrompts(prev => ({
+                                                  ...prev,
+                                                  [modifyingVideoIndex]: newText,
+                                                }));
+                                              }
+                                            }
                                           }
                                         }}
                                         placeholder={
@@ -4118,12 +4330,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                           setModifyRedStart(redStart);
                                           setModifyRedEnd(redEnd);
                                           
-                                          // Dacă user a editat prompt text → salvează ca PROMPT_CUSTOM
-                                          if (modifyPromptText.trim().length > 0) {
+                                          // Dacă user a editat prompt text → salvează ca PROMPT_CUSTOM DOAR în sesiune (nu în database)
+                                          if (modifyPromptType === 'PROMPT_CUSTOM' && modifyPromptText.trim().length > 0) {
+                                            // Salvează în state pentru sesiune (dispare la expirarea sesiunii)
                                             setCustomPrompts(prev => ({
                                               ...prev,
                                               [index]: modifyPromptText,
                                             }));
+                                            console.log('[Prompt Save] Custom prompt saved to session (not database):', index);
                                           }
                                           
                                           const updatedCombinations = [...combinations];
@@ -4552,6 +4766,74 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                 )}
                               </div>
                               
+                            </>
+                          )}
+                          
+                          {/* NULL Status (duplicate negenerat) */}
+                          {result.status === null && result.isDuplicate && (
+                            <>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 bg-gray-50 border-2 border-gray-400 px-3 py-2 rounded-lg mb-2">
+                                  <Clock className="w-5 h-5 text-gray-600" />
+                                  <span className="text-sm text-gray-700 font-bold">
+                                    Not Generated Yet (Duplicate {result.duplicateNumber})
+                                  </span>
+                                </div>
+                                <div className="flex flex-col sm:flex-row gap-2 w-full">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setModifyingVideoIndex(realIndex);
+                                      const currentPromptType = combinations[realIndex]?.promptType || 'PROMPT_NEUTRAL';
+                                      setModifyPromptType(currentPromptType);
+                                      
+                                      if (currentPromptType === 'PROMPT_CUSTOM' && customPrompts[realIndex]) {
+                                        setModifyPromptText(customPrompts[realIndex]);
+                                      } else {
+                                        setModifyPromptText('');
+                                      }
+                                      
+                                      setModifyDialogueText(result.text);
+                                      
+                                      if (result.redStart !== undefined && result.redEnd !== undefined && result.redStart >= 0) {
+                                        setModifyRedStart(result.redStart);
+                                        setModifyRedEnd(result.redEnd);
+                                      } else {
+                                        setModifyRedStart(-1);
+                                        setModifyRedEnd(-1);
+                                      }
+                                    }}
+                                    className="flex-1 border-orange-500 text-orange-700 hover:bg-orange-50"
+                                  >
+                                    Modify & Regenerate
+                                  </Button>
+                                  
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      deleteDuplicate(result.videoName);
+                                    }}
+                                    className="flex-1 border-red-500 text-red-700 hover:bg-red-50"
+                                  >
+                                    Delete Duplicate
+                                  </Button>
+                                </div>
+                                
+                                {/* Modify & Regenerate Form pentru duplicate */}
+                                {modifyingVideoIndex === realIndex && (
+                                  <div 
+                                    data-modify-form={realIndex}
+                                    className="mt-4 p-3 sm:p-4 bg-white border-2 border-orange-300 rounded-lg space-y-3"
+                                  >
+                                    <h5 className="font-bold text-orange-900">Modify & Regenerate</h5>
+                                    
+                                    {/* Aici va fi formularul - va folosi același formular ca pentru failed */}
+                                    {/* TODO: Add form fields */}
+                                  </div>
+                                )}
+                              </div>
                             </>
                           )}
                         </div>

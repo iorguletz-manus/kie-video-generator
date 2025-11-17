@@ -117,6 +117,11 @@ export function Step6(props: Step6Props) {
               <CardDescription>
                 Urmărește progresul generării videourilo și descarcă-le.
               </CardDescription>
+              {/* MARKER TEST - VERSIUNE NOUA INCARCATA! */}
+              <div className="mt-4 p-4 bg-yellow-200 border-4 border-red-600 rounded-lg">
+                <p className="text-2xl font-bold text-red-600">🔥 MARKER TEST: VERSIUNE NOUĂ ÎNCĂRCATĂ! 🔥</p>
+                <p className="text-lg text-gray-800">Dacă vezi acest mesaj, modificările se încarcă corect!</p>
+              </div>
             </CardHeader>
             <CardContent className="pt-4 md:pt-6 px-3 md:px-6">
               {/* Filtru videouri STEP 5 */}
@@ -258,63 +263,161 @@ export function Step6(props: Step6Props) {
                                   <X className="w-5 h-5 text-red-600" />
                                   <span className="text-base text-red-700 font-bold">
                                     {result.status === 'failed' ? 'Failed' : 'Rejected'}
-                                {result.status === 'failed' && (
-                                {result.status === 'failed' && (
+                                  </span>
+                                </div>
                                 {result.status === 'failed' && (
                                   <p className="text-sm text-red-600 ml-7">
-                                  <p className="text-sm text-red-600 ml-7">
-                                    {result.error || 'Unknown error'}
-                                  </p>
-                                )}
                                     {result.error || 'Unknown error'}
                                   </p>
                                 )}
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  console.log('[Modify & Regenerate] Clicked for failed video:', result.videoName, 'realIndex:', realIndex);
-                                  
-                                  if (realIndex < 0) {
-                                    toast.error('Video nu găsit în videoResults');
-                                    return;
-                                  }
-                                  
-                                  setModifyingVideoIndex(realIndex);
-                                  const currentPromptType = combinations[realIndex]?.promptType || 'PROMPT_NEUTRAL';
-                                  setModifyPromptType(currentPromptType);
-                                  
-                                  if (currentPromptType === 'PROMPT_CUSTOM' && customPrompts[realIndex]) {
-                                    setModifyPromptText(customPrompts[realIndex]);
-                                  } else {
-                                    setModifyPromptText('');
-                                  }
-                                  
-                                  setModifyDialogueText(result.text);
-                                  
-                                  const combo = combinations[realIndex];
-                                  if (combo) {
-                                    const originalLine = adLines.find(l => l.text === combo.text);
-                                    if (originalLine) {
-                                      setModifyRedStart(originalLine.redStart ?? -1);
-                                      setModifyRedEnd(originalLine.redEnd ?? -1);
+                              
+                              {/* Butoane: Modify & Regenerate + Duplicate */}
+                              <div className="flex flex-col sm:flex-row gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    console.log('[Modify & Regenerate] Clicked for failed video:', result.videoName, 'realIndex:', realIndex);
+                                    
+                                    if (realIndex < 0) {
+                                      toast.error('Video nu găsit în videoResults');
+                                      return;
+                                    }
+                                    
+                                    setModifyingVideoIndex(realIndex);
+                                    const currentPromptType = combinations[realIndex]?.promptType || 'PROMPT_NEUTRAL';
+                                    setModifyPromptType(currentPromptType);
+                                    
+                                    if (currentPromptType === 'PROMPT_CUSTOM' && customPrompts[realIndex]) {
+                                      setModifyPromptText(customPrompts[realIndex]);
                                     } else {
-                                      setModifyRedStart(-1);
-                                      setModifyRedEnd(-1);
+                                      setModifyPromptText('');
                                     }
-                                  }
-                                  
-                                  setTimeout(() => {
-                                    const formElement = document.querySelector(`[data-modify-form="global"]`);
-                                    if (formElement) {
-                                      formElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                    
+                                    setModifyDialogueText(result.text);
+                                    
+                                    const combo = combinations[realIndex];
+                                    if (combo) {
+                                      const originalLine = adLines.find(l => l.text === combo.text);
+                                      if (originalLine) {
+                                        setModifyRedStart(originalLine.redStart ?? -1);
+                                        setModifyRedEnd(originalLine.redEnd ?? -1);
+                                      } else {
+                                        setModifyRedStart(-1);
+                                        setModifyRedEnd(-1);
+                                      }
                                     }
-                                  }, 100);
-                                }}
-                                className="w-full px-3 py-1.5 text-sm border-2 border-orange-500 text-orange-700 bg-white hover:bg-orange-50 rounded-md font-medium transition-colors"
-                              >
-                                Modify & Regenerate
-                              </button>
+                                    
+                                    setTimeout(() => {
+                                      const formElement = document.querySelector(`[data-modify-form="global"]`);
+                                      if (formElement) {
+                                        formElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                      }
+                                    }, 100);
+                                  }}
+                                  className="flex-1 px-3 py-1.5 text-sm border-2 border-orange-500 text-orange-700 bg-white hover:bg-orange-50 rounded-md font-medium transition-colors"
+                                >
+                                  Modify & Regenerate
+                                </button>
+                                
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const duplicateVideoFn = (window as any).__duplicateVideo;
+                                    if (duplicateVideoFn) {
+                                      duplicateVideoFn(result.videoName);
+                                    } else {
+                                      toast.error('Funcția duplicate nu este disponibilă');
+                                    }
+                                  }}
+                                  className="flex-1 px-3 py-1.5 text-sm border-2 border-blue-500 text-blue-700 bg-white hover:bg-blue-50 rounded-md font-medium transition-colors"
+                                >
+                                  Duplicate
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* NULL Status (duplicate negenerat) */}
+                          {result.status === null && (
+                            <div className="space-y-2">
+                              <div className="bg-gray-50 border-2 border-gray-400 px-4 py-2 rounded-lg">
+                                <div className="flex items-center gap-2">
+                                  <Clock className="w-5 h-5 text-gray-600" />
+                                  <span className="text-base text-gray-700 font-bold">
+                                    Not Generated Yet {result.isDuplicate && `(Duplicate ${result.duplicateNumber})`}
+                                  </span>
+                                </div>
+                                <p className="text-sm text-gray-600 ml-7 mt-1">
+                                  Va fi generat când apeși "Regenerate All"
+                                </p>
+                              </div>
+                              
+                              {/* Butoane: Modify & Regenerate + Delete Duplicate */}
+                              <div className="flex flex-col sm:flex-row gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    console.log('[Modify & Regenerate] Clicked for not generated video:', result.videoName, 'realIndex:', realIndex);
+                                    
+                                    if (realIndex < 0) {
+                                      toast.error('Video nu găsit în videoResults');
+                                      return;
+                                    }
+                                    
+                                    setModifyingVideoIndex(realIndex);
+                                    const currentPromptType = combinations[realIndex]?.promptType || 'PROMPT_NEUTRAL';
+                                    setModifyPromptType(currentPromptType);
+                                    
+                                    if (currentPromptType === 'PROMPT_CUSTOM' && customPrompts[realIndex]) {
+                                      setModifyPromptText(customPrompts[realIndex]);
+                                    } else {
+                                      setModifyPromptText('');
+                                    }
+                                    
+                                    setModifyDialogueText(result.text);
+                                    
+                                    const combo = combinations[realIndex];
+                                    if (combo) {
+                                      const originalLine = adLines.find(l => l.text === combo.text);
+                                      if (originalLine) {
+                                        setModifyRedStart(originalLine.redStart ?? -1);
+                                        setModifyRedEnd(originalLine.redEnd ?? -1);
+                                      } else {
+                                        setModifyRedStart(-1);
+                                        setModifyRedEnd(-1);
+                                      }
+                                    }
+                                    
+                                    setTimeout(() => {
+                                      const formElement = document.querySelector(`[data-modify-form="global"]`);
+                                      if (formElement) {
+                                        formElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                      }
+                                    }, 100);
+                                  }}
+                                  className="flex-1 px-3 py-1.5 text-sm border-2 border-orange-500 text-orange-700 bg-white hover:bg-orange-50 rounded-md font-medium transition-colors"
+                                >
+                                  Modify & Regenerate
+                                </button>
+                                
+                                {result.isDuplicate && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const deleteDuplicateFn = (window as any).__deleteDuplicate;
+                                      if (deleteDuplicateFn) {
+                                        deleteDuplicateFn(result.videoName);
+                                      } else {
+                                        toast.error('Funcția delete duplicate nu este disponibilă');
+                                      }
+                                    }}
+                                    className="flex-1 px-3 py-1.5 text-sm border-2 border-red-500 text-red-700 bg-white hover:bg-red-50 rounded-md font-medium transition-colors"
+                                  >
+                                    Delete Duplicate
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           )}
                         </div>
