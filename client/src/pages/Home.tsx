@@ -365,28 +365,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       }
     }
   }, [editingLineId, editingLineText, editingLineRedStart, editingLineRedEnd]);
-    // Initialize Modify & Regenerate editor with HTML when dialog opens
-  const [isEditorInitialized, setIsEditorInitialized] = useState(false);
-  
-  useEffect(() => {
-    if (modifyingVideoIndex !== null && modifyEditorRef.current && modifyDialogueText && !isEditorInitialized) {
-      // Set HTML with red text if exists in session (from Step 1 & 2)
-      if (modifyRedStart >= 0 && modifyRedEnd > modifyRedStart && modifyRedEnd <= modifyDialogueText.length) {
-        const before = modifyDialogueText.substring(0, modifyRedStart);
-        const red = modifyDialogueText.substring(modifyRedStart, modifyRedEnd);
-        const after = modifyDialogueText.substring(modifyRedEnd);
-        modifyEditorRef.current.innerHTML = `${before}<span style="color: #dc2626; font-weight: 500;">${red}</span>${after}`;
-        console.log('[Modify Editor Init] Set HTML with red text from session:', modifyRedStart, '-', modifyRedEnd);
-      } else {
-        modifyEditorRef.current.textContent = modifyDialogueText;
-        console.log('[Modify Editor Init] Set plain text (no red in session)');
-      }
-      setIsEditorInitialized(true);
-    } else if (modifyingVideoIndex === null) {
-      // Reset flag when dialog closes
-      setIsEditorInitialized(false);
-    }
-  }, [modifyingVideoIndex, modifyDialogueText, modifyRedStart, modifyRedEnd, isEditorInitialized]); // Re-run when dialog opens
+  // Nu mai este necesar useEffect pentru editor - textarea simplu funcționează perfect cu React state
   
   const getSavedSessions = (): SavedSession[] => {
     // Return sessions from database
@@ -1307,36 +1286,33 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     // Filter out labels (categoryNumber === 0) - only use actual text lines
     const textLines = adLines.filter(line => line.categoryNumber > 0);
     
-    // Găsește prima linie cu "carte", "cartea", "rescrie", sau "lacrimi" (cu sau fără diacritice)
-    let firstCarteIndex = -1;
-    const ctaKeywords = ['carte', 'cartea', 'rescrie', 'lacrimi', 'lacrami'];
-    
-    console.log('[CTA Mapping] Searching for keywords in', textLines.length, 'text lines...');
+    // Găsește prima linie cu secțiunea CTA
+    let firstCTAIndex = -1;
     for (let i = 0; i < textLines.length; i++) {
-      const lowerText = textLines[i].text.toLowerCase();
-      const hasKeyword = ctaKeywords.some(keyword => lowerText.includes(keyword));
-      console.log(`[CTA Mapping] Line ${i}: "${textLines[i].text.substring(0, 50)}..." - Has keyword: ${hasKeyword}`);
-      if (hasKeyword) {
-        firstCarteIndex = i;
-        console.log(`[CTA Mapping] FOUND! First CTA keyword at index ${i}`);
+      if (textLines[i].section === 'CTA') {
+        firstCTAIndex = i;
+        console.log(`[CTA Mapping] FOUND! First CTA section at index ${i}`);
         break;
       }
     }
     
-    console.log('[CTA Mapping] First CTA index:', firstCarteIndex);
+    console.log('[CTA Mapping] First CTA section index:', firstCTAIndex);
+    console.log('[CTA Mapping] Total text lines:', textLines.length);
     
-    // Creează combinații cu mapare inteligentă CTA
+    // Creează combinații cu mapare simplificată:
+    // - DOAR secțiunea CTA primește imagine CTA
+    // - După ce se mapează CTA, toate liniile de jos până la sfârșit primesc aceeași imagine CTA
+    // - Restul categoriilor primesc default image
     const newCombinations: Combination[] = textLines.map((line, index) => {
       let selectedImage = defaultImage;
       
-      // DOAR dacă există poză CTA ȘI există cel puțin o linie cu keyword CTA ȘI suntem de la prima linie cu keyword până la sfârșit
-      // Dacă nu există nicio linie cu keywords (firstCarteIndex === -1), CTA image NU se folosește!
-      const shouldUseCTA = ctaImage && firstCarteIndex !== -1 && index >= firstCarteIndex;
+      // DOAR dacă există poză CTA ȘI există secțiunea CTA ȘI suntem de la prima linie CTA până la sfârșit
+      const shouldUseCTA = ctaImage && firstCTAIndex !== -1 && index >= firstCTAIndex;
       if (shouldUseCTA) {
         selectedImage = ctaImage;
       }
       
-      console.log(`[CTA Mapping] Line ${index}: "${line.text.substring(0, 40)}..." -> Image: ${selectedImage.fileName} (CTA: ${shouldUseCTA})`);
+      console.log(`[CTA Mapping] Line ${index}: Section=${line.section}, "${line.text.substring(0, 40)}..." -> Image: ${selectedImage.fileName} (CTA: ${shouldUseCTA})`);
       
       return {
         id: `combo-${index}`,
@@ -1357,9 +1333,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     console.log('[Create Mappings] Created', newCombinations.length, 'combinations from', textLines.length, 'text lines');
     console.log('[Create Mappings] First 3 texts:', textLines.slice(0, 3).map(l => l.text.substring(0, 50)));
     
-    if (ctaImage && firstCarteIndex !== -1) {
-      const ctaLinesCount = textLines.length - firstCarteIndex;
-      toast.success(`${newCombinations.length} combinații create. Poza CTA mapata de la linia ${firstCarteIndex + 1} până la sfârșit (${ctaLinesCount} linii)`);
+    if (ctaImage && firstCTAIndex !== -1) {
+      const ctaLinesCount = textLines.length - firstCTAIndex;
+      toast.success(`${newCombinations.length} combinații create. Poza CTA mapata pe secțiunea CTA și toate liniile următoare (${ctaLinesCount} linii)`);
     } else {
       toast.success(`${newCombinations.length} combinații create cu mapare automată`);
     }
@@ -1939,40 +1915,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       return;
     }
     
-    if (!modifyEditorRef.current) {
-      toast.error('Editor not ready');
-      return;
-    }
-
-    // Extract text and red positions from editor
-    const html = modifyEditorRef.current.innerHTML;
-    const text = modifyEditorRef.current.textContent || '';
+    // Text și pozițiile roșu sunt deja în state (modifyDialogueText, modifyRedStart, modifyRedEnd)
     
     // Validare text
-    if (text.trim().length === 0) {
+    if (modifyDialogueText.trim().length === 0) {
       toast.error('Textul nu poate fi gol!');
       return;
     }
     
-    // Parse HTML to find RED text positions
-    let redStart = -1;
-    let redEnd = -1;
-    
-    const redSpanRegex = /<span[^>]*style="[^"]*color:\s*(?:#dc2626|rgb\(220,\s*38,\s*38\))[^"]*"[^>]*>([^<]*)<\/span>/gi;
-    const matches = [...html.matchAll(redSpanRegex)];
-    
-    if (matches.length > 0) {
-      const redText = matches[0][1];
-      redStart = text.indexOf(redText);
-      if (redStart >= 0) {
-        redEnd = redStart + redText.length;
-      }
-    }
-    
-    // Update state with extracted text and red positions
-    setModifyDialogueText(text);
-    setModifyRedStart(redStart);
-    setModifyRedEnd(redEnd);
+    console.log('[Regenerate With Modifications] Using text from state:', modifyDialogueText.substring(0, 50));
+    console.log('[Regenerate With Modifications] Red positions:', modifyRedStart, '-', modifyRedEnd);
 
     try {
       // Determină prompt template
@@ -2003,7 +1955,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         userId: currentUser.id,
         promptTemplate: promptTemplate,
         combinations: [{
-          text: text, // Folosește textul extras din editor
+          text: modifyDialogueText, // Folosește textul din state
           imageUrl: combo.imageUrl,
         }],
       });
@@ -2016,7 +1968,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           i === index
             ? {
                 ...v,
-                text: text, // Update text
+                text: modifyDialogueText, // Update text
                 taskId: newResult.taskId,
                 status: newResult.success ? 'pending' as const : 'failed' as const,
                 error: newResult.error,
@@ -2032,7 +1984,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           i === index
             ? {
                 ...c,
-                text: text,
+                text: modifyDialogueText,
                 promptType: modifyPromptType,
               }
             : c
@@ -2044,10 +1996,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         if (line.text === combo.text) {
           return {
             ...line,
-            text: text,
-            charCount: text.length,
-            redStart: redStart,
-            redEnd: redEnd,
+            text: modifyDialogueText,
+            charCount: modifyDialogueText.length,
+            redStart: modifyRedStart,
+            redEnd: modifyRedEnd,
           };
         }
         return line;
@@ -3927,11 +3879,18 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                       const currentPromptType = combinations[realIndex]?.promptType || 'PROMPT_NEUTRAL';
                                       setModifyPromptType(currentPromptType);
                                       
-                                      // Dacă video are PROMPT_CUSTOM salvat → afișează-l
+                                      // Încărcă prompt text by default
                                       if (currentPromptType === 'PROMPT_CUSTOM' && customPrompts[realIndex]) {
+                                        // Dacă video are PROMPT_CUSTOM salvat → afișează-l
                                         setModifyPromptText(customPrompts[realIndex]);
                                       } else {
-                                        setModifyPromptText('');
+                                        // Încărcă template-ul promptului din Prompt Library
+                                        const promptFromLibrary = promptLibrary.find(p => p.promptName === currentPromptType);
+                                        if (promptFromLibrary?.promptTemplate) {
+                                          setModifyPromptText(promptFromLibrary.promptTemplate);
+                                        } else {
+                                          setModifyPromptText('');
+                                        }
                                       }
                                       
                                       setModifyDialogueText(result.text);
@@ -3994,11 +3953,18 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                       const currentPromptType = combinations[realIndex]?.promptType || 'PROMPT_NEUTRAL';
                                       setModifyPromptType(currentPromptType);
                                       
-                                      // Dacă video are PROMPT_CUSTOM salvat → afișează-l
+                                      // Încărcă prompt text by default
                                       if (currentPromptType === 'PROMPT_CUSTOM' && customPrompts[realIndex]) {
+                                        // Dacă video are PROMPT_CUSTOM salvat → afișează-l
                                         setModifyPromptText(customPrompts[realIndex]);
                                       } else {
-                                        setModifyPromptText('');
+                                        // Încărcă template-ul promptului din Prompt Library
+                                        const promptFromLibrary = promptLibrary.find(p => p.promptName === currentPromptType);
+                                        if (promptFromLibrary?.promptTemplate) {
+                                          setModifyPromptText(promptFromLibrary.promptTemplate);
+                                        } else {
+                                          setModifyPromptText('');
+                                        }
                                       }
                                       
                                       // Initialize text and red positions from videoResults
@@ -4233,61 +4199,79 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                       />
                                     </div>
                                     
-                                    {/* Edit Dialogue Text - WYSIWYG */}
+                                    {/* Edit Dialogue Text - Textarea Simplu */}
                                     <div>
                                       <label className="text-sm font-medium text-gray-700 block mb-1">Edit Text:</label>
                                       
-                                      {/* Color Toolbar */}
-                                      <div className="flex gap-2 p-2 bg-gray-100 rounded mb-2">
+                                      {/* Textarea pentru editare */}
+                                      <Textarea
+                                        value={modifyDialogueText}
+                                        onChange={(e) => setModifyDialogueText(e.target.value)}
+                                        onSelect={(e: any) => {
+                                          const start = e.target.selectionStart;
+                                          const end = e.target.selectionEnd;
+                                          // Salvează selecția pentru marcare roșu
+                                          if (end > start) {
+                                            (window as any).__textSelection = { start, end };
+                                          }
+                                        }}
+                                        className="min-h-[80px] text-sm"
+                                        placeholder="Introdu textul aici..."
+                                      />
+                                      
+                                      {/* Butoane pentru marcare roșu */}
+                                      <div className="flex gap-2 mt-2">
                                         <Button
                                           onClick={() => {
-                                            document.execCommand('foreColor', false, '#dc2626'); // RED-600
+                                            const selection = (window as any).__textSelection;
+                                            if (selection && selection.end > selection.start) {
+                                              setModifyRedStart(selection.start);
+                                              setModifyRedEnd(selection.end);
+                                              toast.success('Text marcat ca roșu!');
+                                            } else {
+                                              toast.warning('Selectează textul pe care vrei să-l marchezi ca roșu');
+                                            }
                                           }}
                                           variant="outline"
                                           size="sm"
                                           className="bg-red-600 text-white hover:bg-red-700"
                                           type="button"
                                         >
-                                          RED
+                                          Mark as RED
                                         </Button>
                                         <Button
                                           onClick={() => {
-                                            document.execCommand('foreColor', false, '#000000'); // BLACK
-                                          }}
-                                          variant="outline"
-                                          size="sm"
-                                          className="bg-black text-white hover:bg-gray-800"
-                                          type="button"
-                                        >
-                                          BLACK
-                                        </Button>
-                                        <Button
-                                          onClick={() => {
-                                            document.execCommand('removeFormat', false, '');
+                                            setModifyRedStart(-1);
+                                            setModifyRedEnd(-1);
+                                            toast.success('Marcare roșu ștearsă!');
                                           }}
                                           variant="outline"
                                           size="sm"
                                           type="button"
+                                          disabled={modifyRedStart < 0}
                                         >
-                                          Clear Format
+                                          Clear RED
                                         </Button>
                                       </div>
                                       
-                                      {/* Editable Content */}
-                                      <div
-                                        ref={modifyEditorRef}
-                                        contentEditable
-                                        suppressContentEditableWarning
-                                        onInput={(e) => {
-                                          const text = e.currentTarget.textContent || '';
-                                          setModifyDialogueText(text);
-                                        }}
-                                        className="min-h-[80px] p-3 border-2 border-gray-300 rounded focus:outline-none focus:border-blue-500 text-sm"
-                                        style={{ whiteSpace: 'pre-wrap' }}
-                                      >
-                                        {modifyDialogueText}
-                                      </div>
+                                      {/* Preview cu text roșu */}
+                                      {modifyRedStart >= 0 && modifyRedEnd > modifyRedStart && (
+                                        <div className="mt-3 p-4 bg-blue-50 rounded-lg border-2 border-blue-300">
+                                          <div className="flex items-center gap-2 mb-2">
+                                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                            <label className="text-sm text-blue-900 font-bold">👁️ Preview: Textul cu roșu va arăta astfel:</label>
+                                          </div>
+                                          <div className="p-3 bg-white rounded border border-blue-200 text-sm" style={{ whiteSpace: 'pre-wrap' }}>
+                                            {modifyDialogueText.substring(0, modifyRedStart)}
+                                            <span style={{ color: '#dc2626', fontWeight: 600, backgroundColor: '#fee2e2', padding: '2px 4px', borderRadius: '3px' }}>
+                                              {modifyDialogueText.substring(modifyRedStart, modifyRedEnd)}
+                                            </span>
+                                            {modifyDialogueText.substring(modifyRedEnd)}
+                                          </div>
+                                        </div>
+                                      )}
                                       
+                                      {/* Character count */}
                                       <p className={`text-xs mt-1 ${
                                         modifyDialogueText.length > 125 ? 'text-orange-600 font-bold' : 'text-gray-500'
                                       }`}>
@@ -4302,33 +4286,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                         onClick={() => {
                                           // SAVE: salvează modificări fără regenerare
                                           
-                                          if (!modifyEditorRef.current) return;
-                                          
-                                          // Extract HTML and text from editor
-                                          const html = modifyEditorRef.current.innerHTML || '';
-                                          const text = modifyEditorRef.current.textContent || '';
-                                          
-                                          console.log('[Save Modify] Extracting red text from HTML:', html.substring(0, 100));
-                                          
-                                          // Parse HTML to find RED text positions
-                                          let redStart = -1;
-                                          let redEnd = -1;
-                                          
-                                          const redSpanRegex = /<span[^>]*style="[^"]*color:\s*(?:#dc2626|rgb\(220,\s*38,\s*38\))[^"]*"[^>]*>([^<]*)<\/span>/gi;
-                                          const matches = [...html.matchAll(redSpanRegex)];
-                                          console.log('[Save Modify] Found', matches.length, 'red spans');
-                                          
-                                          if (matches.length > 0) {
-                                            const redText = matches[0][1];
-                                            redStart = text.indexOf(redText);
-                                            if (redStart >= 0) {
-                                              redEnd = redStart + redText.length;
-                                            }
-                                          }
-                                          
-                                          // Update state
-                                          setModifyRedStart(redStart);
-                                          setModifyRedEnd(redEnd);
+                                          // Text și pozițiile roșu sunt deja în state (modifyDialogueText, modifyRedStart, modifyRedEnd)
+                                          console.log('[Save Modify] Saving text with red positions:', modifyRedStart, '-', modifyRedEnd);
                                           
                                           // Dacă user a editat prompt text → salvează ca PROMPT_CUSTOM DOAR în sesiune (nu în database)
                                           if (modifyPromptType === 'PROMPT_CUSTOM' && modifyPromptText.trim().length > 0) {
@@ -4343,7 +4302,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                           const updatedCombinations = [...combinations];
                                           updatedCombinations[index] = {
                                             ...updatedCombinations[index],
-                                            text: text,
+                                            text: modifyDialogueText,
                                             promptType: modifyPromptType,
                                           };
                                           setCombinations(updatedCombinations);
@@ -4353,10 +4312,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                             if (line.text === combinations[index].text) {
                                               return {
                                                 ...line,
-                                                text: text,
-                                                charCount: text.length,
-                                                redStart: redStart,
-                                                redEnd: redEnd,
+                                                text: modifyDialogueText,
+                                                charCount: modifyDialogueText.length,
+                                                redStart: modifyRedStart,
+                                                redEnd: modifyRedEnd,
                                               };
                                             }
                                             return line;
@@ -4367,14 +4326,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                             prev.map((v, i) =>
                                               i === index ? { 
                                                 ...v, 
-                                                text: text,
-                                                redStart: redStart,
-                                                redEnd: redEnd,
+                                                text: modifyDialogueText,
+                                                redStart: modifyRedStart,
+                                                redEnd: modifyRedEnd,
                                               } : v
                                             )
                                           );
                                           
-                                          console.log('[Save Modify] Updated videoResults[' + index + '] with red text:', redStart, '-', redEnd);
+                                          console.log('[Save Modify] Updated videoResults[' + index + '] with red text:', modifyRedStart, '-', modifyRedEnd);
                                           
                                           // Salvează timestamp pentru "Edited X min ago"
                                           setEditTimestamps(prev => ({
@@ -4387,9 +4346,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                           const updatedVideoResults = videoResults.map((v, i) =>
                                             i === index ? { 
                                               ...v, 
-                                              text: text,
-                                              redStart: redStart,
-                                              redEnd: redEnd,
+                                              text: modifyDialogueText,
+                                              redStart: modifyRedStart,
+                                              redEnd: modifyRedEnd,
                                             } : v
                                           );
                                           
@@ -4788,10 +4747,18 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                       const currentPromptType = combinations[realIndex]?.promptType || 'PROMPT_NEUTRAL';
                                       setModifyPromptType(currentPromptType);
                                       
+                                      // Încărcă prompt text by default
                                       if (currentPromptType === 'PROMPT_CUSTOM' && customPrompts[realIndex]) {
+                                        // Dacă video are PROMPT_CUSTOM salvat → afișează-l
                                         setModifyPromptText(customPrompts[realIndex]);
                                       } else {
-                                        setModifyPromptText('');
+                                        // Încărcă template-ul promptului din Prompt Library
+                                        const promptFromLibrary = promptLibrary.find(p => p.promptName === currentPromptType);
+                                        if (promptFromLibrary?.promptTemplate) {
+                                          setModifyPromptText(promptFromLibrary.promptTemplate);
+                                        } else {
+                                          setModifyPromptText('');
+                                        }
                                       }
                                       
                                       setModifyDialogueText(result.text);
