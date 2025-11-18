@@ -1834,19 +1834,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     const originalName = getOriginalVideoName(videoName);
     const duplicateName = generateDuplicateName(originalName, videoResults);
     
-    // Creează duplicate video result
+    // Creează duplicate video result - copiază TOATE câmpurile din original
     const duplicateVideoResult: VideoResult = {
-      text: originalVideo.text,
-      imageUrl: originalVideo.imageUrl,
-      status: originalVideo.status, // Copiază statusul original (failed/rejected)
-      videoName: duplicateName,
-      section: originalVideo.section,
-      categoryNumber: originalVideo.categoryNumber,
-      reviewStatus: null,
+      ...originalVideo, // Copiază tot: taskId, text, imageUrl, status, videoUrl, error, etc.
+      videoName: duplicateName, // Suprascrie doar videoName
+      reviewStatus: null, // Reset review status pentru duplicate
       isDuplicate: true,
       duplicateNumber: getDuplicateNumber(duplicateName),
       originalVideoName: originalName,
-      error: originalVideo.error, // Copiază și error-ul dacă există
     };
     
     // Creează duplicate combination
