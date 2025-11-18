@@ -1425,7 +1425,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       img.fileName?.toUpperCase().includes('CTA') || 
       img.imageName?.toUpperCase().includes('CTA')
     );
-    const defaultImage = images[0];
+    // Default image = prima imagine care NU conține CTA (sau prima imagine dacă toate sunt CTA)
+    const defaultImage = images.find(img => 
+      !img.fileName?.toUpperCase().includes('CTA') && 
+      !img.imageName?.toUpperCase().includes('CTA')
+    ) || images[0];
     
     console.log('[CTA Mapping] Images:', images.map(img => ({ fileName: img.fileName, hasCTA: img.fileName?.toUpperCase().includes('CTA') })));
     console.log('[CTA Mapping] CTA Image found:', ctaImage ? ctaImage.fileName : 'NONE');
