@@ -143,6 +143,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [textAdMode, setTextAdMode] = useState<'upload' | 'paste'>('upload');
   const [rawTextAd, setRawTextAd] = useState<string>('');
   const [processedTextAd, setProcessedTextAd] = useState<string>('');
+  const [uploadedFileName, setUploadedFileName] = useState<string>('');
   
   // Step 2: Text Ad Document (moved from STEP 1)
   const [adDocument, setAdDocument] = useState<File | null>(null);
@@ -1134,12 +1135,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       if (file.name.endsWith('.txt')) {
         const text = await file.text();
         setRawTextAd(text);
+        setUploadedFileName(file.name);
         toast.success('Text file loaded!');
       } else if (file.name.endsWith('.docx') || file.name.endsWith('.doc')) {
         try {
           const arrayBuffer = await file.arrayBuffer();
           const result = await mammoth.extractRawText({ arrayBuffer });
           setRawTextAd(result.value);
+          setUploadedFileName(file.name);
           toast.success('Word document loaded!');
         } catch (error: any) {
           toast.error(`Error reading Word document: ${error.message}`);
@@ -1157,12 +1160,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       if (file.name.endsWith('.txt')) {
         const text = await file.text();
         setRawTextAd(text);
+        setUploadedFileName(file.name);
         toast.success('Text file loaded!');
       } else if (file.name.endsWith('.docx') || file.name.endsWith('.doc')) {
         try {
           const arrayBuffer = await file.arrayBuffer();
           const result = await mammoth.extractRawText({ arrayBuffer });
           setRawTextAd(result.value);
+          setUploadedFileName(file.name);
           toast.success('Word document loaded!');
         } catch (error: any) {
           toast.error(`Error reading Word document: ${error.message}`);
@@ -2610,7 +2615,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 </SelectTrigger>
                 <SelectContent>
                   {tams.map((tam, index) => (
-                    <SelectItem key={tam.id} value={tam.id.toString()}>{tam.id}. {tam.name}</SelectItem>
+                    <SelectItem key={tam.id} value={tam.id.toString()}>{index + 1}. {tam.name}</SelectItem>
                   ))}
                   <SelectItem value="new">+ New TAM</SelectItem>
                 </SelectContent>
@@ -2651,8 +2656,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   <SelectValue placeholder="Select Core Belief" />
                 </SelectTrigger>
                 <SelectContent>
-                  {coreBeliefs.map((cb) => (
-                    <SelectItem key={cb.id} value={cb.id.toString()}>{cb.id}. {cb.name}</SelectItem>
+                  {coreBeliefs.map((cb, index) => (
+                    <SelectItem key={cb.id} value={cb.id.toString()}>{index + 1}. {cb.name}</SelectItem>
                   ))}
                   <SelectItem value="new">+ New Core Belief</SelectItem>
                 </SelectContent>
@@ -2692,8 +2697,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   <SelectValue placeholder="Select Emotional Angle" />
                 </SelectTrigger>
                 <SelectContent>
-                  {emotionalAngles.map((ea) => (
-                    <SelectItem key={ea.id} value={ea.id.toString()}>{ea.id}. {ea.name}</SelectItem>
+                  {emotionalAngles.map((ea, index) => (
+                    <SelectItem key={ea.id} value={ea.id.toString()}>{index + 1}. {ea.name}</SelectItem>
                   ))}
                   <SelectItem value="new">+ New Emotional Angle</SelectItem>
                 </SelectContent>
@@ -2732,8 +2737,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   <SelectValue placeholder="Select Ad" />
                 </SelectTrigger>
                 <SelectContent>
-                  {ads.map((ad) => (
-                    <SelectItem key={ad.id} value={ad.id.toString()}>{ad.id}. {ad.name}</SelectItem>
+                  {ads.map((ad, index) => (
+                    <SelectItem key={ad.id} value={ad.id.toString()}>{index + 1}. {ad.name}</SelectItem>
                   ))}
                   <SelectItem value="new">+ New Ad</SelectItem>
                 </SelectContent>
@@ -3147,11 +3152,20 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         onDrop={handleTextFileDrop}
                         onDragOver={handleTextFileDragOver}
                       >
-                        <Upload className="w-12 h-12 text-blue-500 mx-auto mb-4" />
-                        <p className="text-blue-900 font-medium mb-2">
-                          {rawTextAd ? 'Text loaded! Click to change' : 'Drop text file here or click to upload'}
-                        </p>
-                        <p className="text-sm text-gray-500 italic">Suportă .txt, .doc, .docx</p>
+                        {rawTextAd && uploadedFileName ? (
+                          <>
+                            <FileText className="w-12 h-12 text-blue-600 mx-auto mb-4" />
+                            <p className="text-blue-900 font-semibold mb-1">{uploadedFileName}</p>
+                            <p className="text-sm text-gray-600 mb-2">{(rawTextAd.length / 1024).toFixed(1)} KB • {rawTextAd.length} characters</p>
+                            <p className="text-xs text-blue-600 hover:text-blue-800">Click to replace</p>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-12 h-12 text-blue-500 mx-auto mb-4" />
+                            <p className="text-blue-900 font-medium mb-2">Drop text file here or click to upload</p>
+                            <p className="text-sm text-gray-500 italic">Suportă .txt, .doc, .docx</p>
+                          </>
+                        )}
                         <input
                           id="text-upload"
                           type="file"
@@ -3163,7 +3177,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       {rawTextAd && (
                         <div className="mt-4 p-4 bg-white border border-blue-200 rounded-lg">
                           <p className="text-sm text-gray-700 mb-2"><strong>Preview:</strong></p>
-                          <p className="text-sm text-gray-600 whitespace-pre-wrap">{rawTextAd.substring(0, 200)}{rawTextAd.length > 200 ? '...' : ''}</p>
+                          <p className="text-sm text-gray-600 whitespace-pre-wrap">{rawTextAd.replace(/\n\s*\n\s*\n+/g, '\n\n').substring(0, 200)}{rawTextAd.length > 200 ? '...' : ''}</p>
                           <p className="text-xs text-gray-500 mt-2">{rawTextAd.length} characters</p>
                         </div>
                       )}
@@ -3364,7 +3378,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                   setEditingLineId(null);
                                 } else {
                                   setEditingLineId(line.id);
-                                  setEditingLineText(line.text);
+                                  // Normalize text: remove excessive line breaks (3+ newlines → 2 newlines)
+                                  const normalizedText = line.text.replace(/\n\s*\n\s*\n+/g, '\n\n');
+                                  setEditingLineText(normalizedText);
                                   setEditingLineRedStart(line.redStart ?? -1);
                                   setEditingLineRedEnd(line.redEnd ?? -1);
                                 }
@@ -3408,7 +3424,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                   onChange={(e) => {
                                     setEditingLineText(e.target.value);
                                   }}
-                                  className="w-full h-20 p-2 border border-gray-300 rounded resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  className="w-full h-20 p-2 border border-gray-300 rounded resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                                   placeholder="Enter text..."
                                 />
                                 <div className={`text-xs mt-1 ${

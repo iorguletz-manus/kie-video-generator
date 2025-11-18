@@ -268,15 +268,25 @@ export async function getUniqueCharacterNames(userId: number): Promise<string[]>
     return [];
   }
 
-  const result = await db.select({ characterName: userImages.characterName })
+  // Get characters from categoryCharacters table (created from homepage)
+  const categoryChars = await db.select({ name: characters.name })
+    .from(characters)
+    .where(eq(characters.userId, userId));
+
+  // Get characters from userImages table (from uploaded images)
+  const imageChars = await db.select({ characterName: userImages.characterName })
     .from(userImages)
     .where(eq(userImages.userId, userId))
     .groupBy(userImages.characterName);
   
-  // Filter out null, undefined, and empty strings
-  return result
-    .map(r => r.characterName)
-    .filter((name): name is string => name != null && name.trim() !== "");
+  // Combine both sources
+  const categoryCharNames = categoryChars.map(c => c.name).filter((name): name is string => name != null && name.trim() !== "");
+  const imageCharNames = imageChars.map(r => r.characterName).filter((name): name is string => name != null && name.trim() !== "");
+  
+  // Merge and remove duplicates
+  const allCharNames = [...new Set([...categoryCharNames, ...imageCharNames])];
+  
+  return allCharNames;
 }
 
 // User Prompts Library helpers
