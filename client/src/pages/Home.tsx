@@ -4701,8 +4701,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                                 <img
                                                   src={img.thumbnailUrl || img.imageUrl}
                                                   alt={img.imageName}
-                                                  className="w-full h-10 object-cover rounded"
-                                                  style={{ aspectRatio: '9/16' }}
+                                                  className="w-full h-8 object-cover rounded"
+                                                  style={{ aspectRatio: '9/16', objectFit: 'cover' }}
                                                 />
                                                 {isSelected && (
                                                   <div className="absolute top-1 right-1 bg-blue-500 text-white rounded-full p-1">
