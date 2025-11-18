@@ -167,6 +167,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [modifyDialogueText, setModifyDialogueText] = useState('');
   const [modifyRedStart, setModifyRedStart] = useState<number>(-1);
   const [modifyRedEnd, setModifyRedEnd] = useState<number>(-1);
+  const [modifyImageCharacterFilter, setModifyImageCharacterFilter] = useState<string>('all');
   const modifyEditorRef = useRef<HTMLDivElement>(null);
   
   // State pentru custom prompts (fiecare video poate avea propriul custom prompt)
@@ -2320,8 +2321,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
   // Navigation
   const goToStep = (step: number) => {
-    // Allow navigation to any step that's been reached OR Step 6+ (which are never locked)
-    if (step <= currentStep || step >= 6) {
+    // Allow navigation to any step that's been reached (backward navigation always allowed)
+    if (step <= currentStep) {
       setCurrentStep(step);
     }
   };
@@ -2697,9 +2698,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               <div className="flex flex-col items-center flex-1">
                 <button
                   onClick={() => goToStep(step.num)}
-                  disabled={step.num > currentStep && step.num < 6}
+                  disabled={step.num > currentStep}
                   className={`w-12 h-12 rounded-full flex items-center justify-center font-bold transition-all ${
-                    currentStep >= step.num || step.num >= 6
+                    currentStep >= step.num
                       ? "bg-blue-600 text-white cursor-pointer hover:bg-blue-700"
                       : "bg-gray-200 text-gray-500 cursor-not-allowed"
                   }`}
@@ -4544,6 +4545,79 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                       }`}>
                                         {modifyDialogueText.length} caractere{modifyDialogueText.length > 125 ? ` ⚠️ Warning: ${modifyDialogueText.length - 125} caractere depășite!` : ''}
                                       </p>
+                                    </div>
+                                    
+                                    {/* Mini Image Library Selector */}
+                                    <div className="mt-4">
+                                      <label className="text-sm font-medium text-gray-700 block mb-2">🖼️ Select Image:</label>
+                                      
+                                      {/* Character Filter */}
+                                      <div className="mb-3">
+                                        <select
+                                          value={modifyImageCharacterFilter || 'all'}
+                                          onChange={(e) => setModifyImageCharacterFilter(e.target.value)}
+                                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                                        >
+                                          <option value="all">All Characters</option>
+                                          {libraryCharacters.map(char => (
+                                            <option key={char} value={char}>{char}</option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                      
+                                      {/* Image Grid */}
+                                      <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto p-2 bg-gray-50 rounded border border-gray-200">
+                                        {libraryImages
+                                          .filter(img => modifyImageCharacterFilter === 'all' || img.characterName === modifyImageCharacterFilter)
+                                          .map(img => {
+                                            const isSelected = modifyingVideoIndex !== null && combinations[modifyingVideoIndex]?.imageUrl === img.imageUrl;
+                                            return (
+                                              <div
+                                                key={img.id}
+                                                onClick={() => {
+                                                  if (modifyingVideoIndex !== null) {
+                                                    // Update combination with new image
+                                                    const updatedCombinations = [...combinations];
+                                                    updatedCombinations[modifyingVideoIndex] = {
+                                                      ...updatedCombinations[modifyingVideoIndex],
+                                                      imageUrl: img.imageUrl,
+                                                      imageId: img.id.toString(),
+                                                    };
+                                                    setCombinations(updatedCombinations);
+                                                    
+                                                    // Mark as compromised if workflow is locked
+                                                    if (isWorkflowLocked && isStepUnlocked[6]) {
+                                                      setCompromisedCombinationIds(prev => new Set(prev).add(updatedCombinations[modifyingVideoIndex].id));
+                                                    }
+                                                  }
+                                                }}
+                                                className={`relative cursor-pointer rounded border-2 transition-all ${
+                                                  isSelected ? 'border-blue-500 ring-2 ring-blue-300' : 'border-gray-300 hover:border-blue-400'
+                                                }`}
+                                              >
+                                                <img
+                                                  src={img.thumbnailUrl || img.imageUrl}
+                                                  alt={img.imageName}
+                                                  className="w-full h-20 object-cover rounded"
+                                                />
+                                                {isSelected && (
+                                                  <div className="absolute top-1 right-1 bg-blue-500 text-white rounded-full p-1">
+                                                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                    </svg>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            );
+                                          })}
+                                      </div>
+                                      
+                                      {/* Selected Image Info */}
+                                      {modifyingVideoIndex !== null && combinations[modifyingVideoIndex] && (
+                                        <p className="text-xs text-gray-600 mt-2">
+                                          Selected: {libraryImages.find(img => img.imageUrl === combinations[modifyingVideoIndex].imageUrl)?.imageName || 'Unknown'}
+                                        </p>
+                                      )}
                                     </div>
                                     
                                     {/* Buttons (mod single) */}
