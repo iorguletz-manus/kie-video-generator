@@ -1835,15 +1835,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     const duplicateName = generateDuplicateName(originalName, videoResults);
     
     // Creează duplicate video result
-    // Copiază INPUT-urile (text, imageUrl, error) dar RESETEAZĂ OUTPUT-urile (taskId, videoUrl, status)
+    // Copiază INPUT-urile (text, imageUrl, error, status, reviewStatus) dar RESETEAZĂ OUTPUT-urile (taskId, videoUrl)
     const duplicateVideoResult: VideoResult = {
       ...originalVideo, // Copiază toate câmpurile
       videoName: duplicateName,
       // RESET output fields - duplicatul e un video NOU care nu a fost generat încă
       taskId: undefined,
       videoUrl: undefined,
-      status: originalVideo.status, // Păstrează statusul (failed/rejected) pentru ca butonul Modify & Regenerate să apară
-      reviewStatus: null,
+      // PĂSTREAZĂ status și reviewStatus pentru ca duplicatul să apară ca failed/rejected
+      status: originalVideo.status, // 'failed' sau 'success'
+      reviewStatus: originalVideo.reviewStatus, // null sau 'regenerate' (pentru rejected)
       isDuplicate: true,
       duplicateNumber: getDuplicateNumber(duplicateName),
       originalVideoName: originalName,
@@ -3931,13 +3932,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                               )}
                             </>
                           )}
-                          {(result.status === 'failed' || result.reviewStatus === 'regenerate') && (
+                          {(result.status === 'failed' || result.status === null || result.reviewStatus === 'regenerate') && (
                             <>
                               <div className="flex-1">
                                 <div className="flex items-center gap-2 bg-red-50 border-2 border-red-500 px-3 py-2 rounded-lg mb-2">
                                   <X className="w-5 h-5 text-red-600" />
                                   <span className="text-sm text-red-700 font-bold">
-                                    {result.status === 'failed' ? 'Failed' : 'Rejected'}
+                                    {result.status === 'failed' ? 'Failed' : result.status === null ? 'Not Generated Yet' : 'Rejected'}
                                   </span>
                                 </div>
                                 {result.status === 'failed' && (
