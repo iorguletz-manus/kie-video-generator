@@ -1460,11 +1460,20 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       
       // DOAR dacă există poză CTA ȘI există secțiunea CTA ȘI suntem de la prima linie CTA până la sfârșit
       const shouldUseCTA = ctaImage && firstCTAIndex !== -1 && index >= firstCTAIndex;
+      
+      console.log(`[CTA Mapping] Line ${index}:`);
+      console.log(`  - Section: "${line.section}"`);
+      console.log(`  - Text: "${line.text.substring(0, 50)}..."`);
+      console.log(`  - firstCTAIndex: ${firstCTAIndex}`);
+      console.log(`  - index >= firstCTAIndex: ${index >= firstCTAIndex}`);
+      console.log(`  - shouldUseCTA: ${shouldUseCTA}`);
+      
       if (shouldUseCTA) {
         selectedImage = ctaImage;
+        console.log(`  - ✅ Using CTA image: ${selectedImage.fileName}`);
+      } else {
+        console.log(`  - ❌ Using default image: ${selectedImage.fileName}`);
       }
-      
-      console.log(`[CTA Mapping] Line ${index}: Section=${line.section}, "${line.text.substring(0, 40)}..." -> Image: ${selectedImage.fileName} (CTA: ${shouldUseCTA})`);
       
       return {
         id: `combo-${index}`,
