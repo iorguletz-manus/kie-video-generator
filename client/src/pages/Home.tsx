@@ -921,12 +921,38 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       setProcessedTextAd('');
       setCombinations([]);
       setVideoResults([]);
+      setPrompts([]);
+      setImages([]);
+      setDeletedCombinations([]);
+      setReviewHistory([]);
       
       // Reset lock states when processing new document
       setIsWorkflowLocked(false);
       setIsStepUnlocked({});
       setCompromisedLineIds(new Set());
       setCompromisedCombinationIds(new Set());
+      
+      // Clear database immediately to prevent old data from being loaded
+      console.log('[Process Text] Clearing database before processing new document');
+      await upsertContextSessionMutation.mutateAsync({
+        userId: localCurrentUser.id,
+        tamId: selectedTamId,
+        coreBeliefId: selectedCoreBeliefId!,
+        emotionalAngleId: selectedEmotionalAngleId!,
+        adId: selectedAdId!,
+        characterId: selectedCharacterId!,
+        currentStep: 1,
+        rawTextAd,
+        processedTextAd: '',
+        adLines: [],
+        prompts: [],
+        images: [],
+        combinations: [],
+        deletedCombinations: [],
+        videoResults: [],
+        reviewHistory: [],
+      });
+      console.log('[Process Text] Database cleared successfully');
       
       const result = await processTextAdMutation.mutateAsync({
         rawText: rawTextAd,
