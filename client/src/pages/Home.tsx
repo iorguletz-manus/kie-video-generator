@@ -1394,11 +1394,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
     // Prompturile hardcodate sunt întotdeauna active, nu mai verificăm prompts.length
 
-    // Găsește poza CTA (dacă există)
-    const ctaImage = images.find(img => img.isCTA);
+    // Găsește poza CTA (dacă există) - verifică dacă fileName conține 'CTA'
+    const ctaImage = images.find(img => 
+      img.fileName?.toUpperCase().includes('CTA') || 
+      img.imageName?.toUpperCase().includes('CTA')
+    );
     const defaultImage = images[0];
     
-    console.log('[CTA Mapping] Images:', images.map(img => ({ fileName: img.fileName, isCTA: img.isCTA })));
+    console.log('[CTA Mapping] Images:', images.map(img => ({ fileName: img.fileName, hasCTA: img.fileName?.toUpperCase().includes('CTA') })));
     console.log('[CTA Mapping] CTA Image found:', ctaImage ? ctaImage.fileName : 'NONE');
     console.log('[CTA Mapping] Default Image:', defaultImage ? defaultImage.fileName : 'NONE');
     
