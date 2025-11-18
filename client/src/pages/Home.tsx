@@ -55,6 +55,8 @@ interface Combination {
   videoName: string;
   section: SectionType;
   categoryNumber: number;
+  redStart?: number;  // Start index of red text
+  redEnd?: number;    // End index of red text
 }
 
 interface VideoResult {
@@ -72,6 +74,8 @@ interface VideoResult {
   isDuplicate?: boolean; // true dacă e duplicate
   duplicateNumber?: number; // 1, 2, 3, etc.
   originalVideoName?: string; // videoName original (fără _D1, _D2)
+  redStart?: number;  // Start index of red text
+  redEnd?: number;    // End index of red text
 }
 
 interface HomeProps {
@@ -1323,6 +1327,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         videoName: line.videoName,
         section: line.section,
         categoryNumber: line.categoryNumber,
+        redStart: line.redStart,  // Copiază pozițiile red text din AdLine
+        redEnd: line.redEnd,
       };
     });
 
@@ -1416,6 +1422,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         section: combo.section,
         categoryNumber: combo.categoryNumber,
         reviewStatus: null,
+        redStart: combo.redStart,  // Copiază pozițiile red text
+        redEnd: combo.redEnd,
       }));
       setVideoResults(initialResults);
 
@@ -1482,6 +1490,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             section: combo.section,
             categoryNumber: combo.categoryNumber,
             reviewStatus: null,
+            redStart: combo.redStart,  // Copiază pozițiile red text
+            redEnd: combo.redEnd,
           };
         });
 
@@ -5334,8 +5344,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
               {/* Organizare pe categorii */}
               {['HOOKS', 'MIRROR', 'DCS', 'TRANZITION', 'NEW_CAUSE', 'MECHANISM', 'EMOTIONAL_PROOF', 'TRANSFORMATION', 'CTA'].map(category => {
-                // Filtrare videouri pe bază de videoFilter (deja filtrat în step6FilteredVideos)
-                let categoryVideos = step6FilteredVideos.filter(v => v.section === category);
+                // Filtrare videouri: doar cele generate cu succes (status === 'success' și videoUrl există)
+                let categoryVideos = videoResults.filter(v => 
+                  v.section === category && 
+                  v.status === 'success' && 
+                  v.videoUrl
+                );
                 
                 if (videoFilter === 'accepted') {
                   categoryVideos = categoryVideos.filter(v => v.reviewStatus === 'accepted');
