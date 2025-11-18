@@ -1838,7 +1838,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     const duplicateVideoResult: VideoResult = {
       text: originalVideo.text,
       imageUrl: originalVideo.imageUrl,
-      status: null, // null = not generated yet
+      status: originalVideo.status, // Copiază statusul original (failed/rejected)
       videoName: duplicateName,
       section: originalVideo.section,
       categoryNumber: originalVideo.categoryNumber,
@@ -1846,6 +1846,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       isDuplicate: true,
       duplicateNumber: getDuplicateNumber(duplicateName),
       originalVideoName: originalName,
+      error: originalVideo.error, // Copiază și error-ul dacă există
     };
     
     // Creează duplicate combination
