@@ -644,32 +644,54 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     if (isRestoringSession) return; // Don't save during restore
     
-    // ONLY save to database when in STEP 6+ (after generation)
-    if (currentStep < 6) {
-      console.log('[Context Session] Skipping database save for STEP', currentStep, '- using localStorage only');
-      return;
-    }
-    
     const timeoutId = setTimeout(() => {
-      console.log('[Context Session] Auto-saving...');
-      
-      upsertContextSessionMutation.mutate({
-        userId: localCurrentUser.id,
-        coreBeliefId: selectedCoreBeliefId,
-        emotionalAngleId: selectedEmotionalAngleId,
-        adId: selectedAdId,
-        characterId: selectedCharacterId,
-        currentStep,
-        rawTextAd,
-        processedTextAd,
-        adLines,
-        prompts,
-        images,
-        combinations,
-        deletedCombinations,
-        videoResults,
-        reviewHistory,
-      }, {
+      // For STEP 1-5: Save only currentStep to preserve navigation state
+      // For STEP 6+: Save full workflow data
+      if (currentStep < 6) {
+        console.log('[Context Session] Saving currentStep only for STEP', currentStep);
+        upsertContextSessionMutation.mutate({
+          userId: localCurrentUser.id,
+          coreBeliefId: selectedCoreBeliefId,
+          emotionalAngleId: selectedEmotionalAngleId,
+          adId: selectedAdId,
+          characterId: selectedCharacterId,
+          currentStep, // ONLY save currentStep
+          rawTextAd: '',
+          processedTextAd: '',
+          adLines: [],
+          prompts: [],
+          images: [],
+          combinations: [],
+          deletedCombinations: [],
+          videoResults: [],
+          reviewHistory: [],
+        }, {
+          onSuccess: () => {
+            console.log('[Context Session] CurrentStep saved successfully');
+          },
+          onError: (error) => {
+            console.error('[Context Session] CurrentStep save failed:', error);
+          },
+        });
+      } else {
+        console.log('[Context Session] Auto-saving full workflow data...');
+        upsertContextSessionMutation.mutate({
+          userId: localCurrentUser.id,
+          coreBeliefId: selectedCoreBeliefId,
+          emotionalAngleId: selectedEmotionalAngleId,
+          adId: selectedAdId,
+          characterId: selectedCharacterId,
+          currentStep,
+          rawTextAd,
+          processedTextAd,
+          adLines,
+          prompts,
+          images,
+          combinations,
+          deletedCombinations,
+          videoResults,
+          reviewHistory,
+        }, {
         onSuccess: () => {
           console.log('[Context Session] Auto-saved successfully');
         },
@@ -1438,18 +1460,24 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     // Filter out labels (categoryNumber === 0) - only use actual text lines
     const textLines = adLines.filter(line => line.categoryNumber > 0);
     
-    // Găsește prima linie cu secțiunea CTA
-    let firstCTAIndex = -1;
+    // Găsește prima linie care conține cuvintele cheie CTA
+    const ctaKeywords = ['rescrie', 'cartea', 'carte', 'lacrimi'];
+    let firstCTAKeywordIndex = -1;
+    
     for (let i = 0; i < textLines.length; i++) {
-      console.log(`[CTA Mapping] Checking line ${i}: section="${textLines[i].section}", text="${textLines[i].text.substring(0, 40)}..."`);
-      if (textLines[i].section === 'CTA') {
-        firstCTAIndex = i;
-        console.log(`[CTA Mapping] FOUND! First CTA section at index ${i}`);
+      const lowerText = textLines[i].text.toLowerCase();
+      const hasKeyword = ctaKeywords.some(keyword => lowerText.includes(keyword));
+      
+      console.log(`[CTA Mapping] Checking line ${i}: section="${textLines[i].section}", text="${textLines[i].text.substring(0, 40)}...", hasKeyword=${hasKeyword}`);
+      
+      if (hasKeyword) {
+        firstCTAKeywordIndex = i;
+        console.log(`[CTA Mapping] FOUND! First line with CTA keywords at index ${i}`);
         break;
       }
     }
     
-    console.log('[CTA Mapping] First CTA section index:', firstCTAIndex);
+    console.log('[CTA Mapping] First CTA keyword index:', firstCTAKeywordIndex);
     console.log('[CTA Mapping] Total text lines:', textLines.length);
     
     // Log all sections for debugging
@@ -1462,14 +1490,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     const newCombinations: Combination[] = textLines.map((line, index) => {
       let selectedImage = defaultImage;
       
-      // DOAR dacă există poză CTA ȘI există secțiunea CTA ȘI suntem de la prima linie CTA până la sfârșit
-      const shouldUseCTA = ctaImage && firstCTAIndex !== -1 && index >= firstCTAIndex;
+      // DOAR dacă există poză CTA ȘI există linie cu keywords CTA ȘI suntem de la prima linie cu keywords până la sfârșit
+      const shouldUseCTA = ctaImage && firstCTAKeywordIndex !== -1 && index >= firstCTAKeywordIndex;
       
       console.log(`[CTA Mapping] Line ${index}:`);
       console.log(`  - Section: "${line.section}"`);
       console.log(`  - Text: "${line.text.substring(0, 50)}..."`);
-      console.log(`  - firstCTAIndex: ${firstCTAIndex}`);
-      console.log(`  - index >= firstCTAIndex: ${index >= firstCTAIndex}`);
+      console.log(`  - firstCTAKeywordIndex: ${firstCTAKeywordIndex}`);
+      console.log(`  - index >= firstCTAKeywordIndex: ${index >= firstCTAKeywordIndex}`);
       console.log(`  - shouldUseCTA: ${shouldUseCTA}`);
       
       if (shouldUseCTA) {
