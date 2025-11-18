@@ -847,6 +847,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       // Include toate video cardurile cu probleme (toate în afară de Generated)
       v.reviewStatus === 'regenerate' || // Marcate pentru regenerare
       v.status === 'failed' ||            // Failed
+      v.status === 'pending' ||           // În curs de generare
       v.status === null                   // Not Generated Yet (duplicate-uri)
     ),
     [videoResults]
@@ -2316,6 +2317,87 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       }
     }
   }, [currentStep]);
+
+  // ========== WORD DOCUMENT GENERATION ==========
+  const generateWordDocument = useCallback(() => {
+    // Group adLines by section
+    const linesBySection: Record<SectionType, AdLine[]> = {
+      HOOKS: [],
+      MIRROR: [],
+      DCS: [],
+      TRANZITION: [],
+      NEW_CAUSE: [],
+      MECHANISM: [],
+      EMOTIONAL_PROOF: [],
+      TRANSFORMATION: [],
+      CTA: [],
+      OTHER: [],
+    };
+
+    adLines.forEach(line => {
+      linesBySection[line.section].push(line);
+    });
+
+    // Generate HTML content
+    let htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; }
+          h1 { color: #2563eb; border-bottom: 3px solid #2563eb; padding-bottom: 10px; }
+          h2 { color: #16a34a; margin-top: 30px; border-bottom: 2px solid #16a34a; padding-bottom: 5px; }
+          .line-item { margin: 15px 0; padding: 10px; background-color: #f9fafb; border-left: 4px solid #2563eb; }
+          .video-name { font-weight: bold; color: #1e40af; margin-bottom: 5px; }
+          .line-text { margin: 5px 0; line-height: 1.6; }
+          .red-text { color: #dc2626; font-weight: bold; }
+        </style>
+      </head>
+      <body>
+        <h1>Linii Extrase - Step 2</h1>
+    `;
+
+    // Add sections
+    Object.entries(linesBySection).forEach(([section, lines]) => {
+      if (lines.length === 0) return;
+
+      htmlContent += `<h2>${section}</h2>`;
+
+      lines.forEach(line => {
+        htmlContent += `<div class="line-item">`;
+        htmlContent += `<div class="video-name">${line.videoName}</div>`;
+        htmlContent += `<div class="line-text">`;
+
+        // Add text with red highlighting
+        if (line.redStart !== undefined && line.redStart >= 0 && line.redEnd !== undefined && line.redEnd >= 0) {
+          const before = line.text.substring(0, line.redStart);
+          const red = line.text.substring(line.redStart, line.redEnd);
+          const after = line.text.substring(line.redEnd);
+          htmlContent += `${before}<span class="red-text">${red}</span>${after}`;
+        } else {
+          htmlContent += line.text;
+        }
+
+        htmlContent += `</div></div>`;
+      });
+    });
+
+    htmlContent += `</body></html>`;
+
+    // Create blob and download
+    const blob = new Blob([htmlContent], { type: 'application/msword' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'Linii_Extrase_Step2.doc';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    toast.success('Document Word descărcat!');
+  }, [adLines]);
 
   // ========== STEP 6: Review functions (MEMOIZED) ==========
   const acceptVideo = useCallback((videoName: string) => {
@@ -5859,8 +5941,20 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           {/* TITLE */}
                           <h4 className="font-bold text-green-900 mb-2 text-lg">{video.videoName}</h4>
                           
-                          {/* Text */}
-                          <p className="text-sm text-gray-700 mb-3">{video.text}</p>
+                          {/* Text with red highlighting */}
+                          <p className="text-sm text-gray-700 mb-3">
+                            {video.redStart !== undefined && video.redStart >= 0 && video.redEnd !== undefined && video.redEnd >= 0 ? (
+                              <>
+                                {video.text.substring(0, video.redStart)}
+                                <span className="text-red-600 font-bold">
+                                  {video.text.substring(video.redStart, video.redEnd)}
+                                </span>
+                                {video.text.substring(video.redEnd)}
+                              </>
+                            ) : (
+                              video.text
+                            )}
+                          </p>
                           
                           {/* VIDEO PLAYER SIMPLU */}
                           {video.videoUrl ? (
@@ -6064,6 +6158,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     <Download className="w-5 h-5 mr-2" />
                     Download All Accepted Videos ({acceptedVideosWithUrl.length})
                   </Button>
+                  
+                  {/* Link pentru descărcare document Word cu liniile din Step 2 */}
+                  <div className="mt-3 text-center">
+                    <button
+                      onClick={generateWordDocument}
+                      className="text-blue-600 hover:text-blue-800 text-sm underline"
+                    >
+                      Descarcă document Word cu toate liniile extrase
+                    </button>
+                  </div>
                 </div>
               )}
             </CardContent>
