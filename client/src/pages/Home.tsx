@@ -744,6 +744,24 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     setIsWorkflowLocked(hasGeneratedVideos);
   }, [videoResults]);
   
+  // Initialize editor with red text when opening edit dialog
+  useEffect(() => {
+    if (editingLineId && editorRef.current) {
+      // Build HTML with red text
+      let html = '';
+      if (editingLineRedStart >= 0 && editingLineRedEnd > editingLineRedStart) {
+        const before = editingLineText.substring(0, editingLineRedStart);
+        const red = editingLineText.substring(editingLineRedStart, editingLineRedEnd);
+        const after = editingLineText.substring(editingLineRedEnd);
+        html = `${before}<span style="color: #dc2626;">${red}</span>${after}`;
+      } else {
+        html = editingLineText;
+      }
+      editorRef.current.innerHTML = html;
+      console.log('[Editor] Initialized with HTML:', html);
+    }
+  }, [editingLineId, editingLineText, editingLineRedStart, editingLineRedEnd]);
+  
   // Delete video cards for compromised items when navigating to another step
   // Also re-lock steps that were unlocked but not modified
   useEffect(() => {
@@ -1390,6 +1408,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     // Găsește prima linie cu secțiunea CTA
     let firstCTAIndex = -1;
     for (let i = 0; i < textLines.length; i++) {
+      console.log(`[CTA Mapping] Checking line ${i}: section="${textLines[i].section}", text="${textLines[i].text.substring(0, 40)}..."`);
       if (textLines[i].section === 'CTA') {
         firstCTAIndex = i;
         console.log(`[CTA Mapping] FOUND! First CTA section at index ${i}`);
@@ -1399,6 +1418,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     console.log('[CTA Mapping] First CTA section index:', firstCTAIndex);
     console.log('[CTA Mapping] Total text lines:', textLines.length);
+    
+    // Log all sections for debugging
+    console.log('[CTA Mapping] All sections:', textLines.map((l, i) => `${i}: ${l.section}`).join(', '));
     
     // Creează combinații cu mapare simplificată:
     // - DOAR secțiunea CTA primește imagine CTA
@@ -4585,6 +4607,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                                     };
                                                     setCombinations(updatedCombinations);
                                                     
+                                                    // Update video card thumbnail as well
+                                                    const updatedVideoResults = [...videoResults];
+                                                    if (updatedVideoResults[modifyingVideoIndex]) {
+                                                      updatedVideoResults[modifyingVideoIndex] = {
+                                                        ...updatedVideoResults[modifyingVideoIndex],
+                                                        imageUrl: img.imageUrl,
+                                                      };
+                                                      setVideoResults(updatedVideoResults);
+                                                    }
+                                                    
                                                     // Mark as compromised if workflow is locked
                                                     if (isWorkflowLocked && isStepUnlocked[6]) {
                                                       setCompromisedCombinationIds(prev => new Set(prev).add(updatedCombinations[modifyingVideoIndex].id));
@@ -4598,7 +4630,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                                 <img
                                                   src={img.thumbnailUrl || img.imageUrl}
                                                   alt={img.imageName}
-                                                  className="w-full h-20 object-cover rounded"
+                                                  className="w-full h-10 object-cover rounded"
+                                                  style={{ aspectRatio: '9/16' }}
                                                 />
                                                 {isSelected && (
                                                   <div className="absolute top-1 right-1 bg-blue-500 text-white rounded-full p-1">
