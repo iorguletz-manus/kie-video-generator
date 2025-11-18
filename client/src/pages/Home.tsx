@@ -692,13 +692,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           videoResults,
           reviewHistory,
         }, {
-        onSuccess: () => {
-          console.log('[Context Session] Auto-saved successfully');
-        },
-        onError: (error) => {
-          console.error('[Context Session] Auto-save failed:', error);
-        },
-      });
+          onSuccess: () => {
+            console.log('[Context Session] Auto-saved successfully');
+          },
+          onError: (error) => {
+            console.error('[Context Session] Auto-save failed:', error);
+          },
+        });
+      }
     }, 2000); // Debounce 2 seconds
     
     return () => clearTimeout(timeoutId);
