@@ -4701,7 +4701,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                                 <img
                                                   src={img.thumbnailUrl || img.imageUrl}
                                                   alt={img.imageName}
-                                                  className="w-full h-16 object-contain rounded bg-gray-100"
+                                                  className="w-full h-24 object-cover rounded"
                                                   style={{ aspectRatio: '9/16' }}
                                                 />
                                                 {isSelected && (
