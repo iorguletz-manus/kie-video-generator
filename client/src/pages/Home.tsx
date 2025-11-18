@@ -237,7 +237,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [editingLineText, setEditingLineText] = useState<string>('');
   const [editingLineRedStart, setEditingLineRedStart] = useState<number>(-1);
   const [editingLineRedEnd, setEditingLineRedEnd] = useState<number>(-1);
-  const editorRef = useRef<HTMLDivElement>(null);
 
   // Queries
   const { data: libraryImages = [] } = trpc.imageLibrary.list.useQuery({
@@ -362,21 +361,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     return () => clearInterval(interval);
   }, []);
   
-  // Initialize WYSIWYG editor with HTML content when dialog opens
-  useEffect(() => {
-    if (editingLineId && editorRef.current) {
-      // Set initial HTML with red text if exists
-      if (editingLineRedStart >= 0 && editingLineRedEnd > editingLineRedStart) {
-        const before = editingLineText.substring(0, editingLineRedStart);
-        const red = editingLineText.substring(editingLineRedStart, editingLineRedEnd);
-        const after = editingLineText.substring(editingLineRedEnd);
-        editorRef.current.innerHTML = `${before}<span style="color: #dc2626; font-weight: 500;">${red}</span>${after}`;
-      } else {
-        editorRef.current.textContent = editingLineText;
-      }
-    }
-  }, [editingLineId, editingLineText, editingLineRedStart, editingLineRedEnd]);
-  // Nu mai este necesar useEffect pentru editor - textarea simplu funcționează perfect cu React state
+
   
   const getSavedSessions = (): SavedSession[] => {
     // Return sessions from database
@@ -766,24 +751,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     const hasGeneratedVideos = videoResults.some(v => v.status === 'success' || v.status === 'pending' || v.status === 'failed');
     setIsWorkflowLocked(hasGeneratedVideos);
   }, [videoResults]);
-  
-  // Initialize editor with red text when opening edit dialog
-  useEffect(() => {
-    if (editingLineId && editorRef.current) {
-      // Build HTML with red text
-      let html = '';
-      if (editingLineRedStart >= 0 && editingLineRedEnd > editingLineRedStart) {
-        const before = editingLineText.substring(0, editingLineRedStart);
-        const red = editingLineText.substring(editingLineRedStart, editingLineRedEnd);
-        const after = editingLineText.substring(editingLineRedEnd);
-        html = `${before}<span style="color: #dc2626;">${red}</span>${after}`;
-      } else {
-        html = editingLineText;
-      }
-      editorRef.current.innerHTML = html;
-      console.log('[Editor] Initialized with HTML:', html);
-    }
-  }, [editingLineId, editingLineText, editingLineRedStart, editingLineRedEnd]);
   
   // Delete video cards for compromised items when navigating to another step
   // Also re-lock steps that were unlocked but not modified
@@ -3306,37 +3273,164 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       const redAtStart = hasRedText && line.redStart === 0;
                       
                       return (
-                        <div key={line.id} className="p-3 bg-white rounded border border-blue-200 text-sm ml-4 relative">
-                          {/* Edit Button */}
-                          <Button
-                            onClick={() => {
-                              setEditingLineId(line.id);
-                              setEditingLineText(line.text);
-                              setEditingLineRedStart(line.redStart ?? -1);
-                              setEditingLineRedEnd(line.redEnd ?? -1);
-                            }}
-                            variant="outline"
-                            size="sm"
-                            className="absolute top-2 right-2"
-                          >
-                            Edit
-                          </Button>
+                        <div key={line.id} className="ml-4">
+                          <div className="p-3 bg-white rounded border border-blue-200 text-sm relative">
+                            {/* Edit Button */}
+                            <Button
+                              onClick={() => {
+                                if (editingLineId === line.id) {
+                                  setEditingLineId(null);
+                                } else {
+                                  setEditingLineId(line.id);
+                                  setEditingLineText(line.text);
+                                  setEditingLineRedStart(line.redStart ?? -1);
+                                  setEditingLineRedEnd(line.redEnd ?? -1);
+                                }
+                              }}
+                              variant="outline"
+                              size="sm"
+                              className="absolute top-2 right-2"
+                            >
+                              {editingLineId === line.id ? 'Cancel' : 'Edit'}
+                            </Button>
+                            
+                            {/* Name above text */}
+                            <div className="mb-1">
+                              <span className="text-xs text-gray-500 italic">{line.videoName}</span>
+                            </div>
+                            
+                            {/* Text with red highlighting */}
+                            <p className="text-gray-800 mb-2 pr-16">
+                              {redAtStart && <span className="text-red-600 font-medium">{redText}</span>}
+                              {whiteBeforeRed}
+                              {!redAtStart && hasRedText && <span className="text-red-600 font-medium">{redText}</span>}
+                              {whiteAfterRed}
+                            </p>
+                            
+                            {/* Character count */}
+                            <div className="text-xs text-gray-500">
+                              {line.charCount} caractere
+                            </div>
+                          </div>
                           
-                          {/* Name above text in italic small font */}
-                          <div className="mb-1">
-                            <span className="text-xs text-gray-500 italic">{line.videoName}</span>
-                          </div>
-                          {/* Text with red highlighting */}
-                          <p className="text-gray-800 mb-2 pr-16">
-                            {redAtStart && <span className="text-red-600 font-medium">{redText}</span>}
-                            {whiteBeforeRed}
-                            {!redAtStart && hasRedText && <span className="text-red-600 font-medium">{redText}</span>}
-                            {whiteAfterRed}
-                          </p>
-                          {/* Character count below text */}
-                          <div className="text-xs text-gray-500">
-                            {line.charCount} caractere
-                          </div>
+                          {/* Inline Edit Form */}
+                          {editingLineId === line.id && (
+                            <div className="mt-2 p-4 bg-blue-50 border-2 border-blue-300 rounded-lg space-y-3">
+                              <h5 className="font-bold text-blue-900">Edit Text</h5>
+                              
+                              {/* Textarea */}
+                              <div>
+                                <Label className="text-sm text-gray-700 mb-1 block">Text:</Label>
+                                <textarea
+                                  value={editingLineText}
+                                  onChange={(e) => {
+                                    setEditingLineText(e.target.value);
+                                  }}
+                                  className="w-full h-20 p-2 border border-gray-300 rounded resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  placeholder="Enter text..."
+                                />
+                                <div className={`text-xs mt-1 ${
+                                  editingLineText.length > 125 ? 'text-orange-600 font-bold' : 'text-gray-600'
+                                }`}>
+                                  {editingLineText.length} / 125 characters
+                                  {editingLineText.length > 125 && (
+                                    <span className="ml-2">⚠️ Warning: Exceeds 125 characters!</span>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              {/* Mark RED/BLACK Buttons */}
+                              <div>
+                                <Label className="text-sm text-gray-700 mb-2 block">Mark text as RED:</Label>
+                                <div className="flex gap-2">
+                                  <Button
+                                    onClick={() => {
+                                      const textarea = document.querySelector('textarea') as HTMLTextAreaElement;
+                                      if (textarea) {
+                                        const start = textarea.selectionStart;
+                                        const end = textarea.selectionEnd;
+                                        if (start !== end) {
+                                          setEditingLineRedStart(start);
+                                          setEditingLineRedEnd(end);
+                                          toast.success('Text marked as RED');
+                                        } else {
+                                          toast.error('Please select text first');
+                                        }
+                                      }
+                                    }}
+                                    size="sm"
+                                    className="bg-red-600 hover:bg-red-700"
+                                  >
+                                    Mark as RED
+                                  </Button>
+                                  <Button
+                                    onClick={() => {
+                                      setEditingLineRedStart(-1);
+                                      setEditingLineRedEnd(-1);
+                                      toast.success('RED marking removed');
+                                    }}
+                                    size="sm"
+                                    variant="outline"
+                                  >
+                                    Clear RED
+                                  </Button>
+                                </div>
+                              </div>
+                              
+                              {/* Preview */}
+                              {editingLineRedStart >= 0 && editingLineRedEnd > editingLineRedStart && (
+                                <div>
+                                  <Label className="text-sm text-gray-700 mb-1 block">Preview:</Label>
+                                  <div className="p-3 bg-white border border-gray-300 rounded">
+                                    <p className="text-gray-800">
+                                      {editingLineText.substring(0, editingLineRedStart)}
+                                      <span className="text-red-600 font-medium">
+                                        {editingLineText.substring(editingLineRedStart, editingLineRedEnd)}
+                                      </span>
+                                      {editingLineText.substring(editingLineRedEnd)}
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* Save Button */}
+                              <div className="flex gap-2">
+                                <Button
+                                  onClick={() => {
+                                    setAdLines(prev => prev.map(l => {
+                                      if (l.id === line.id) {
+                                        return {
+                                          ...l,
+                                          text: editingLineText,
+                                          charCount: editingLineText.length,
+                                          redStart: editingLineRedStart,
+                                          redEnd: editingLineRedEnd,
+                                        };
+                                      }
+                                      return l;
+                                    }));
+                                    
+                                    if (isWorkflowLocked && isStepUnlocked[2]) {
+                                      setCompromisedLineIds(prev => new Set(prev).add(line.id));
+                                      console.log('[Step 2] Line marked as compromised:', line.id);
+                                    }
+                                    
+                                    toast.success('Text saved!');
+                                    setEditingLineId(null);
+                                  }}
+                                  className="bg-blue-600 hover:bg-blue-700"
+                                >
+                                  Save
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  onClick={() => setEditingLineId(null)}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -3503,138 +3597,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           </Card>
         )}
 
-        {/* WYSIWYG Editor Dialog */}
-        <Dialog open={editingLineId !== null} onOpenChange={(open) => !open && setEditingLineId(null)}>
-          <DialogContent className="max-w-3xl">
-            <DialogHeader>
-              <DialogTitle>Edit Text Line</DialogTitle>
-              <DialogDescription>
-                Select text and apply RED or BLACK color. Character count updates live.
-              </DialogDescription>
-            </DialogHeader>
-            
-            <div className="space-y-4">
-              {/* Color Toolbar */}
-              <div className="flex gap-2 p-2 bg-gray-100 rounded">
-                <Button
-                  onClick={() => {
-                    document.execCommand('foreColor', false, '#dc2626'); // RED-600
-                  }}
-                  variant="outline"
-                  size="sm"
-                  className="bg-red-600 text-white hover:bg-red-700"
-                >
-                  RED
-                </Button>
-                <Button
-                  onClick={() => {
-                    document.execCommand('foreColor', false, '#000000'); // BLACK
-                  }}
-                  variant="outline"
-                  size="sm"
-                  className="bg-black text-white hover:bg-gray-800"
-                >
-                  BLACK
-                </Button>
-                <Button
-                  onClick={() => {
-                    document.execCommand('removeFormat', false, '');
-                  }}
-                  variant="outline"
-                  size="sm"
-                >
-                  Clear Format
-                </Button>
-              </div>
-              
-              {/* Editable Content */}
-              <div
-                ref={editorRef}
-                contentEditable
-                suppressContentEditableWarning
-                onInput={(e) => {
-                  const text = e.currentTarget.textContent || '';
-                  setEditingLineText(text);
-                }}
-                className="min-h-[150px] p-4 border-2 border-gray-300 rounded focus:outline-none focus:border-blue-500"
-                style={{ whiteSpace: 'pre-wrap' }}
-              >
-                {editingLineText}
-              </div>
-              
-              {/* Character Count */}
-              <div className="flex justify-between items-center">
-                <div className={`text-sm ${
-                  editingLineText.length > 125 ? 'text-orange-600 font-bold' : 'text-gray-600'
-                }`}>
-                  {editingLineText.length} / 125 characters
-                  {editingLineText.length > 125 && (
-                    <span className="ml-2">⚠️ Warning: Exceeds 125 characters!</span>
-                  )}
-                </div>
-              </div>
-            </div>
-            
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setEditingLineId(null)}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={() => {
-                  if (!editingLineId || !editorRef.current) return;
-                  
-                  const html = editorRef.current.innerHTML;
-                  const text = editorRef.current.textContent || '';
-                  
-                  // Parse HTML to find RED text positions
-                  let redStart = -1;
-                  let redEnd = -1;
-                  
-                  // Find all red spans and get the first one
-                  const redSpanRegex = /<span[^>]*style="[^"]*color:\s*(?:#dc2626|rgb\(220,\s*38,\s*38\))[^"]*"[^>]*>([^<]*)<\/span>/gi;
-                  const matches = [...html.matchAll(redSpanRegex)];
-                  
-                  if (matches.length > 0) {
-                    const redText = matches[0][1];
-                    redStart = text.indexOf(redText);
-                    if (redStart >= 0) {
-                      redEnd = redStart + redText.length;
-                    }
-                  }
-                  
-                  // Update adLines
-                  setAdLines(prev => prev.map(line => {
-                    if (line.id === editingLineId) {
-                      return {
-                        ...line,
-                        text: text,
-                        charCount: text.length,
-                        redStart: redStart,
-                        redEnd: redEnd,
-                      };
-                    }
-                    return line;
-                  }));
-                  
-                  // Mark line as compromised (will delete video card on navigation)
-                  if (isWorkflowLocked && isStepUnlocked[2]) {
-                    setCompromisedLineIds(prev => new Set(prev).add(editingLineId));
-                    console.log('[Step 2] Line marked as compromised:', editingLineId);
-                  }
-                  
-                  toast.success('Text saved!');
-                  setEditingLineId(null);
-                }}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                Save
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+
 
         {/* STEP 3: Prompts */}
         {currentStep === 3 && (
@@ -4702,7 +4665,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                                   src={img.thumbnailUrl || img.imageUrl}
                                                   alt={img.imageName}
                                                   className="w-full h-48 object-cover rounded"
-                                                  style={{ aspectRatio: '9/16' }}
+                                                  style={{ aspectRatio: '6/16' }}
                                                 />
                                                 {isSelected && (
                                                   <div className="absolute top-1 right-1 bg-blue-500 text-white rounded-full p-1">
