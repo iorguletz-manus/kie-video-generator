@@ -4284,7 +4284,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                   </Button>
                                 </div>
                               ) : (
-                                <div className="flex items-center gap-2 bg-green-50 border-2 border-green-500 px-3 py-2 rounded-lg flex-1">
+                                <div className="inline-flex items-center gap-2 bg-green-50 border-2 border-green-500 px-3 py-2 rounded-lg">
                                   <Check className="w-5 h-5 text-green-600" />
                                   <span className="text-sm text-green-700 font-bold">Generated</span>
                                 </div>
@@ -4701,7 +4701,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                                 <img
                                                   src={img.thumbnailUrl || img.imageUrl}
                                                   alt={img.imageName}
-                                                  className="w-full h-24 object-cover rounded"
+                                                  className="w-full h-48 object-cover rounded"
                                                   style={{ aspectRatio: '9/16' }}
                                                 />
                                                 {isSelected && (
