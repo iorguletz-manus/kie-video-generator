@@ -744,8 +744,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   }, [videoResults]);
   
   // Delete video cards for compromised items when navigating to another step
+  // Also re-lock steps that were unlocked but not modified
   useEffect(() => {
-    if (compromisedLineIds.size === 0 && compromisedCombinationIds.size === 0) return;
+    // Re-lock all unlocked steps (they will be locked again if no modifications were made)
+    // Only keep unlocked if there are pending compromised items
+    if (compromisedLineIds.size === 0 && compromisedCombinationIds.size === 0) {
+      // No modifications were made, re-lock all steps
+      setIsStepUnlocked({});
+      console.log('[Navigation] No modifications made, re-locking all steps');
+      return;
+    }
     
     console.log('[Navigation] Deleting video cards for compromised items...');
     console.log('[Navigation] Compromised lines:', Array.from(compromisedLineIds));
@@ -778,9 +786,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       setVideoResults(prev => prev.filter((_, i) => !indicesToDelete.has(i)));
       setCombinations(prev => prev.filter((_, i) => !indicesToDelete.has(i)));
       
-      // Clear compromised sets
+      // Clear compromised sets and re-lock steps
       setCompromisedLineIds(new Set());
       setCompromisedCombinationIds(new Set());
+      setIsStepUnlocked({}); // Re-lock all steps after deletion
       
       // Save to database
       upsertContextSessionMutation.mutate({
@@ -2311,7 +2320,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
   // Navigation
   const goToStep = (step: number) => {
-    if (step <= currentStep) {
+    // Allow navigation to any step that's been reached OR Step 6+ (which are never locked)
+    if (step <= currentStep || step >= 6) {
       setCurrentStep(step);
     }
   };
@@ -2687,9 +2697,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               <div className="flex flex-col items-center flex-1">
                 <button
                   onClick={() => goToStep(step.num)}
-                  disabled={step.num > currentStep}
+                  disabled={step.num > currentStep && step.num < 6}
                   className={`w-12 h-12 rounded-full flex items-center justify-center font-bold transition-all ${
-                    currentStep >= step.num
+                    currentStep >= step.num || step.num >= 6
                       ? "bg-blue-600 text-white cursor-pointer hover:bg-blue-700"
                       : "bg-gray-200 text-gray-500 cursor-not-allowed"
                   }`}
