@@ -30,6 +30,7 @@ const CATEGORY_NAMES = [
   'MIRROR',
   'DCS',
   'TRANZITION',
+  'TRANSITION',     // English variant of TRANZITION
   'NEW CAUSE',      // Also matches NEW-CAUSE
   'NEW-CAUSE',
   'MECHANISM',

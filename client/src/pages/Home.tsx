@@ -2757,6 +2757,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   if (value === 'new') {
                     const name = prompt('Enter new Character name:');
                     if (name && name.trim()) {
+                      // Check for duplicate character name
+                      const isDuplicate = categoryCharacters.some(char => char.name.toLowerCase() === name.trim().toLowerCase());
+                      if (isDuplicate) {
+                        toast.error(`Character "${name.trim()}" already exists!`);
+                        return;
+                      }
                       try {
                         const result = await createCharacterMutation.mutateAsync({
                           userId: localCurrentUser.id,
@@ -3096,6 +3102,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         if (value === 'new') {
                           const name = prompt('Enter new Character name:');
                           if (name && name.trim()) {
+                            // Check for duplicate character name
+                            const isDuplicate = categoryCharacters.some(char => char.name.toLowerCase() === name.trim().toLowerCase());
+                            if (isDuplicate) {
+                              toast.error(`Character "${name.trim()}" already exists!`);
+                              return;
+                            }
                             const result = await createCharacterMutation.mutateAsync({
                               userId: localCurrentUser.id,
                               name: name.trim(),

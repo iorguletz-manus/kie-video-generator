@@ -85,6 +85,18 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
   };
 
   const handleBulkUpload = async (files: File[]) => {
+    // Validate new character name for duplicates before starting upload
+    if (uploadCharacterSelection === "__new__") {
+      const trimmedName = (newCharacterName || "").trim();
+      if (trimmedName && trimmedName !== "No Character") {
+        const isDuplicate = characters.some(char => char.toLowerCase() === trimmedName.toLowerCase());
+        if (isDuplicate) {
+          toast.error(`Character "${trimmedName}" already exists!`);
+          return;
+        }
+      }
+    }
+
     setUploadProgress(0);
 
     for (let i = 0; i < files.length; i++) {
@@ -332,81 +344,75 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                     </span>
                   </h2>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
+                  <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2">
                     {characterImages.map((image) => (
-                      <Card
+                      <div
                         key={image.id}
                         draggable
                         onDragStart={() => handleDragStart(image.id)}
-                        className="cursor-move hover:shadow-lg transition-shadow border-2 border-purple-200"
+                        className="relative cursor-move"
                       >
-                        <CardContent className="p-0">
-                          {/* Image Thumbnail */}
-                          <div className="relative aspect-[9/16] bg-gray-100">
-                            <img
-                              src={image.imageUrl}
-                              alt={image.imageName}
-                              className="w-full h-full object-cover rounded-t-lg"
-                            />
-                          </div>
+                        {/* Image Thumbnail */}
+                        <div className="relative aspect-[9/16] bg-gray-100 rounded overflow-hidden">
+                          <img
+                            src={image.imageUrl}
+                            alt={image.imageName}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
 
-                          {/* Image Info & Actions */}
-                          <div className="p-3 space-y-2">
-                            {editingImageId === image.id ? (
-                              <div className="space-y-2">
-                                <Input
-                                  value={editImageName}
-                                  onChange={(e) => setEditImageName(e.target.value)}
-                                  className="text-sm"
-                                />
-                                <div className="flex gap-2">
-                                  <Button
-                                    size="sm"
-                                    onClick={handleUpdateName}
-                                    className="flex-1 bg-green-600 hover:bg-green-700"
-                                  >
-                                    Save
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => setEditingImageId(null)}
-                                    className="flex-1"
-                                  >
-                                    Cancel
-                                  </Button>
-                                </div>
-                              </div>
-                            ) : (
-                              <>
-                                <p className="font-medium text-sm text-purple-900 truncate">
-                                  {image.imageName}
-                                </p>
-                                <div className="flex gap-2">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleEditName(image.id)}
-                                    className="flex-1 border-blue-300 text-blue-700"
-                                  >
-                                    <Edit2 className="w-3 h-3 mr-1" />
-                                    Edit
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleDelete(image.id)}
-                                    className="flex-1 border-red-300 text-red-700"
-                                  >
-                                    <Trash2 className="w-3 h-3 mr-1" />
-                                    Delete
-                                  </Button>
-                                </div>
-                              </>
-                            )}
+                        {/* Image name and icons below */}
+                        {editingImageId === image.id ? (
+                          <div className="mt-1 space-y-1">
+                            <Input
+                              value={editImageName}
+                              onChange={(e) => setEditImageName(e.target.value)}
+                              className="text-xs h-6 px-1"
+                            />
+                            <div className="flex gap-1">
+                              <Button
+                                size="sm"
+                                onClick={handleUpdateName}
+                                className="flex-1 h-6 text-xs bg-green-600 hover:bg-green-700"
+                              >
+                                Save
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setEditingImageId(null)}
+                                className="flex-1 h-6 text-xs"
+                              >
+                                Cancel
+                              </Button>
+                            </div>
                           </div>
-                        </CardContent>
-                      </Card>
+                        ) : (
+                          <div className="mt-1 flex items-center justify-between gap-1">
+                            <p className="text-xs text-purple-900 truncate flex-1">
+                              {image.imageName}
+                            </p>
+                            <div className="flex gap-0.5 flex-shrink-0">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleEditName(image.id)}
+                                className="w-5 h-5 p-0 hover:bg-blue-100"
+                              >
+                                <Edit2 className="w-3 h-3 text-blue-600" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleDelete(image.id)}
+                                className="w-5 h-5 p-0 hover:bg-red-100"
+                              >
+                                <Trash2 className="w-3 h-3 text-red-600" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -415,79 +421,73 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
           </div>
         ) : (
           // Single Character View
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
+          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2">
             {filteredImages.map((image) => (
-              <Card
+              <div
                 key={image.id}
-                className="hover:shadow-lg transition-shadow border-2 border-purple-200"
+                className="relative"
               >
-                <CardContent className="p-0">
-                  {/* Image Thumbnail */}
-                  <div className="relative aspect-[9/16] bg-gray-100">
-                    <img
-                      src={image.imageUrl}
-                      alt={image.imageName}
-                      className="w-full h-full object-cover rounded-t-lg"
-                    />
-                  </div>
+                {/* Image Thumbnail */}
+                <div className="relative aspect-[9/16] bg-gray-100 rounded overflow-hidden">
+                  <img
+                    src={image.imageUrl}
+                    alt={image.imageName}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
 
-                  {/* Image Info & Actions */}
-                  <div className="p-3 space-y-2">
-                    {editingImageId === image.id ? (
-                      <div className="space-y-2">
-                        <Input
-                          value={editImageName}
-                          onChange={(e) => setEditImageName(e.target.value)}
-                          className="text-sm"
-                        />
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            onClick={handleUpdateName}
-                            className="flex-1 bg-green-600 hover:bg-green-700"
-                          >
-                            Save
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setEditingImageId(null)}
-                            className="flex-1"
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <p className="font-medium text-sm text-purple-900 truncate">
-                          {image.imageName}
-                        </p>
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleEditName(image.id)}
-                            className="flex-1 border-blue-300 text-blue-700"
-                          >
-                            <Edit2 className="w-3 h-3 mr-1" />
-                            Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleDelete(image.id)}
-                            className="flex-1 border-red-300 text-red-700"
-                          >
-                            <Trash2 className="w-3 h-3 mr-1" />
-                            Delete
-                          </Button>
-                        </div>
-                      </>
-                    )}
+                {/* Image name and icons below */}
+                {editingImageId === image.id ? (
+                  <div className="mt-1 space-y-1">
+                    <Input
+                      value={editImageName}
+                      onChange={(e) => setEditImageName(e.target.value)}
+                      className="text-xs h-6 px-1"
+                    />
+                    <div className="flex gap-1">
+                      <Button
+                        size="sm"
+                        onClick={handleUpdateName}
+                        className="flex-1 h-6 text-xs bg-green-600 hover:bg-green-700"
+                      >
+                        Save
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setEditingImageId(null)}
+                        className="flex-1 h-6 text-xs"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
                   </div>
-                </CardContent>
-              </Card>
+                ) : (
+                  <div className="mt-1 flex items-center justify-between gap-1">
+                    <p className="text-xs text-purple-900 truncate flex-1">
+                      {image.imageName}
+                    </p>
+                    <div className="flex gap-0.5 flex-shrink-0">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleEditName(image.id)}
+                        className="w-5 h-5 p-0 hover:bg-blue-100"
+                      >
+                        <Edit2 className="w-3 h-3 text-blue-600" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDelete(image.id)}
+                        className="w-5 h-5 p-0 hover:bg-red-100"
+                      >
+                        <Trash2 className="w-3 h-3 text-red-600" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         )}
