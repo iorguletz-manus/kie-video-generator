@@ -186,6 +186,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // State pentru tracking modificări (pentru blocare navigare)
   const [hasModifications, setHasModifications] = useState(false);
   
+  // Lock system pentru Step 1-5 după generare
+  const [isWorkflowLocked, setIsWorkflowLocked] = useState(false); // true dacă există videouri generate
+  const [isStepUnlocked, setIsStepUnlocked] = useState<Record<number, boolean>>({}); // track unlock per step
+  const [compromisedLineIds, setCompromisedLineIds] = useState<Set<string>>(new Set()); // linii editate în Step 2
+  const [compromisedCombinationIds, setCompromisedCombinationIds] = useState<Set<string>>(new Set()); // combinations editate
+  
   // Step 2: Manual prompt textarea
   const [manualPromptText, setManualPromptText] = useState('');
   const [promptMode, setPromptMode] = useState<'hardcoded' | 'custom' | 'manual'>('hardcoded');
@@ -731,6 +737,81 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
   }, [categoryCharacters, selectedCharacterId]);
 
+  // Set workflow lock when videos are generated
+  useEffect(() => {
+    const hasGeneratedVideos = videoResults.some(v => v.status === 'success' || v.status === 'pending' || v.status === 'failed');
+    setIsWorkflowLocked(hasGeneratedVideos);
+  }, [videoResults]);
+  
+  // Delete video cards for compromised items when navigating to another step
+  useEffect(() => {
+    if (compromisedLineIds.size === 0 && compromisedCombinationIds.size === 0) return;
+    
+    console.log('[Navigation] Deleting video cards for compromised items...');
+    console.log('[Navigation] Compromised lines:', Array.from(compromisedLineIds));
+    console.log('[Navigation] Compromised combinations:', Array.from(compromisedCombinationIds));
+    
+    // Find indices of video cards to delete
+    const indicesToDelete = new Set<number>();
+    
+    // Check each video card if it corresponds to a compromised line or combination
+    videoResults.forEach((video, index) => {
+      const combo = combinations[index];
+      if (!combo) return;
+      
+      // Check if this video's combination corresponds to a compromised line
+      const correspondingLine = adLines.find(line => line.videoName === combo.videoName);
+      if (correspondingLine && compromisedLineIds.has(correspondingLine.id)) {
+        indicesToDelete.add(index);
+      }
+      
+      // Check if this combination itself is compromised
+      if (compromisedCombinationIds.has(combo.id)) {
+        indicesToDelete.add(index);
+      }
+    });
+    
+    if (indicesToDelete.size > 0) {
+      console.log('[Navigation] Deleting', indicesToDelete.size, 'video cards');
+      
+      // Delete video cards and combinations
+      setVideoResults(prev => prev.filter((_, i) => !indicesToDelete.has(i)));
+      setCombinations(prev => prev.filter((_, i) => !indicesToDelete.has(i)));
+      
+      // Clear compromised sets
+      setCompromisedLineIds(new Set());
+      setCompromisedCombinationIds(new Set());
+      
+      // Save to database
+      upsertContextSessionMutation.mutate({
+        userId: localCurrentUser.id,
+        tamId: selectedTamId,
+        coreBeliefId: selectedCoreBeliefId!,
+        emotionalAngleId: selectedEmotionalAngleId!,
+        adId: selectedAdId!,
+        characterId: selectedCharacterId!,
+        currentStep,
+        rawTextAd,
+        processedTextAd,
+        adLines,
+        prompts,
+        images,
+        combinations: combinations.filter((_, i) => !indicesToDelete.has(i)),
+        deletedCombinations,
+        videoResults: videoResults.filter((_, i) => !indicesToDelete.has(i)),
+        reviewHistory,
+      }, {
+        onSuccess: () => {
+          console.log('[Navigation] Database updated after deleting compromised video cards');
+          toast.success(`${indicesToDelete.size} video card(s) deleted for modified items`);
+        },
+        onError: (error) => {
+          console.error('[Navigation] Failed to save:', error);
+        },
+      });
+    }
+  }, [currentStep]); // Trigger on step change
+
   // ========== COMPUTED VALUES (MEMOIZED) ==========
   // Filtered video lists (evită re-compute la fiecare render)
   const failedVideos = useMemo(
@@ -812,6 +893,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       setProcessedTextAd('');
       setCombinations([]);
       setVideoResults([]);
+      
+      // Reset lock states when processing new document
+      setIsWorkflowLocked(false);
+      setIsStepUnlocked({});
+      setCompromisedLineIds(new Set());
+      setCompromisedCombinationIds(new Set());
       
       const result = await processTextAdMutation.mutateAsync({
         rawText: rawTextAd,
@@ -1353,6 +1440,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         combo.id === id ? { ...combo, promptType } : combo
       )
     );
+    
+    // Mark combination as compromised (will delete video card on navigation)
+    if (isWorkflowLocked && (isStepUnlocked[4] || isStepUnlocked[5])) {
+      setCompromisedCombinationIds(prev => new Set(prev).add(id));
+      console.log('[Step 4/5] Combination marked as compromised (prompt change):', id);
+    }
   };
 
   const updateCombinationText = (id: string, text: string) => {
@@ -1371,6 +1464,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           combo.id === id ? { ...combo, imageUrl: image.url, imageId: image.id } : combo
         )
       );
+      
+      // Mark combination as compromised (will delete video card on navigation)
+      if (isWorkflowLocked && (isStepUnlocked[4] || isStepUnlocked[5])) {
+        setCompromisedCombinationIds(prev => new Set(prev).add(id));
+        console.log('[Step 4/5] Combination marked as compromised (image change):', id);
+      }
     }
   };
 
@@ -2643,7 +2742,35 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         <>
         {/* STEP 1: Prepare Text Ad */}
         {currentStep === 1 && (
-          <Card className="mb-8 border-2 border-blue-200">
+          <Card className="mb-8 border-2 border-blue-200 relative">
+            {/* Lock Overlay */}
+            {isWorkflowLocked && !isStepUnlocked[1] && (
+              <div className="absolute inset-0 z-50 bg-white/80 backdrop-blur-sm rounded-lg flex flex-col items-center justify-center gap-6">
+                <div className="text-center">
+                  <div className="inline-flex items-center justify-center w-24 h-24 bg-red-100 rounded-full mb-4">
+                    <svg className="w-12 h-12 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2">Step Locked</h3>
+                  <p className="text-gray-600 max-w-md">This step is locked because videos have been generated. Unlock to edit.</p>
+                </div>
+                <Button
+                  size="lg"
+                  onClick={() => {
+                    if (confirm('⚠️ Atenție! Încărcarea unui nou document va șterge TOATE videouri generate și va reseta workflow-ul. Continui?')) {
+                      setIsStepUnlocked(prev => ({ ...prev, 1: true }));
+                    }
+                  }}
+                  className="bg-red-600 hover:bg-red-700 text-white px-8 py-6 text-lg"
+                >
+                  <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                  </svg>
+                  UNLOCK TO EDIT
+                </Button>
+              </div>
+            )}
             <CardHeader className="bg-blue-50">
               <CardTitle className="flex items-center gap-2 text-blue-900">
                 <FileText className="w-5 h-5" />
@@ -2921,7 +3048,35 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
         {/* STEP 2: Text Ad Document */}
         {currentStep === 2 && (
-          <Card className="mb-8 border-2 border-blue-200">
+          <Card className="mb-8 border-2 border-blue-200 relative">
+            {/* Lock Overlay */}
+            {isWorkflowLocked && !isStepUnlocked[2] && (
+              <div className="absolute inset-0 z-50 bg-white/80 backdrop-blur-sm rounded-lg flex flex-col items-center justify-center gap-6">
+                <div className="text-center">
+                  <div className="inline-flex items-center justify-center w-24 h-24 bg-red-100 rounded-full mb-4">
+                    <svg className="w-12 h-12 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2">Step Locked</h3>
+                  <p className="text-gray-600 max-w-md">This step is locked because videos have been generated. Unlock to edit.</p>
+                </div>
+                <Button
+                  size="lg"
+                  onClick={() => {
+                    if (confirm('⚠️ Atenție! Editarea va șterge videouri generate pentru liniile modificate. Continui?')) {
+                      setIsStepUnlocked(prev => ({ ...prev, 2: true }));
+                    }
+                  }}
+                  className="bg-red-600 hover:bg-red-700 text-white px-8 py-6 text-lg"
+                >
+                  <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                  </svg>
+                  UNLOCK TO EDIT
+                </Button>
+              </div>
+            )}
             <CardHeader className="bg-blue-50">
               <CardTitle className="flex items-center gap-2 text-blue-900">
                 <FileText className="w-5 h-5" />
@@ -3359,6 +3514,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     }
                     return line;
                   }));
+                  
+                  // Mark line as compromised (will delete video card on navigation)
+                  if (isWorkflowLocked && isStepUnlocked[2]) {
+                    setCompromisedLineIds(prev => new Set(prev).add(editingLineId));
+                    console.log('[Step 2] Line marked as compromised:', editingLineId);
+                  }
                   
                   toast.success('Text saved!');
                   setEditingLineId(null);
