@@ -4185,7 +4185,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         alt="Video thumbnail"
                         className="w-20 sm:w-12 flex-shrink-0 aspect-[9/16] object-cover rounded border-2 border-blue-300"
                       />
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <p className="text-xs text-blue-600 font-bold mb-1">
                           {result.videoName}
                         </p>
@@ -4305,7 +4305,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                     {result.error || 'Unknown error'}
                                   </p>
                                 )}
-                                <div className="flex flex-col sm:flex-row gap-2 w-full">
+                                <div className="hidden">
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -4398,7 +4398,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                     data-modify-form={realIndex}
                                     className="mt-4 p-3 sm:p-4 bg-white border-2 border-orange-300 rounded-lg space-y-3"
                                   >
-                                    <h5 className="font-bold text-orange-900">Modify & Regenerate</h5>
+                                    <h5 className="font-bold text-orange-900">Edit Video</h5>
                                     
                                     {/* Radio: Vrei să regenerezi mai multe videouri? - COMMENTED OUT */}
                                     {/* <div className="p-3 bg-orange-50 border border-orange-200 rounded">
@@ -5183,7 +5183,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                     Not Generated Yet (Duplicate {result.duplicateNumber})
                                   </span>
                                 </div>
-                                <div className="flex flex-col sm:flex-row gap-2 w-full">
+                                <div className="hidden">
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -5239,7 +5239,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                     data-modify-form={realIndex}
                                     className="mt-4 p-3 sm:p-4 bg-white border-2 border-orange-300 rounded-lg space-y-3"
                                   >
-                                    <h5 className="font-bold text-orange-900">Modify & Regenerate</h5>
+                                    <h5 className="font-bold text-orange-900">Edit Video</h5>
                                     
                                     {/* Aici va fi formularul - va folosi același formular ca pentru failed */}
                                     {/* TODO: Add form fields */}
@@ -5250,6 +5250,88 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           )}
                         </div>
                       </div>
+                      
+                      {/* Butoane verticale în dreapta */}
+                      {(result.status === 'failed' || result.status === null || result.reviewStatus === 'regenerate') && (
+                        <div className="flex flex-col gap-1 flex-shrink-0">
+                          {/* Edit button */}
+                          <button
+                            onClick={() => {
+                              setModifyingVideoIndex(realIndex);
+                              const currentPromptType = combinations[realIndex]?.promptType || 'PROMPT_NEUTRAL';
+                              setModifyPromptType(currentPromptType);
+                              
+                              if (currentPromptType === 'PROMPT_CUSTOM' && customPrompts[realIndex]) {
+                                setModifyPromptText(customPrompts[realIndex]);
+                              } else {
+                                const promptFromLibrary = promptLibrary.find(p => p.promptName === currentPromptType);
+                                if (promptFromLibrary?.promptTemplate) {
+                                  setModifyPromptText(promptFromLibrary.promptTemplate);
+                                } else {
+                                  setModifyPromptText('');
+                                }
+                              }
+                              
+                              setModifyDialogueText(result.text);
+                              
+                              if (result.redStart !== undefined && result.redEnd !== undefined && result.redStart >= 0) {
+                                setModifyRedStart(result.redStart);
+                                setModifyRedEnd(result.redEnd);
+                              } else {
+                                setModifyRedStart(-1);
+                                setModifyRedEnd(-1);
+                              }
+                            }}
+                            className="p-2 border border-orange-500 text-orange-700 hover:bg-orange-50 rounded flex items-center justify-center transition-colors"
+                            title="Edit"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                          
+                          {/* Regenerate button */}
+                          <button
+                            onClick={() => {
+                              regenerateSingleVideo(realIndex);
+                            }}
+                            className="p-2 border border-green-500 text-green-700 hover:bg-green-50 rounded flex items-center justify-center transition-colors"
+                            title="Regenerate"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                          </button>
+                          
+                          {/* Duplicate button */}
+                          <button
+                            onClick={() => {
+                              duplicateVideo(result.videoName);
+                            }}
+                            className="p-2 border border-blue-500 text-blue-700 hover:bg-blue-50 rounded flex items-center justify-center transition-colors"
+                            title="Duplicate"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                          </button>
+                          
+                          {/* Delete Duplicate button */}
+                          {result.isDuplicate && (
+                            <button
+                              onClick={() => {
+                                deleteDuplicate(result.videoName);
+                              }}
+                              className="p-2 border border-red-500 text-red-700 hover:bg-red-50 rounded flex items-center justify-center transition-colors"
+                              title="Delete"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                   );
