@@ -1898,8 +1898,27 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             })),
           });
 
-          const batchResults: VideoResult[] = result.results.map((r: any, index: number) => {
-            const combo = batchCombos[index];
+          const batchResults: VideoResult[] = result.results.map((r: any) => {
+            // Găsește combo-ul care corespunde textului returnat de API (nu by index!)
+            const combo = batchCombos.find(c => c.text === r.text);
+            if (!combo) {
+              console.error('[CRITICAL] No matching combo found for API result text:', r.text?.substring(0, 50));
+              // Fallback la index dacă nu găsim match (nu ar trebui să se întâmple)
+              const fallbackCombo = batchCombos[result.results.indexOf(r)];
+              return {
+                taskId: r.taskId,
+                text: r.text,
+                imageUrl: r.imageUrl,
+                status: r.success ? 'pending' as const : 'failed' as const,
+                error: r.error,
+                videoName: fallbackCombo?.videoName || 'UNKNOWN',
+                section: fallbackCombo?.section || 'UNKNOWN',
+                categoryNumber: fallbackCombo?.categoryNumber || 0,
+                reviewStatus: null,
+                redStart: fallbackCombo?.redStart,
+                redEnd: fallbackCombo?.redEnd,
+              };
+            }
             return {
               taskId: r.taskId,
               text: r.text,
@@ -4860,9 +4879,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           {(result.status === 'failed' || result.status === null || result.reviewStatus === 'regenerate') && (
                             <>
                               <div className="flex-1">
-                                <div className="flex items-center gap-2 bg-red-50 border-2 border-red-500 px-3 py-2 rounded-lg mb-2">
-                                  <X className="w-5 h-5 text-red-600" />
-                                  <span className="text-sm text-red-700 font-bold">
+                                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg mb-2 ${
+                                  result.reviewStatus === 'regenerate'
+                                    ? 'bg-orange-50 border-2 border-orange-500'
+                                    : 'bg-red-50 border-2 border-red-500'
+                                }`}>
+                                  <X className={`w-5 h-5 ${
+                                    result.reviewStatus === 'regenerate' ? 'text-orange-600' : 'text-red-600'
+                                  }`} />
+                                  <span className={`text-sm font-bold ${
+                                    result.reviewStatus === 'regenerate' ? 'text-orange-700' : 'text-red-700'
+                                  }`}>
                                     {result.status === 'failed' ? 'Failed' : result.status === null ? 'Not Generated Yet' : 'Rejected'}
                                   </span>
                                 </div>
@@ -6404,12 +6431,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 <label className="text-sm font-medium text-green-900">Filtrează videouri:</label>
                 <select
                   value={videoFilter}
-                  onChange={(e) => setVideoFilter(e.target.value as 'all' | 'accepted' | 'failed')}
+                  onChange={(e) => setVideoFilter(e.target.value as 'all' | 'accepted' | 'failed' | 'no_decision')}
                   className="px-4 py-2 border border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 >
                   <option value="all">Afișează Toate</option>
                   <option value="accepted">Doar Acceptate</option>
                   <option value="failed">Doar Failed/Pending</option>
+                  <option value="no_decision">Doar Fără Decizie</option>
                 </select>
               </div>
               
@@ -6440,6 +6468,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   categoryVideos = categoryVideos.filter(v => v.reviewStatus === 'accepted');
                 } else if (videoFilter === 'failed') {
                   categoryVideos = categoryVideos.filter(v => v.reviewStatus !== 'accepted');
+                } else if (videoFilter === 'no_decision') {
+                  categoryVideos = categoryVideos.filter(v => v.reviewStatus === null);
                 }
                 
                 if (categoryVideos.length === 0) return null;
@@ -6560,25 +6590,21 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                         <div className="flex gap-2">
                                           <Button
                                             onClick={() => {
-                                              // Save note
-                                              setVideoResults(prev => [
-                                                ...prev.map(v =>
-                                                  v.videoName === video.videoName
-                                                    ? { ...v, internalNote: noteText }
-                                                    : v
-                                                )
-                                              ]);
+                                              // Save note - update state first
+                                              const updatedVideoResults = videoResults.map(v =>
+                                                v.videoName === video.videoName
+                                                  ? { ...v, internalNote: noteText }
+                                                  : v
+                                              );
                                               
-                                              // Save to DB
+                                              setVideoResults([...updatedVideoResults]);
+                                              
+                                              // Save to DB with updated results
                                               upsertContextSessionMutation.mutate({
                                                 userId: localCurrentUser.id,
                                                 sessionData: {
                                                   ...currentContext,
-                                                  videoResults: videoResults.map(v =>
-                                                    v.videoName === video.videoName
-                                                      ? { ...v, internalNote: noteText }
-                                                      : v
-                                                  ),
+                                                  videoResults: updatedVideoResults,
                                                 },
                                               });
                                               
@@ -6696,7 +6722,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 {videoResults.some(v => v.reviewStatus === 'regenerate') && (
                   <Button
                     onClick={() => {
-                      // TODO: Implementare regenerare și revenire la STEP 6
+                      // Setează filtrul la 'regenerate' în Step 6
+                      setStep5Filter('regenerate');
                       toast.info('Regenerare videouri marcate...');
                       setCurrentStep(6);
                     }}
