@@ -1476,6 +1476,51 @@ export const appRouter = router({
         await deleteContextSession(input.id);
         return { success: true };
       }),
+
+    // TEMPORARY: Delete OTHER video cards from all sessions
+    deleteOtherVideos: publicProcedure
+      .input(z.object({ userId: z.number() }))
+      .mutation(async ({ input }) => {
+        try {
+          // Get all sessions for user
+          const sessions = await db.select()
+            .from(contextSessions)
+            .where(eq(contextSessions.userId, input.userId));
+          
+          let totalDeleted = 0;
+          
+          for (const session of sessions) {
+            if (!session.videoResults) continue;
+            
+            const videoResults = JSON.parse(session.videoResults as string);
+            const originalCount = videoResults.length;
+            
+            // Filter out OTHER videos
+            const filteredVideos = videoResults.filter((v: any) => 
+              !v.videoName?.includes('OTHER')
+            );
+            
+            const deletedCount = originalCount - filteredVideos.length;
+            totalDeleted += deletedCount;
+            
+            if (deletedCount > 0) {
+              // Update session with filtered videos
+              await db.update(contextSessions)
+                .set({ videoResults: JSON.stringify(filteredVideos) })
+                .where(eq(contextSessions.id, session.id));
+              
+              console.log(`[deleteOtherVideos] Session ${session.id}: Deleted ${deletedCount} OTHER videos`);
+            }
+          }
+          
+          return { success: true, deletedCount: totalDeleted };
+        } catch (error: any) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Failed to delete OTHER videos: ${error.message}`,
+          });
+        }
+      }),
   }),
 
   // Video Editing router for Step 8 (batch processing) and Step 10 (cutting)
