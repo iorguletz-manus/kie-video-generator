@@ -4754,7 +4754,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   const realIndex = videoResults.findIndex(v => v.videoName === result.videoName);
                   
                   return (
-                  <div key={index} className="p-3 md:p-4 bg-white rounded-lg border-2 border-blue-200">
+                  <div key={result.videoName} className="p-3 md:p-4 bg-white rounded-lg border-2 border-blue-200">
                     <div className="flex flex-row items-start gap-3">
                       <img
                         src={result.imageUrl}
@@ -5373,10 +5373,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                                 redEnd: modifyRedEnd,
                                               } : v
                                             );
+                                            console.log('[Save Modify] BEFORE return - Updated text for index', index, ':', modifyDialogueText.substring(0, 50));
                                             return [...updatedVideoResults];
                                           });
                                           
-                                          console.log('[Save Modify] Updated videoResults[' + index + '] with red text:', modifyRedStart, '-', modifyRedEnd);
+                                          console.log('[Save Modify] AFTER setVideoResults - Updated videoResults[' + index + '] with red text:', modifyRedStart, '-', modifyRedEnd);
                                           
                                           // Salvează timestamp pentru "Edited X min ago"
                                           setEditTimestamps(prev => ({
