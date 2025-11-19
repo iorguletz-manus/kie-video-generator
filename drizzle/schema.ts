@@ -70,6 +70,7 @@ export const userImages = mysqlTable("user_images", {
   imageName: varchar("imageName", { length: 255 }).notNull(), // User-defined image name (editable)
   imageUrl: text("imageUrl").notNull(), // S3/BunnyCDN public URL
   imageKey: text("imageKey").notNull(), // S3 key for deletion
+  displayOrder: int("displayOrder").default(0).notNull(), // Order for display within character (0 = newest/default)
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

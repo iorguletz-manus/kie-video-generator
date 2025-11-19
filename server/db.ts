@@ -216,7 +216,7 @@ export async function getUserImagesByUserId(userId: number) {
     return [];
   }
 
-  const result = await db.select().from(userImages).where(eq(userImages.userId, userId));
+  const result = await db.select().from(userImages).where(eq(userImages.userId, userId)).orderBy(userImages.displayOrder, userImages.id);
   return result;
 }
 
@@ -230,7 +230,8 @@ export async function getUserImagesByCharacter(userId: number, characterName: st
     .where(and(
       eq(userImages.userId, userId),
       eq(userImages.characterName, characterName)
-    ));
+    ))
+    .orderBy(userImages.displayOrder, userImages.id);
   return result;
 }
 

@@ -140,6 +140,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [selectedEmotionalAngleId, setSelectedEmotionalAngleId] = useState<number | null>(null);
   const [selectedAdId, setSelectedAdId] = useState<number | null>(null);
   const [selectedCharacterId, setSelectedCharacterId] = useState<number | null>(null);
+  const previousCharacterIdRef = useRef<number | null>(null);
   const [textAdMode, setTextAdMode] = useState<'upload' | 'paste'>('upload');
   const [rawTextAd, setRawTextAd] = useState<string>('');
   const [processedTextAd, setProcessedTextAd] = useState<string>('');
@@ -568,6 +569,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       if (contextSession.deletedCombinations) setDeletedCombinations(contextSession.deletedCombinations as Combination[]);
       if (contextSession.videoResults) setVideoResults(contextSession.videoResults as VideoResult[]);
       if (contextSession.reviewHistory) setReviewHistory(contextSession.reviewHistory as any[]);
+      
+      // Update previousCharacterIdRef to track initial character
+      if (selectedCharacterId) {
+        previousCharacterIdRef.current = selectedCharacterId;
+      }
       
       // toast.success('Context data loaded from database!'); // Hidden per user request
     } else {
@@ -2776,7 +2782,48 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       }
                     }
                   } else if (value) {
-                    setSelectedCharacterId(parseInt(value));
+                    const newCharacterId = parseInt(value);
+                    const previousCharacterId = previousCharacterIdRef.current;
+                    
+                    // Check if this is a character CHANGE (not first selection)
+                    if (previousCharacterId && previousCharacterId !== newCharacterId && adLines.length > 0) {
+                      // Duplicate Step 2 lines for new character
+                      console.log('[Character Change] Duplicating lines from character', previousCharacterId, 'to', newCharacterId);
+                      
+                      // Update characterId and save to database
+                      const updatedSession = {
+                        userId: localCurrentUser.id,
+                        tamId: selectedTamId!,
+                        coreBeliefId: selectedCoreBeliefId!,
+                        emotionalAngleId: selectedEmotionalAngleId!,
+                        adId: selectedAdId!,
+                        characterId: newCharacterId,
+                        currentStep: 4, // Redirect to Step 4
+                        rawTextAd,
+                        processedTextAd,
+                        adLines: JSON.stringify(adLines), // Keep same lines
+                        prompts: JSON.stringify(prompts),
+                        images: JSON.stringify(images),
+                        combinations: '[]',
+                        videoResults: '[]',
+                      };
+                      
+                      upsertSessionMutation.mutate(updatedSession, {
+                        onSuccess: () => {
+                          setSelectedCharacterId(newCharacterId);
+                          previousCharacterIdRef.current = newCharacterId;
+                          setCurrentStep(4); // Go to Step 4
+                          toast.success('Character changed! Lines duplicated. Select images for new character.');
+                        },
+                        onError: (error: any) => {
+                          toast.error(`Failed to duplicate lines: ${error.message}`);
+                        },
+                      });
+                    } else {
+                      // First selection or no lines to duplicate
+                      setSelectedCharacterId(newCharacterId);
+                      previousCharacterIdRef.current = newCharacterId;
+                    }
                   }
                 }}
               >

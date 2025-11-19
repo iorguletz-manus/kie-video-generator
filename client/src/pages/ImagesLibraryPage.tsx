@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { ChevronLeft, Upload, Edit2, Trash2, Image as ImageIcon, Loader2 } from "lucide-react";
+import { ChevronLeft, Upload, Edit2, Trash2, Image as ImageIcon, Loader2, Grid2x2, Grid3x3, LayoutGrid, Search, ArrowUpDown, CheckSquare, Square, Download, Star } from "lucide-react";
 
 interface ImagesLibraryPageProps {
   currentUser: {
@@ -36,6 +36,15 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
   const [editingImageId, setEditingImageId] = useState<number | null>(null);
   const [editImageName, setEditImageName] = useState("");
   const [draggedImageId, setDraggedImageId] = useState<number | null>(null);
+  const [gridSize, setGridSize] = useState<'small' | 'medium' | 'large'>('medium');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<'name' | 'date'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [previewFiles, setPreviewFiles] = useState<Array<{ file: File; preview: string }>>([]);
+  const [selectedImages, setSelectedImages] = useState<Set<number>>(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [dragOverImageId, setDragOverImageId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Queries
@@ -43,9 +52,23 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
     userId: currentUser.id,
   });
 
-  const { data: characters = [] } = trpc.imageLibrary.getCharacters.useQuery({
+  const { data: rawCharacters = [] } = trpc.imageLibrary.getCharacters.useQuery({
     userId: currentUser.id,
   });
+
+  const { data: categoryCharacters = [], refetch: refetchCharacters } = trpc.characters.list.useQuery({
+    userId: currentUser.id,
+  });
+
+  const updateCharacterMutation = trpc.characters.update.useMutation();
+
+  // Sort characters by creation date (newest first) - using reverse alphabetical as proxy since we don't have creation date
+  const characters = useMemo(() => {
+    return [...rawCharacters].sort((a, b) => {
+      // Sort by name for now (alphabetical)
+      return a.localeCompare(b);
+    });
+  }, [rawCharacters]);
 
   // Mutations
   const uploadMutation = trpc.imageLibrary.upload.useMutation();
@@ -70,18 +93,155 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
     },
   });
 
-  // Filter images by character
-  const filteredImages =
-    selectedCharacter === "all"
+  const updateOrderMutation = trpc.imageLibrary.updateOrder.useMutation({
+    onSuccess: () => {
+      refetch();
+    },
+    onError: (error) => {
+      toast.error(`Failed to update order: ${error.message}`);
+    },
+  });
+
+  // Filter, search, and sort images
+  const filteredImages = useMemo(() => {
+    let result = selectedCharacter === "all"
       ? allImages
       : allImages.filter((img) => img.characterName === selectedCharacter);
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      result = result.filter((img) =>
+        img.imageName.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    // Apply sorting
+    result = [...result].sort((a, b) => {
+      if (sortBy === 'name') {
+        const comparison = a.imageName.localeCompare(b.imageName);
+        return sortOrder === 'asc' ? comparison : -comparison;
+      } else {
+        // Sort by date (assuming id is auto-increment, higher id = newer)
+        const comparison = a.id - b.id;
+        return sortOrder === 'asc' ? comparison : -comparison;
+      }
+    });
+
+    return result;
+  }, [allImages, selectedCharacter, searchQuery, sortBy, sortOrder]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length > 0) {
-      setUploadingFiles(files);
-      handleBulkUpload(files);
+      createPreviews(files);
     }
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+  };
+
+  const handleDragOverUpload = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDropUpload = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+
+    const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
+    if (files.length > 0) {
+      createPreviews(files);
+    }
+  };
+
+  const createPreviews = (files: File[]) => {
+    const previews = files.map(file => ({
+      file,
+      preview: URL.createObjectURL(file)
+    }));
+    setPreviewFiles(previews);
+  };
+
+  const removePreview = (index: number) => {
+    setPreviewFiles(prev => {
+      const newPreviews = [...prev];
+      URL.revokeObjectURL(newPreviews[index].preview);
+      newPreviews.splice(index, 1);
+      return newPreviews;
+    });
+  };
+
+  const handleUploadPreviews = () => {
+    const files = previewFiles.map(p => p.file);
+    setUploadingFiles(files);
+    handleBulkUpload(files);
+    // Clear previews after upload starts
+    previewFiles.forEach(p => URL.revokeObjectURL(p.preview));
+    setPreviewFiles([]);
+  };
+
+  const toggleImageSelection = (imageId: number) => {
+    setSelectedImages(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(imageId)) {
+        newSet.delete(imageId);
+      } else {
+        newSet.add(imageId);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAll = () => {
+    setSelectedImages(new Set(filteredImages.map(img => img.id)));
+  };
+
+  const deselectAll = () => {
+    setSelectedImages(new Set());
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedImages.size === 0) return;
+    
+    if (!confirm(`Delete ${selectedImages.size} selected image(s)?`)) return;
+
+    try {
+      for (const imageId of selectedImages) {
+        await deleteMutation.mutateAsync({ id: imageId });
+      }
+      setSelectedImages(new Set());
+      setIsSelectionMode(false);
+      toast.success(`${selectedImages.size} image(s) deleted successfully!`);
+    } catch (error: any) {
+      toast.error(`Failed to delete images: ${error.message}`);
+    }
+  };
+
+  const handleBulkDownload = () => {
+    if (selectedImages.size === 0) return;
+
+    selectedImages.forEach(imageId => {
+      const image = allImages.find(img => img.id === imageId);
+      if (image) {
+        const link = document.createElement('a');
+        link.href = image.imageUrl;
+        link.download = image.imageName;
+        link.click();
+      }
+    });
+
+    toast.success(`Downloading ${selectedImages.size} image(s)...`);
   };
 
   const handleBulkUpload = async (files: File[]) => {
@@ -169,6 +329,31 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
     deleteMutation.mutate({ id: imageId });
   };
 
+  const handleSetThumbnail = async (imageId: number) => {
+    const image = allImages.find((img) => img.id === imageId);
+    if (!image) return;
+
+    try {
+      // Find character by name
+      const character = categoryCharacters.find(c => c.name === image.characterName);
+      if (!character) {
+        toast.error('Character not found!');
+        return;
+      }
+
+      // Update character thumbnail
+      await updateCharacterMutation.mutateAsync({
+        id: character.id,
+        thumbnailUrl: image.imageUrl,
+      });
+
+      await refetchCharacters();
+      toast.success(`Thumbnail set for ${image.characterName}!`);
+    } catch (error: any) {
+      toast.error(`Failed to set thumbnail: ${error.message}`);
+    }
+  };
+
   // Drag & Drop handlers
   const handleDragStart = (imageId: number) => {
     setDraggedImageId(imageId);
@@ -178,7 +363,74 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
     e.preventDefault();
   };
 
+  const handleDragOverImage = (e: React.DragEvent, imageId: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverImageId(imageId);
+  };
+
+  const handleDragLeaveImage = () => {
+    setDragOverImageId(null);
+  };
+
+  const handleDropOnImage = (targetImageId: number) => {
+    if (!draggedImageId || draggedImageId === targetImageId) {
+      setDraggedImageId(null);
+      setDragOverImageId(null);
+      return;
+    }
+
+    // Get current character images
+    const draggedImage = allImages.find(img => img.id === draggedImageId);
+    const targetImage = allImages.find(img => img.id === targetImageId);
+
+    if (!draggedImage || !targetImage) {
+      setDraggedImageId(null);
+      setDragOverImageId(null);
+      return;
+    }
+
+    // Only allow reordering within same character
+    if (draggedImage.characterName !== targetImage.characterName) {
+      setDraggedImageId(null);
+      setDragOverImageId(null);
+      return;
+    }
+
+    // Get all images for this character
+    const characterImages = allImages.filter(
+      img => img.characterName === draggedImage.characterName
+    );
+
+    // Find indices
+    const draggedIndex = characterImages.findIndex(img => img.id === draggedImageId);
+    const targetIndex = characterImages.findIndex(img => img.id === targetImageId);
+
+    if (draggedIndex === -1 || targetIndex === -1) {
+      setDraggedImageId(null);
+      setDragOverImageId(null);
+      return;
+    }
+
+    // Reorder array
+    const reordered = [...characterImages];
+    const [removed] = reordered.splice(draggedIndex, 1);
+    reordered.splice(targetIndex, 0, removed);
+
+    // Update displayOrder for all affected images
+    const imageOrders = reordered.map((img, index) => ({
+      id: img.id,
+      displayOrder: index,
+    }));
+
+    updateOrderMutation.mutate({ imageOrders });
+
+    setDraggedImageId(null);
+    setDragOverImageId(null);
+  };
+
   const handleDrop = (targetCharacter: string) => {
+    // Keep old behavior for character switching (when dropping on character section)
     if (!draggedImageId) return;
 
     const image = allImages.find((img) => img.id === draggedImageId);
@@ -219,10 +471,133 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
               </p>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
+              {/* Selection Mode Toggle */}
+              <Button
+                variant={isSelectionMode ? 'default' : 'outline'}
+                onClick={() => {
+                  setIsSelectionMode(!isSelectionMode);
+                  if (isSelectionMode) {
+                    setSelectedImages(new Set());
+                  }
+                }}
+                className={isSelectionMode ? 'bg-purple-600 hover:bg-purple-700' : 'border-purple-300'}
+              >
+                {isSelectionMode ? <CheckSquare className="w-4 h-4 mr-2" /> : <Square className="w-4 h-4 mr-2" />}
+                Select
+              </Button>
+
+              {/* Bulk Actions (show when in selection mode) */}
+              {isSelectionMode && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={selectAll}
+                    className="border-purple-300"
+                  >
+                    Select All ({filteredImages.length})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={deselectAll}
+                    className="border-purple-300"
+                    disabled={selectedImages.size === 0}
+                  >
+                    Deselect All
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleBulkDownload}
+                    className="border-purple-300"
+                    disabled={selectedImages.size === 0}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Download ({selectedImages.size})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleBulkDelete}
+                    className="border-red-300 text-red-600 hover:bg-red-50"
+                    disabled={selectedImages.size === 0}
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete ({selectedImages.size})
+                  </Button>
+                </>
+              )}
+            </div>
+
+            {!isSelectionMode && (
+            <div className="flex flex-wrap gap-3">
+              {/* Search Bar */}
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-purple-400" />
+                <Input
+                  placeholder="Search images..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 border-purple-300 focus:border-purple-500 h-10"
+                />
+              </div>
+
+              {/* Sort Controls */}
+              <Select value={sortBy} onValueChange={(value: 'name' | 'date') => setSortBy(value)}>
+                <SelectTrigger className="w-32 h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="date">Date</SelectItem>
+                  <SelectItem value="name">Name</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Button
+                variant="outline"
+                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                className="border-purple-300 h-10 px-3"
+                title={sortOrder === 'asc' ? 'Ascending' : 'Descending'}
+              >
+                <ArrowUpDown className="w-4 h-4" />
+              </Button>
+
+              {/* Grid Size Toggle */}
+              <div className="flex gap-1 bg-white border border-purple-300 rounded-lg p-1 h-10">
+                <Button
+                  size="sm"
+                  variant={gridSize === 'small' ? 'default' : 'ghost'}
+                  onClick={() => setGridSize('small')}
+                  className={`h-8 ${gridSize === 'small' ? 'bg-purple-600 hover:bg-purple-700' : ''}`}
+                  title="Large images"
+                >
+                  <Grid2x2 className="w-4 h-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant={gridSize === 'medium' ? 'default' : 'ghost'}
+                  onClick={() => setGridSize('medium')}
+                  className={`h-8 ${gridSize === 'medium' ? 'bg-purple-600 hover:bg-purple-700' : ''}`}
+                  title="Medium images"
+                >
+                  <Grid3x3 className="w-4 h-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant={gridSize === 'large' ? 'default' : 'ghost'}
+                  onClick={() => setGridSize('large')}
+                  className={`h-8 ${gridSize === 'large' ? 'bg-purple-600 hover:bg-purple-700' : ''}`}
+                  title="Small images"
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                </Button>
+              </div>
+
               {/* Character Filter */}
               <Select value={selectedCharacter} onValueChange={setSelectedCharacter}>
-                <SelectTrigger className="w-48">
+                <SelectTrigger className="w-48 h-10">
                   <SelectValue placeholder="Filter by character" />
                 </SelectTrigger>
                 <SelectContent>
@@ -237,17 +612,19 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                 </SelectContent>
               </Select>
             </div>
+            )}
           </div>
 
           {/* Upload Section */}
           <Card className="border-2 border-purple-300 bg-purple-50">
             <CardContent className="pt-6">
               <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Character Selection */}
+                <div className="space-y-3">
                   <div>
-                    <Label>Character</Label>
+                    <Label className="text-purple-900 font-medium mb-2 block">Select Character</Label>
                     <Select value={uploadCharacterSelection} onValueChange={setUploadCharacterSelection}>
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-white border-purple-300 h-10">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -266,44 +643,103 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                   
                   {uploadCharacterSelection === "__new__" && (
                     <div>
-                      <Label>New Character Name</Label>
+                      <Label className="text-purple-900 font-medium mb-2 block">New Character Name</Label>
                       <Input
                         placeholder="e.g., Alina, Maria"
                         value={newCharacterName}
                         onChange={(e) => setNewCharacterName(e.target.value)}
+                        className="bg-white border-purple-300 focus:border-purple-500 focus:ring-purple-500 h-10 max-w-md"
                         autoFocus
                       />
                     </div>
                   )}
+                </div>
 
-                  <div className="flex items-end">
+                {/* Drag & Drop Zone */}
+                <div
+                  onDragEnter={handleDragEnter}
+                  onDragOver={handleDragOverUpload}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDropUpload}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all ${
+                    isDraggingOver
+                      ? 'border-purple-600 bg-purple-100'
+                      : 'border-purple-300 bg-white hover:border-purple-500 hover:bg-purple-50'
+                  }`}
+                >
+                  <Upload className="w-12 h-12 mx-auto mb-4 text-purple-600" />
+                  <p className="text-purple-900 font-medium mb-2">
+                    {isDraggingOver ? 'Drop images here' : 'Drag & drop images here'}
+                  </p>
+                  <p className="text-sm text-purple-600">
+                    or click to browse
+                  </p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                </div>
+
+                {/* Preview Thumbnails */}
+                {previewFiles.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm text-purple-900 font-medium">
+                        {previewFiles.length} image{previewFiles.length > 1 ? 's' : ''} selected
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          previewFiles.forEach(p => URL.revokeObjectURL(p.preview));
+                          setPreviewFiles([]);
+                        }}
+                        className="text-xs"
+                      >
+                        Clear All
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 max-h-48 overflow-y-auto">
+                      {previewFiles.map((preview, index) => (
+                        <div key={index} className="relative group">
+                          <img
+                            src={preview.preview}
+                            alt={`Preview ${index + 1}`}
+                            className="w-full aspect-[9/16] object-cover rounded border border-purple-200"
+                          />
+                          <button
+                            onClick={() => removePreview(index)}
+                            className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                     <Button
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={handleUploadPreviews}
                       disabled={uploadingFiles.length > 0}
                       className="w-full bg-purple-600 hover:bg-purple-700"
                     >
                       {uploadingFiles.length > 0 ? (
                         <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                           Uploading... {uploadProgress}%
                         </>
                       ) : (
                         <>
-                          <Upload className="w-4 h-4 mr-2" />
-                          Upload Images
+                          <Upload className="w-5 h-5 mr-2" />
+                          Upload {previewFiles.length} Image{previewFiles.length > 1 ? 's' : ''}
                         </>
                       )}
                     </Button>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={handleFileSelect}
-                      className="hidden"
-                    />
                   </div>
-                </div>
+                )}
 
                 {uploadingFiles.length > 0 && (
                   <div className="w-full bg-gray-200 rounded-full h-2">
@@ -344,21 +780,42 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                     </span>
                   </h2>
 
-                  <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2">
+                  <div className={`grid gap-2 ${
+                    gridSize === 'small' ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6' :
+                    gridSize === 'medium' ? 'grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12' :
+                    'grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 xl:grid-cols-14'
+                  }`}>
                     {characterImages.map((image) => (
                       <div
                         key={image.id}
-                        draggable
+                        draggable={!isSelectionMode}
                         onDragStart={() => handleDragStart(image.id)}
-                        className="relative cursor-move"
+                        onDragOver={(e) => handleDragOverImage(e, image.id)}
+                        onDragLeave={handleDragLeaveImage}
+                        onDrop={() => handleDropOnImage(image.id)}
+                        className={`relative ${!isSelectionMode ? 'cursor-move' : 'cursor-pointer'} ${
+                          dragOverImageId === image.id ? 'ring-2 ring-purple-600' : ''
+                        }`}
                       >
                         {/* Image Thumbnail */}
-                        <div className="relative aspect-[9/16] bg-gray-100 rounded overflow-hidden">
+                        <div 
+                          className="relative aspect-[9/16] bg-gray-100 rounded overflow-hidden"
+                          onClick={() => isSelectionMode && toggleImageSelection(image.id)}
+                        >
                           <img
                             src={image.imageUrl}
                             alt={image.imageName}
                             className="w-full h-full object-cover"
                           />
+                          {isSelectionMode && (
+                            <div className="absolute top-1 left-1">
+                              {selectedImages.has(image.id) ? (
+                                <CheckSquare className="w-6 h-6 text-purple-600 bg-white rounded" />
+                              ) : (
+                                <Square className="w-6 h-6 text-gray-400 bg-white rounded" />
+                              )}
+                            </div>
+                          )}
                         </div>
 
                         {/* Image name and icons below */}
@@ -396,6 +853,15 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                               <Button
                                 size="sm"
                                 variant="ghost"
+                                onClick={() => handleSetThumbnail(image.id)}
+                                className="w-5 h-5 p-0 hover:bg-yellow-100"
+                                title="Set as Character Thumbnail"
+                              >
+                                <Star className="w-3 h-3 text-yellow-600" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
                                 onClick={() => handleEditName(image.id)}
                                 className="w-5 h-5 p-0 hover:bg-blue-100"
                               >
@@ -421,19 +887,51 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
           </div>
         ) : (
           // Single Character View
-          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2">
+          <div>
+            {selectedCharacter !== "all" && (
+              <h2 className="text-2xl font-bold text-purple-900 mb-4">
+                {selectedCharacter}
+                <span className="text-sm text-purple-600 ml-2">
+                  ({filteredImages.length} images)
+                </span>
+              </h2>
+            )}
+            <div className={`grid gap-2 ${
+            gridSize === 'small' ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6' :
+            gridSize === 'medium' ? 'grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12' :
+            'grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 xl:grid-cols-14'
+          }`}>
             {filteredImages.map((image) => (
               <div
                 key={image.id}
-                className="relative"
+                draggable={!isSelectionMode}
+                onDragStart={() => handleDragStart(image.id)}
+                onDragOver={(e) => handleDragOverImage(e, image.id)}
+                onDragLeave={handleDragLeaveImage}
+                onDrop={() => handleDropOnImage(image.id)}
+                className={`relative ${!isSelectionMode ? 'cursor-move' : 'cursor-pointer'} ${
+                  dragOverImageId === image.id ? 'ring-2 ring-purple-600' : ''
+                }`}
               >
                 {/* Image Thumbnail */}
-                <div className="relative aspect-[9/16] bg-gray-100 rounded overflow-hidden">
+                <div 
+                  className="relative aspect-[9/16] bg-gray-100 rounded overflow-hidden"
+                  onClick={() => isSelectionMode && toggleImageSelection(image.id)}
+                >
                   <img
                     src={image.imageUrl}
                     alt={image.imageName}
                     className="w-full h-full object-cover"
                   />
+                  {isSelectionMode && (
+                    <div className="absolute top-1 left-1">
+                      {selectedImages.has(image.id) ? (
+                        <CheckSquare className="w-6 h-6 text-purple-600 bg-white rounded" />
+                      ) : (
+                        <Square className="w-6 h-6 text-gray-400 bg-white rounded" />
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Image name and icons below */}
@@ -471,6 +969,15 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                       <Button
                         size="sm"
                         variant="ghost"
+                        onClick={() => handleSetThumbnail(image.id)}
+                        className="w-5 h-5 p-0 hover:bg-yellow-100"
+                        title="Set as Character Thumbnail"
+                      >
+                        <Star className="w-3 h-3 text-yellow-600" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
                         onClick={() => handleEditName(image.id)}
                         className="w-5 h-5 p-0 hover:bg-blue-100"
                       >
@@ -489,6 +996,7 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                 )}
               </div>
             ))}
+            </div>
           </div>
         )}
 

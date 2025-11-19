@@ -1058,6 +1058,33 @@ export const appRouter = router({
           });
         }
       }),
+
+    // Update display order for images
+    updateOrder: publicProcedure
+      .input(z.object({
+        imageOrders: z.array(z.object({
+          id: z.number(),
+          displayOrder: z.number(),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          console.log('[imageLibrary.updateOrder] Updating order for', input.imageOrders.length, 'images');
+          
+          // Update each image's displayOrder
+          for (const { id, displayOrder } of input.imageOrders) {
+            await updateUserImage(id, { displayOrder });
+          }
+          
+          console.log('[imageLibrary.updateOrder] Order updated successfully');
+          return { success: true };
+        } catch (error: any) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Failed to update order: ${error.message}`,
+          });
+        }
+      }),
   }),
 
   // Prompts Library router
@@ -1378,10 +1405,15 @@ export const appRouter = router({
     update: publicProcedure
       .input(z.object({
         id: z.number(),
-        name: z.string().min(1).max(255),
+        name: z.string().min(1).max(255).optional(),
+        thumbnailUrl: z.string().nullable().optional(),
       }))
       .mutation(async ({ input }) => {
-        await updateCharacter(input.id, { name: input.name });
+        const updateData: any = {};
+        if (input.name !== undefined) updateData.name = input.name;
+        if (input.thumbnailUrl !== undefined) updateData.thumbnailUrl = input.thumbnailUrl;
+        
+        await updateCharacter(input.id, updateData);
         return { success: true };
       }),
     
