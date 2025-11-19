@@ -251,6 +251,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [libraryCharacterFilter, setLibraryCharacterFilter] = useState<string>("all");
   const [selectedLibraryImages, setSelectedLibraryImages] = useState<number[]>([]);
   
+  // Step 4: Tabs
+  const [step4ActiveTab, setStep4ActiveTab] = useState<'upload' | 'library'>('upload');
+  
   // WYSIWYG Editor for STEP 2
   const [editingLineId, setEditingLineId] = useState<string | null>(null);
   const [editingLineText, setEditingLineText] = useState<string>('');
@@ -809,6 +812,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       setSelectedAdId(ads[0].id);
     }
   }, [ads, selectedAdId]);
+  
+  // Auto-filter library images by selected character in Step 4
+  useEffect(() => {
+    if (currentStep === 4 && selectedCharacterId && categoryCharacters) {
+      const characterName = categoryCharacters.find(c => c.id === selectedCharacterId)?.name;
+      if (characterName) {
+        setLibraryCharacterFilter(characterName);
+        console.log('[Step 4] Auto-filtering library by character:', characterName);
+      }
+    }
+  }, [currentStep, selectedCharacterId, categoryCharacters]);
   
   // Auto-preselect character ONLY if there's exactly ONE character with generated videos for this AD
   useEffect(() => {
@@ -1826,8 +1840,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         combinationsByPrompt[combo.promptType].push(combo);
       });
 
-      // Generează pentru fiecare tip de prompt
+      // Generează pentru fiecare tip de prompt cu batch processing (max 20 per batch)
       const allResults: VideoResult[] = [];
+      const BATCH_SIZE = 20; // Max 20 videos per batch
 
       for (const [promptType, combos] of Object.entries(combinationsByPrompt)) {
         if (combos.length === 0) continue;
@@ -1856,33 +1871,53 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           promptName = promptType;
         }
 
-        const result = await generateBatchMutation.mutateAsync({
-          userId: currentUser.id,
-          promptTemplate: promptTemplate,
-          combinations: combos.map(combo => ({
-            text: combo.text,
-            imageUrl: combo.imageUrl,
-          })),
-        });
+        // Split în batch-uri de max 20 videos
+        const totalBatches = Math.ceil(combos.length / BATCH_SIZE);
+        console.log(`[Batch Processing] ${promptType}: ${combos.length} videos, ${totalBatches} batch(es)`);
 
-        const batchResults: VideoResult[] = result.results.map((r: any, index: number) => {
-          const combo = combos[index];
-          return {
-            taskId: r.taskId,
-            text: r.text,
-            imageUrl: r.imageUrl,
-            status: r.success ? 'pending' as const : 'failed' as const,
-            error: r.error,
-            videoName: combo.videoName,
-            section: combo.section,
-            categoryNumber: combo.categoryNumber,
-            reviewStatus: null,
-            redStart: combo.redStart,  // Copiază pozițiile red text
-            redEnd: combo.redEnd,
-          };
-        });
+        for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+          const start = batchIndex * BATCH_SIZE;
+          const end = Math.min(start + BATCH_SIZE, combos.length);
+          const batchCombos = combos.slice(start, end);
 
-        allResults.push(...batchResults);
+          console.log(`[Batch ${batchIndex + 1}/${totalBatches}] Processing ${batchCombos.length} videos (${start + 1}-${end})`);
+          
+          toast.info(`Processing batch ${batchIndex + 1}/${totalBatches} for ${promptType} (${batchCombos.length} videos)`);
+
+          const result = await generateBatchMutation.mutateAsync({
+            userId: currentUser.id,
+            promptTemplate: promptTemplate,
+            combinations: batchCombos.map(combo => ({
+              text: combo.text,
+              imageUrl: combo.imageUrl,
+            })),
+          });
+
+          const batchResults: VideoResult[] = result.results.map((r: any, index: number) => {
+            const combo = batchCombos[index];
+            return {
+              taskId: r.taskId,
+              text: r.text,
+              imageUrl: r.imageUrl,
+              status: r.success ? 'pending' as const : 'failed' as const,
+              error: r.error,
+              videoName: combo.videoName,
+              section: combo.section,
+              categoryNumber: combo.categoryNumber,
+              reviewStatus: null,
+              redStart: combo.redStart,  // Copiază pozițiile red text
+              redEnd: combo.redEnd,
+            };
+          });
+
+          allResults.push(...batchResults);
+          
+          // Delay între batch-uri pentru rate limiting (2 secunde)
+          if (batchIndex < totalBatches - 1) {
+            console.log(`[Batch Processing] Waiting 2s before next batch...`);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+        }
       }
 
       setVideoResults(allResults);
@@ -2728,7 +2763,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={() => setLocation("/images-library")} className="cursor-pointer">
+              <DropdownMenuItem onClick={() => setIsImagesLibraryOpen(true)} className="cursor-pointer">
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
@@ -4197,20 +4232,22 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 </Button>
               </div>
             )}
+            
             <CardHeader className="bg-blue-50">
               <CardTitle className="flex items-center gap-2 text-blue-900">
                 <ImageIcon className="w-5 h-5" />
                 STEP 4 - Images
               </CardTitle>
               <CardDescription>
-                Încărcați imagini sau selectați din library (format 9:16 recomandat).
+                Upload images or select from library (9:16 recommended)
               </CardDescription>
             </CardHeader>
-            <CardContent className="pt-4 md:pt-6 px-3 md:px-6">
-              {/* Character Selector */}
+            
+            <CardContent className="pt-6">
+              {/* Character Selector (always visible) */}
               <div className="mb-6 p-4 bg-purple-50 border-2 border-purple-300 rounded-lg">
                 <label className="block text-sm font-medium text-purple-900 mb-2">
-                  Select Character for Upload *
+                  Select Character *
                 </label>
                 <Select 
                   value={selectedCharacterId?.toString() || ''} 
@@ -4252,67 +4289,92 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 )}
               </div>
               
-              {/* Upload Section */}
-              <div
-                onDrop={handleImageDrop}
-                onDragOver={(e) => e.preventDefault()}
-                className={`border-2 border-dashed border-blue-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors ${
-                  selectedCharacterId ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'
-                } bg-blue-50/50`}
-                onClick={() => selectedCharacterId && document.getElementById('image-upload')?.click()}
-              >
-                <Upload className="w-12 h-12 text-blue-500 mx-auto mb-4" />
-                <p className="text-blue-900 font-medium mb-2">Drop images here or click to upload</p>
-                <p className="text-sm text-gray-500 italic">Suportă .jpg, .png, .webp (format 9:16 recomandat)</p>
-                <input
-                  id="image-upload"
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  onChange={handleImageSelect}
-                  disabled={!selectedCharacterId}
-                />
+              {/* TABS */}
+              <div className="flex gap-2 mb-6 border-b-2 border-gray-200">
+                <button
+                  onClick={() => setStep4ActiveTab('upload')}
+                  className={`flex-1 py-3 px-6 font-semibold transition-all rounded-t-lg ${
+                    step4ActiveTab === 'upload'
+                      ? 'bg-blue-500 text-white border-b-4 border-blue-700'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  📤 Manual Upload
+                </button>
+                <button
+                  onClick={() => setStep4ActiveTab('library')}
+                  className={`flex-1 py-3 px-6 font-semibold transition-all rounded-t-lg ${
+                    step4ActiveTab === 'library'
+                      ? 'bg-green-500 text-white border-b-4 border-green-700'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  📚 Select from Library ({libraryImages.length})
+                </button>
               </div>
               
-              {/* Progress Bar */}
-              {uploadingFiles.length > 0 && (
-                <div className="mt-4 p-4 bg-blue-50 border-2 border-blue-300 rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-blue-900">
-                      Uploading {uploadingFiles.length} image{uploadingFiles.length > 1 ? 's' : ''}...
-                    </span>
-                    <span className="text-sm font-bold text-blue-900">
-                      {uploadProgress}%
-                    </span>
-                  </div>
-                  <div className="w-full bg-blue-200 rounded-full h-2">
-                    <div 
-                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${uploadProgress}%` }}
+              {/* TAB CONTENT: Manual Upload */}
+              {step4ActiveTab === 'upload' && (
+                <div>
+                  <div
+                    onDrop={handleImageDrop}
+                    onDragOver={(e) => e.preventDefault()}
+                    className={`border-2 border-dashed border-blue-300 rounded-lg p-12 text-center hover:border-blue-500 transition-colors ${
+                      selectedCharacterId ? 'cursor-pointer bg-blue-50' : 'cursor-not-allowed opacity-50 bg-gray-50'
+                    }`}
+                    onClick={() => selectedCharacterId && document.getElementById('image-upload')?.click()}
+                  >
+                    <Upload className="w-16 h-16 text-blue-500 mx-auto mb-4" />
+                    <p className="text-xl font-semibold text-blue-900 mb-2">
+                      Drop images here or click to upload
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Supports .jpg, .png, .webp (9:16 recommended)
+                    </p>
+                    <input
+                      id="image-upload"
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={handleImageSelect}
+                      disabled={!selectedCharacterId}
                     />
                   </div>
+                  
+                  {/* Upload Progress */}
+                  {uploadingFiles.length > 0 && (
+                    <div className="mt-4 p-4 bg-blue-50 border-2 border-blue-300 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-blue-900">
+                          Uploading {uploadingFiles.length} image(s)...
+                        </span>
+                        <span className="text-sm font-bold text-blue-900">
+                          {uploadProgress}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-blue-200 rounded-full h-2">
+                        <div 
+                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${uploadProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               
-              {/* Library Images Section */}
-              {libraryImages.length > 0 && (
-                <div className="mt-8 p-4 bg-green-50 border-2 border-green-300 rounded-lg">
-                  <div className="mb-4">
-                    <h3 className="font-bold text-green-900 flex items-center gap-2 mb-4">
-                      <ImageIcon className="w-4 h-4" />
-                      Select from Library ({libraryImages.length} images)
-                    </h3>
-                  </div>
-                  
-                  {/* Search Bar + Character Filter */}
-                  <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* TAB CONTENT: Select from Library */}
+              {step4ActiveTab === 'library' && (
+                <div>
+                  {/* Search + Filter */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <Input
                         placeholder="Search images by name..."
                         value={librarySearchQuery}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLibrarySearchQuery(e.target.value)}
+                        onChange={(e) => setLibrarySearchQuery(e.target.value)}
                         className="pl-10"
                       />
                     </div>
@@ -4324,8 +4386,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       <SelectContent>
                         <SelectItem value="all">All Characters</SelectItem>
                         {libraryCharacters
-                          .filter((char: string) => char && char.trim() !== "")
-                          .map((char: string) => (
+                          .filter((char) => char && char.trim() !== "")
+                          .map((char) => (
                             <SelectItem key={char} value={char}>
                               {char}
                             </SelectItem>
@@ -4334,8 +4396,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     </Select>
                   </div>
                   
-                  {/* Library Images Grid */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 max-h-[300px] overflow-y-auto mb-4">
+                  {/* Images Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 max-h-[400px] overflow-y-auto mb-6 p-3 bg-green-50 rounded-lg border-2 border-green-200">
                     {libraryImages
                       .filter((img) => {
                         const query = librarySearchQuery.toLowerCase();
@@ -4348,8 +4410,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           key={img.id}
                           className={`relative group cursor-pointer rounded border-2 transition-all ${
                             selectedLibraryImages.includes(img.id)
-                              ? 'border-green-500 ring-2 ring-green-300'
-                              : 'border-gray-200 hover:border-green-400'
+                              ? 'border-green-500 ring-2 ring-green-300 shadow-lg'
+                              : 'border-gray-200 hover:border-green-400 hover:shadow-md'
                           }`}
                           onClick={() => {
                             setSelectedLibraryImages((prev) =>
@@ -4365,11 +4427,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             className="w-full aspect-[9/16] object-cover rounded"
                           />
                           {selectedLibraryImages.includes(img.id) && (
-                            <div className="absolute top-1 right-1 bg-purple-600 text-white rounded-full p-1">
-                              <Check className="w-3 h-3" />
+                            <div className="absolute top-1 right-1 bg-green-600 text-white rounded-full p-1">
+                              <Check className="w-4 h-4" />
                             </div>
                           )}
-                          <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1 truncate">
+                          <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs p-1 truncate">
                             {img.imageName}
                           </div>
                         </div>
@@ -4380,11 +4442,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   {selectedLibraryImages.length > 0 && (
                     <Button
                       onClick={() => {
-                        // Filter out images that are already added
                         const existingImageIds = images.map(img => img.id);
-                        const newImages: UploadedImage[] = libraryImages
+                        const newImages = libraryImages
                           .filter((img) => selectedLibraryImages.includes(img.id))
-                          .filter((img) => !existingImageIds.includes(`library-${img.id}`)) // Prevent duplicates
+                          .filter((img) => !existingImageIds.includes(`library-${img.id}`))
                           .map((img) => ({
                             id: `library-${img.id}`,
                             url: img.imageUrl,
@@ -4404,54 +4465,75 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         setSelectedLibraryImages([]);
                         toast.success(`${newImages.length} images added from library!`);
                       }}
-                      className="bg-green-600 hover:bg-green-700 w-full"
+                      className="bg-green-600 hover:bg-green-700 w-full text-lg py-6"
                     >
+                      <Check className="w-5 h-5 mr-2" />
                       Add {selectedLibraryImages.length} Selected Image(s)
                     </Button>
                   )}
                 </div>
               )}
-
-              {/* Display uploaded images */}
+              
+              {/* SELECTED IMAGES PREVIEW (common for both tabs) */}
               {images.length > 0 && (
-                <div className="mt-6">
-                  <p className="font-medium text-blue-900 mb-3">
-                    {images.length} imagini încărcate:
-                  </p>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
+                <div className="mt-8 p-4 bg-gray-50 border-2 border-gray-300 rounded-lg">
+                  <h4 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <ImageIcon className="w-5 h-5" />
+                    Selected Images ({images.length})
+                  </h4>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
                     {images.map((image) => (
                       <div key={image.id} className="relative group">
                         <img
                           src={image.url}
                           alt={image.fileName}
-                          className="w-full aspect-[9/16] object-cover rounded border-2 border-blue-200"
+                          className="w-full aspect-[9/16] object-cover rounded border-2 border-gray-300"
                         />
                         <button
                           onClick={() => removeImage(image.id)}
-                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-all shadow-lg hover:scale-110 border-2 border-white"
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1.5 hover:bg-red-600 transition-all shadow-lg hover:scale-110 border-2 border-white"
                         >
-                          <X className="w-5 h-5" />
+                          <X className="w-4 h-4" />
                         </button>
                         {image.fromLibrary && (
-                          <div className="absolute top-1 left-1 bg-purple-600 text-white text-xs px-2 py-1 rounded">
+                          <div className="absolute top-1 left-1 bg-purple-600 text-white text-xs px-2 py-0.5 rounded">
                             Library
                           </div>
                         )}
-                        <p className="text-xs text-center mt-1 text-gray-600 truncate">{image.fileName}</p>
+                        <p className="text-xs text-center mt-1 text-gray-600 truncate">
+                          {image.fileName}
+                        </p>
                       </div>
                     ))}
                   </div>
-                  <Button
-                    onClick={createMappings}
-                    className="mt-4 bg-blue-600 hover:bg-blue-700"
-                  >
-                    Continuă la STEP 5 - Mapare
-                  </Button>
                 </div>
               )}
+              
+              {/* Next Button */}
+              <div className="mt-6 flex justify-between items-center">
+                <Button
+                  variant="outline"
+                  onClick={() => setCurrentStep(3)}
+                  className="px-6 py-3"
+                >
+                  <ChevronLeft className="w-4 h-4 mr-2" />
+                  Back
+                </Button>
+                <Button
+                  onClick={createMappings}
+                  disabled={images.length === 0}
+                  className="bg-blue-600 hover:bg-blue-700 px-8 py-6 text-lg"
+                >
+                  Next: Create Mappings
+                  <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </Button>
+              </div>
             </CardContent>
           </Card>
         )}
+
 
         {/* STEP 5: Mapping */}
         {currentStep === 5 && combinations.length > 0 && (
