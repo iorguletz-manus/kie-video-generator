@@ -1009,6 +1009,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     if (videoFilter === 'all') return videoResults;
     if (videoFilter === 'accepted') return acceptedVideos;
     if (videoFilter === 'failed') return failedVideos;
+    if (videoFilter === 'no_decision') return videoResults.filter(v => !v.reviewStatus);
     return videoResults;
   }, [videoFilter, videoResults, acceptedVideos, failedVideos]);
   
@@ -5371,6 +5372,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                                 text: modifyDialogueText,
                                                 redStart: modifyRedStart,
                                                 redEnd: modifyRedEnd,
+                                                _forceUpdate: Date.now(), // Force React to detect change
                                               } : v
                                             );
                                             console.log('[Save Modify] BEFORE return - Updated text for index', index, ':', modifyDialogueText.substring(0, 50));
@@ -6611,10 +6613,21 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                               // Save to DB with updated results
                                               upsertContextSessionMutation.mutate({
                                                 userId: localCurrentUser.id,
-                                                sessionData: {
-                                                  ...currentContext,
-                                                  videoResults: updatedVideoResults,
-                                                },
+                                                tamId: selectedTamId,
+                                                coreBeliefId: selectedCoreBeliefId,
+                                                emotionalAngleId: selectedEmotionalAngleId,
+                                                adId: selectedAdId,
+                                                characterId: selectedCharacterId,
+                                                currentStep,
+                                                rawTextAd,
+                                                processedTextAd,
+                                                adLines,
+                                                prompts,
+                                                images,
+                                                combinations,
+                                                deletedCombinations,
+                                                videoResults: updatedVideoResults,
+                                                reviewHistory,
                                               });
                                               
                                               toast.success('Note saved!');
