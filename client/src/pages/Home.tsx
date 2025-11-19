@@ -2495,7 +2495,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
       const newResult = result.results[0];
       
-      // Actualizează videoResults cu noul taskId
+      // Actualizează videoResults cu noul taskId ȘI șterge reviewStatus
       setVideoResults(prev =>
         prev.map((v, i) =>
           i === index
@@ -2505,6 +2505,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 status: newResult.success ? 'pending' as const : 'failed' as const,
                 error: newResult.error,
                 videoUrl: undefined, // Reset videoUrl
+                reviewStatus: null, // Șterge Rejected/Approved când regenerăm
               }
             : v
         )
@@ -2512,6 +2513,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
       if (newResult.success) {
         toast.success(`Video #${index + 1} retrimis pentru generare`);
+        setModifyingVideoIndex(null); // Închide modal-ul după regenerare
       } else {
         toast.error(`Eroare la retrimite video #${index + 1}: ${newResult.error}`);
       }
@@ -5313,9 +5315,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                             return line;
                                           }));
                                           
-                                          // Update videoResults cu noul text ȘI red positions
-                                          setVideoResults(prev =>
-                                            prev.map((v, i) =>
+                                          // Update videoResults cu noul text ȘI red positions (forțează re-render)
+                                          setVideoResults(prev => [
+                                            ...prev.map((v, i) =>
                                               i === index ? { 
                                                 ...v, 
                                                 text: modifyDialogueText,
@@ -5323,7 +5325,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                                 redEnd: modifyRedEnd,
                                               } : v
                                             )
-                                          );
+                                          ]);
                                           
                                           console.log('[Save Modify] Updated videoResults[' + index + '] with red text:', modifyRedStart, '-', modifyRedEnd);
                                           
@@ -6585,30 +6587,29 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   </div>
                 </div>
                 
-                {/* Buton Next Step - activ doar când toate videouri au decizie */}
-                {videoResults.every(v => v.reviewStatus !== null) ? (
-                  <div className="space-y-2">
-                    {videoResults.some(v => v.reviewStatus === 'regenerate') && (
-                      <Button
-                        onClick={() => {
-                          // TODO: Implementare regenerare și revenire la STEP 6
-                          toast.info('Regenerare videouri marcate...');
-                          setCurrentStep(6);
-                        }}
-                        className="w-full bg-red-600 hover:bg-red-700 py-6 text-lg"
-                      >
-                        <RefreshCw className="w-5 h-5 mr-2" />
-                        Regenerate Selected ({regenerateCount})
-                      </Button>
-                    )}
-                  </div>
-                ) : (
+                {/* Buton Regenerate Selected - afișează întotdeauna dacă există videouri marcate */}
+                {videoResults.some(v => v.reviewStatus === 'regenerate') && (
+                  <Button
+                    onClick={() => {
+                      // TODO: Implementare regenerare și revenire la STEP 6
+                      toast.info('Regenerare videouri marcate...');
+                      setCurrentStep(6);
+                    }}
+                    className="w-full bg-red-600 hover:bg-red-700 py-6 text-lg mb-4"
+                  >
+                    <RefreshCw className="w-5 h-5 mr-2" />
+                    Regenerate Selected ({regenerateCount})
+                  </Button>
+                )}
+                
+                {/* Warning pentru videouri fără decizie */}
+                {videosWithoutDecision.length > 0 && (
                   <div className="bg-yellow-50 border-2 border-yellow-300 rounded p-4 text-center">
                     <p className="text-yellow-800 font-medium">
-                      Te rog să iei o decizie (Accept sau Regenerate) pentru toate videouri înainte de a continua.
+                      ⚠️ {videosWithoutDecision.length} videouri fără decizie
                     </p>
                     <p className="text-sm text-yellow-700 mt-1">
-                      {videosWithoutDecision.length} videouri rămase fără decizie
+                      Poți regenera videouri marcate chiar dacă nu ai luat decizie pentru toate.
                     </p>
                   </div>
                 )}
