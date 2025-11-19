@@ -2330,14 +2330,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   }, [videoResults, combinations]);
 
   /**
-   * Șterge un video duplicate
-   * Poate șterge doar duplicate-uri (videoName cu _D1, _D2, etc.)
+   * Șterge un video card (duplicate sau original)
+   * Permite ștergerea oricărui video card
    */
   const deleteDuplicate = useCallback((videoName: string) => {
-    if (!isDuplicateVideo(videoName)) {
-      toast.error('Poți șterge doar duplicate-uri (videoName cu _D1, _D2, etc.)');
-      return;
-    }
+    // Allow deleting any video card, not just duplicates
+    // if (!isDuplicateVideo(videoName)) {
+    //   toast.error('Poți șterge doar duplicate-uri (videoName cu _D1, _D2, etc.)');
+    //   return;
+    // }
     
     const videoIndex = videoResults.findIndex(v => v.videoName === videoName);
     
@@ -4777,6 +4778,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             ⚠️ {(result as any).regenerationNote}
                           </p>
                         )}
+                        {combinations[index]?.promptType && (
+                          <p className="text-xs text-gray-600 mb-2">
+                            <span className="font-medium">Prompt:</span> {combinations[index].promptType}
+                          </p>
+                        )}
                         {result.internalNote && (
                           <div className="bg-yellow-50 border-2 border-yellow-400 rounded p-2 mb-2">
                             <p className="text-xs text-yellow-800 font-medium mb-1">
@@ -4786,11 +4792,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                               {result.internalNote}
                             </p>
                           </div>
-                        )}
-                        {combinations[index]?.promptType && (
-                          <p className="text-xs text-gray-600 mb-2">
-                            <span className="font-medium">Prompt:</span> {combinations[index].promptType}
-                          </p>
                         )}
                         <div className="flex items-center gap-2">
                           {result.status === 'pending' && (
@@ -5359,17 +5360,21 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                             return line;
                                           }));
                                           
+                                          // Capture updated state BEFORE setVideoResults
+                                          let updatedVideoResults: any[] = [];
+                                          
                                           // Update videoResults cu noul text ȘI red positions (forțează re-render)
-                                          setVideoResults(prev => [
-                                            ...prev.map((v, i) =>
+                                          setVideoResults(prev => {
+                                            updatedVideoResults = prev.map((v, i) =>
                                               i === index ? { 
                                                 ...v, 
                                                 text: modifyDialogueText,
                                                 redStart: modifyRedStart,
                                                 redEnd: modifyRedEnd,
                                               } : v
-                                            )
-                                          ]);
+                                            );
+                                            return [...updatedVideoResults];
+                                          });
                                           
                                           console.log('[Save Modify] Updated videoResults[' + index + '] with red text:', modifyRedStart, '-', modifyRedEnd);
                                           
@@ -5379,16 +5384,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                             [index]: Date.now(),
                                           }));
                                           
-                                          // SAVE TO DATABASE
+                                          // SAVE TO DATABASE with captured updated state
                                           console.log('[Database Save] Saving after text modification...');
-                                          const updatedVideoResults = videoResults.map((v, i) =>
-                                            i === index ? { 
-                                              ...v, 
-                                              text: modifyDialogueText,
-                                              redStart: modifyRedStart,
-                                              redEnd: modifyRedEnd,
-                                            } : v
-                                          );
                                           
                                           upsertContextSessionMutation.mutate({
                                             userId: localCurrentUser.id,
@@ -5874,6 +5871,19 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                 setModifyRedStart(-1);
                                 setModifyRedEnd(-1);
                               }
+                              
+                              // Preselect character in Select Image dropdown
+                              const currentImageUrl = combinations[realIndex]?.imageUrl;
+                              if (currentImageUrl) {
+                                const currentImage = libraryImages.find(img => img.imageUrl === currentImageUrl);
+                                if (currentImage?.characterName) {
+                                  setModifyImageCharacterFilter(currentImage.characterName);
+                                } else {
+                                  setModifyImageCharacterFilter('all');
+                                }
+                              } else {
+                                setModifyImageCharacterFilter('all');
+                              }
                             }}
                             className="px-2 py-1.5 border border-orange-500 text-orange-700 hover:bg-orange-50 rounded flex items-center gap-1.5 transition-colors text-xs font-medium"
                             title="Edit"
@@ -5912,21 +5922,19 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             <span>Dupl</span>
                           </button>
                           
-                          {/* Delete Duplicate button */}
-                          {result.isDuplicate && (
-                            <button
-                              onClick={() => {
-                                deleteDuplicate(result.videoName);
-                              }}
-                              className="px-2 py-1.5 border border-red-500 text-red-700 hover:bg-red-50 rounded flex items-center gap-1.5 transition-colors text-xs font-medium"
-                              title="Delete"
-                            >
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                              <span>Del</span>
-                            </button>
-                          )}
+                          {/* Delete button - available for all videos */}
+                          <button
+                            onClick={() => {
+                              deleteDuplicate(result.videoName);
+                            }}
+                            className="px-2 py-1.5 border border-red-500 text-red-700 hover:bg-red-50 rounded flex items-center gap-1.5 transition-colors text-xs font-medium"
+                            title="Delete"
+                          >
+                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            <span>Del</span>
+                          </button>
                         </div>
                       )}
                     </div>
