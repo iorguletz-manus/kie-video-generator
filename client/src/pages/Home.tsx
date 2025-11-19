@@ -157,6 +157,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   
   // Step 3: Images
   const [images, setImages] = useState<UploadedImage[]>([]);
+  const [uploadingFiles, setUploadingFiles] = useState<File[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
   
   // Step 4: Mapping
   const [combinations, setCombinations] = useState<Combination[]>([]);
@@ -249,7 +251,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     userId: localCurrentUser.id,
   });
 
-  // Video Editing mutations (Step 9)
+  // Video Editing mutations (Step 8)
   const processVideoWithWhisper = trpc.videoEditing.process.useMutation();
   const saveVideoEditing = trpc.videoEditing.save.useMutation();
   
@@ -688,22 +690,22 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       // For STEP 1-5: Save only currentStep to preserve navigation state
       // For STEP 6+: Save full workflow data
       if (currentStep < 6) {
-        console.log('[Context Session] Saving currentStep only for STEP', currentStep);
+        console.log('[Context Session] Saving workflow data for STEP', currentStep);
         upsertContextSessionMutation.mutate({
           userId: localCurrentUser.id,
           coreBeliefId: selectedCoreBeliefId,
           emotionalAngleId: selectedEmotionalAngleId,
           adId: selectedAdId,
           characterId: selectedCharacterId,
-          currentStep, // ONLY save currentStep
-          rawTextAd: '',
-          processedTextAd: '',
-          adLines: [],
-          prompts: [],
-          images: [],
-          combinations: [],
-          deletedCombinations: [],
-          videoResults: [],
+          currentStep,
+          rawTextAd, // SAVE Ad document data
+          processedTextAd, // SAVE Ad document data
+          adLines, // SAVE Ad lines
+          prompts, // SAVE prompts
+          images, // SAVE images
+          combinations, // SAVE combinations
+          deletedCombinations, // SAVE deleted combinations
+          videoResults: [], // Don't save video results until STEP 6+
           reviewHistory: [],
         }, {
           onSuccess: () => {
@@ -1370,6 +1372,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       return;
     }
     
+    // Validate character selection
+    if (!selectedCharacterId) {
+      toast.error('Te rog selectează un caracter înainte de a încărca imagini');
+      return;
+    }
+    
     // Check for duplicates in library
     const characterName = selectedCharacterId ? 
       (categoryCharacters?.find(c => c.id === selectedCharacterId)?.name || 'Unnamed') : 
@@ -1392,7 +1400,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
     
     try {
-      const uploadPromises = imageFiles.map(async (file) => {
+      setUploadingFiles(imageFiles);
+      setUploadProgress(0);
+      
+      const uploadPromises = imageFiles.map(async (file, index) => {
         return new Promise<UploadedImage>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = async (event) => {
@@ -1444,8 +1455,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       const uploadedImages = await Promise.all(uploadPromises);
       const sortedImages = sortImagesByPairs(uploadedImages);
       setImages(prev => [...prev, ...sortedImages]);
+      setUploadingFiles([]);
+      setUploadProgress(0);
       toast.success(`${uploadedImages.length} imagini încărcate`);
     } catch (error: any) {
+      setUploadingFiles([]);
+      setUploadProgress(0);
       toast.error(`Eroare la încărcarea imaginilor: ${error.message}`);
     }
   };
@@ -3005,6 +3020,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             { num: 5, label: "Mapping", icon: MapIcon },
             { num: 6, label: "Generate", icon: Play },
             { num: 7, label: "Check\u00A0Videos", icon: Video },
+            { num: 8, label: "Video\u00A0Editing", icon: Video },
           ].map((step, index) => (
             <div key={step.num} className="flex items-center flex-1">
               <div className="flex flex-col items-center flex-1">
@@ -3034,7 +3050,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   {step.label}
                 </span>
               </div>
-              {index < 6 && (
+              {index < 7 && (
                 <div
                   className={`h-1 flex-1 mx-2 transition-all ${
                     currentStep > step.num ? "bg-blue-600" : "bg-gray-200"
@@ -4064,12 +4080,59 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-4 md:pt-6 px-3 md:px-6">
+              {/* Character Selector */}
+              <div className="mb-6 p-4 bg-purple-50 border-2 border-purple-300 rounded-lg">
+                <label className="block text-sm font-medium text-purple-900 mb-2">
+                  Select Character for Upload *
+                </label>
+                <Select 
+                  value={selectedCharacterId?.toString() || ''} 
+                  onValueChange={(value) => {
+                    if (value === '__new__') {
+                      const newName = prompt('Nume caracter nou:');
+                      if (newName && newName.trim()) {
+                        createCharacterMutation.mutate({
+                          userId: localCurrentUser.id,
+                          name: newName.trim(),
+                        }, {
+                          onSuccess: (newChar) => {
+                            setSelectedCharacterId(newChar.id);
+                            toast.success(`Caracter "${newName}" creat!`);
+                          },
+                        });
+                      }
+                    } else {
+                      setSelectedCharacterId(parseInt(value));
+                    }
+                  }}
+                >
+                  <SelectTrigger className="bg-white">
+                    <SelectValue placeholder="Select or create character" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__new__">+ New Character</SelectItem>
+                    {categoryCharacters?.map((char) => (
+                      <SelectItem key={char.id} value={char.id.toString()}>
+                        {char.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {!selectedCharacterId && (
+                  <p className="text-sm text-red-600 mt-2">
+                    ⚠️ Trebuie să selectezi un caracter înainte de a încărca imagini
+                  </p>
+                )}
+              </div>
+              
               {/* Upload Section */}
               <div
                 onDrop={handleImageDrop}
                 onDragOver={(e) => e.preventDefault()}
-                className="border-2 border-dashed border-blue-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors cursor-pointer bg-blue-50/50"
-                onClick={() => document.getElementById('image-upload')?.click()}
+                className={`border-2 border-dashed border-blue-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors ${
+                  selectedCharacterId ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'
+                } bg-blue-50/50`}
+                onClick={() => selectedCharacterId && document.getElementById('image-upload')?.click()}
               >
                 <Upload className="w-12 h-12 text-blue-500 mx-auto mb-4" />
                 <p className="text-blue-900 font-medium mb-2">Drop images here or click to upload</p>
@@ -4081,8 +4144,29 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   multiple
                   className="hidden"
                   onChange={handleImageSelect}
+                  disabled={!selectedCharacterId}
                 />
               </div>
+              
+              {/* Progress Bar */}
+              {uploadingFiles.length > 0 && (
+                <div className="mt-4 p-4 bg-blue-50 border-2 border-blue-300 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-blue-900">
+                      Uploading {uploadingFiles.length} image{uploadingFiles.length > 1 ? 's' : ''}...
+                    </span>
+                    <span className="text-sm font-bold text-blue-900">
+                      {uploadProgress}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-blue-200 rounded-full h-2">
+                    <div 
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
               
               {/* Library Images Section */}
               {libraryImages.length > 0 && (
@@ -6378,7 +6462,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     </button>
                   </div>
                   
-                  {/* Buton Video Editing - Step 9 */}
+                  {/* Buton Video Editing - Step 8 */}
                   <div className="mt-4">
                     <Button
                       onClick={() => {
@@ -6388,7 +6472,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           toast.error('Nu există videouri acceptate pentru editare');
                           return;
                         }
-                        setCurrentStep(9); // Go to STEP 9 - Video Editing
+                        setCurrentStep(8); // Go to STEP 8 - Video Editing
                         toast.success(`Mergi la Video Editing cu ${approvedVideos.length} videouri`);
                       }}
                       className="w-full bg-purple-600 hover:bg-purple-700 py-6 text-lg"
@@ -6403,15 +6487,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           </Card>
         )}
 
-        {/* STEP 9: Video Editing */}
-        {currentStep === 9 && (() => {
+        {/* STEP 8: Video Editing */}
+        {currentStep === 8 && (() => {
           const approvedVideos = videoResults.filter(v => v.reviewStatus === 'accepted');
           return (
             <Card className="mb-8 border-2 border-purple-200">
               <CardHeader className="bg-purple-50">
                 <CardTitle className="flex items-center gap-2 text-purple-900">
                   <Video className="w-5 h-5" />
-                  STEP 9 - Video Editing
+                  STEP 8 - Video Editing
                 </CardTitle>
                 <CardDescription>
                   Editează videouri approved: ajustează START și END pentru tăiere în Step 10.
