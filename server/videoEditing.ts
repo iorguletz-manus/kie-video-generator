@@ -1,15 +1,14 @@
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import fs from 'fs/promises';
-import path from 'path';
+import { promises as fs } from 'fs';
+import * as path from 'path';
 import OpenAI from 'openai';
-// Node.js 18+ has built-in fetch, no need for node-fetch
-
-const execAsync = promisify(exec);
+import FormData from 'form-data';
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: process.env.OPENAI_API_KEY || '',
 });
+
+const FFMPEG_API_KEY = 'Basic QjZlZ3lJd3RrOVNDZUZHT0xabGk6NDFkNjQ1ODBkMzAwM2U5MmZjYTg5OWU3';
+const FFMPEG_API_BASE = 'https://api.ffmpeg-api.com';
 
 // ============================================================================
 // TYPES
@@ -28,72 +27,179 @@ export interface CutPoints {
   confidence: number;
 }
 
+export interface ProcessingResult {
+  words: WhisperWord[];
+  cutPoints: CutPoints | null;
+  whisperTranscript: any;
+}
+
 // ============================================================================
-// 1. AUDIO EXTRACTION
+// 1. FFMPEG API - UPLOAD VIDEO
 // ============================================================================
 
 /**
- * Extract audio from video URL and save as WAV mono 22050Hz
- * Compatible with Whisper API requirements
+ * Upload video to FFmpeg API and return file_path
  */
-export async function extractAudioFromVideo(
+async function uploadVideoToFFmpegAPI(
   videoUrl: string,
-  outputPath: string
+  fileName: string
 ): Promise<string> {
   try {
-    // Download video to temp file
-    const videoPath = outputPath.replace('.wav', '.mp4');
-    const response = await fetch(videoUrl);
-    const buffer = await response.arrayBuffer();
-    await fs.writeFile(videoPath, Buffer.from(buffer));
-
-    // Extract audio with FFmpeg
-    // -vn: no video
-    // -acodec pcm_s16le: PCM 16-bit
-    // -ac 1: mono (1 channel)
-    // -ar 22050: sample rate 22050 Hz
-    const command = `ffmpeg -i "${videoPath}" -vn -acodec pcm_s16le -ac 1 -ar 22050 "${outputPath}" -y`;
-    await execAsync(command);
-
-    // Clean up video file
-    await fs.unlink(videoPath);
-
-    return outputPath;
+    console.log(`[uploadVideoToFFmpegAPI] Uploading ${fileName}...`);
+    
+    // Step 1: Get upload URL
+    const fileRes = await fetch(`${FFMPEG_API_BASE}/file`, {
+      method: 'POST',
+      headers: {
+        'Authorization': FFMPEG_API_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ file_name: fileName }),
+    });
+    
+    if (!fileRes.ok) {
+      throw new Error(`FFmpeg API file creation failed: ${fileRes.statusText}`);
+    }
+    
+    const { file, upload } = await fileRes.json();
+    
+    // Step 2: Download video from Bunny CDN
+    console.log(`[uploadVideoToFFmpegAPI] Downloading from ${videoUrl}...`);
+    const videoRes = await fetch(videoUrl);
+    if (!videoRes.ok) {
+      throw new Error(`Failed to download video: ${videoRes.statusText}`);
+    }
+    const videoBuffer = await videoRes.arrayBuffer();
+    
+    // Step 3: Upload to FFmpeg API
+    console.log(`[uploadVideoToFFmpegAPI] Uploading to FFmpeg API...`);
+    const uploadRes = await fetch(upload.url, {
+      method: 'PUT',
+      body: videoBuffer,
+    });
+    
+    if (!uploadRes.ok) {
+      throw new Error(`FFmpeg API upload failed: ${uploadRes.statusText}`);
+    }
+    
+    console.log(`[uploadVideoToFFmpegAPI] Success! file_path: ${file.file_path}`);
+    return file.file_path;
   } catch (error) {
-    console.error('[extractAudioFromVideo] Error:', error);
+    console.error('[uploadVideoToFFmpegAPI] Error:', error);
+    throw new Error(`Failed to upload video to FFmpeg API: ${error.message}`);
+  }
+}
+
+// ============================================================================
+// 2. FFMPEG API - EXTRACT AUDIO
+// ============================================================================
+
+/**
+ * Extract audio from video using FFmpeg API
+ * Returns download URL for the audio file (MP3 format)
+ */
+async function extractAudioWithFFmpegAPI(
+  videoFilePath: string,
+  outputFileName: string
+): Promise<string> {
+  try {
+    console.log(`[extractAudioWithFFmpegAPI] Extracting audio from ${videoFilePath}...`);
+    
+    const processRes = await fetch(`${FFMPEG_API_BASE}/ffmpeg/process`, {
+      method: 'POST',
+      headers: {
+        'Authorization': FFMPEG_API_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        task: {
+          inputs: [{ file_path: videoFilePath }],
+          outputs: [{
+            file: outputFileName,
+            options: ['-vn', '-acodec', 'mp3', '-ab', '192k']
+          }]
+        }
+      }),
+    });
+    
+    if (!processRes.ok) {
+      throw new Error(`FFmpeg API processing failed: ${processRes.statusText}`);
+    }
+    
+    const result = await processRes.json();
+    
+    if (!result.ok || !result.result || result.result.length === 0) {
+      throw new Error(`FFmpeg API returned error: ${JSON.stringify(result)}`);
+    }
+    
+    const downloadUrl = result.result[0].download_url;
+    console.log(`[extractAudioWithFFmpegAPI] Audio extracted! URL: ${downloadUrl}`);
+    
+    return downloadUrl;
+  } catch (error) {
+    console.error('[extractAudioWithFFmpegAPI] Error:', error);
     throw new Error(`Failed to extract audio: ${error.message}`);
   }
 }
 
 // ============================================================================
-// 2. WHISPER TRANSCRIPTION
+// 3. WHISPER TRANSCRIPTION
 // ============================================================================
 
 /**
  * Transcribe audio using OpenAI Whisper API with word-level timestamps
- * Returns array of words with start/end times in seconds
+ * Downloads audio from URL and sends to Whisper
  */
-export async function transcribeWithWhisper(
-  audioPath: string,
+async function transcribeWithWhisper(
+  audioDownloadUrl: string,
   language: string = 'ro'
-): Promise<WhisperWord[]> {
+): Promise<{ words: WhisperWord[]; fullTranscript: any }> {
   try {
-    const audioFile = await fs.readFile(audioPath);
-    const audioBlob = new Blob([audioFile], { type: 'audio/wav' });
+    console.log(`[transcribeWithWhisper] Downloading audio from ${audioDownloadUrl}...`);
     
-    const transcription = await openai.audio.transcriptions.create({
-      file: audioBlob as any,
-      model: 'whisper-1',
-      language: language,
-      response_format: 'verbose_json',
-      timestamp_granularities: ['word'],
+    // Download audio file
+    const audioRes = await fetch(audioDownloadUrl);
+    if (!audioRes.ok) {
+      throw new Error(`Failed to download audio: ${audioRes.statusText}`);
+    }
+    const audioBuffer = await audioRes.arrayBuffer();
+    
+    console.log(`[transcribeWithWhisper] Sending to Whisper API...`);
+    
+    // Create FormData for Whisper API
+    const formData = new FormData();
+    formData.append('file', Buffer.from(audioBuffer), {
+      filename: 'audio.mp3',
+      contentType: 'audio/mpeg',
     });
-
-    // Extract words with timestamps
-    const words: WhisperWord[] = (transcription as any).words || [];
+    formData.append('model', 'whisper-1');
+    formData.append('language', language);
+    formData.append('response_format', 'verbose_json');
+    formData.append('timestamp_granularities[]', 'word');
+    
+    const whisperRes = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        ...formData.getHeaders(),
+      },
+      body: formData,
+    });
+    
+    if (!whisperRes.ok) {
+      const errorText = await whisperRes.text();
+      throw new Error(`Whisper API failed: ${whisperRes.statusText} - ${errorText}`);
+    }
+    
+    const transcription = await whisperRes.json();
+    const words: WhisperWord[] = transcription.words || [];
     
     console.log(`[transcribeWithWhisper] Transcribed ${words.length} words`);
-    return words;
+    
+    return {
+      words,
+      fullTranscript: transcription,
+    };
   } catch (error) {
     console.error('[transcribeWithWhisper] Error:', error);
     throw new Error(`Failed to transcribe audio: ${error.message}`);
@@ -101,7 +207,7 @@ export async function transcribeWithWhisper(
 }
 
 // ============================================================================
-// 3. RED TEXT DETECTION (Aeneas Algorithm)
+// 4. RED TEXT DETECTION (Aeneas Algorithm)
 // ============================================================================
 
 /**
@@ -148,18 +254,12 @@ function findSequenceInWords(
 }
 
 // ============================================================================
-// 4. CUT POINTS CALCULATION
+// 5. CUT POINTS CALCULATION
 // ============================================================================
 
 /**
  * Calculate cut points for video trimming
  * Based on Aeneas algorithm from documentation
- * 
- * @param fullText - Complete text from video
- * @param redText - Text to be removed (red text)
- * @param words - Whisper word timestamps
- * @param marginMs - Margin in milliseconds (default 50ms)
- * @returns Cut points with start/end timestamps in milliseconds
  */
 export function calculateCutPoints(
   fullText: string,
@@ -183,7 +283,6 @@ export function calculateCutPoints(
     const marginS = marginMs / 1000.0;
 
     // Determine if red text is at START or END
-    // If first red word is in first half → red at START
     const redAtStart = startIdx < words.length / 2;
 
     let startKeep: number;
@@ -191,22 +290,18 @@ export function calculateCutPoints(
     let redPosition: 'START' | 'END';
 
     if (redAtStart) {
-      // ====================================================================
       // RED TEXT AT START → Keep from AFTER red text until END
-      // ====================================================================
       const lastRedWord = words[endIdx];
-      startKeep = (lastRedWord.end + marginS) * 1000; // Convert to ms
+      startKeep = (lastRedWord.end + marginS) * 1000;
 
       const lastWord = words[words.length - 1];
-      endKeep = (lastWord.end + marginS) * 1000; // Convert to ms
+      endKeep = (lastWord.end + marginS) * 1000;
 
       redPosition = 'START';
     } else {
-      // ====================================================================
       // RED TEXT AT END → Keep from START until BEFORE red text
-      // ====================================================================
       const firstWord = words[0];
-      startKeep = Math.max(0, (firstWord.start + marginS) * 1000); // Convert to ms
+      startKeep = Math.max(0, (firstWord.start + marginS) * 1000);
 
       const lastWhiteIdx = startIdx - 1;
       if (lastWhiteIdx < 0) {
@@ -215,13 +310,12 @@ export function calculateCutPoints(
       }
 
       const lastWhiteWord = words[lastWhiteIdx];
-      endKeep = (lastWhiteWord.end + marginS) * 1000; // Convert to ms
+      endKeep = (lastWhiteWord.end + marginS) * 1000;
 
       redPosition = 'END';
     }
 
-    // Calculate confidence based on match quality
-    const confidence = 0.95; // Whisper API typical accuracy
+    const confidence = 0.95;
 
     console.log(`[calculateCutPoints] Red text at ${redPosition}`);
     console.log(`[calculateCutPoints] Keep range: ${startKeep}ms → ${endKeep}ms`);
@@ -239,48 +333,112 @@ export function calculateCutPoints(
 }
 
 // ============================================================================
-// 5. MAIN PROCESSING FUNCTION
+// 6. MAIN PROCESSING FUNCTION (STEP 8)
 // ============================================================================
 
 /**
- * Process video for editing: extract audio, transcribe, detect red text
- * Returns cut points and Whisper JSON for manual adjustment
+ * Process video for editing: upload to FFmpeg API, extract audio, transcribe
+ * Returns cut points and Whisper transcript
  */
 export async function processVideoForEditing(
   videoUrl: string,
+  videoId: number,
   fullText: string,
   redText: string,
   marginMs: number = 50
-): Promise<{
-  words: WhisperWord[];
-  cutPoints: CutPoints | null;
-  audioPath: string;
-}> {
+): Promise<ProcessingResult> {
   try {
-    // Create temp directory
-    const tempDir = path.join(process.cwd(), 'temp', 'video-editing');
-    await fs.mkdir(tempDir, { recursive: true });
-
-    // Generate unique filename
-    const timestamp = Date.now();
-    const audioPath = path.join(tempDir, `audio_${timestamp}.wav`);
-
-    console.log('[processVideoForEditing] Extracting audio...');
-    await extractAudioFromVideo(videoUrl, audioPath);
-
-    console.log('[processVideoForEditing] Transcribing with Whisper...');
-    const words = await transcribeWithWhisper(audioPath, 'ro');
-
-    console.log('[processVideoForEditing] Calculating cut points...');
+    console.log(`[processVideoForEditing] Starting for video ${videoId}...`);
+    
+    // 1. Upload video to FFmpeg API
+    const videoFileName = `video_${videoId}.mp4`;
+    const videoFilePath = await uploadVideoToFFmpegAPI(videoUrl, videoFileName);
+    
+    // 2. Extract audio
+    const audioFileName = `audio_${videoId}.mp3`;
+    const audioDownloadUrl = await extractAudioWithFFmpegAPI(videoFilePath, audioFileName);
+    
+    // 3. Transcribe with Whisper
+    const { words, fullTranscript } = await transcribeWithWhisper(audioDownloadUrl, 'ro');
+    
+    // 4. Calculate cut points
     const cutPoints = calculateCutPoints(fullText, redText, words, marginMs);
-
+    
+    console.log(`[processVideoForEditing] Processing complete for video ${videoId}`);
+    
     return {
       words,
       cutPoints,
-      audioPath,
+      whisperTranscript: fullTranscript,
     };
   } catch (error) {
-    console.error('[processVideoForEditing] Error:', error);
+    console.error(`[processVideoForEditing] Error for video ${videoId}:`, error);
     throw error;
+  }
+}
+
+// ============================================================================
+// 7. VIDEO CUTTING FUNCTION (STEP 10)
+// ============================================================================
+
+/**
+ * Cut video using FFmpeg API with start/end timestamps
+ * Returns download URL for the trimmed video
+ */
+export async function cutVideoWithFFmpegAPI(
+  videoUrl: string,
+  videoId: number,
+  startTimeSeconds: number,
+  endTimeSeconds: number
+): Promise<string> {
+  try {
+    console.log(`[cutVideoWithFFmpegAPI] Cutting video ${videoId}: ${startTimeSeconds}s → ${endTimeSeconds}s`);
+    
+    const duration = endTimeSeconds - startTimeSeconds;
+    
+    // 1. Upload video to FFmpeg API
+    const videoFileName = `video_${videoId}_original.mp4`;
+    const videoFilePath = await uploadVideoToFFmpegAPI(videoUrl, videoFileName);
+    
+    // 2. Trim video
+    const outputFileName = `video_${videoId}_trimmed_${Date.now()}.mp4`;
+    
+    const processRes = await fetch(`${FFMPEG_API_BASE}/ffmpeg/process`, {
+      method: 'POST',
+      headers: {
+        'Authorization': FFMPEG_API_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        task: {
+          inputs: [{
+            file_path: videoFilePath,
+            options: ['-ss', startTimeSeconds.toString(), '-t', duration.toString()]
+          }],
+          outputs: [{
+            file: outputFileName,
+            options: ['-c:v', 'libx264', '-crf', '23', '-c:a', 'aac']
+          }]
+        }
+      }),
+    });
+    
+    if (!processRes.ok) {
+      throw new Error(`FFmpeg API processing failed: ${processRes.statusText}`);
+    }
+    
+    const result = await processRes.json();
+    
+    if (!result.ok || !result.result || result.result.length === 0) {
+      throw new Error(`FFmpeg API returned error: ${JSON.stringify(result)}`);
+    }
+    
+    const downloadUrl = result.result[0].download_url;
+    console.log(`[cutVideoWithFFmpegAPI] Video cut successfully! URL: ${downloadUrl}`);
+    
+    return downloadUrl;
+  } catch (error) {
+    console.error('[cutVideoWithFFmpegAPI] Error:', error);
+    throw new Error(`Failed to cut video: ${error.message}`);
   }
 }

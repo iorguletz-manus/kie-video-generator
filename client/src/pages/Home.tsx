@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import EditProfileModal from '@/components/EditProfileModal';
 import { ImagesLibraryModal } from '@/components/ImagesLibraryModal';
 import { VideoEditor } from '@/components/VideoEditor';
+import { ProcessingModal } from '@/components/ProcessingModal';
 import { trpc } from '../lib/trpc';
 import mammoth from 'mammoth';
 import { Button } from "@/components/ui/button";
@@ -61,6 +62,7 @@ interface Combination {
 }
 
 interface VideoResult {
+  id?: string;
   taskId?: string;
   text: string;
   imageUrl: string;
@@ -77,6 +79,13 @@ interface VideoResult {
   originalVideoName?: string; // videoName original (fără _D1, _D2)
   redStart?: number;  // Start index of red text
   redEnd?: number;    // End index of red text
+  // Step 8: Video Editing fields
+  whisperTranscript?: any;  // Full Whisper API response
+  cutPoints?: any;          // Calculated cut points from backend
+  words?: any[];            // Whisper word-level timestamps
+  editStatus?: 'pending' | 'processed' | 'edited'; // Processing status
+  startTimestamp?: number;  // User-adjusted start time (seconds)
+  endTimestamp?: number;    // User-adjusted end time (seconds)
 }
 
 interface HomeProps {
@@ -159,6 +168,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [images, setImages] = useState<UploadedImage[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
+  
+  // Step 8: Video Editing Processing
+  const [showProcessingModal, setShowProcessingModal] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState({ current: 0, total: 0, currentVideoName: '' });
+  const [processingStep, setProcessingStep] = useState<'download' | 'extract' | 'whisper' | 'detect' | 'save' | null>(null);
   
   // Step 4: Mapping
   const [combinations, setCombinations] = useState<Combination[]>([]);
@@ -252,7 +266,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   });
 
   // Video Editing mutations (Step 8)
-  const processVideoWithWhisper = trpc.videoEditing.process.useMutation();
+  const processVideoForEditingMutation = trpc.videoEditing.processVideoForEditing.useMutation();
+  const cutVideoMutation = trpc.videoEditing.cutVideo.useMutation();
   const saveVideoEditing = trpc.videoEditing.save.useMutation();
   
   // Prompt Library query - load all prompts from database
@@ -1508,6 +1523,99 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     setImages(prev => prev.filter(img => img.id !== id));
   };
 
+  // Step 8: Batch process videos with Whisper + FFmpeg API
+  const batchProcessVideosWithWhisper = async (videos: VideoResult[]) => {
+    console.log('[Batch Processing] 🚀 Starting with', videos.length, 'videos');
+    
+    let successCount = 0;
+    let failCount = 0;
+    
+    for (let i = 0; i < videos.length; i++) {
+      const video = videos[i];
+      
+      setProcessingProgress({ 
+        current: i, 
+        total: videos.length,
+        currentVideoName: video.videoName 
+      });
+      
+      try {
+        console.log(`[Batch Processing] 🎥 Processing video ${i + 1}/${videos.length}:`, video.videoName);
+        
+        // Extract red text from video
+        const redText = video.redStart !== undefined && video.redEnd !== undefined
+          ? video.text.substring(video.redStart, video.redEnd)
+          : '';
+        
+        if (!redText) {
+          console.error(`[Batch Processing] ❌ No red text for ${video.videoName}`);
+          failCount++;
+          continue;
+        }
+        
+        console.log(`[Batch Processing] Red text: "${redText.substring(0, 50)}..."`);
+        
+        // Step 1: Extract audio with FFmpeg API
+        console.log(`[Batch Processing] 🎵 Step 1/2: Extracting audio...`);
+        setProcessingStep('extract');
+        await new Promise(resolve => setTimeout(resolve, 800)); // Delay for UI visibility
+        
+        // Step 2: Whisper API transcription + Cut points calculation
+        console.log(`[Batch Processing] 🤖 Step 2/2: Whisper transcription...`);
+        setProcessingStep('whisper');
+        
+        const result = await processVideoForEditingMutation.mutateAsync({
+          videoUrl: video.videoUrl!,
+          videoId: parseInt(video.id || '0'),
+          fullText: video.text,
+          redText: redText,
+          marginMs: 50,
+        });
+        
+        console.log(`[Batch Processing] 💾 Saving results...`);
+        setProcessingStep('save');
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // Update videoResults state with whisperTranscript and cutPoints
+        setVideoResults(prev => prev.map(v => 
+          v.id === video.id 
+            ? { 
+                ...v, 
+                whisperTranscript: result.whisperTranscript,
+                cutPoints: result.cutPoints,
+                words: result.words,
+                editStatus: 'processed'
+              }
+            : v
+        ));
+        
+        successCount++;
+        console.log(`[Batch Processing] ✅ Video ${i + 1}/${videos.length} SUCCESS!`, {
+          cutPoints: result.cutPoints,
+          wordsCount: result.words?.length || 0
+        });
+        
+      } catch (error: any) {
+        failCount++;
+        console.error(`[Batch Processing] ❌ Video ${i + 1}/${videos.length} FAILED:`, error);
+        console.error(`[Batch Processing] Error details:`, {
+          videoName: video.videoName,
+          videoUrl: video.videoUrl,
+          error: error.message,
+          stack: error.stack
+        });
+        toast.error(`❌ ${video.videoName}: ${error.message}`);
+        // Continue with next video even if one fails
+      }
+    }
+    
+    console.log(`[Batch Processing] 🎉 COMPLETE! Success: ${successCount}, Failed: ${failCount}`);
+    
+    if (successCount === 0) {
+      throw new Error('Toate videouri au eșuat la procesare!');
+    }
+  };
+
   // Step 4: Create mappings
   const createMappings = () => {
     if (adLines.length === 0) {
@@ -2666,6 +2774,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           // Update parent component
           localStorage.setItem('currentUser', JSON.stringify(updatedUser));
         }}
+      />
+      
+      {/* Processing Modal for Step 8 batch processing */}
+      <ProcessingModal
+        open={showProcessingModal}
+        current={processingProgress.current}
+        total={processingProgress.total}
+        currentVideoName={processingProgress.currentVideoName}
+        processingStep={processingStep}
       />
       
       {/* Images Library Modal */}
@@ -6475,19 +6592,50 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   {/* Buton Video Editing - Step 8 */}
                   <div className="mt-4">
                     <Button
-                      onClick={() => {
+                      onClick={async () => {
                         // Filter only approved videos with videoUrl
                         const approvedVideos = videoResults.filter(v => 
                           v.reviewStatus === 'accepted' && 
                           v.status === 'success' && 
                           v.videoUrl
                         );
+                        
                         if (approvedVideos.length === 0) {
                           toast.error('Nu există videouri acceptate cu URL valid pentru editare');
                           return;
                         }
-                        setCurrentStep(8); // Go to STEP 8 - Video Editing
-                        toast.success(`Mergi la Video Editing cu ${approvedVideos.length} videouri`);
+                        
+                        // VALIDATE: Check if videos have red text
+                        const videosWithRedText = approvedVideos.filter(v => 
+                          v.redStart !== undefined && 
+                          v.redEnd !== undefined && 
+                          v.redStart < v.redEnd
+                        );
+                        
+                        if (videosWithRedText.length === 0) {
+                          toast.error('❌ Nu există videouri cu text roșu detectat! Verifică Step 7.');
+                          return;
+                        }
+                        
+                        console.log(`[Video Editing] Starting batch processing for ${videosWithRedText.length} videos with red text`);
+                        
+                        // Open ProcessingModal and start batch processing
+                        setShowProcessingModal(true);
+                        setProcessingProgress({ current: 0, total: videosWithRedText.length, currentVideoName: '' });
+                        setProcessingStep(null);
+                        
+                        try {
+                          await batchProcessVideosWithWhisper(videosWithRedText);
+                          
+                          // Close modal and go to Step 8
+                          setShowProcessingModal(false);
+                          setCurrentStep(8);
+                          toast.success(`✅ ${videosWithRedText.length} videouri procesate cu succes!`);
+                        } catch (error: any) {
+                          console.error('[Video Editing] Batch processing error:', error);
+                          setShowProcessingModal(false);
+                          toast.error(`Eroare la procesarea videouri: ${error.message}`);
+                        }
                       }}
                       className="w-full bg-purple-600 hover:bg-purple-700 py-6 text-lg"
                       disabled={acceptedVideosWithUrl.length === 0}
@@ -6539,68 +6687,22 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       <VideoEditor
                         key={video.id}
                         video={{
-                          id: video.id,
+                          id: video.id || '',
                           videoName: video.videoName,
                           videoUrl: video.videoUrl!,
                           text: video.text,
-                          redStart: video.redStart,
-                          redEnd: video.redEnd,
-                          fullText: video.text,
-                          redText: video.redStart !== undefined && video.redEnd !== undefined
-                            ? video.text.substring(video.redStart, video.redEnd)
-                            : '',
-                          startKeep: video.startKeep,
-                          endKeep: video.endKeep,
-                          editStatus: video.editStatus,
+                          startKeep: video.cutPoints?.startKeep || 0,
+                          endKeep: video.cutPoints?.endKeep || 0,
                         }}
-                        onProcess={async (videoId) => {
-                          // Process video with Whisper API
-                          const videoToProcess = approvedVideos.find(v => v.id === videoId);
-                          if (!videoToProcess) throw new Error('Video not found');
-
-                          const fullText = videoToProcess.text;
-                          const redText = videoToProcess.redStart !== undefined && videoToProcess.redEnd !== undefined
-                            ? videoToProcess.text.substring(videoToProcess.redStart, videoToProcess.redEnd)
-                            : '';
-
-                          if (!redText) {
-                            throw new Error('Red text not found in video');
-                          }
-
-                          const result = await processVideoWithWhisper.mutateAsync({
-                            videoUrl: videoToProcess.videoUrl!,
-                            fullText,
-                            redText,
-                            marginMs: 50,
-                          });
-
-                          if (!result.cutPoints) {
-                            throw new Error('Failed to detect cut points');
-                          }
-
-                          return {
-                            startKeep: result.cutPoints.startKeep,
-                            endKeep: result.cutPoints.endKeep,
-                          };
-                        }}
-                        onSave={async (videoId, startKeep, endKeep) => {
-                          // Save timestamps to database
-                          await saveVideoEditing.mutateAsync({
-                            userId: user!.id,
-                            coreBeliefId: selectedCoreBeliefId!,
-                            emotionalAngleId: selectedEmotionalAngleId!,
-                            adId: selectedAdId!,
-                            characterId: selectedCharacterId!,
-                            videoId,
-                            startKeep,
-                            endKeep,
-                            words: [], // Whisper words are stored in backend, not needed here
-                          });
-
-                          // Update local state
+                        onTimestampChange={(videoId, startKeep, endKeep) => {
+                          // Update local state when user adjusts sliders
                           setVideoResults(prev => prev.map(v =>
                             v.id === videoId
-                              ? { ...v, startKeep, endKeep, editStatus: 'edited' }
+                              ? { 
+                                  ...v, 
+                                  startTimestamp: startKeep / 1000, // Convert to seconds
+                                  endTimestamp: endKeep / 1000,     // Convert to seconds
+                                }
                               : v
                           ));
                         }}
@@ -6617,16 +6719,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         Înapoi la Step 7
                       </Button>
 
-                      {/* Buton Trim All Videos (non-funcțional pentru Step 10) */}
+                      {/* Buton TRIM ALL VIDEOS - va trimite la FFmpeg API pentru cutting */}
                       <Button
                         onClick={() => {
-                          toast.info('Step 10 - Trim All Videos va fi implementat în viitor');
+                          toast.info('✂️ TRIM functionality will be implemented in Step 10');
                         }}
-                        className="flex-1 bg-green-600 hover:bg-green-700"
+                        className="flex-1 bg-red-600 hover:bg-red-700"
                         disabled
                       >
-                        <Download className="w-4 h-4 mr-2" />
-                        Trim All Videos (Step 10)
+                        ✂️ TRIM ALL VIDEOS
                       </Button>
                     </div>
                   </div>

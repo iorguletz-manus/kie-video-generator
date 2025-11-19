@@ -3,8 +3,7 @@ import ReactPlayer from 'react-player';
 import Slider from 'rc-slider';
 import 'rc-slider/assets/index.css';
 import { Button } from './ui/button';
-import { Loader2, Save, Play, Pause } from 'lucide-react';
-import { toast } from 'sonner';
+import { Play, Pause } from 'lucide-react';
 
 interface VideoEditorProps {
   video: {
@@ -12,93 +11,54 @@ interface VideoEditorProps {
     videoName: string;
     videoUrl: string;
     text: string;
-    redStart?: number;
-    redEnd?: number;
-    fullText?: string;
-    redText?: string;
-    startKeep?: number;  // milliseconds
-    endKeep?: number;    // milliseconds
-    editStatus?: 'pending' | 'processing' | 'edited';
+    startKeep?: number;  // milliseconds from Whisper API
+    endKeep?: number;    // milliseconds from Whisper API
   };
-  onSave: (videoId: string, startKeep: number, endKeep: number) => Promise<void>;
-  onProcess: (videoId: string) => Promise<{ startKeep: number; endKeep: number }>;
+  onTimestampChange?: (videoId: string, startKeep: number, endKeep: number) => void;
 }
 
-export function VideoEditor({ video, onSave, onProcess }: VideoEditorProps) {
+export function VideoEditor({ video, onTimestampChange }: VideoEditorProps) {
   const playerRef = useRef<ReactPlayer>(null);
   const [playing, setPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   
-  // Timestamps in milliseconds
+  // Timestamps in milliseconds - initialized from Whisper API cutPoints
   const [startKeep, setStartKeep] = useState(video.startKeep || 0);
   const [endKeep, setEndKeep] = useState(video.endKeep || 0);
-  
-  const [processing, setProcessing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [hasProcessed, setHasProcessed] = useState(!!video.startKeep && !!video.endKeep);
 
-  // Auto-process with Whisper when component mounts
+  // Update parent component when timestamps change
   useEffect(() => {
-    if (!hasProcessed && video.editStatus !== 'processing') {
-      handleAutoProcess();
+    if (onTimestampChange) {
+      onTimestampChange(video.id, startKeep, endKeep);
     }
-  }, []);
-
-  const handleAutoProcess = async () => {
-    try {
-      setProcessing(true);
-      toast.info(`Procesare ${video.videoName} cu Whisper...`);
-      
-      const result = await onProcess(video.id);
-      
-      setStartKeep(result.startKeep);
-      setEndKeep(result.endKeep);
-      setHasProcessed(true);
-      
-      toast.success(`${video.videoName} procesat! Ajustează timestamps dacă e necesar.`);
-    } catch (error: any) {
-      console.error('[VideoEditor] Auto-process error:', error);
-      toast.error(`Eroare procesare: ${error.message}`);
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  const handleSave = async () => {
-    try {
-      setSaving(true);
-      await onSave(video.id, startKeep, endKeep);
-      toast.success(`${video.videoName} salvat!`);
-    } catch (error: any) {
-      console.error('[VideoEditor] Save error:', error);
-      toast.error(`Eroare salvare: ${error.message}`);
-    } finally {
-      setSaving(false);
-    }
-  };
+  }, [startKeep, endKeep]);
 
   const handleDuration = (duration: number) => {
-    setDuration(duration * 1000); // Convert to milliseconds
-    if (!hasProcessed && endKeep === 0) {
-      setEndKeep(duration * 1000);
+    const durationMs = duration * 1000;
+    setDuration(durationMs);
+    
+    // If no endKeep set, use full duration
+    if (endKeep === 0) {
+      setEndKeep(durationMs);
     }
   };
 
   const handleProgress = (state: { playedSeconds: number }) => {
-    setCurrentTime(state.playedSeconds * 1000); // Convert to milliseconds
+    setCurrentTime(state.playedSeconds * 1000);
   };
 
   const handleSeekToStart = () => {
     if (playerRef.current) {
-      playerRef.current.seekTo(startKeep / 1000); // Convert to seconds
+      playerRef.current.seekTo(startKeep / 1000);
       setPlaying(true);
     }
   };
 
   const handleSeekToEnd = () => {
     if (playerRef.current) {
-      playerRef.current.seekTo(Math.max(0, endKeep / 1000 - 1)); // 1s before end
+      // Seek to 1 second before end to see the end point
+      playerRef.current.seekTo(Math.max(0, (endKeep / 1000) - 1));
       setPlaying(true);
     }
   };
@@ -123,7 +83,10 @@ export function VideoEditor({ video, onSave, onProcess }: VideoEditorProps) {
 
       {/* Video Player */}
       <div className="mb-6">
-        <div className="relative bg-black rounded-lg overflow-hidden" style={{ aspectRatio: '9/16', maxWidth: '400px', margin: '0 auto' }}>
+        <div 
+          className="relative bg-black rounded-lg overflow-hidden mx-auto" 
+          style={{ aspectRatio: '9/16', width: '300px' }}
+        >
           <ReactPlayer
             ref={playerRef}
             url={video.videoUrl}
@@ -137,7 +100,7 @@ export function VideoEditor({ video, onSave, onProcess }: VideoEditorProps) {
           />
         </div>
         
-        {/* Play/Pause Button */}
+        {/* Play/Pause Controls */}
         <div className="flex justify-center mt-4 gap-2">
           <Button
             onClick={() => setPlaying(!playing)}
@@ -152,144 +115,116 @@ export function VideoEditor({ video, onSave, onProcess }: VideoEditorProps) {
             size="sm"
             variant="outline"
           >
-            Seek to START
+            ▶ Seek to START
           </Button>
           <Button
             onClick={handleSeekToEnd}
             size="sm"
             variant="outline"
           >
-            Seek to END
+            ▶ Seek to END
           </Button>
         </div>
       </div>
 
-      {/* Processing Status */}
-      {processing && (
-        <div className="mb-6 p-4 bg-blue-50 border-2 border-blue-300 rounded flex items-center gap-3">
-          <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
-          <div>
-            <p className="text-blue-900 font-medium">Procesare cu Whisper API...</p>
-            <p className="text-sm text-blue-700">Detectare automată text roșu și calculare timestamps</p>
-          </div>
-        </div>
-      )}
-
       {/* Timeline Editor */}
-      {!processing && hasProcessed && (
-        <div className="mb-6">
-          <h4 className="text-sm font-semibold text-gray-900 mb-3">Timeline Editor</h4>
-          
-          {/* Current Time Display */}
-          <div className="mb-4 text-center">
-            <span className="text-sm text-gray-600">
-              Current: <span className="font-mono font-bold text-purple-600">{formatTime(currentTime)}</span>
-              {' / '}
-              <span className="font-mono">{formatTime(duration)}</span>
-            </span>
-          </div>
-
-          {/* START Slider */}
-          <div className="mb-6">
-            <div className="flex justify-between items-center mb-2">
-              <label className="text-sm font-medium text-green-700">START (Keep from)</label>
-              <span className="text-sm font-mono font-bold text-green-700">{formatTime(startKeep)}</span>
-            </div>
-            <Slider
-              min={0}
-              max={duration}
-              value={startKeep}
-              onChange={(value) => {
-                const newStart = Array.isArray(value) ? value[0] : value;
-                setStartKeep(newStart);
-                if (playerRef.current) {
-                  playerRef.current.seekTo(newStart / 1000);
-                }
-              }}
-              railStyle={{ backgroundColor: '#e5e7eb', height: 8 }}
-              trackStyle={{ backgroundColor: '#10b981', height: 8 }}
-              handleStyle={{
-                borderColor: '#10b981',
-                height: 20,
-                width: 20,
-                marginTop: -6,
-                backgroundColor: '#fff',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-              }}
-            />
-          </div>
-
-          {/* END Slider */}
-          <div className="mb-6">
-            <div className="flex justify-between items-center mb-2">
-              <label className="text-sm font-medium text-red-700">END (Keep until)</label>
-              <span className="text-sm font-mono font-bold text-red-700">{formatTime(endKeep)}</span>
-            </div>
-            <Slider
-              min={0}
-              max={duration}
-              value={endKeep}
-              onChange={(value) => {
-                const newEnd = Array.isArray(value) ? value[0] : value;
-                setEndKeep(newEnd);
-                if (playerRef.current) {
-                  playerRef.current.seekTo(newEnd / 1000);
-                }
-              }}
-              railStyle={{ backgroundColor: '#e5e7eb', height: 8 }}
-              trackStyle={{ backgroundColor: '#ef4444', height: 8 }}
-              handleStyle={{
-                borderColor: '#ef4444',
-                height: 20,
-                width: 20,
-                marginTop: -6,
-                backgroundColor: '#fff',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-              }}
-            />
-          </div>
-
-          {/* Duration Info */}
-          <div className="p-3 bg-gray-50 border border-gray-300 rounded text-sm">
-            <p className="text-gray-700">
-              <span className="font-semibold">Trimmed Duration:</span>{' '}
-              <span className="font-mono font-bold text-purple-600">
-                {formatTime(Math.max(0, endKeep - startKeep))}
-              </span>
-            </p>
-            <p className="text-gray-600 text-xs mt-1">
-              Video va fi tăiat de la {formatTime(startKeep)} până la {formatTime(endKeep)}
-            </p>
-          </div>
+      <div className="mb-6">
+        <h4 className="text-sm font-semibold text-gray-900 mb-3">
+          ✂️ Adjust Trim Points
+        </h4>
+        
+        {/* Current Time Display */}
+        <div className="mb-4 text-center">
+          <span className="text-sm text-gray-600">
+            Current: <span className="font-mono font-bold text-purple-600">{formatTime(currentTime)}</span>
+            {' / '}
+            <span className="font-mono">{formatTime(duration)}</span>
+          </span>
         </div>
-      )}
 
-      {/* Save Button */}
-      {hasProcessed && (
-        <Button
-          onClick={handleSave}
-          disabled={saving || startKeep >= endKeep}
-          className="w-full bg-purple-600 hover:bg-purple-700"
-        >
-          {saving ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Salvare...
-            </>
-          ) : (
-            <>
-              <Save className="w-4 h-4 mr-2" />
-              Salvează Timestamps
-            </>
-          )}
-        </Button>
-      )}
+        {/* START Slider */}
+        <div className="mb-6">
+          <div className="flex justify-between items-center mb-2">
+            <label className="text-sm font-medium text-green-700">🟢 START (Keep from)</label>
+            <span className="text-sm font-mono font-bold text-green-700">{formatTime(startKeep)}</span>
+          </div>
+          <Slider
+            min={0}
+            max={duration}
+            value={startKeep}
+            onChange={(value) => {
+              const newStart = Array.isArray(value) ? value[0] : value;
+              setStartKeep(newStart);
+              // LIVE SEEK when slider moves
+              if (playerRef.current) {
+                playerRef.current.seekTo(newStart / 1000);
+              }
+            }}
+            railStyle={{ backgroundColor: '#e5e7eb', height: 8 }}
+            trackStyle={{ backgroundColor: '#10b981', height: 8 }}
+            handleStyle={{
+              borderColor: '#10b981',
+              height: 20,
+              width: 20,
+              marginTop: -6,
+              backgroundColor: '#fff',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+            }}
+          />
+        </div>
+
+        {/* END Slider */}
+        <div className="mb-6">
+          <div className="flex justify-between items-center mb-2">
+            <label className="text-sm font-medium text-red-700">🔴 END (Keep until)</label>
+            <span className="text-sm font-mono font-bold text-red-700">{formatTime(endKeep)}</span>
+          </div>
+          <Slider
+            min={0}
+            max={duration}
+            value={endKeep}
+            onChange={(value) => {
+              const newEnd = Array.isArray(value) ? value[0] : value;
+              setEndKeep(newEnd);
+              // LIVE SEEK when slider moves
+              if (playerRef.current) {
+                playerRef.current.seekTo(newEnd / 1000);
+              }
+            }}
+            railStyle={{ backgroundColor: '#e5e7eb', height: 8 }}
+            trackStyle={{ backgroundColor: '#ef4444', height: 8 }}
+            handleStyle={{
+              borderColor: '#ef4444',
+              height: 20,
+              width: 20,
+              marginTop: -6,
+              backgroundColor: '#fff',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+            }}
+          />
+        </div>
+
+        {/* Trimmed Duration Info */}
+        <div className="p-3 bg-purple-50 border-2 border-purple-300 rounded text-sm">
+          <p className="text-purple-900 font-semibold">
+            ✂️ Trimmed Duration: {' '}
+            <span className="font-mono font-bold text-purple-600">
+              {formatTime(Math.max(0, endKeep - startKeep))}
+            </span>
+          </p>
+          <p className="text-purple-700 text-xs mt-1">
+            Video will be cut from {formatTime(startKeep)} to {formatTime(endKeep)}
+          </p>
+        </div>
+      </div>
 
       {/* Error State */}
-      {hasProcessed && startKeep >= endKeep && (
-        <p className="text-sm text-red-600 mt-2 text-center">
-          ⚠️ START trebuie să fie înainte de END
-        </p>
+      {startKeep >= endKeep && (
+        <div className="p-3 bg-red-50 border-2 border-red-300 rounded text-center">
+          <p className="text-sm text-red-700 font-semibold">
+            ⚠️ START must be before END
+          </p>
+        </div>
       )}
     </div>
   );

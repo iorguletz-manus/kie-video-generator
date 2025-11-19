@@ -13,7 +13,7 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 import { saveVideoTask, updateVideoTask } from "./videoCache";
-import { processVideoForEditing, WhisperWord, CutPoints } from "./videoEditing";
+import { processVideoForEditing, cutVideoWithFFmpegAPI, WhisperWord, CutPoints } from "./videoEditing";
 import { parseAdDocument, parsePromptDocument, replaceInsertText, parseAdDocumentWithSections, PromptType } from "./documentParser";
 import { processAdDocument, addRedOnLine1 } from "./text-processor";
 import { createAppUser, getAppUserByUsername, getAppUserById, updateAppUser, createAppSession, getAppSessionsByUserId, updateAppSession, deleteAppSession, createUserImage, getUserImagesByUserId, getUserImagesByCharacter, updateUserImage, deleteUserImage, getUniqueCharacterNames, createUserPrompt, getUserPromptsByUserId, getUserPromptById, updateUserPrompt, deleteUserPrompt, createTam, getTamsByUserId, getTamById, updateTam, deleteTam, createCoreBelief, getCoreBeliefsByUserId, getCoreBeliefsByTamId, getCoreBeliefById, updateCoreBelief, deleteCoreBelief, createEmotionalAngle, getEmotionalAnglesByUserId, getEmotionalAnglesByCoreBeliefId, getEmotionalAngleById, updateEmotionalAngle, deleteEmotionalAngle, createAd, getAdsByUserId, getAdsByEmotionalAngleId, getAdById, updateAd, deleteAd, createCharacter, getCharactersByUserId, getCharacterById, updateCharacter, deleteCharacter, getContextSession, upsertContextSession, deleteContextSession } from "./db";
@@ -1478,20 +1478,24 @@ export const appRouter = router({
       }),
   }),
 
-  // Video Editing router for Step 9
+  // Video Editing router for Step 8 (batch processing) and Step 10 (cutting)
   videoEditing: router({
-    // Process video with Whisper API for word-level timestamps
-    process: publicProcedure
+    // Process single video for editing (Step 8 batch processing)
+    processVideoForEditing: publicProcedure
       .input(z.object({
         videoUrl: z.string(),
+        videoId: z.number(),
         fullText: z.string(),
         redText: z.string(),
         marginMs: z.number().optional().default(50),
       }))
       .mutation(async ({ input }) => {
         try {
+          console.log(`[videoEditing.processVideoForEditing] Processing video ${input.videoId}...`);
+          
           const result = await processVideoForEditing(
             input.videoUrl,
+            input.videoId,
             input.fullText,
             input.redText,
             input.marginMs
@@ -1501,12 +1505,49 @@ export const appRouter = router({
             success: true,
             words: result.words,
             cutPoints: result.cutPoints,
+            whisperTranscript: result.whisperTranscript,
           };
         } catch (error) {
-          console.error('[videoEditing.process] Error:', error);
+          console.error(`[videoEditing.processVideoForEditing] Error for video ${input.videoId}:`, error);
           throw new TRPCError({
             code: 'INTERNAL_SERVER_ERROR',
             message: `Failed to process video: ${error.message}`,
+          });
+        }
+      }),
+
+    // Cut video with timestamps (Step 10)
+    cutVideo: publicProcedure
+      .input(z.object({
+        videoUrl: z.string(),
+        videoId: z.number(),
+        startTimeSeconds: z.number(),
+        endTimeSeconds: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          console.log(`[videoEditing.cutVideo] Cutting video ${input.videoId}: ${input.startTimeSeconds}s → ${input.endTimeSeconds}s`);
+          
+          // Cut video using FFmpeg API
+          const downloadUrl = await cutVideoWithFFmpegAPI(
+            input.videoUrl,
+            input.videoId,
+            input.startTimeSeconds,
+            input.endTimeSeconds
+          );
+
+          // TODO: Upload trimmed video to Bunny CDN and return final URL
+          // For now, return the FFmpeg API download URL (expires after 24h)
+          
+          return {
+            success: true,
+            downloadUrl,
+          };
+        } catch (error) {
+          console.error(`[videoEditing.cutVideo] Error for video ${input.videoId}:`, error);
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Failed to cut video: ${error.message}`,
           });
         }
       }),
