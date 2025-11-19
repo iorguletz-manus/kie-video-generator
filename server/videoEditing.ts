@@ -3,7 +3,7 @@ import { promisify } from 'util';
 import fs from 'fs/promises';
 import path from 'path';
 import OpenAI from 'openai';
-import fetch from 'node-fetch';
+// Node.js 18+ has built-in fetch, no need for node-fetch
 
 const execAsync = promisify(exec);
 
