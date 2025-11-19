@@ -795,16 +795,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
   }, [ads, selectedAdId]);
   
-  // Auto-preselect character for old ADs with generated videos
+  // Auto-preselect character ONLY if there's exactly ONE character with generated videos for this AD
   useEffect(() => {
     if (!selectedAdId || selectedCharacterId) return;
     
-    // Find sessions for this AD that have generated videos
+    // Find all unique characters with generated videos for this AD
+    const charactersWithVideos = new Set<number>();
+    
     const sessionsForAd = allContextSessions.filter(session => 
       session.adId === selectedAdId && session.characterId
     );
     
-    // Check if any session has generated videos
     for (const session of sessionsForAd) {
       if (session.videoResults) {
         try {
@@ -816,15 +817,24 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             (v: any) => v.status === 'success' || v.status === 'pending' || v.status === 'failed'
           );
           
-          if (hasGeneratedVideos) {
-            console.log('[Auto-select] Setting character for old AD with videos:', session.characterId);
-            setSelectedCharacterId(session.characterId);
-            return;
+          if (hasGeneratedVideos && session.characterId) {
+            charactersWithVideos.add(session.characterId);
           }
         } catch (e) {
           // Ignore parse errors
         }
       }
+    }
+    
+    // Auto-select ONLY if there's exactly ONE character with videos
+    if (charactersWithVideos.size === 1) {
+      const singleCharacterId = Array.from(charactersWithVideos)[0];
+      console.log('[Auto-select] Setting SINGLE character with videos for AD:', singleCharacterId);
+      setSelectedCharacterId(singleCharacterId);
+    } else if (charactersWithVideos.size > 1) {
+      console.log('[Auto-select] Multiple characters with videos found, not auto-selecting');
+    } else {
+      console.log('[Auto-select] No characters with videos found, leaving as "Select Character"');
     }
   }, [selectedAdId, selectedCharacterId, allContextSessions]);
 
@@ -6466,16 +6476,21 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   <div className="mt-4">
                     <Button
                       onClick={() => {
-                        // Filter only approved videos
-                        const approvedVideos = videoResults.filter(v => v.reviewStatus === 'accepted');
+                        // Filter only approved videos with videoUrl
+                        const approvedVideos = videoResults.filter(v => 
+                          v.reviewStatus === 'accepted' && 
+                          v.status === 'success' && 
+                          v.videoUrl
+                        );
                         if (approvedVideos.length === 0) {
-                          toast.error('Nu există videouri acceptate pentru editare');
+                          toast.error('Nu există videouri acceptate cu URL valid pentru editare');
                           return;
                         }
                         setCurrentStep(8); // Go to STEP 8 - Video Editing
                         toast.success(`Mergi la Video Editing cu ${approvedVideos.length} videouri`);
                       }}
                       className="w-full bg-purple-600 hover:bg-purple-700 py-6 text-lg"
+                      disabled={acceptedVideosWithUrl.length === 0}
                     >
                       <Video className="w-5 h-5 mr-2" />
                       Video Editing ({acceptedVideosWithUrl.length} videouri)
@@ -6489,7 +6504,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
         {/* STEP 8: Video Editing */}
         {currentStep === 8 && (() => {
-          const approvedVideos = videoResults.filter(v => v.reviewStatus === 'accepted');
+          // Filter approved videos that have videoUrl
+          const approvedVideos = videoResults.filter(v => 
+            v.reviewStatus === 'accepted' && 
+            v.status === 'success' && 
+            v.videoUrl
+          );
           return (
             <Card className="mb-8 border-2 border-purple-200">
               <CardHeader className="bg-purple-50">
