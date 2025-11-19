@@ -6480,7 +6480,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 } else if (videoFilter === 'failed') {
                   categoryVideos = categoryVideos.filter(v => v.reviewStatus !== 'accepted');
                 } else if (videoFilter === 'no_decision') {
-                  categoryVideos = categoryVideos.filter(v => v.reviewStatus === null);
+                  categoryVideos = categoryVideos.filter(v => !v.reviewStatus);
                 }
                 
                 if (categoryVideos.length === 0) return null;
