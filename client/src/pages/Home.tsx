@@ -74,6 +74,7 @@ interface VideoResult {
   categoryNumber: number;
   reviewStatus: 'pending' | 'accepted' | 'regenerate' | null;
   regenerationNote?: string; // Ex: "⚠️ 3 regenerări cu aceleași setări"
+  internalNote?: string; // Internal note added by user in Step 7
   isDuplicate?: boolean; // true dacă e duplicate
   duplicateNumber?: number; // 1, 2, 3, etc.
   originalVideoName?: string; // videoName original (fără _D1, _D2)
@@ -253,6 +254,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   
   // Step 4: Tabs
   const [step4ActiveTab, setStep4ActiveTab] = useState<'upload' | 'library'>('library');
+  
+  // Step 7: Internal Notes
+  const [editingNoteVideoName, setEditingNoteVideoName] = useState<string | null>(null);
+  const [noteText, setNoteText] = useState<string>('');
   
   // WYSIWYG Editor for STEP 2
   const [editingLineId, setEditingLineId] = useState<string | null>(null);
@@ -4753,6 +4758,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             ⚠️ {(result as any).regenerationNote}
                           </p>
                         )}
+                        {result.internalNote && (
+                          <div className="bg-yellow-50 border-2 border-yellow-400 rounded p-2 mb-2">
+                            <p className="text-xs text-yellow-800 font-medium mb-1">
+                              📝 Internal Note:
+                            </p>
+                            <p className="text-xs text-yellow-900 whitespace-pre-wrap">
+                              {result.internalNote}
+                            </p>
+                          </div>
+                        )}
                         {combinations[index]?.promptType && (
                           <p className="text-xs text-gray-600 mb-2">
                             <span className="font-medium">Prompt:</span> {combinations[index].promptType}
@@ -6503,30 +6518,106 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                 </Button>
                               </div>
                             ) : (
-                              <div className="flex gap-2 items-center">
-                                {/* Status după decizie */}
-                                <div className={`flex-1 px-3 py-2 rounded text-xs font-medium text-center ${
-                                  video.reviewStatus === 'accepted' 
-                                    ? 'bg-green-100 text-green-700 border border-green-300'
-                                    : 'bg-red-100 text-red-700 border border-red-300'
-                                }`}>
-                                  {video.reviewStatus === 'accepted' ? (
-                                    <><Check className="w-3 h-3 inline mr-1" />Acceptat</>
-                                  ) : (
-                                    <><X className="w-3 h-3 inline mr-1" />Regenerare</>
-                                  )}
+                              <div className="space-y-2">
+                                <div className="flex gap-2 items-center">
+                                  {/* Status după decizie */}
+                                  <div className={`flex-1 px-3 py-2 rounded text-xs font-medium text-center ${
+                                    video.reviewStatus === 'accepted' 
+                                      ? 'bg-green-100 text-green-700 border border-green-300'
+                                      : 'bg-red-100 text-red-700 border border-red-300'
+                                  }`}>
+                                    {video.reviewStatus === 'accepted' ? (
+                                      <><Check className="w-3 h-3 inline mr-1" />Acceptat</>
+                                    ) : (
+                                      <><X className="w-3 h-3 inline mr-1" />Regenerare</>
+                                    )}
+                                  </div>
+                                  
+                                  {/* UNDO individual */}
+                                  <Button
+                                    onClick={() => undoReviewDecision(video.videoName)}
+                                    size="sm"
+                                    variant="outline"
+                                    className="border-gray-400 text-gray-700 hover:bg-gray-100 text-xs py-1"
+                                  >
+                                    <Undo2 className="w-3 h-3 mr-1" />
+                                    Undo
+                                  </Button>
                                 </div>
                                 
-                                {/* UNDO individual */}
-                                <Button
-                                  onClick={() => undoReviewDecision(video.videoName)}
-                                  size="sm"
-                                  variant="outline"
-                                  className="border-gray-400 text-gray-700 hover:bg-gray-100 text-xs py-1"
-                                >
-                                  <Undo2 className="w-3 h-3 mr-1" />
-                                  Undo
-                                </Button>
+                                {/* Add Note button (doar pentru Regenerare) */}
+                                {video.reviewStatus === 'regenerate' && (
+                                  <div>
+                                    {editingNoteVideoName === video.videoName ? (
+                                      <div className="bg-yellow-50 border-2 border-yellow-400 rounded p-3 space-y-2">
+                                        <textarea
+                                          value={noteText}
+                                          onChange={(e) => setNoteText(e.target.value)}
+                                          placeholder="Add internal note..."
+                                          className="w-full p-2 border border-yellow-300 rounded text-xs bg-white"
+                                          rows={3}
+                                        />
+                                        <div className="flex gap-2">
+                                          <Button
+                                            onClick={() => {
+                                              // Save note
+                                              setVideoResults(prev => [
+                                                ...prev.map(v =>
+                                                  v.videoName === video.videoName
+                                                    ? { ...v, internalNote: noteText }
+                                                    : v
+                                                )
+                                              ]);
+                                              
+                                              // Save to DB
+                                              upsertContextSessionMutation.mutate({
+                                                userId: localCurrentUser.id,
+                                                sessionData: {
+                                                  ...currentContext,
+                                                  videoResults: videoResults.map(v =>
+                                                    v.videoName === video.videoName
+                                                      ? { ...v, internalNote: noteText }
+                                                      : v
+                                                  ),
+                                                },
+                                              });
+                                              
+                                              toast.success('Note saved!');
+                                              setEditingNoteVideoName(null);
+                                              setNoteText('');
+                                            }}
+                                            size="sm"
+                                            className="flex-1 bg-green-600 hover:bg-green-700 text-xs"
+                                          >
+                                            Save
+                                          </Button>
+                                          <Button
+                                            onClick={() => {
+                                              setEditingNoteVideoName(null);
+                                              setNoteText('');
+                                            }}
+                                            size="sm"
+                                            variant="outline"
+                                            className="flex-1 text-xs"
+                                          >
+                                            Cancel
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <Button
+                                        onClick={() => {
+                                          setEditingNoteVideoName(video.videoName);
+                                          setNoteText(video.internalNote || '');
+                                        }}
+                                        size="sm"
+                                        className="w-full bg-yellow-500 hover:bg-yellow-600 text-white text-xs py-1"
+                                      >
+                                        {video.internalNote ? '📝 Edit Note' : '📝 Add Note'}
+                                      </Button>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             )}
                             
@@ -6588,6 +6679,18 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     </span>
                   </div>
                 </div>
+                
+                {/* Mesaj pentru videouri fără decizie */}
+                {videosWithoutDecision.length > 0 && (
+                  <div className="bg-orange-50 border-2 border-orange-400 rounded p-4 mb-4">
+                    <p className="text-orange-900 font-bold text-center">
+                      ⚠️ Te rog să iei o decizie (Accept sau Regenerate) pentru toate videouri înainte de a continua.
+                    </p>
+                    <p className="text-sm text-orange-700 text-center mt-2">
+                      {videosWithoutDecision.length} videouri fără decizie rămase
+                    </p>
+                  </div>
+                )}
                 
                 {/* Buton Regenerate Selected - afișează întotdeauna dacă există videouri marcate */}
                 {videoResults.some(v => v.reviewStatus === 'regenerate') && (
