@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { Upload, X, Check, Loader2, Video, FileText, Image as ImageIcon, Map, Play, Download, Undo2, ChevronLeft, RefreshCw, Clock, Search } from "lucide-react";
+import { Upload, X, Check, Loader2, Video, FileText, Image as ImageIcon, Map as MapIcon, Play, Download, Undo2, ChevronLeft, RefreshCw, Clock, Search } from "lucide-react";
 
 type PromptType = 'PROMPT_NEUTRAL' | 'PROMPT_SMILING' | 'PROMPT_CTA' | 'PROMPT_CUSTOM';
 type SectionType = 'HOOKS' | 'MIRROR' | 'DCS' | 'TRANZITION' | 'NEW_CAUSE' | 'MECHANISM' | 'EMOTIONAL_PROOF' | 'TRANSFORMATION' | 'CTA' | 'OTHER';
@@ -273,6 +273,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     userId: localCurrentUser.id,
   });
 
+  // Get all context sessions to determine UNUSED vs USED characters
+  const { data: allContextSessions = [] } = trpc.contextSessions.listByUser.useQuery({
+    userId: localCurrentUser.id,
+  });
+
   // Context session query - load workflow data for selected context
   const { data: contextSession, refetch: refetchContextSession } = trpc.contextSessions.get.useQuery(
     {
@@ -286,6 +291,44 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       enabled: !!(selectedTamId && selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId),
     }
   );
+
+  // Sort characters: UNUSED first, USED last
+  // USED = character has generated videos (status: success/pending/failed)
+  const sortedCategoryCharacters = useMemo(() => {
+    // Track which characters have generated videos
+    const charactersWithVideos = new Set<number>();
+    
+    allContextSessions.forEach(session => {
+      if (session.characterId && session.videoResults) {
+        try {
+          const videos = typeof session.videoResults === 'string' 
+            ? JSON.parse(session.videoResults) 
+            : session.videoResults;
+          
+          // Check if this session has any generated videos
+          const hasGeneratedVideos = Array.isArray(videos) && videos.some(
+            (v: any) => v.status === 'success' || v.status === 'pending' || v.status === 'failed'
+          );
+          
+          if (hasGeneratedVideos) {
+            charactersWithVideos.add(session.characterId);
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
+    });
+    
+    // Separate UNUSED and USED characters
+    const unused = categoryCharacters.filter(char => !charactersWithVideos.has(char.id));
+    const used = categoryCharacters.filter(char => charactersWithVideos.has(char.id));
+    
+    // Sort each group alphabetically
+    unused.sort((a, b) => a.name.localeCompare(b.name));
+    used.sort((a, b) => a.name.localeCompare(b.name));
+    
+    return { unused, used, all: [...unused, ...used] };
+  }, [categoryCharacters, allContextSessions]);
 
   // Mutations
   const parseAdMutation = trpc.video.parseAdDocument.useMutation();
@@ -745,13 +788,38 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
   }, [ads, selectedAdId]);
   
-  // Auto-select first Character when Characters are loaded
+  // Auto-preselect character for old ADs with generated videos
   useEffect(() => {
-    if (categoryCharacters.length > 0 && !selectedCharacterId) {
-      console.log('[Auto-select] Setting first Character:', categoryCharacters[0].name);
-      setSelectedCharacterId(categoryCharacters[0].id);
+    if (!selectedAdId || selectedCharacterId) return;
+    
+    // Find sessions for this AD that have generated videos
+    const sessionsForAd = allContextSessions.filter(session => 
+      session.adId === selectedAdId && session.characterId
+    );
+    
+    // Check if any session has generated videos
+    for (const session of sessionsForAd) {
+      if (session.videoResults) {
+        try {
+          const videos = typeof session.videoResults === 'string' 
+            ? JSON.parse(session.videoResults) 
+            : session.videoResults;
+          
+          const hasGeneratedVideos = Array.isArray(videos) && videos.some(
+            (v: any) => v.status === 'success' || v.status === 'pending' || v.status === 'failed'
+          );
+          
+          if (hasGeneratedVideos) {
+            console.log('[Auto-select] Setting character for old AD with videos:', session.characterId);
+            setSelectedCharacterId(session.characterId);
+            return;
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
     }
-  }, [categoryCharacters, selectedCharacterId]);
+  }, [selectedAdId, selectedCharacterId, allContextSessions]);
 
   // Set workflow lock when videos are generated
   useEffect(() => {
@@ -2534,6 +2602,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 </svg>
                 Prompts Library
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setLocation("/category-management")} className="cursor-pointer">
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                </svg>
+                Category Management
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setIsEditProfileOpen(true)} className="cursor-pointer">
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -2729,6 +2803,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         name: name.trim(),
                       });
                       setSelectedAdId(result.id);
+                      setSelectedCharacterId(null); // Reset character for new AD
                       refetchAds();
                       toast.success('Ad created!');
                     }
@@ -2831,20 +2906,52 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   <SelectValue placeholder="Select Character" />
                 </SelectTrigger>
                 <SelectContent>
-                  {categoryCharacters.map((char) => (
-                    <SelectItem key={char.id} value={char.id.toString()}>
-                      <div className="flex items-center gap-2">
-                        {char.thumbnailUrl && (
-                          <img 
-                            src={char.thumbnailUrl} 
-                            alt={char.name}
-                            className="w-6 h-6 rounded-full object-cover"
-                          />
-                        )}
-                        <span>{char.name}</span>
+                  {/* UNUSED Characters */}
+                  {sortedCategoryCharacters.unused.length > 0 && (
+                    <>
+                      <div className="px-2 py-1.5 text-xs font-semibold text-green-600 bg-green-50">
+                        ✨ UNUSED ({sortedCategoryCharacters.unused.length})
                       </div>
-                    </SelectItem>
-                  ))}
+                      {sortedCategoryCharacters.unused.map((char) => (
+                        <SelectItem key={char.id} value={char.id.toString()}>
+                          <div className="flex items-center gap-2">
+                            {char.thumbnailUrl && (
+                              <img 
+                                src={char.thumbnailUrl} 
+                                alt={char.name}
+                                className="w-6 h-6 rounded-full object-cover"
+                              />
+                            )}
+                            <span>{char.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </>
+                  )}
+                  
+                  {/* USED Characters */}
+                  {sortedCategoryCharacters.used.length > 0 && (
+                    <>
+                      <div className="px-2 py-1.5 text-xs font-semibold text-gray-500 bg-gray-50 border-t">
+                        📋 USED ({sortedCategoryCharacters.used.length})
+                      </div>
+                      {sortedCategoryCharacters.used.map((char) => (
+                        <SelectItem key={char.id} value={char.id.toString()}>
+                          <div className="flex items-center gap-2">
+                            {char.thumbnailUrl && (
+                              <img 
+                                src={char.thumbnailUrl} 
+                                alt={char.name}
+                                className="w-6 h-6 rounded-full object-cover"
+                              />
+                            )}
+                            <span>{char.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </>
+                  )}
+                  
                   <SelectItem value="new">+ New Character</SelectItem>
                 </SelectContent>
               </Select>
@@ -2890,7 +2997,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             { num: 2, label: "Text Ad", icon: FileText },
             { num: 3, label: "Prompts", icon: FileText },
             { num: 4, label: "Images", icon: ImageIcon },
-            { num: 5, label: "Mapping", icon: Map },
+            { num: 5, label: "Mapping", icon: MapIcon },
             { num: 6, label: "Generate", icon: Play },
             { num: 7, label: "Check\u00A0Videos", icon: Video },
           ].map((step, index) => (
@@ -3119,6 +3226,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             });
                             await refetchAds();
                             setSelectedAdId(result.id);
+                            setSelectedCharacterId(null); // Reset character for new AD
                             toast.success('Ad created!');
                           }
                         } else {
@@ -3175,9 +3283,30 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">None</SelectItem>
-                        {categoryCharacters.map((char) => (
-                          <SelectItem key={char.id} value={char.id.toString()}>{char.name}</SelectItem>
-                        ))}
+                        
+                        {/* UNUSED Characters */}
+                        {sortedCategoryCharacters.unused.length > 0 && (
+                          <>
+                            <div className="px-2 py-1.5 text-xs font-semibold text-green-600 bg-green-50">
+                              ✨ UNUSED ({sortedCategoryCharacters.unused.length})
+                            </div>
+                            {sortedCategoryCharacters.unused.map((char) => (
+                              <SelectItem key={char.id} value={char.id.toString()}>{char.name}</SelectItem>
+                            ))}
+                          </>
+                        )}
+                        
+                        {/* USED Characters */}
+                        {sortedCategoryCharacters.used.length > 0 && (
+                          <>
+                            <div className="px-2 py-1.5 text-xs font-semibold text-gray-500 bg-gray-50 border-t">
+                              📋 USED ({sortedCategoryCharacters.used.length})
+                            </div>
+                            {sortedCategoryCharacters.used.map((char) => (
+                              <SelectItem key={char.id} value={char.id.toString()}>{char.name}</SelectItem>
+                            ))}
+                          </>
+                        )}
                         <SelectItem value="new">+ New Character</SelectItem>
                       </SelectContent>
                     </Select>
@@ -4141,7 +4270,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             )}
             <CardHeader className="bg-blue-50">
               <CardTitle className="flex items-center gap-2 text-blue-900">
-                <Map className="w-5 h-5" />
+                <MapIcon className="w-5 h-5" />
                 STEP 5 - Mapping (Text + Image + Prompt)
               </CardTitle>
               <CardDescription>

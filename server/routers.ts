@@ -1427,6 +1427,14 @@ export const appRouter = router({
 
   // Context Sessions
   contextSessions: router({
+    listByUser: publicProcedure
+      .input(z.object({ userId: z.number() }))
+      .query(async ({ input }) => {
+        return await db.select()
+          .from(contextSessions)
+          .where(eq(contextSessions.userId, input.userId));
+      }),
+
     get: publicProcedure
       .input(z.object({
         userId: z.number(),

@@ -8,6 +8,7 @@ import Home from "./pages/Home";
 import LoginScreen from "./pages/LoginScreen";
 import ImagesLibraryPage from "./pages/ImagesLibraryPage";
 import PromptsLibraryPage from "./pages/PromptsLibraryPage";
+import CategoryManagementPage from "./pages/CategoryManagementPage";
 import { useState, useEffect } from "react";
 
 function Router() {
@@ -57,6 +58,7 @@ function Router() {
       <Route path={"/"} component={() => <Home currentUser={currentUser} onLogout={handleLogout} />} />
       <Route path={"/images-library"} component={() => <ImagesLibraryPage currentUser={currentUser} />} />
       <Route path={"/prompts-library"} component={() => <PromptsLibraryPage currentUser={currentUser} />} />
+      <Route path={"/category-management"} component={() => <CategoryManagementPage currentUser={currentUser} />} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

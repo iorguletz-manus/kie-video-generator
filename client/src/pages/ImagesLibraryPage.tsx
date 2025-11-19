@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useCallback } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,11 +56,16 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
     userId: currentUser.id,
   });
 
-  const { data: categoryCharacters = [], refetch: refetchCharacters } = trpc.characters.list.useQuery({
+  const { data: categoryCharacters = [], refetch: refetchCharacters } = trpc.categoryCharacters.list.useQuery({
     userId: currentUser.id,
   });
 
-  const updateCharacterMutation = trpc.characters.update.useMutation();
+  // Get all context sessions to check for generated videos
+  const { data: allContextSessions = [] } = trpc.contextSessions.listByUser.useQuery({
+    userId: currentUser.id,
+  });
+
+  const updateCharacterMutation = trpc.categoryCharacters.update.useMutation();
 
   // Sort characters by creation date (newest first) - using reverse alphabetical as proxy since we don't have creation date
   const characters = useMemo(() => {
@@ -69,6 +74,35 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
       return a.localeCompare(b);
     });
   }, [rawCharacters]);
+
+  // Helper function to check if an image is used in generated videos
+  const isImageUsedInGeneratedVideos = useCallback((imageUrl: string) => {
+    for (const session of allContextSessions) {
+      if (session.videoResults) {
+        try {
+          const videos = typeof session.videoResults === 'string' 
+            ? JSON.parse(session.videoResults) 
+            : session.videoResults;
+          
+          // Check if any video has generated status and uses this image
+          const hasGeneratedVideo = Array.isArray(videos) && videos.some(
+            (v: any) => {
+              const isGenerated = v.status === 'success' || v.status === 'pending' || v.status === 'failed';
+              const usesImage = v.imageUrl === imageUrl;
+              return isGenerated && usesImage;
+            }
+          );
+          
+          if (hasGeneratedVideo) {
+            return true;
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
+    }
+    return false;
+  }, [allContextSessions]);
 
   // Mutations
   const uploadMutation = trpc.imageLibrary.upload.useMutation();
@@ -101,6 +135,8 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
       toast.error(`Failed to update order: ${error.message}`);
     },
   });
+
+  const deleteCharacterMutation = trpc.categoryCharacters.delete.useMutation();
 
   // Filter, search, and sort images
   const filteredImages = useMemo(() => {
@@ -327,6 +363,57 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
     if (!confirmed) return;
 
     deleteMutation.mutate({ id: imageId });
+  };
+
+  const handleDeleteCharacter = async (characterName: string) => {
+    // Check if character has generated videos
+    const hasGeneratedVideos = allContextSessions.some(session => {
+      if (session.characterId) {
+        const character = categoryCharacters.find(c => c.id === session.characterId);
+        if (character && character.name === characterName && session.videoResults) {
+          try {
+            const videos = typeof session.videoResults === 'string' 
+              ? JSON.parse(session.videoResults) 
+              : session.videoResults;
+            
+            return Array.isArray(videos) && videos.some(
+              (v: any) => v.status === 'success' || v.status === 'pending' || v.status === 'failed'
+            );
+          } catch (e) {
+            return false;
+          }
+        }
+      }
+      return false;
+    });
+
+    if (hasGeneratedVideos) {
+      toast.error(`Nu poți șterge caracterul "${characterName}" pentru că are videouri generate. Șterge mai întâi AD-urile cu videouri.`);
+      return;
+    }
+
+    const characterImages = allImages.filter(img => img.characterName === characterName);
+    const confirmed = confirm(`Ștergi caracterul "${characterName}" și toate cele ${characterImages.length} imagini asociate?`);
+    if (!confirmed) return;
+
+    try {
+      // Delete all images for this character
+      for (const image of characterImages) {
+        await deleteMutation.mutateAsync({ id: image.id });
+      }
+
+      // Delete the character from categoryCharacters
+      const character = categoryCharacters.find(c => c.name === characterName);
+      if (character) {
+        await deleteCharacterMutation.mutateAsync({ id: character.id });
+      }
+
+      await refetch();
+      await refetchCharacters();
+      toast.success(`Caracterul "${characterName}" și toate imaginile au fost șterse!`);
+    } catch (error: any) {
+      toast.error(`Eroare la ștergere: ${error.message}`);
+    }
   };
 
   const handleSetThumbnail = async (imageId: number) => {
@@ -773,12 +860,25 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                       : "border-gray-200 bg-white"
                   }`}
                 >
-                  <h2 className="text-2xl font-bold text-purple-900 mb-4">
-                    {character}
-                    <span className="text-sm text-purple-600 ml-2">
-                      ({characterImages.length} images)
-                    </span>
-                  </h2>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-2xl font-bold text-purple-900">
+                      {character}
+                      <span className="text-sm text-purple-600 ml-2">
+                        ({characterImages.length} images)
+                      </span>
+                    </h2>
+                    {character !== "No Character" && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleDeleteCharacter(character)}
+                        className="gap-2"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Șterge Caracterul
+                      </Button>
+                    )}
+                  </div>
 
                   <div className={`grid gap-2 ${
                     gridSize === 'small' ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6' :
@@ -871,7 +971,9 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                                 size="sm"
                                 variant="ghost"
                                 onClick={() => handleDelete(image.id)}
-                                className="w-5 h-5 p-0 hover:bg-red-100"
+                                disabled={isImageUsedInGeneratedVideos(image.imageUrl)}
+                                className="w-5 h-5 p-0 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                title={isImageUsedInGeneratedVideos(image.imageUrl) ? "Nu poți șterge această imagine pentru că are videouri generate. Șterge mai întâi AD-urile cu videouri." : "Șterge imaginea"}
                               >
                                 <Trash2 className="w-3 h-3 text-red-600" />
                               </Button>
@@ -987,7 +1089,9 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                         size="sm"
                         variant="ghost"
                         onClick={() => handleDelete(image.id)}
-                        className="w-5 h-5 p-0 hover:bg-red-100"
+                        disabled={isImageUsedInGeneratedVideos(image.imageUrl)}
+                        className="w-5 h-5 p-0 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={isImageUsedInGeneratedVideos(image.imageUrl) ? "Nu poți șterge această imagine pentru că are videouri generate. Șterge mai întâi AD-urile cu videouri." : "Șterge imaginea"}
                       >
                         <Trash2 className="w-3 h-3 text-red-600" />
                       </Button>
