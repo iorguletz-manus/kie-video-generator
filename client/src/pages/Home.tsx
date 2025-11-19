@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
 import EditProfileModal from '@/components/EditProfileModal';
 import { ImagesLibraryModal } from '@/components/ImagesLibraryModal';
+import { VideoEditor } from '@/components/VideoEditor';
 import { trpc } from '../lib/trpc';
 import mammoth from 'mammoth';
 import { Button } from "@/components/ui/button";
@@ -247,6 +248,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const { data: libraryCharacters = [] } = trpc.imageLibrary.getCharacters.useQuery({
     userId: localCurrentUser.id,
   });
+
+  // Video Editing mutations (Step 9)
+  const processVideoWithWhisper = trpc.videoEditing.process.useMutation();
+  const saveVideoEditing = trpc.videoEditing.save.useMutation();
   
   // Prompt Library query - load all prompts from database
   const { data: promptLibrary = [] } = trpc.promptLibrary.list.useQuery({
@@ -6372,11 +6377,160 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       Descarcă document Word cu toate liniile extrase
                     </button>
                   </div>
+                  
+                  {/* Buton Video Editing - Step 9 */}
+                  <div className="mt-4">
+                    <Button
+                      onClick={() => {
+                        // Filter only approved videos
+                        const approvedVideos = videoResults.filter(v => v.reviewStatus === 'accepted');
+                        if (approvedVideos.length === 0) {
+                          toast.error('Nu există videouri acceptate pentru editare');
+                          return;
+                        }
+                        setCurrentStep(9); // Go to STEP 9 - Video Editing
+                        toast.success(`Mergi la Video Editing cu ${approvedVideos.length} videouri`);
+                      }}
+                      className="w-full bg-purple-600 hover:bg-purple-700 py-6 text-lg"
+                    >
+                      <Video className="w-5 h-5 mr-2" />
+                      Video Editing ({acceptedVideosWithUrl.length} videouri)
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>
           </Card>
         )}
+
+        {/* STEP 9: Video Editing */}
+        {currentStep === 9 && (() => {
+          const approvedVideos = videoResults.filter(v => v.reviewStatus === 'accepted');
+          return (
+            <Card className="mb-8 border-2 border-purple-200">
+              <CardHeader className="bg-purple-50">
+                <CardTitle className="flex items-center gap-2 text-purple-900">
+                  <Video className="w-5 h-5" />
+                  STEP 9 - Video Editing
+                </CardTitle>
+                <CardDescription>
+                  Editează videouri approved: ajustează START și END pentru tăiere în Step 10.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-6">
+                {approvedVideos.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-600">Nu există videouri approved pentru editare.</p>
+                    <Button
+                      onClick={() => setCurrentStep(7)}
+                      className="mt-4"
+                    >
+                      Înapoi la Step 7
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-8">
+                    {/* Video Editors - One per approved video */}
+                    {approvedVideos.map((video) => (
+                      <VideoEditor
+                        key={video.id}
+                        video={{
+                          id: video.id,
+                          videoName: video.videoName,
+                          videoUrl: video.videoUrl!,
+                          text: video.text,
+                          redStart: video.redStart,
+                          redEnd: video.redEnd,
+                          fullText: video.text,
+                          redText: video.redStart !== undefined && video.redEnd !== undefined
+                            ? video.text.substring(video.redStart, video.redEnd)
+                            : '',
+                          startKeep: video.startKeep,
+                          endKeep: video.endKeep,
+                          editStatus: video.editStatus,
+                        }}
+                        onProcess={async (videoId) => {
+                          // Process video with Whisper API
+                          const videoToProcess = approvedVideos.find(v => v.id === videoId);
+                          if (!videoToProcess) throw new Error('Video not found');
+
+                          const fullText = videoToProcess.text;
+                          const redText = videoToProcess.redStart !== undefined && videoToProcess.redEnd !== undefined
+                            ? videoToProcess.text.substring(videoToProcess.redStart, videoToProcess.redEnd)
+                            : '';
+
+                          if (!redText) {
+                            throw new Error('Red text not found in video');
+                          }
+
+                          const result = await processVideoWithWhisper.mutateAsync({
+                            videoUrl: videoToProcess.videoUrl!,
+                            fullText,
+                            redText,
+                            marginMs: 50,
+                          });
+
+                          if (!result.cutPoints) {
+                            throw new Error('Failed to detect cut points');
+                          }
+
+                          return {
+                            startKeep: result.cutPoints.startKeep,
+                            endKeep: result.cutPoints.endKeep,
+                          };
+                        }}
+                        onSave={async (videoId, startKeep, endKeep) => {
+                          // Save timestamps to database
+                          await saveVideoEditing.mutateAsync({
+                            userId: user!.id,
+                            coreBeliefId: selectedCoreBeliefId!,
+                            emotionalAngleId: selectedEmotionalAngleId!,
+                            adId: selectedAdId!,
+                            characterId: selectedCharacterId!,
+                            videoId,
+                            startKeep,
+                            endKeep,
+                            words: [], // Whisper words are stored in backend, not needed here
+                          });
+
+                          // Update local state
+                          setVideoResults(prev => prev.map(v =>
+                            v.id === videoId
+                              ? { ...v, startKeep, endKeep, editStatus: 'edited' }
+                              : v
+                          ));
+                        }}
+                      />
+                    ))}
+
+                    {/* Navigation Buttons */}
+                    <div className="flex gap-4">
+                      <Button
+                        onClick={() => setCurrentStep(7)}
+                        variant="outline"
+                        className="flex-1"
+                      >
+                        Înapoi la Step 7
+                      </Button>
+
+                      {/* Buton Trim All Videos (non-funcțional pentru Step 10) */}
+                      <Button
+                        onClick={() => {
+                          toast.info('Step 10 - Trim All Videos va fi implementat în viitor');
+                        }}
+                        className="flex-1 bg-green-600 hover:bg-green-700"
+                        disabled
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Trim All Videos (Step 10)
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })()}
         </>
         )}
       </div>

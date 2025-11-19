@@ -13,6 +13,7 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 import { saveVideoTask, updateVideoTask } from "./videoCache";
+import { processVideoForEditing, WhisperWord, CutPoints } from "./videoEditing";
 import { parseAdDocument, parsePromptDocument, replaceInsertText, parseAdDocumentWithSections, PromptType } from "./documentParser";
 import { processAdDocument, addRedOnLine1 } from "./text-processor";
 import { createAppUser, getAppUserByUsername, getAppUserById, updateAppUser, createAppSession, getAppSessionsByUserId, updateAppSession, deleteAppSession, createUserImage, getUserImagesByUserId, getUserImagesByCharacter, updateUserImage, deleteUserImage, getUniqueCharacterNames, createUserPrompt, getUserPromptsByUserId, getUserPromptById, updateUserPrompt, deleteUserPrompt, createTam, getTamsByUserId, getTamById, updateTam, deleteTam, createCoreBelief, getCoreBeliefsByUserId, getCoreBeliefsByTamId, getCoreBeliefById, updateCoreBelief, deleteCoreBelief, createEmotionalAngle, getEmotionalAnglesByUserId, getEmotionalAnglesByCoreBeliefId, getEmotionalAngleById, updateEmotionalAngle, deleteEmotionalAngle, createAd, getAdsByUserId, getAdsByEmotionalAngleId, getAdById, updateAd, deleteAd, createCharacter, getCharactersByUserId, getCharacterById, updateCharacter, deleteCharacter, getContextSession, upsertContextSession, deleteContextSession } from "./db";
@@ -1474,6 +1475,144 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         await deleteContextSession(input.id);
         return { success: true };
+      }),
+  }),
+
+  // Video Editing router for Step 9
+  videoEditing: router({
+    // Process video with Whisper API for word-level timestamps
+    process: publicProcedure
+      .input(z.object({
+        videoUrl: z.string(),
+        fullText: z.string(),
+        redText: z.string(),
+        marginMs: z.number().optional().default(50),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          const result = await processVideoForEditing(
+            input.videoUrl,
+            input.fullText,
+            input.redText,
+            input.marginMs
+          );
+
+          return {
+            success: true,
+            words: result.words,
+            cutPoints: result.cutPoints,
+          };
+        } catch (error) {
+          console.error('[videoEditing.process] Error:', error);
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Failed to process video: ${error.message}`,
+          });
+        }
+      }),
+
+    // Save video editing data to context session
+    save: publicProcedure
+      .input(z.object({
+        userId: z.number(),
+        coreBeliefId: z.number(),
+        emotionalAngleId: z.number(),
+        adId: z.number(),
+        characterId: z.number(),
+        videoId: z.string(),
+        startKeep: z.number(),
+        endKeep: z.number(),
+        words: z.any(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          // Get existing context session
+          const session = await getContextSession({
+            userId: input.userId,
+            coreBeliefId: input.coreBeliefId,
+            emotionalAngleId: input.emotionalAngleId,
+            adId: input.adId,
+            characterId: input.characterId,
+          });
+
+          if (!session) {
+            throw new TRPCError({
+              code: 'NOT_FOUND',
+              message: 'Context session not found',
+            });
+          }
+
+          // Update videoResults with editing data
+          const videoResults = session.videoResults || [];
+          const videoIndex = videoResults.findIndex((v: any) => v.id === input.videoId);
+
+          if (videoIndex === -1) {
+            throw new TRPCError({
+              code: 'NOT_FOUND',
+              message: 'Video not found in session',
+            });
+          }
+
+          videoResults[videoIndex] = {
+            ...videoResults[videoIndex],
+            startKeep: input.startKeep,
+            endKeep: input.endKeep,
+            whisperWords: input.words,
+            editStatus: 'edited',
+          };
+
+          // Save updated session
+          await upsertContextSession({
+            userId: input.userId,
+            coreBeliefId: input.coreBeliefId,
+            emotionalAngleId: input.emotionalAngleId,
+            adId: input.adId,
+            characterId: input.characterId,
+            videoResults,
+          });
+
+          return { success: true };
+        } catch (error) {
+          console.error('[videoEditing.save] Error:', error);
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Failed to save editing data: ${error.message}`,
+          });
+        }
+      }),
+
+    // List approved videos for editing
+    list: publicProcedure
+      .input(z.object({
+        userId: z.number(),
+        coreBeliefId: z.number(),
+        emotionalAngleId: z.number(),
+        adId: z.number(),
+        characterId: z.number(),
+      }))
+      .query(async ({ input }) => {
+        try {
+          const session = await getContextSession(input);
+          
+          if (!session) {
+            return { videos: [] };
+          }
+
+          const videoResults = session.videoResults || [];
+          
+          // Filter approved videos
+          const approvedVideos = videoResults.filter(
+            (v: any) => v.status === 'approved'
+          );
+
+          return { videos: approvedVideos };
+        } catch (error) {
+          console.error('[videoEditing.list] Error:', error);
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Failed to list videos: ${error.message}`,
+          });
+        }
       }),
   }),
 });
