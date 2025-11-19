@@ -366,26 +366,50 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
   };
 
   const handleDeleteCharacter = async (characterName: string) => {
-    // Check if character has generated videos
-    const hasGeneratedVideos = allContextSessions.some(session => {
-      if (session.characterId) {
-        const character = categoryCharacters.find(c => c.id === session.characterId);
-        if (character && character.name === characterName && session.videoResults) {
-          try {
-            const videos = typeof session.videoResults === 'string' 
-              ? JSON.parse(session.videoResults) 
-              : session.videoResults;
+    const character = categoryCharacters.find(c => c.name === characterName);
+    if (!character) {
+      toast.error(`Caracterul "${characterName}" nu a fost găsit.`);
+      return;
+    }
+    
+    // Check if character has generated videos in database
+    let hasGeneratedVideos = allContextSessions.some(session => {
+      if (session.characterId === character.id && session.videoResults) {
+        try {
+          const videos = typeof session.videoResults === 'string' 
+            ? JSON.parse(session.videoResults) 
+            : session.videoResults;
             
-            return Array.isArray(videos) && videos.some(
-              (v: any) => v.status === 'success' || v.status === 'pending' || v.status === 'failed'
-            );
-          } catch (e) {
-            return false;
-          }
+          return Array.isArray(videos) && videos.some(
+            (v: any) => v.status === 'success' || v.status === 'pending' || v.status === 'failed'
+          );
+        } catch (e) {
+          return false;
         }
       }
       return false;
     });
+
+    // Also check localStorage for current session videoResults
+    if (!hasGeneratedVideos) {
+      try {
+        const savedContext = localStorage.getItem('savedContext');
+        if (savedContext) {
+          const context = JSON.parse(savedContext);
+          if (context.characterId === character.id && context.videoResults) {
+            const videos = Array.isArray(context.videoResults) 
+              ? context.videoResults 
+              : JSON.parse(context.videoResults);
+            
+            hasGeneratedVideos = videos.some(
+              (v: any) => v.status === 'success' || v.status === 'pending' || v.status === 'failed'
+            );
+          }
+        }
+      } catch (e) {
+        console.error('[Delete Character] Error checking localStorage:', e);
+      }
+    }
 
     if (hasGeneratedVideos) {
       toast.error(`Nu poți șterge caracterul "${characterName}" pentru că are videouri generate. Șterge mai întâi AD-urile cu videouri.`);
