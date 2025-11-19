@@ -29,7 +29,7 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
     );
   }
   const [selectedCharacter, setSelectedCharacter] = useState<string>("all");
-  const [uploadCharacterSelection, setUploadCharacterSelection] = useState<string>("No Character");
+  const [uploadCharacterSelection, setUploadCharacterSelection] = useState<string>("__new__");
   const [newCharacterName, setNewCharacterName] = useState("");
   const [uploadingFiles, setUploadingFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -104,6 +104,12 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
     return false;
   }, [allContextSessions]);
 
+  // Helper function to get character thumbnail
+  const getCharacterThumbnail = useCallback((characterName: string) => {
+    const character = categoryCharacters.find(c => c.name === characterName);
+    return character?.thumbnailUrl || null;
+  }, [categoryCharacters]);
+
   // Mutations
   const uploadMutation = trpc.imageLibrary.upload.useMutation();
   const updateMutation = trpc.imageLibrary.updateName.useMutation({
@@ -136,7 +142,12 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
     },
   });
 
-  const deleteCharacterMutation = trpc.categoryCharacters.delete.useMutation();
+  const deleteCharacterMutation = trpc.categoryCharacters.delete.useMutation({
+    onSuccess: async () => {
+      await refetch();
+      await refetchCharacters();
+    },
+  });
 
   // Filter, search, and sort images
   const filteredImages = useMemo(() => {
@@ -541,19 +552,21 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
   };
 
   const handleDrop = (targetCharacter: string) => {
-    // Keep old behavior for character switching (when dropping on character section)
+    // Block moving images between different characters
     if (!draggedImageId) return;
 
     const image = allImages.find((img) => img.id === draggedImageId);
-    if (!image || image.characterName === targetCharacter) {
+    if (!image) {
       setDraggedImageId(null);
       return;
     }
 
-    updateMutation.mutate({
-      id: draggedImageId,
-      characterName: targetCharacter,
-    });
+    // If trying to move to different character, show error and block
+    if (image.characterName !== targetCharacter) {
+      toast.error('Nu poți muta imaginile între caractere diferite!');
+      setDraggedImageId(null);
+      return;
+    }
 
     setDraggedImageId(null);
   };
@@ -715,11 +728,27 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                   <SelectItem value="all">All Characters</SelectItem>
                   {characters
                     .filter((char) => char && char.trim() !== "") // Filter empty strings
-                    .map((char) => (
-                      <SelectItem key={char} value={char}>
-                        {char}
-                      </SelectItem>
-                    ))}
+                    .map((char) => {
+                      const thumbnail = getCharacterThumbnail(char);
+                      return (
+                        <SelectItem key={char} value={char}>
+                          <div className="flex items-center gap-2">
+                            {thumbnail ? (
+                              <img 
+                                src={thumbnail} 
+                                alt={char} 
+                                className="w-6 h-6 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-6 h-6 rounded-full bg-purple-200 flex items-center justify-center text-xs font-semibold text-purple-700">
+                                {char.charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                            <span>{char}</span>
+                          </div>
+                        </SelectItem>
+                      );
+                    })}
                 </SelectContent>
               </Select>
             </div>
@@ -738,17 +767,32 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                       <SelectTrigger className="bg-white border-purple-300 h-10">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="No Character">No Character</SelectItem>
+                       <SelectContent>
                         {characters
                           .filter((char) => char && char.trim() !== "" && char !== "No Character")
-                          .map((char) => (
-                            <SelectItem key={char} value={char}>
-                              {char}
-                            </SelectItem>
-                          ))}
+                          .map((char) => {
+                            const thumbnail = getCharacterThumbnail(char);
+                            return (
+                              <SelectItem key={char} value={char}>
+                                <div className="flex items-center gap-2">
+                                  {thumbnail ? (
+                                    <img 
+                                      src={thumbnail} 
+                                      alt={char} 
+                                      className="w-6 h-6 rounded-full object-cover"
+                                    />
+                                  ) : (
+                                    <div className="w-6 h-6 rounded-full bg-purple-200 flex items-center justify-center text-xs font-semibold text-purple-700">
+                                      {char.charAt(0).toUpperCase()}
+                                    </div>
+                                  )}
+                                  <span>{char}</span>
+                                </div>
+                              </SelectItem>
+                            );
+                          })}
                         <SelectItem value="__new__">+ New Character</SelectItem>
-                      </SelectContent>
+                       </SelectContent>
                     </Select>
                   </div>
                   
