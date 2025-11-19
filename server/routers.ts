@@ -16,7 +16,9 @@ import { saveVideoTask, updateVideoTask } from "./videoCache";
 import { processVideoForEditing, cutVideoWithFFmpegAPI, WhisperWord, CutPoints } from "./videoEditing";
 import { parseAdDocument, parsePromptDocument, replaceInsertText, parseAdDocumentWithSections, PromptType } from "./documentParser";
 import { processAdDocument, addRedOnLine1 } from "./text-processor";
-import { createAppUser, getAppUserByUsername, getAppUserById, updateAppUser, createAppSession, getAppSessionsByUserId, updateAppSession, deleteAppSession, createUserImage, getUserImagesByUserId, getUserImagesByCharacter, updateUserImage, deleteUserImage, getUniqueCharacterNames, createUserPrompt, getUserPromptsByUserId, getUserPromptById, updateUserPrompt, deleteUserPrompt, createTam, getTamsByUserId, getTamById, updateTam, deleteTam, createCoreBelief, getCoreBeliefsByUserId, getCoreBeliefsByTamId, getCoreBeliefById, updateCoreBelief, deleteCoreBelief, createEmotionalAngle, getEmotionalAnglesByUserId, getEmotionalAnglesByCoreBeliefId, getEmotionalAngleById, updateEmotionalAngle, deleteEmotionalAngle, createAd, getAdsByUserId, getAdsByEmotionalAngleId, getAdById, updateAd, deleteAd, createCharacter, getCharactersByUserId, getCharacterById, updateCharacter, deleteCharacter, getContextSession, upsertContextSession, deleteContextSession } from "./db";
+import { createAppUser, getAppUserByUsername, getAppUserById, updateAppUser, createAppSession, getAppSessionsByUserId, updateAppSession, deleteAppSession, createUserImage, getUserImagesByUserId, getUserImagesByCharacter, updateUserImage, deleteUserImage, getUniqueCharacterNames, createUserPrompt, getUserPromptsByUserId, getUserPromptById, updateUserPrompt, deleteUserPrompt, createTam, getTamsByUserId, getTamById, updateTam, deleteTam, createCoreBelief, getCoreBeliefsByUserId, getCoreBeliefsByTamId, getCoreBeliefById, updateCoreBelief, deleteCoreBelief, createEmotionalAngle, getEmotionalAnglesByUserId, getEmotionalAnglesByCoreBeliefId, getEmotionalAngleById, updateEmotionalAngle, deleteEmotionalAngle, createAd, getAdsByUserId, getAdsByEmotionalAngleId, getAdById, updateAd, deleteAd, createCharacter, getCharactersByUserId, getCharacterById, updateCharacter, deleteCharacter, getContextSession, upsertContextSession, deleteContextSession, getDb } from "./db";
+import { contextSessions } from "../drizzle/schema";
+import { eq } from "drizzle-orm";
 import { seedDefaultPromptsForUser } from "./seedDefaultPrompts";
 
 export const appRouter = router({
@@ -1482,6 +1484,8 @@ export const appRouter = router({
       .input(z.object({ userId: z.number() }))
       .mutation(async ({ input }) => {
         try {
+          const db = await getDb();
+          
           // Get all sessions for user
           const sessions = await db.select()
             .from(contextSessions)
