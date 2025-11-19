@@ -252,7 +252,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [selectedLibraryImages, setSelectedLibraryImages] = useState<number[]>([]);
   
   // Step 4: Tabs
-  const [step4ActiveTab, setStep4ActiveTab] = useState<'upload' | 'library'>('upload');
+  const [step4ActiveTab, setStep4ActiveTab] = useState<'upload' | 'library'>('library');
   
   // WYSIWYG Editor for STEP 2
   const [editingLineId, setEditingLineId] = useState<string | null>(null);
@@ -2465,6 +2465,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
 
     try {
+      // Închide modal-ul IMEDIAT (nu așteaptă după API call)
+      setModifyingVideoIndex(null);
+      
       // Determină prompt template (custom sau hardcoded)
       let promptTemplate: string;
       const promptType = combo.promptType;
@@ -2495,9 +2498,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
       const newResult = result.results[0];
       
-      // Actualizează videoResults cu noul taskId ȘI șterge reviewStatus
-      setVideoResults(prev =>
-        prev.map((v, i) =>
+      // Actualizează videoResults cu noul taskId ȘI șterge reviewStatus (forțează re-render)
+      setVideoResults(prev => [
+        ...prev.map((v, i) =>
           i === index
             ? {
                 ...v,
@@ -2509,11 +2512,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               }
             : v
         )
-      );
+      ]);
 
       if (newResult.success) {
         toast.success(`Video #${index + 1} retrimis pentru generare`);
-        setModifyingVideoIndex(null); // Închide modal-ul după regenerare
       } else {
         toast.error(`Eroare la retrimite video #${index + 1}: ${newResult.error}`);
       }
@@ -4246,51 +4248,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             </CardHeader>
             
             <CardContent className="pt-6">
-              {/* Character Selector (always visible) */}
-              <div className="mb-6 p-4 bg-purple-50 border-2 border-purple-300 rounded-lg">
-                <label className="block text-sm font-medium text-purple-900 mb-2">
-                  Select Character *
-                </label>
-                <Select 
-                  value={selectedCharacterId?.toString() || ''} 
-                  onValueChange={(value) => {
-                    if (value === '__new__') {
-                      const newName = prompt('Nume caracter nou:');
-                      if (newName && newName.trim()) {
-                        createCharacterMutation.mutate({
-                          userId: localCurrentUser.id,
-                          name: newName.trim(),
-                        }, {
-                          onSuccess: (newChar) => {
-                            setSelectedCharacterId(newChar.id);
-                            toast.success(`Caracter "${newName}" creat!`);
-                          },
-                        });
-                      }
-                    } else {
-                      setSelectedCharacterId(parseInt(value));
-                    }
-                  }}
-                >
-                  <SelectTrigger className="bg-white">
-                    <SelectValue placeholder="Select or create character" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__new__">+ New Character</SelectItem>
-                    {categoryCharacters?.map((char) => (
-                      <SelectItem key={char.id} value={char.id.toString()}>
-                        {char.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {!selectedCharacterId && (
-                  <p className="text-sm text-red-600 mt-2">
-                    ⚠️ Trebuie să selectezi un caracter înainte de a încărca imagini
-                  </p>
-                )}
-              </div>
-              
               {/* TABS */}
               <div className="flex gap-2 mb-6 border-b-2 border-gray-200">
                 <button
@@ -4318,6 +4275,51 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               {/* TAB CONTENT: Manual Upload */}
               {step4ActiveTab === 'upload' && (
                 <div>
+                  {/* Character Selector (only in Manual Upload) */}
+                  <div className="mb-6 p-4 bg-purple-50 border-2 border-purple-300 rounded-lg">
+                    <label className="block text-sm font-medium text-purple-900 mb-2">
+                      Select Character *
+                    </label>
+                    <Select 
+                      value={selectedCharacterId?.toString() || ''} 
+                      onValueChange={(value) => {
+                        if (value === '__new__') {
+                          const newName = prompt('Nume caracter nou:');
+                          if (newName && newName.trim()) {
+                            createCharacterMutation.mutate({
+                              userId: localCurrentUser.id,
+                              name: newName.trim(),
+                            }, {
+                              onSuccess: (newChar) => {
+                                setSelectedCharacterId(newChar.id);
+                                toast.success(`Caracter "${newName}" creat!`);
+                              },
+                            });
+                          }
+                        } else {
+                          setSelectedCharacterId(parseInt(value));
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="bg-white">
+                        <SelectValue placeholder="Select or create character" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__new__">+ New Character</SelectItem>
+                        {categoryCharacters?.map((char) => (
+                          <SelectItem key={char.id} value={char.id.toString()}>
+                            {char.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {!selectedCharacterId && (
+                      <p className="text-sm text-red-600 mt-2">
+                        ⚠️ Trebuie să selectezi un caracter înainte de a încărca imagini
+                      </p>
+                    )}
+                  </div>
+                  
                   <div
                     onDrop={handleImageDrop}
                     onDragOver={(e) => e.preventDefault()}
