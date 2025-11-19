@@ -1496,7 +1496,10 @@ export const appRouter = router({
           for (const session of sessions) {
             if (!session.videoResults) continue;
             
-            const videoResults = JSON.parse(session.videoResults as string);
+            // Parse videoResults if it's a string, otherwise use as-is
+            const videoResults = typeof session.videoResults === 'string' 
+              ? JSON.parse(session.videoResults) 
+              : session.videoResults;
             const originalCount = videoResults.length;
             
             // Filter out OTHER videos
