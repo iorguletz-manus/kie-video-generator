@@ -5849,6 +5849,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           {/* Edit button */}
                           <button
                             onClick={() => {
+                              if (realIndex === -1) {
+                                console.error('[Edit Modal] Cannot open - video not found in videoResults:', result.videoName);
+                                return;
+                              }
                               setModifyingVideoIndex(realIndex);
                               const currentPromptType = combinations[realIndex]?.promptType || 'PROMPT_NEUTRAL';
                               setModifyPromptType(currentPromptType);
