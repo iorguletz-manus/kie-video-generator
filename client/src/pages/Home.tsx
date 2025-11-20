@@ -1005,14 +1005,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   }, [step5Filter, videoResults, acceptedVideos, regenerateVideos]);
   
   // Filtered lists pentru STEP 6 (based on videoFilter)
-  // NOTE: Filters work only on refresh - dependencies removed to prevent auto-filtering on decision change
+  // NOTE: videoResults added to dependencies to update UI immediately after Accept/Regenerate
+  // Auto-remove is prevented by keeping filter value constant until user changes it
   const step6FilteredVideos = useMemo(() => {
     if (videoFilter === 'all') return videoResults;
     if (videoFilter === 'accepted') return acceptedVideos;
     if (videoFilter === 'failed') return failedVideos;
     if (videoFilter === 'no_decision') return videoResults.filter(v => !v.reviewStatus);
     return videoResults;
-  }, [videoFilter]);
+  }, [videoFilter, videoResults, acceptedVideos, failedVideos]);
   
   // Videos fără decizie (pentru statistici STEP 6)
   const videosWithoutDecision = useMemo(
@@ -2294,16 +2295,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     const duplicateName = generateDuplicateName(originalName, videoResults);
     
     // Creează duplicate video result
-    // Copiază INPUT-urile (text, imageUrl, error, status, reviewStatus) dar RESETEAZĂ OUTPUT-urile (taskId, videoUrl)
+    // Copiază INPUT-urile (text, imageUrl) dar RESETEAZĂ OUTPUT-urile (taskId, videoUrl, status, reviewStatus)
     const duplicateVideoResult: VideoResult = {
       ...originalVideo, // Copiază toate câmpurile
       videoName: duplicateName,
       // RESET output fields - duplicatul e un video NOU care nu a fost generat încă
       taskId: undefined,
       videoUrl: undefined,
-      // PĂSTREZĂ status și reviewStatus pentru ca duplicatul să apară ca failed/rejected
-      status: originalVideo.status, // 'failed' sau 'success'
-      reviewStatus: originalVideo.reviewStatus, // null sau 'regenerate' (pentru rejected)
+      // RESET status și reviewStatus - duplicatul e un video negenerat
+      status: null, // null = not generated yet
+      reviewStatus: null, // null = no review yet
       isDuplicate: true,
       duplicateNumber: getDuplicateNumber(duplicateName),
       originalVideoName: originalName,
