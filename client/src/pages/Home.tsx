@@ -793,10 +793,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     return () => clearTimeout(timeoutId);
   }, [
-    selectedCoreBeliefId,
-    selectedEmotionalAngleId,
-    selectedAdId,
-    selectedCharacterId,
+    // DO NOT include selectedAdId or selectedCharacterId in dependencies
+    // to prevent auto-save when switching context
     currentStep,
     rawTextAd,
     processedTextAd,
@@ -3342,65 +3340,57 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 </div>
               </div>
 
-              {/* LOAD CONTEXT Button */}
+              {/* COPY CONTEXT Button */}
               <div className="mb-6">
                 <Button
                   onClick={async () => {
-                    // Find all available Ads for current context
-                    const availableAds = ads.filter(ad => 
-                      ad.emotionalAngleId === selectedEmotionalAngleId
+                    // Check if current context has data to copy
+                    if (!rawTextAd || rawTextAd.trim().length === 0) {
+                      toast.error('Current Ad has no data to copy. Please add content first.');
+                      return;
+                    }
+                    
+                    // Find all available target Ads for current context (exclude current Ad)
+                    const targetAds = ads.filter(ad => 
+                      ad.emotionalAngleId === selectedEmotionalAngleId && ad.id !== selectedAdId
                     );
                     
-                    if (availableAds.length === 0) {
+                    if (targetAds.length === 0) {
                       toast.error('No other Ads available for this Emotional Angle');
                       return;
                     }
                     
                     // Show selection dialog
-                    const adNames = availableAds.map(ad => `${ad.id}. ${ad.name}`).join('\n');
-                    const selection = prompt(`Select Ad to load context from:\n\n${adNames}\n\nEnter Ad ID:`);
+                    const adNames = targetAds.map(ad => `${ad.id}. ${ad.name}`).join('\n');
+                    const selection = prompt(`Copy context TO which Ad?\n\n${adNames}\n\nEnter Ad ID:`);
                     
                     if (!selection) return;
                     
-                    const sourceAdId = parseInt(selection);
-                    const sourceAd = availableAds.find(ad => ad.id === sourceAdId);
+                    const targetAdId = parseInt(selection);
+                    const targetAd = targetAds.find(ad => ad.id === targetAdId);
                     
-                    if (!sourceAd) {
+                    if (!targetAd) {
                       toast.error('Invalid Ad ID');
                       return;
                     }
                     
                     // Confirm action
-                    if (!confirm(`Load context from "${sourceAd.name}" to current Ad "${ads.find(ad => ad.id === selectedAdId)?.name}"?\n\nThis will copy Step 1-3 data (rawTextAd, processedTextAd, adLines).`)) {
+                    if (!confirm(`Copy context FROM current Ad \"${ads.find(ad => ad.id === selectedAdId)?.name}\" TO \"${targetAd.name}\"?\n\nThis will overwrite Step 1-3 data in the target Ad.`)) {
                       return;
                     }
                     
-                    // Fetch source context session
-                    const sourceSession = await trpc.contextSessions.get.query({
-                      userId: localCurrentUser.id,
-                      coreBeliefId: selectedCoreBeliefId!,
-                      emotionalAngleId: selectedEmotionalAngleId!,
-                      adId: sourceAdId,
-                      characterId: selectedCharacterId!,
-                    });
-                    
-                    if (!sourceSession) {
-                      toast.error('Source context not found');
-                      return;
-                    }
-                    
-                    // Copy Step 1-3 data to current context
+                    // Copy Step 1-3 data to target Ad
                     const updatedSession = {
                       userId: localCurrentUser.id,
                       tamId: selectedTamId!,
                       coreBeliefId: selectedCoreBeliefId!,
                       emotionalAngleId: selectedEmotionalAngleId!,
-                      adId: selectedAdId!,
+                      adId: targetAdId,
                       characterId: selectedCharacterId!,
-                      currentStep: 4, // Redirect to Step 4
-                      rawTextAd: sourceSession.rawTextAd,
-                      processedTextAd: sourceSession.processedTextAd,
-                      adLines: sourceSession.adLines,
+                      currentStep: 4, // Set to Step 4
+                      rawTextAd,
+                      processedTextAd,
+                      adLines: JSON.stringify(adLines),
                       prompts: '[]',
                       images: '[]',
                       combinations: '[]',
@@ -3411,24 +3401,22 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     
                     upsertContextSessionMutation.mutate(updatedSession, {
                       onSuccess: () => {
-                        // Reload context
-                        window.location.reload();
-                        toast.success(`Context loaded from "${sourceAd.name}"!`);
+                        toast.success(`Context copied to \"${targetAd.name}\"!`);
                       },
                       onError: (error: any) => {
-                        toast.error(`Failed to load context: ${error.message}`);
+                        toast.error(`Failed to copy context: ${error.message}`);
                       },
                     });
                   }}
                   className="bg-purple-600 hover:bg-purple-700 text-white"
-                  disabled={!selectedAdId || !selectedCharacterId}
+                  disabled={!selectedAdId || !selectedCharacterId || !rawTextAd}
                 >
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
-                  LOAD CONTEXT FROM ANOTHER AD
+                  COPY CONTEXT TO ANOTHER AD
                 </Button>
-                <p className="text-xs text-gray-500 mt-2">Copy Step 1-3 data from another Ad with the same character</p>
+                <p className="text-xs text-gray-500 mt-2">Copy Step 1-3 data from current Ad to another Ad with the same character</p>
               </div>
 
               {/* OLD CATEGORIES - TO BE REMOVED */}
