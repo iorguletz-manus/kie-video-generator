@@ -1005,19 +1005,21 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   }, [step5Filter, videoResults, acceptedVideos, regenerateVideos]);
   
   // Filtered lists pentru STEP 6 (based on videoFilter)
+  // NOTE: Filters work only on refresh - dependencies removed to prevent auto-filtering on decision change
   const step6FilteredVideos = useMemo(() => {
     if (videoFilter === 'all') return videoResults;
     if (videoFilter === 'accepted') return acceptedVideos;
     if (videoFilter === 'failed') return failedVideos;
     if (videoFilter === 'no_decision') return videoResults.filter(v => !v.reviewStatus);
     return videoResults;
-  }, [videoFilter, videoResults, acceptedVideos, failedVideos]);
+  }, [videoFilter]);
   
   // Videos fără decizie (pentru statistici STEP 6)
   const videosWithoutDecision = useMemo(
     () => videoResults.filter(v => !v.reviewStatus),
     [videoResults]
   );
+  const videosWithoutDecisionCount = useMemo(() => videosWithoutDecision.length, [videosWithoutDecision]);
   
   // Accepted videos cu videoUrl (pentru download)
   const acceptedVideosWithUrl = useMemo(
@@ -4755,7 +4757,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   const realIndex = videoResults.findIndex(v => v.videoName === result.videoName);
                   
                   return (
-                  <div key={result.videoName} className="p-3 md:p-4 bg-white rounded-lg border-2 border-blue-200">
+                  <div key={result.videoName} id={`video-card-${result.videoName}`} className="p-3 md:p-4 bg-white rounded-lg border-2 border-blue-200">
                     <div className="flex flex-row items-start gap-3">
                       <img
                         src={result.imageUrl}
@@ -4767,7 +4769,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           {result.videoName}
                         </p>
                         <p className="text-sm text-blue-900 mb-2">
-                          <span className="font-medium">Text:</span> {result.text.substring(0, 100)}...
+                          <span className="font-medium">Text:</span>{' '}
+                          {result.redStart !== undefined && result.redEnd !== undefined && result.redStart >= 0 ? (
+                            <>
+                              {result.text.substring(0, result.redStart)}
+                              <span className="text-red-600 font-bold">{result.text.substring(result.redStart, result.redEnd)}</span>
+                              {result.text.substring(result.redEnd)}
+                            </>
+                          ) : (
+                            result.text
+                          )}
                         </p>
                         {result.taskId && (
                           <p className="text-xs text-blue-700 mb-1">
@@ -5420,6 +5431,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                           
                                           toast.success('Modificări salvate!');
                                           setModifyingVideoIndex(null);
+                                          
+                                          // Auto-scroll to video card after save
+                                          setTimeout(() => {
+                                            const videoCard = document.getElementById(`video-card-${videoResults[index]?.videoName}`);
+                                            if (videoCard) {
+                                              videoCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                            }
+                                          }, 100);
                                         }}
                                         disabled={modifyDialogueText.trim().length === 0}
                                         className="flex-1 bg-green-600 hover:bg-green-700"
@@ -6450,11 +6469,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   onChange={(e) => setVideoFilter(e.target.value as 'all' | 'accepted' | 'failed' | 'no_decision')}
                   className="px-4 py-2 border border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 >
-                  <option value="all">Afișează Toate</option>
-                  <option value="accepted">Doar Acceptate</option>
-                  <option value="failed">Doar Failed/Pending</option>
-                  <option value="no_decision">Doar Fără Decizie</option>
+                  <option value="all">Afișează Toate ({videoResults.length})</option>
+                  <option value="accepted">Doar Acceptate ({acceptedCount})</option>
+                  <option value="failed">Doar Failed/Pending ({failedCount})</option>
+                  <option value="no_decision">Doar Fără Decizie ({videosWithoutDecisionCount})</option>
                 </select>
+                <span className="text-xs text-gray-500 italic">Filtru funcționează doar la refresh</span>
               </div>
               
               {/* Buton UNDO */}
