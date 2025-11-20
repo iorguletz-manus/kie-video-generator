@@ -5325,6 +5325,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                         size="sm"
                                         onClick={() => {
                                           // SAVE: salvează modificări fără regenerare
+                                          const index = modifyingVideoIndex;
+                                          console.log('[Save Modify] Starting save | index:', index, '| videoResults.length:', videoResults.length, '| step5Filter:', step5Filter);
                                           
                                           // Text și pozițiile roșu sunt deja în state (modifyDialogueText, modifyRedStart, modifyRedEnd)
                                           console.log('[Save Modify] Saving text with red positions:', modifyRedStart, '-', modifyRedEnd);
@@ -5849,6 +5851,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           {/* Edit button */}
                           <button
                             onClick={() => {
+                              console.log('[Edit Modal] Opening for:', result.videoName, '| realIndex:', realIndex, '| step5Filter:', step5Filter);
                               if (realIndex === -1) {
                                 console.error('[Edit Modal] Cannot open - video not found in videoResults:', result.videoName);
                                 return;
