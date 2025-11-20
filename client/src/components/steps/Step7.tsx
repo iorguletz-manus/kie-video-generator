@@ -225,32 +225,19 @@ export function Step7(props: Step7Props) {
                   </div>
                 </div>
                 
-                {/* Buton Next Step - activ doar când toate videouri au decizie */}
-                {videoResults.every(v => v.reviewStatus !== null) ? (
-                  <div className="space-y-2">
-                    {videoResults.some(v => v.reviewStatus === 'regenerate') && (
-                      <Button
-                        onClick={() => {
-                          // TODO: Implementare regenerare și revenire la STEP 6
-                          toast.info('Regenerare videouri marcate...');
-                          setCurrentStep(6);
-                        }}
-                        className="w-full bg-red-600 hover:bg-red-700 py-6 text-lg"
-                      >
-                        <RefreshCw className="w-5 h-5 mr-2" />
-                        Regenerate Selected ({regenerateCount})
-                      </Button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="bg-yellow-50 border-2 border-yellow-300 rounded p-4 text-center">
-                    <p className="text-yellow-800 font-medium">
-                      Te rog să iei o decizie (Accept sau Regenerate) pentru toate videouri înainte de a continua.
-                    </p>
-                    <p className="text-sm text-yellow-700 mt-1">
-                      {videosWithoutDecision.length} videouri rămase fără decizie
-                    </p>
-                  </div>
+                {/* Buton Regenerate - afișat doar când există videouri marcate pentru regenerare */}
+                {videoResults.some(v => v.reviewStatus === 'regenerate') && (
+                  <Button
+                    onClick={() => {
+                      // TODO: Implementare regenerare și revenire la STEP 6
+                      toast.info('Regenerare videouri marcate...');
+                      setCurrentStep(6);
+                    }}
+                    className="w-full bg-red-600 hover:bg-red-700 py-6 text-lg"
+                  >
+                    <RefreshCw className="w-5 h-5 mr-2" />
+                    Regenerate Selected ({regenerateCount})
+                  </Button>
                 )}
               </div>
               

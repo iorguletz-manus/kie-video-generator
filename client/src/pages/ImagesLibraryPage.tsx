@@ -935,17 +935,15 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                         ({characterImages.length} images)
                       </span>
                     </h2>
-                    {character !== "No Character" && (
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => handleDeleteCharacter(character)}
-                        className="gap-2"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        Șterge Caracterul
-                      </Button>
-                    )}
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleDeleteCharacter(character)}
+                      className="gap-2"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Șterge Caracterul
+                    </Button>
                   </div>
 
                   <div className={`grid gap-2 ${

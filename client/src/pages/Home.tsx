@@ -152,7 +152,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [selectedAdId, setSelectedAdId] = useState<number | null>(null);
   const [selectedCharacterId, setSelectedCharacterId] = useState<number | null>(null);
   const previousCharacterIdRef = useRef<number | null>(null);
-  const [textAdMode, setTextAdMode] = useState<'upload' | 'paste'>('upload');
+  const [textAdMode, setTextAdMode] = useState<'upload' | 'paste' | 'google-doc'>('upload');
   const [rawTextAd, setRawTextAd] = useState<string>('');
   const [processedTextAd, setProcessedTextAd] = useState<string>('');
   const [uploadedFileName, setUploadedFileName] = useState<string>('');
@@ -160,6 +160,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // Step 2: Text Ad Document (moved from STEP 1)
   const [adDocument, setAdDocument] = useState<File | null>(null);
   const [adLines, setAdLines] = useState<AdLine[]>([]);
+  const [deletedLinesHistory, setDeletedLinesHistory] = useState<AdLine[]>([]);
   
   // Step 2: Prompts (3 prompts)
   const [prompts, setPrompts] = useState<UploadedPrompt[]>([]);
@@ -3419,7 +3420,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     });
                   }}
                   className="bg-purple-600 hover:bg-purple-700 text-white"
-                  disabled={!selectedAdId || !selectedCharacterId || !rawTextAd}
+                  disabled={!selectedAdId || !selectedCharacterId || adLines.length === 0}
                 >
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -3618,13 +3619,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   {/* Input Method Selector */}
                   <div className="mb-6">
                     <Label className="text-blue-900 font-medium mb-2 block">Input Method:</Label>
-                    <Select value={textAdMode} onValueChange={(value: 'upload' | 'paste') => setTextAdMode(value)}>
+                    <Select value={textAdMode} onValueChange={(value: 'upload' | 'paste' | 'google-doc') => setTextAdMode(value)}>
                       <SelectTrigger className="w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="upload">Upload Ad</SelectItem>
                         <SelectItem value="paste">Paste Ad</SelectItem>
+                        <SelectItem value="google-doc">Google Doc Link</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -3682,6 +3684,61 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       />
                       {rawTextAd && (
                         <p className="text-xs text-gray-500 mt-2">{rawTextAd.length} characters</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Google Doc Mode */}
+                  {textAdMode === 'google-doc' && (
+                    <div className="mb-6">
+                      <Label className="text-blue-900 font-medium mb-2 block">Google Doc Link:</Label>
+                      <input
+                        type="text"
+                        placeholder="Paste Google Doc link here (e.g., https://docs.google.com/document/d/...)" 
+                        className="w-full p-4 border-2 border-blue-300 rounded-lg focus:border-blue-500 focus:outline-none mb-4"
+                        onPaste={async (e) => {
+                          const link = e.clipboardData.getData('text');
+                          if (link.includes('docs.google.com/document')) {
+                            try {
+                              // Extract document ID from link
+                              const docIdMatch = link.match(/\/d\/([a-zA-Z0-9-_]+)/);
+                              if (!docIdMatch) {
+                                toast.error('Invalid Google Doc link format');
+                                return;
+                              }
+                              const docId = docIdMatch[1];
+                              
+                              // Convert to export URL (plain text)
+                              const exportUrl = `https://docs.google.com/document/d/${docId}/export?format=txt`;
+                              
+                              toast.info('Fetching Google Doc content...');
+                              
+                              // Fetch the document content
+                              const response = await fetch(exportUrl);
+                              if (!response.ok) {
+                                toast.error('Failed to fetch Google Doc. Make sure the document is publicly accessible.');
+                                return;
+                              }
+                              
+                              const text = await response.text();
+                              setRawTextAd(text);
+                              setUploadedFileName('Google Doc');
+                              toast.success('Google Doc loaded successfully!');
+                            } catch (error) {
+                              console.error('Error fetching Google Doc:', error);
+                              toast.error('Failed to load Google Doc');
+                            }
+                          } else {
+                            toast.error('Please paste a valid Google Doc link');
+                          }
+                        }}
+                      />
+                      {rawTextAd && (
+                        <div className="mt-4 p-4 bg-white border border-blue-200 rounded-lg">
+                          <p className="text-sm text-gray-700 mb-2"><strong>Preview:</strong></p>
+                          <p className="text-sm text-gray-600 whitespace-pre-wrap">{rawTextAd.substring(0, 200)}{rawTextAd.length > 200 ? '...' : ''}</p>
+                          <p className="text-xs text-gray-500 mt-2">{rawTextAd.length} characters</p>
+                        </div>
                       )}
                     </div>
                   )}
@@ -3819,10 +3876,30 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
               {adLines.length > 0 && (
                 <div className="mt-6">
-                  <p className="font-medium text-blue-900 mb-3">
-                    {adLines.filter(l => l.categoryNumber > 0).length} linii extrase:
-                  </p>
-                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="font-medium text-blue-900">
+                      {adLines.filter(l => l.categoryNumber > 0).length} linii extrase:
+                    </p>
+                    {deletedLinesHistory.length > 0 && (
+                      <Button
+                        onClick={() => {
+                          const lastDeleted = deletedLinesHistory[0];
+                          setAdLines(prev => [...prev, lastDeleted]);
+                          setDeletedLinesHistory(prev => prev.slice(1));
+                          toast.success(`Linie restaurată: ${lastDeleted.videoName}`);
+                        }}
+                        variant="outline"
+                        size="sm"
+                        className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                      >
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                        </svg>
+                        UNDO ({deletedLinesHistory.length})
+                      </Button>
+                    )}
+                  </div>
+                  <div className="space-y-2">
                     {adLines.map((line) => {
                       // If categoryNumber is 0, this is a label (section header)
                       if (line.categoryNumber === 0) {
@@ -3855,28 +3932,44 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       const redAtStart = hasRedText && line.redStart === 0;
                       
                       return (
-                        <div key={line.id} className="ml-4">
+                        <div key={line.id} className="ml-4" data-line-id={line.id}>
                           <div className="p-3 bg-white rounded border border-blue-200 text-sm relative">
-                            {/* Edit Button */}
-                            <Button
-                              onClick={() => {
-                                if (editingLineId === line.id) {
-                                  setEditingLineId(null);
-                                } else {
-                                  setEditingLineId(line.id);
-                                  // Normalize text: remove excessive line breaks (3+ newlines → 2 newlines)
-                                  const normalizedText = line.text.replace(/\n\s*\n\s*\n+/g, '\n\n');
-                                  setEditingLineText(normalizedText);
-                                  setEditingLineRedStart(line.redStart ?? -1);
-                                  setEditingLineRedEnd(line.redEnd ?? -1);
-                                }
-                              }}
-                              variant="outline"
-                              size="sm"
-                              className="absolute top-2 right-2"
-                            >
-                              {editingLineId === line.id ? 'Cancel' : 'Edit'}
-                            </Button>
+                            {/* Edit and Delete Buttons */}
+                            <div className="absolute top-2 right-2 flex gap-2">
+                              <Button
+                                onClick={() => {
+                                  if (confirm(`Șterge linia "${line.videoName}"?`)) {
+                                    // Save to history before deleting
+                                    setDeletedLinesHistory(prev => [line, ...prev]);
+                                    setAdLines(prev => prev.filter(l => l.id !== line.id));
+                                    toast.success('Linie ștearsă (UNDO disponibil)');
+                                  }
+                                }}
+                                variant="outline"
+                                size="sm"
+                                className="border-red-300 text-red-700 hover:bg-red-50"
+                              >
+                                Del
+                              </Button>
+                              <Button
+                                onClick={() => {
+                                  if (editingLineId === line.id) {
+                                    setEditingLineId(null);
+                                  } else {
+                                    setEditingLineId(line.id);
+                                    // Normalize text: remove excessive line breaks (3+ newlines → 2 newlines)
+                                    const normalizedText = line.text.replace(/\n\s*\n\s*\n+/g, '\n\n');
+                                    setEditingLineText(normalizedText);
+                                    setEditingLineRedStart(line.redStart ?? -1);
+                                    setEditingLineRedEnd(line.redEnd ?? -1);
+                                  }
+                                }}
+                                variant="outline"
+                                size="sm"
+                              >
+                                {editingLineId === line.id ? 'Cancel' : 'Edit'}
+                              </Button>
+                            </div>
                             
                             {/* Name above text */}
                             <div className="mb-1">
@@ -4001,6 +4094,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                     
                                     toast.success('Text saved!');
                                     setEditingLineId(null);
+                                    
+                                    // Auto-scroll back to the edited line
+                                    setTimeout(() => {
+                                      const element = document.querySelector(`[data-line-id="${line.id}"]`);
+                                      if (element) {
+                                        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                      }
+                                    }, 100);
                                   }}
                                   className="bg-blue-600 hover:bg-blue-700"
                                 >
