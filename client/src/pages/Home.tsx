@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
 import EditProfileModal from '@/components/EditProfileModal';
-import { ImagesLibraryModal } from '@/components/ImagesLibraryModal';
+
 import { VideoEditor } from '@/components/VideoEditor';
 import { ProcessingModal } from '@/components/ProcessingModal';
 import { trpc } from '../lib/trpc';
@@ -2899,12 +2899,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         processingStep={processingStep}
       />
       
-      {/* Images Library Modal */}
-      <ImagesLibraryModal
-        open={isImagesLibraryOpen}
-        onClose={() => setIsImagesLibraryOpen(false)}
-        userId={localCurrentUser.id}
-      />
+
 
         <div className="text-center mb-6 md:mb-12">
           <h1 className="text-2xl md:text-4xl font-bold text-blue-900 mb-2">A.I Ads Engine</h1>
