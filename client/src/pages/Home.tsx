@@ -657,7 +657,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       if (contextSession.images) setImages(contextSession.images as UploadedImage[]);
       if (contextSession.combinations) setCombinations(contextSession.combinations as Combination[]);
       if (contextSession.deletedCombinations) setDeletedCombinations(contextSession.deletedCombinations as Combination[]);
-      if (contextSession.videoResults) setVideoResults(contextSession.videoResults as VideoResult[]);
+      // Parse videoResults - ensure it's always an array
+      if (contextSession.videoResults) {
+        const parsed = typeof contextSession.videoResults === 'string' 
+          ? JSON.parse(contextSession.videoResults) 
+          : contextSession.videoResults;
+        setVideoResults(Array.isArray(parsed) ? parsed : []);
+      } else {
+        setVideoResults([]);
+      }
       if (contextSession.reviewHistory) setReviewHistory(contextSession.reviewHistory as any[]);
       
       // Update previousCharacterIdRef to track initial character
