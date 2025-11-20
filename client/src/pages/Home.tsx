@@ -323,12 +323,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   );
 
   // Sort characters: UNUSED first, USED last
-  // USED = character has generated videos (status: success/pending/failed)
+  // USED = character has generated videos (status: success/pending/failed) IN CURRENT AD
   const sortedCategoryCharacters = useMemo(() => {
-    // Track which characters have generated videos
+    // Track which characters have generated videos IN CURRENT AD
     const charactersWithVideos = new Set<number>();
     
-    allContextSessions.forEach(session => {
+    // Filter sessions for current AD only
+    const currentAdSessions = allContextSessions.filter(session => 
+      session.adId === selectedAdId
+    );
+    
+    currentAdSessions.forEach(session => {
       if (session.characterId && session.videoResults) {
         try {
           const videos = typeof session.videoResults === 'string' 
@@ -358,7 +363,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     used.sort((a, b) => a.name.localeCompare(b.name));
     
     return { unused, used, all: [...unused, ...used] };
-  }, [categoryCharacters, allContextSessions]);
+  }, [categoryCharacters, allContextSessions, selectedAdId]);
 
   // Mutations
   const parseAdMutation = trpc.video.parseAdDocument.useMutation();

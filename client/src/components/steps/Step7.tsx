@@ -208,6 +208,9 @@ export function Step7(props: Step7Props) {
                 <div className="mb-4">
                   <p className="text-lg font-semibold text-gray-900 mb-2">Statistici Review:</p>
                   <div className="flex gap-4 text-sm">
+                    <span className="text-blue-700 font-semibold">
+                      {videoResults.length} Total Generate
+                    </span>
                     <span className="text-green-700">
                       <Check className="w-4 h-4 inline mr-1" />
                       {acceptedCount} acceptate
@@ -254,9 +257,14 @@ export function Step7(props: Step7Props) {
               {/* Buton Download All Accepted Videos */}
               {acceptedVideosWithUrl.length > 0 && (
                 <div className="mt-8 p-4 bg-green-50 border-2 border-green-300 rounded-lg">
-                  <p className="text-green-900 font-medium mb-3">
-                    {acceptedCount} videouri acceptate
-                  </p>
+                  <div className="mb-3">
+                    <p className="text-green-900 font-medium">
+                      {acceptedCount} videouri acceptate
+                    </p>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Total Cost: ${(videoResults.length * 0.30).toFixed(2)}
+                    </p>
+                  </div>
                   <Button
                     onClick={async () => {
                       const acceptedVideos = acceptedVideosWithUrl;
