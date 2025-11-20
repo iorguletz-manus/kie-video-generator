@@ -652,21 +652,20 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       if (contextSession.currentStep) setCurrentStep(contextSession.currentStep);
       if (contextSession.rawTextAd) setRawTextAd(contextSession.rawTextAd);
       if (contextSession.processedTextAd) setProcessedTextAd(contextSession.processedTextAd);
-      if (contextSession.adLines) setAdLines(contextSession.adLines as AdLine[]);
-      if (contextSession.prompts) setPrompts(contextSession.prompts as UploadedPrompt[]);
-      if (contextSession.images) setImages(contextSession.images as UploadedImage[]);
-      if (contextSession.combinations) setCombinations(contextSession.combinations as Combination[]);
-      if (contextSession.deletedCombinations) setDeletedCombinations(contextSession.deletedCombinations as Combination[]);
-      // Parse videoResults - ensure it's always an array
-      if (contextSession.videoResults) {
-        const parsed = typeof contextSession.videoResults === 'string' 
-          ? JSON.parse(contextSession.videoResults) 
-          : contextSession.videoResults;
-        setVideoResults(Array.isArray(parsed) ? parsed : []);
-      } else {
-        setVideoResults([]);
-      }
-      if (contextSession.reviewHistory) setReviewHistory(contextSession.reviewHistory as any[]);
+      // Parse all JSON fields - ensure they're always arrays
+      const parseJsonField = (field: any) => {
+        if (!field) return [];
+        const parsed = typeof field === 'string' ? JSON.parse(field) : field;
+        return Array.isArray(parsed) ? parsed : [];
+      };
+      
+      setAdLines(parseJsonField(contextSession.adLines));
+      setPrompts(parseJsonField(contextSession.prompts));
+      setImages(parseJsonField(contextSession.images));
+      setCombinations(parseJsonField(contextSession.combinations));
+      setDeletedCombinations(parseJsonField(contextSession.deletedCombinations));
+      setVideoResults(parseJsonField(contextSession.videoResults));
+      setReviewHistory(parseJsonField(contextSession.reviewHistory));
       
       // Update previousCharacterIdRef to track initial character
       if (selectedCharacterId) {
@@ -3107,47 +3106,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     }
                   } else if (value) {
                     const newCharacterId = parseInt(value);
-                    const previousCharacterId = previousCharacterIdRef.current;
-                    
-                    // Check if this is a character CHANGE (not first selection)
-                    if (previousCharacterId && previousCharacterId !== newCharacterId && adLines.length > 0) {
-                      // Duplicate Step 2 lines for new character
-                      console.log('[Character Change] Duplicating lines from character', previousCharacterId, 'to', newCharacterId);
-                      
-                      // Update characterId and save to database
-                      const updatedSession = {
-                        userId: localCurrentUser.id,
-                        tamId: selectedTamId!,
-                        coreBeliefId: selectedCoreBeliefId!,
-                        emotionalAngleId: selectedEmotionalAngleId!,
-                        adId: selectedAdId!,
-                        characterId: newCharacterId,
-                        currentStep: 4, // Redirect to Step 4
-                        rawTextAd,
-                        processedTextAd,
-                        adLines: JSON.stringify(adLines), // Keep same lines
-                        prompts: JSON.stringify(prompts),
-                        images: JSON.stringify(images),
-                        combinations: '[]',
-                        videoResults: '[]',
-                      };
-                      
-                      upsertContextSessionMutation.mutate(updatedSession, {
-                        onSuccess: () => {
-                          setSelectedCharacterId(newCharacterId);
-                          previousCharacterIdRef.current = newCharacterId;
-                          setCurrentStep(4); // Go to Step 4
-                          toast.success('Character changed! Lines duplicated. Select images for new character.');
-                        },
-                        onError: (error: any) => {
-                          toast.error(`Failed to duplicate lines: ${error.message}`);
-                        },
-                      });
-                    } else {
-                      // First selection or no lines to duplicate
-                      setSelectedCharacterId(newCharacterId);
-                      previousCharacterIdRef.current = newCharacterId;
-                    }
+                    // Simply update character selection without auto-duplicate
+                    setSelectedCharacterId(newCharacterId);
+                    previousCharacterIdRef.current = newCharacterId;
                   }
                 }}
               >
@@ -3379,6 +3340,95 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* LOAD CONTEXT Button */}
+              <div className="mb-6">
+                <Button
+                  onClick={async () => {
+                    // Find all available Ads for current context
+                    const availableAds = ads.filter(ad => 
+                      ad.emotionalAngleId === selectedEmotionalAngleId
+                    );
+                    
+                    if (availableAds.length === 0) {
+                      toast.error('No other Ads available for this Emotional Angle');
+                      return;
+                    }
+                    
+                    // Show selection dialog
+                    const adNames = availableAds.map(ad => `${ad.id}. ${ad.name}`).join('\n');
+                    const selection = prompt(`Select Ad to load context from:\n\n${adNames}\n\nEnter Ad ID:`);
+                    
+                    if (!selection) return;
+                    
+                    const sourceAdId = parseInt(selection);
+                    const sourceAd = availableAds.find(ad => ad.id === sourceAdId);
+                    
+                    if (!sourceAd) {
+                      toast.error('Invalid Ad ID');
+                      return;
+                    }
+                    
+                    // Confirm action
+                    if (!confirm(`Load context from "${sourceAd.name}" to current Ad "${ads.find(ad => ad.id === selectedAdId)?.name}"?\n\nThis will copy Step 1-3 data (rawTextAd, processedTextAd, adLines).`)) {
+                      return;
+                    }
+                    
+                    // Fetch source context session
+                    const sourceSession = await trpc.contextSessions.get.query({
+                      userId: localCurrentUser.id,
+                      coreBeliefId: selectedCoreBeliefId!,
+                      emotionalAngleId: selectedEmotionalAngleId!,
+                      adId: sourceAdId,
+                      characterId: selectedCharacterId!,
+                    });
+                    
+                    if (!sourceSession) {
+                      toast.error('Source context not found');
+                      return;
+                    }
+                    
+                    // Copy Step 1-3 data to current context
+                    const updatedSession = {
+                      userId: localCurrentUser.id,
+                      tamId: selectedTamId!,
+                      coreBeliefId: selectedCoreBeliefId!,
+                      emotionalAngleId: selectedEmotionalAngleId!,
+                      adId: selectedAdId!,
+                      characterId: selectedCharacterId!,
+                      currentStep: 4, // Redirect to Step 4
+                      rawTextAd: sourceSession.rawTextAd,
+                      processedTextAd: sourceSession.processedTextAd,
+                      adLines: sourceSession.adLines,
+                      prompts: '[]',
+                      images: '[]',
+                      combinations: '[]',
+                      deletedCombinations: '[]',
+                      videoResults: '[]',
+                      reviewHistory: '[]',
+                    };
+                    
+                    upsertContextSessionMutation.mutate(updatedSession, {
+                      onSuccess: () => {
+                        // Reload context
+                        window.location.reload();
+                        toast.success(`Context loaded from "${sourceAd.name}"!`);
+                      },
+                      onError: (error: any) => {
+                        toast.error(`Failed to load context: ${error.message}`);
+                      },
+                    });
+                  }}
+                  className="bg-purple-600 hover:bg-purple-700 text-white"
+                  disabled={!selectedAdId || !selectedCharacterId}
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  LOAD CONTEXT FROM ANOTHER AD
+                </Button>
+                <p className="text-xs text-gray-500 mt-2">Copy Step 1-3 data from another Ad with the same character</p>
               </div>
 
               {/* OLD CATEGORIES - TO BE REMOVED */}
