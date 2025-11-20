@@ -674,8 +674,18 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       
       // toast.success('Context data loaded from database!'); // Hidden per user request
     } else {
-      // No context session in database - keep localStorage data (already restored on mount)
-      console.log('[Context Session] No database session found, keeping localStorage data');
+      // No context session in database - reset to empty state
+      console.log('[Context Session] No database session found, resetting to empty state');
+      setCurrentStep(1);
+      setRawTextAd('');
+      setProcessedTextAd('');
+      setAdLines([]);
+      setPrompts([]);
+      setImages([]);
+      setCombinations([]);
+      setDeletedCombinations([]);
+      setVideoResults([]);
+      setReviewHistory([]);
     }
   }, [contextSession]);
   
