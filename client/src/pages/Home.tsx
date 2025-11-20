@@ -638,6 +638,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         emotionalAngleId: contextSession.emotionalAngleId,
         characterId: contextSession.characterId,
       } : null,
+      MATCH: contextSession ? (
+        contextSession.adId === selectedAdId &&
+        contextSession.emotionalAngleId === selectedEmotionalAngleId &&
+        contextSession.characterId === selectedCharacterId
+      ) : 'N/A',
     });
     
     if (contextSession) {
