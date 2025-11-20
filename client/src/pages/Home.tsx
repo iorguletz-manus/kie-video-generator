@@ -5845,8 +5845,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       </div>
                       
                       {/* Butoane verticale în dreapta */}
-                      {(result.status === 'failed' || result.status === null || result.reviewStatus === 'regenerate') && (
-                        <div className="flex flex-col gap-1 flex-shrink-0">
+                      <div className="flex flex-col gap-1 flex-shrink-0">
                           {/* Edit button */}
                           <button
                             onClick={() => {
@@ -5939,7 +5938,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             <span>Del</span>
                           </button>
                         </div>
-                      )}
                     </div>
                   </div>
                   );
