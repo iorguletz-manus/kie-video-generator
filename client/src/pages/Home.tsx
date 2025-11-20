@@ -2301,13 +2301,22 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       // RESET output fields - duplicatul e un video NOU care nu a fost generat încă
       taskId: undefined,
       videoUrl: undefined,
-      // PĂSTREAZĂ status și reviewStatus pentru ca duplicatul să apară ca failed/rejected
+      // PĂSTREZĂ status și reviewStatus pentru ca duplicatul să apară ca failed/rejected
       status: originalVideo.status, // 'failed' sau 'success'
       reviewStatus: originalVideo.reviewStatus, // null sau 'regenerate' (pentru rejected)
       isDuplicate: true,
       duplicateNumber: getDuplicateNumber(duplicateName),
       originalVideoName: originalName,
     };
+    
+    console.log('[Duplicate Video] Created:', {
+      originalName: videoName,
+      duplicateName,
+      originalStatus: originalVideo.status,
+      duplicateStatus: duplicateVideoResult.status,
+      originalVideoUrl: originalVideo.videoUrl,
+      duplicateVideoUrl: duplicateVideoResult.videoUrl,
+    });
     
     // Creează duplicate combination
     const duplicateCombo: Combination = {
@@ -5162,7 +5171,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                             ? 'Introdu promptul custom aici'
                                             : `Editează ${modifyPromptType} sau lasă gol pentru a folosi promptul hardcodat`
                                         }
-                                        className="text-sm min-h-[80px]"
+                                        className="text-sm min-h-[20px] resize-y"
                                       />
                                     </div>
                                     
@@ -6494,19 +6503,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               {/* Organizare pe categorii */}
               {['HOOKS', 'MIRROR', 'DCS', 'TRANZITION', 'NEW_CAUSE', 'MECHANISM', 'EMOTIONAL_PROOF', 'TRANSFORMATION', 'CTA'].map(category => {
                 // Filtrare videouri: doar cele generate cu succes (status === 'success' și videoUrl există)
-                let categoryVideos = videoResults.filter(v => 
+                // Use step6FilteredVideos to prevent auto-remove on decision change
+                let categoryVideos = step6FilteredVideos.filter(v => 
                   v.section === category && 
                   v.status === 'success' && 
                   v.videoUrl
                 );
-                
-                if (videoFilter === 'accepted') {
-                  categoryVideos = categoryVideos.filter(v => v.reviewStatus === 'accepted');
-                } else if (videoFilter === 'failed') {
-                  categoryVideos = categoryVideos.filter(v => v.reviewStatus !== 'accepted');
-                } else if (videoFilter === 'no_decision') {
-                  categoryVideos = categoryVideos.filter(v => !v.reviewStatus);
-                }
                 
                 if (categoryVideos.length === 0) return null;
                 
