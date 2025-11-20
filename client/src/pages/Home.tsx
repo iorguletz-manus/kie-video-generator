@@ -628,6 +628,18 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   
   // Load data from context session when context changes
   useEffect(() => {
+    console.log('[Context Session] useEffect triggered with:', {
+      contextSession: contextSession ? 'EXISTS' : 'NULL',
+      selectedAdId,
+      selectedEmotionalAngleId,
+      selectedCharacterId,
+      contextSessionIds: contextSession ? {
+        adId: contextSession.adId,
+        emotionalAngleId: contextSession.emotionalAngleId,
+        characterId: contextSession.characterId,
+      } : null,
+    });
+    
     if (contextSession) {
       console.log('[Context Session] Loading data from database:', contextSession);
       
