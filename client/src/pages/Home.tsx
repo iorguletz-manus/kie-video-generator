@@ -3119,7 +3119,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         videoResults: '[]',
                       };
                       
-                      upsertSessionMutation.mutate(updatedSession, {
+                      upsertContextSessionMutation.mutate(updatedSession, {
                         onSuccess: () => {
                           setSelectedCharacterId(newCharacterId);
                           previousCharacterIdRef.current = newCharacterId;
