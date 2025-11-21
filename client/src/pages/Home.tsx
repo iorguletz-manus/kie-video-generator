@@ -152,8 +152,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [selectedTamId, setSelectedTamId] = useState<number | null>(null);
   const [selectedCoreBeliefId, setSelectedCoreBeliefId] = useState<number | null>(null);
   const [selectedEmotionalAngleId, setSelectedEmotionalAngleId] = useState<number | null>(null);
-  const [selectedAdId, setSelectedAdId] = useState<number | null>(null);
-  const [selectedCharacterId, setSelectedCharacterId] = useState<number | null>(null);
+  const [selectedAdId, setSelectedAdId] = useState<number | null>(() => {
+    const saved = localStorage.getItem('selectedAdId');
+    return saved ? parseInt(saved) : null;
+  });
+  const [selectedCharacterId, setSelectedCharacterId] = useState<number | null>(() => {
+    const saved = localStorage.getItem('selectedCharacterId');
+    return saved ? parseInt(saved) : null;
+  });
   const previousCharacterIdRef = useRef<number | null>(null);
   const [textAdMode, setTextAdMode] = useState<'upload' | 'paste' | 'google-doc'>('upload');
   const [rawTextAd, setRawTextAd] = useState<string>('');
@@ -926,6 +932,23 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       console.log('[Auto-select] No characters with videos found, leaving as "Select Character"');
     }
   }, [selectedAdId, selectedCharacterId, allContextSessions]);
+
+  // Save selectedAdId and selectedCharacterId to localStorage
+  useEffect(() => {
+    if (selectedAdId) {
+      localStorage.setItem('selectedAdId', selectedAdId.toString());
+    } else {
+      localStorage.removeItem('selectedAdId');
+    }
+  }, [selectedAdId]);
+
+  useEffect(() => {
+    if (selectedCharacterId) {
+      localStorage.setItem('selectedCharacterId', selectedCharacterId.toString());
+    } else {
+      localStorage.removeItem('selectedCharacterId');
+    }
+  }, [selectedCharacterId]);
 
   // Lock system removed - free navigation enabled
 

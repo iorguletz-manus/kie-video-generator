@@ -168,20 +168,19 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
     }
   }, [trimStart, trimEnd, trimSegment]);
 
-  // When START becomes locked, initialize playhead between START and END
+  // When START becomes locked, initialize playhead at trimStart
   useEffect(() => {
     if (isStartLocked && playheadTime === null) {
-      // Initialize playhead at midpoint between START and END
-      const midpoint = (trimStart + trimEnd) / 2;
-      setPlayheadTime(midpoint);
-      console.log('[VideoEditorV2] START locked, playhead initialized at midpoint', midpoint);
+      // Initialize playhead at START marker position
+      setPlayheadTime(trimStart);
+      console.log('[VideoEditorV2] START locked, playhead initialized at trimStart', trimStart);
     } else if (!isStartLocked && playheadTime !== null) {
       setPlayheadTime(null);
       console.log('[VideoEditorV2] START unlocked, playhead hidden');
     }
-  }, [isStartLocked, trimStart, trimEnd]);
+  }, [isStartLocked, playheadTime, trimStart]);
 
-  // Ensure playhead stays between START and END when they change
+  // Keep playhead between START and END when they change
   useEffect(() => {
     if (isStartLocked && playheadTime !== null) {
       if (playheadTime < trimStart || playheadTime > trimEnd) {
@@ -496,36 +495,20 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
         </div>
       )}
 
-      {/* Lock Controls */}
-      <div className="mb-2">
-        <div className="grid grid-cols-2 gap-2">
-          <Button
-            onClick={() => setIsStartLocked(!isStartLocked)}
-            size="sm"
-            variant={isStartLocked ? "default" : "outline"}
-            className={isStartLocked ? "bg-gray-600 hover:bg-gray-700" : ""}
-          >
-            {isStartLocked ? <Lock className="w-4 h-4 mr-1" /> : <Unlock className="w-4 h-4 mr-1" />}
-            {isStartLocked ? 'START Locked' : 'Lock START'}
-          </Button>
-          <Button
-            onClick={() => setIsEndLocked(!isEndLocked)}
-            size="sm"
-            variant={isEndLocked ? "default" : "outline"}
-            className={isEndLocked ? "bg-gray-600 hover:bg-gray-700" : ""}
-          >
-            {isEndLocked ? <Lock className="w-4 h-4 mr-1" /> : <Unlock className="w-4 h-4 mr-1" />}
-            {isEndLocked ? 'END Locked' : 'Lock END'}
-          </Button>
-        </div>
-      </div>
 
       {/* Waveform Timeline */}
       <div className="mb-2">
-        <div className="flex items-center justify-between mb-1">
-          {/* Lock START Button */}
+        <div className="flex items-center justify-center gap-4 mb-1">
+          {/* Lock START Button - Left of center */}
           <Button
-            onClick={() => setIsStartLocked(!isStartLocked)}
+            onClick={() => {
+              const newLockState = !isStartLocked;
+              setIsStartLocked(newLockState);
+              // Trigger immediate save
+              if (onTrimChange) {
+                onTrimChange(video.id, trimStart, trimEnd, newLockState, isEndLocked);
+              }
+            }}
             size="sm"
             variant={isStartLocked ? "default" : "outline"}
             className="h-7 text-xs px-2"
@@ -539,16 +522,35 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
             START
           </Button>
           
-          {/* Current Time Display */}
-          <span className="text-xs text-gray-600">
-            Current: <span className="font-mono font-bold text-purple-600">{formatTime(currentTime)}</span>
-            {' / '}
-            <span className="font-mono">{formatTime(video.duration)}</span>
-          </span>
+          {/* Center Group: Zoom + Current Time */}
+          <div className="flex flex-col items-center gap-1">
+            {/* Zoom Controls */}
+            <div className="flex gap-1">
+              <Button onClick={handleZoomOut} size="sm" variant="outline" className="h-6 w-6 p-0">
+                <ZoomOut className="w-3 h-3" />
+              </Button>
+              <Button onClick={handleZoomIn} size="sm" variant="outline" className="h-6 w-6 p-0">
+                <ZoomIn className="w-3 h-3" />
+              </Button>
+            </div>
+            {/* Current Time Display */}
+            <span className="text-xs text-gray-600 whitespace-nowrap">
+              Current: <span className="font-mono font-bold text-purple-600">{formatTime(currentTime)}</span>
+              {' / '}
+              <span className="font-mono">{formatTime(video.duration)}</span>
+            </span>
+          </div>
           
-          {/* Lock END Button */}
+          {/* Lock END Button - Right of center */}
           <Button
-            onClick={() => setIsEndLocked(!isEndLocked)}
+            onClick={() => {
+              const newLockState = !isEndLocked;
+              setIsEndLocked(newLockState);
+              // Trigger immediate save
+              if (onTrimChange) {
+                onTrimChange(video.id, trimStart, trimEnd, isStartLocked, newLockState);
+              }
+            }}
             size="sm"
             variant={isEndLocked ? "default" : "outline"}
             className="h-7 text-xs px-2"
@@ -561,16 +563,6 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
             {isEndLocked ? <Lock className="w-3 h-3 mr-1" /> : <Unlock className="w-3 h-3 mr-1" />}
             END
           </Button>
-          
-          {/* Zoom Controls */}
-          <div className="flex gap-1">
-            <Button onClick={handleZoomOut} size="sm" variant="outline" className="h-7 w-7 p-0">
-              <ZoomOut className="w-3 h-3" />
-            </Button>
-            <Button onClick={handleZoomIn} size="sm" variant="outline" className="h-7 w-7 p-0">
-              <ZoomIn className="w-3 h-3" />
-            </Button>
-          </div>
         </div>
 
         {/* Waveform Container with Custom Markers Overlay */}
@@ -707,35 +699,37 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
               )}
 
               {/* LIVE Playback Marker (Blue) - Shows current video position */}
-              <div
-                style={{
-                  position: 'absolute',
-                  left: `${timeToPixel(currentTime)}px`,
-                  top: 0,
-                  width: '2px',
-                  height: '120px',
-                  backgroundColor: '#3b82f6',
-                  transform: 'translateX(-1px)',
-                  zIndex: 8,
-                  pointerEvents: 'none',
-                }}
-                title="Current playback position"
-              >
-                {/* Triangle marker at top */}
+              {playing && currentTime > 0 && (
                 <div
                   style={{
                     position: 'absolute',
-                    top: -8,
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    width: 0,
-                    height: 0,
-                    borderLeft: '6px solid transparent',
-                    borderRight: '6px solid transparent',
-                    borderTop: '8px solid #3b82f6',
+                    left: `${timeToPixel(currentTime)}px`,
+                    top: 0,
+                    width: '2px',
+                    height: '120px',
+                    backgroundColor: '#3b82f6',
+                    transform: 'translateX(-1px)',
+                    zIndex: 8,
+                    pointerEvents: 'none',
                   }}
-                />
-              </div>
+                  title="Current playback position"
+                >
+                  {/* Triangle marker at top */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: -8,
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      width: 0,
+                      height: 0,
+                      borderLeft: '6px solid transparent',
+                      borderRight: '6px solid transparent',
+                      borderTop: '8px solid #3b82f6',
+                    }}
+                  />
+                </div>
+              )}
             </>
           )}
         </div>
