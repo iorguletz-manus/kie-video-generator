@@ -163,16 +163,28 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
     }
   }, [trimStart, trimEnd, trimSegment]);
 
-  // When START becomes locked, initialize playhead
+  // When START becomes locked, initialize playhead between START and END
   useEffect(() => {
     if (isStartLocked && playheadTime === null) {
-      setPlayheadTime(trimStart);
-      console.log('[VideoEditorV2] START locked, playhead initialized at', trimStart);
+      // Initialize playhead at midpoint between START and END
+      const midpoint = (trimStart + trimEnd) / 2;
+      setPlayheadTime(midpoint);
+      console.log('[VideoEditorV2] START locked, playhead initialized at midpoint', midpoint);
     } else if (!isStartLocked && playheadTime !== null) {
       setPlayheadTime(null);
       console.log('[VideoEditorV2] START unlocked, playhead hidden');
     }
-  }, [isStartLocked]);
+  }, [isStartLocked, trimStart, trimEnd]);
+
+  // Ensure playhead stays between START and END when they change
+  useEffect(() => {
+    if (isStartLocked && playheadTime !== null) {
+      if (playheadTime < trimStart || playheadTime > trimEnd) {
+        const clampedTime = Math.max(trimStart, Math.min(playheadTime, trimEnd));
+        setPlayheadTime(clampedTime);
+      }
+    }
+  }, [trimStart, trimEnd, isStartLocked, playheadTime]);
 
   const handleVideoTimeUpdate = () => {
     if (videoRef.current) {
@@ -405,9 +417,9 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
   };
 
   return (
-    <div className="border-2 border-purple-300 rounded-lg p-6 bg-white">
+    <div className="border-2 border-purple-300 rounded-lg p-3 bg-white">
       {/* Video Player */}
-      <div className="mb-6">
+      <div className="mb-3">
         <h3 className="text-lg font-bold text-center mb-3 text-gray-900">
           {video.videoName}
         </h3>
@@ -433,7 +445,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
         />
 
         {/* Play/Pause Controls */}
-        <div className="flex justify-center mt-4 gap-2">
+        <div className="flex justify-center mt-2 gap-2">
           <Button
             onClick={handlePlayPause}
             size="sm"
@@ -447,23 +459,13 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
             size="sm"
             variant="outline"
           >
-            ▶ Seek to START
-          </Button>
-          <Button
-            onClick={seekToEnd}
-            size="sm"
-            variant="outline"
-          >
-            ▶ Seek to END
+            ▶ JUMP to START
           </Button>
         </div>
-      </div>
-
-      {/* Video Text */}
+      </      {/* Video Text (from database) - Above Waveform */}
       {video.text && (
-        <div className="mb-4 mx-auto" style={{ maxWidth: '300px' }}>
-          <p className="text-sm text-gray-800 text-center">
-            {video.redStart !== undefined && video.redEnd !== undefined ? (
+        <div className="mb-2 mx-auto" style={{ maxWidth: '300px' }}>
+          <p className="text-xs text-gray-800 text-center">t !== undefined && video.redEnd !== undefined ? (
               <>
                 {video.text.substring(0, video.redStart)}
                 <span className="text-red-600 font-bold">
@@ -479,8 +481,8 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
       )}
 
       {/* Lock Controls */}
-      <div className="mb-4">
-        <div className="grid grid-cols-2 gap-4">
+      <div className="mb-2">
+        <div className="grid grid-cols-2 gap-2">
           <Button
             onClick={() => setIsStartLocked(!isStartLocked)}
             size="sm"
@@ -503,20 +505,11 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
       </div>
 
       {/* Waveform Timeline */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-3">
+      <div className="mb-2">
+        <div className="flex items-center justify-between mb-1">
           <h4 className="text-sm font-semibold text-gray-900">
-            🎵 Waveform Timeline
-          </h4>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600">
-              ✂️ Trimmed: <span className="font-mono font-bold text-purple-600">{formatTime(Math.max(0, trimEnd - trimStart))}</span>
-              {' | '}
-              Cut: <span className="font-mono text-green-600">{formatTime(trimStart)}</span>
-              {' → '}
-              <span className="font-mono text-red-600">{formatTime(trimEnd)}</span>
-            </span>
-            <span className="text-sm text-gray-600">
+            🎵 Wav            {/* Current Time Display */}
+            <span className="text-xs text-gray-600">
               Current: <span className="font-mono font-bold text-purple-600">{formatTime(currentTime)}</span>
               {' / '}
               <span className="font-mono">{formatTime(video.duration)}</span>
@@ -664,14 +657,45 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
                   />
                 </div>
               )}
+
+              {/* LIVE Playback Marker (Blue) - Shows current video position */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: `${timeToPixel(currentTime)}px`,
+                  top: 0,
+                  width: '2px',
+                  height: '120px',
+                  backgroundColor: '#3b82f6',
+                  transform: 'translateX(-1px)',
+                  zIndex: 8,
+                  pointerEvents: 'none',
+                }}
+                title="Current playback position"
+              >
+                {/* Triangle marker at top */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: -8,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: 0,
+                    height: 0,
+                    borderLeft: '6px solid transparent',
+                    borderRight: '6px solid transparent',
+                    borderTop: '8px solid #3b82f6',
+                  }}
+                />
+              </div>
             </>
           )}
         </div>
       </div>
 
       {/* Marker Info */}
-      <div className="mb-6">
-        <div className="grid grid-cols-3 gap-4 text-center">
+      <div className="mb-2 mt-1">
+        <div className="grid grid-cols-3 gap-2 text-center">
           <div>
             <div className="text-xs text-gray-600 mb-1">
               🟢 START {isStartLocked && '(Locked)'}
