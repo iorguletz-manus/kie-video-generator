@@ -1554,6 +1554,7 @@ export const appRouter = router({
         redText: z.string(),
         marginMs: z.number().optional().default(50),
         userApiKey: z.string().optional(),
+        ffmpegApiKey: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
         try {
@@ -1565,7 +1566,8 @@ export const appRouter = router({
             input.fullText,
             input.redText,
             input.marginMs,
-            input.userApiKey
+            input.userApiKey,
+            input.ffmpegApiKey
           );
 
           return {
@@ -1592,6 +1594,7 @@ export const appRouter = router({
         videoId: z.number(),
         startTimeSeconds: z.number(),
         endTimeSeconds: z.number(),
+        ffmpegApiKey: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
         try {
@@ -1602,7 +1605,8 @@ export const appRouter = router({
             input.videoUrl,
             input.videoId,
             input.startTimeSeconds,
-            input.endTimeSeconds
+            input.endTimeSeconds,
+            input.ffmpegApiKey!
           );
 
           // Download trimmed video from FFmpeg API

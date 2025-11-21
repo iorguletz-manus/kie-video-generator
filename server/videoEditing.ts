@@ -22,7 +22,7 @@ const getOpenAIClient = (userApiKey?: string) => {
   });
 };
 
-const FFMPEG_API_KEY = 'Basic QjZlZ3lJd3RrOVNDZUZHT0xabGk6NDFkNjQ1ODBkMzAwM2U5MmZjYTg5OWU3';
+// FFMPEG API configuration (API key passed as parameter from user settings)
 const FFMPEG_API_BASE = 'https://api.ffmpeg-api.com';
 
 // BunnyCDN configuration
@@ -95,7 +95,8 @@ export interface ProcessingResult {
  */
 async function uploadVideoToFFmpegAPI(
   videoUrl: string,
-  fileName: string
+  fileName: string,
+  ffmpegApiKey: string
 ): Promise<string> {
   try {
     console.log(`[uploadVideoToFFmpegAPI] Uploading ${fileName}...`);
@@ -104,7 +105,7 @@ async function uploadVideoToFFmpegAPI(
     const fileRes = await fetch(`${FFMPEG_API_BASE}/file`, {
       method: 'POST',
       headers: {
-        'Authorization': FFMPEG_API_KEY,
+        'Authorization': ffmpegApiKey,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ file_name: fileName }),
@@ -153,7 +154,8 @@ async function uploadVideoToFFmpegAPI(
  */
 async function extractAudioWithFFmpegAPI(
   videoFilePath: string,
-  outputFileName: string
+  outputFileName: string,
+  ffmpegApiKey: string
 ): Promise<string> {
   try {
     console.log(`[extractAudioWithFFmpegAPI] Extracting audio from ${videoFilePath}...`);
@@ -161,7 +163,7 @@ async function extractAudioWithFFmpegAPI(
     const processRes = await fetch(`${FFMPEG_API_BASE}/ffmpeg/process`, {
       method: 'POST',
       headers: {
-        'Authorization': FFMPEG_API_KEY,
+        'Authorization': ffmpegApiKey,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -479,18 +481,23 @@ export async function processVideoForEditing(
   fullText: string,
   redText: string,
   marginMs: number = 50,
-  userApiKey?: string
+  userApiKey?: string,
+  ffmpegApiKey?: string
 ): Promise<ProcessingResult> {
   try {
     console.log(`[processVideoForEditing] Starting for video ${videoId}...`);
     
+    if (!ffmpegApiKey) {
+      throw new Error('FFMPEG API Key not configured. Please set it in Settings.');
+    }
+    
     // 1. Upload video to FFmpeg API
     const videoFileName = `video_${videoId}.mp4`;
-    const videoFilePath = await uploadVideoToFFmpegAPI(videoUrl, videoFileName);
+    const videoFilePath = await uploadVideoToFFmpegAPI(videoUrl, videoFileName, ffmpegApiKey);
     
     // 2. Extract audio
     const audioFileName = `audio_${videoId}.mp3`;
-    const audioDownloadUrl = await extractAudioWithFFmpegAPI(videoFilePath, audioFileName);
+    const audioDownloadUrl = await extractAudioWithFFmpegAPI(videoFilePath, audioFileName, ffmpegApiKey!);
     
     // 2.5. Download audio and upload to Bunny.net for permanent storage
     console.log(`[processVideoForEditing] Downloading audio from FFMPEG...`);
@@ -544,16 +551,21 @@ export async function cutVideoWithFFmpegAPI(
   videoUrl: string,
   videoId: number,
   startTimeSeconds: number,
-  endTimeSeconds: number
+  endTimeSeconds: number,
+  ffmpegApiKey: string
 ): Promise<string> {
   try {
     console.log(`[cutVideoWithFFmpegAPI] Cutting video ${videoId}: ${startTimeSeconds}s → ${endTimeSeconds}s`);
+    
+    if (!ffmpegApiKey) {
+      throw new Error('FFMPEG API Key not configured. Please set it in Settings.');
+    }
     
     const duration = endTimeSeconds - startTimeSeconds;
     
     // 1. Upload video to FFmpeg API
     const videoFileName = `video_${videoId}_original.mp4`;
-    const videoFilePath = await uploadVideoToFFmpegAPI(videoUrl, videoFileName);
+    const videoFilePath = await uploadVideoToFFmpegAPI(videoUrl, videoFileName, ffmpegApiKey);
     
     // 2. Trim video
     const outputFileName = `video_${videoId}_trimmed_${Date.now()}.mp4`;
@@ -561,7 +573,7 @@ export async function cutVideoWithFFmpegAPI(
     const processRes = await fetch(`${FFMPEG_API_BASE}/ffmpeg/process`, {
       method: 'POST',
       headers: {
-        'Authorization': FFMPEG_API_KEY,
+        'Authorization': ffmpegApiKey,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({

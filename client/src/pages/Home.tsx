@@ -1589,6 +1589,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           redText: redText,
           marginMs: 50,
           userApiKey: localCurrentUser.openaiApiKey || undefined,
+          ffmpegApiKey: localCurrentUser.ffmpegApiKey || undefined,
         });
         
         console.log(`[Batch Processing] 💾 Saving results...`);
@@ -1685,7 +1686,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           videoUrl: video.videoUrl!,
           videoId: parseInt(video.id),
           startTimeSeconds: trimStart,
-          endTimeSeconds: trimEnd
+          endTimeSeconds: trimEnd,
+          ffmpegApiKey: localCurrentUser.ffmpegApiKey || undefined
         });
         
         if (!result.success || !result.downloadUrl) {
