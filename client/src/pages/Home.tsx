@@ -1762,7 +1762,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         
         // Update video with trimmed URL
         setVideoResults(prev => prev.map(v =>
-          v.id === video.id
+          v.videoName === video.videoName  // Use videoName for matching (works for duplicates)
             ? {
                 ...v,
                 trimmedVideoUrl: trimmedVideoUrl,
