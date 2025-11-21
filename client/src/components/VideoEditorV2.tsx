@@ -397,12 +397,11 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
 
   const formatTime = (seconds: number) => {
     if (isNaN(seconds) || !isFinite(seconds)) {
-      return '0:00.00';
+      return '0.00';
     }
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
+    const secs = Math.floor(seconds);
     const ms = Math.floor((seconds % 1) * 100);
-    return `${mins}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+    return `${secs}.${ms.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -550,45 +549,87 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
           {/* Custom Markers Overlay */}
           {peaksInstance && (
             <>
-              {/* START Marker (Green) */}
+              {/* START Marker (Green) - Line + Handle */}
               <div
-                onMouseDown={(e) => handleMarkerMouseDown(e, 'start')}
                 style={{
                   position: 'absolute',
                   left: `${timeToPixel(trimStart)}px`,
                   top: 0,
-                  width: '12px',
-                  height: '12px',
-                  backgroundColor: isStartLocked ? '#d1d5db' : '#22c55e',
-                  cursor: isStartLocked ? 'not-allowed' : 'ew-resize',
-                  transform: 'translateX(-6px)',
+                  transform: 'translateX(-1px)',
                   zIndex: 10,
-                  borderRadius: '2px',
-                  border: '2px solid white',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
                 }}
-                title={isStartLocked ? "START (Locked)" : "START (Drag to move)"}
-              />
+              >
+                {/* Vertical line */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    width: '2px',
+                    height: '120px',
+                    backgroundColor: isStartLocked ? '#d1d5db' : '#22c55e',
+                    pointerEvents: 'none',
+                  }}
+                />
+                {/* Draggable handle */}
+                <div
+                  onMouseDown={(e) => handleMarkerMouseDown(e, 'start')}
+                  style={{
+                    position: 'absolute',
+                    left: '-5px',
+                    top: 0,
+                    width: '12px',
+                    height: '12px',
+                    backgroundColor: isStartLocked ? '#d1d5db' : '#22c55e',
+                    cursor: isStartLocked ? 'not-allowed' : 'ew-resize',
+                    borderRadius: '2px',
+                    border: '2px solid white',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                  }}
+                  title={isStartLocked ? "START (Locked)" : "START (Drag to move)"}
+                />
+              </div>
 
-              {/* END Marker (Red) */}
+              {/* END Marker (Red) - Line + Handle */}
               <div
-                onMouseDown={(e) => handleMarkerMouseDown(e, 'end')}
                 style={{
                   position: 'absolute',
                   left: `${timeToPixel(trimEnd)}px`,
                   top: 0,
-                  width: '12px',
-                  height: '12px',
-                  backgroundColor: isEndLocked ? '#d1d5db' : '#ef4444',
-                  cursor: isEndLocked ? 'not-allowed' : 'ew-resize',
-                  transform: 'translateX(-6px)',
+                  transform: 'translateX(-1px)',
                   zIndex: 10,
-                  borderRadius: '2px',
-                  border: '2px solid white',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
                 }}
-                title={isEndLocked ? "END (Locked)" : "END (Drag to move)"}
-              />
+              >
+                {/* Vertical line */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    width: '2px',
+                    height: '120px',
+                    backgroundColor: isEndLocked ? '#d1d5db' : '#ef4444',
+                    pointerEvents: 'none',
+                  }}
+                />
+                {/* Draggable handle */}
+                <div
+                  onMouseDown={(e) => handleMarkerMouseDown(e, 'end')}
+                  style={{
+                    position: 'absolute',
+                    left: '-5px',
+                    top: 0,
+                    width: '12px',
+                    height: '12px',
+                    backgroundColor: isEndLocked ? '#d1d5db' : '#ef4444',
+                    cursor: isEndLocked ? 'not-allowed' : 'ew-resize',
+                    borderRadius: '2px',
+                    border: '2px solid white',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                  }}
+                  title={isEndLocked ? "END (Locked)" : "END (Drag to move)"}
+                />
+              </div>
 
               {/* PLAYHEAD Marker (Black) - Only visible when START is locked */}
               {isStartLocked && playheadTime !== null && (
@@ -598,13 +639,12 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
                     position: 'absolute',
                     left: `${timeToPixel(playheadTime)}px`,
                     top: 0,
-                    width: '3px',
+                    width: '1.5px',
                     height: '120px',
                     backgroundColor: '#000000',
                     cursor: 'ew-resize',
-                    transform: 'translateX(-1.5px)',
+                    transform: 'translateX(-0.75px)',
                     zIndex: 9,
-                    boxShadow: '0 0 4px rgba(0,0,0,0.5)',
                   }}
                   title="PLAYHEAD (Drag to move)"
                 >
@@ -615,8 +655,8 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
                       top: 0,
                       left: '50%',
                       transform: 'translateX(-50%)',
-                      width: '10px',
-                      height: '10px',
+                      width: '8px',
+                      height: '8px',
                       backgroundColor: '#000000',
                       borderRadius: '2px',
                       border: '2px solid white',
@@ -640,15 +680,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
               {formatTime(trimStart)}
             </div>
           </div>
-          <div>
-            <div className="text-xs text-gray-600 mb-1">
-              🔴 END {isEndLocked && '(Locked)'}
-            </div>
-            <div className="text-sm font-mono font-bold" style={{ color: isEndLocked ? '#9ca3af' : '#ef4444' }}>
-              {formatTime(trimEnd)}
-            </div>
-          </div>
-          {isStartLocked && playheadTime !== null && (
+          {isStartLocked && playheadTime !== null ? (
             <div>
               <div className="text-xs text-gray-600 mb-1">
                 ⚫ PLAYHEAD
@@ -657,7 +689,17 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
                 {formatTime(playheadTime)}
               </div>
             </div>
+          ) : (
+            <div></div>
           )}
+          <div>
+            <div className="text-xs text-gray-600 mb-1">
+              🔴 END {isEndLocked && '(Locked)'}
+            </div>
+            <div className="text-sm font-mono font-bold" style={{ color: isEndLocked ? '#9ca3af' : '#ef4444' }}>
+              {formatTime(trimEnd)}
+            </div>
+          </div>
         </div>
       </div>
 
