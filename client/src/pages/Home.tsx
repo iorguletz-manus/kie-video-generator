@@ -693,7 +693,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       setImages(parseJsonField(contextSession.images));
       setCombinations(parseJsonField(contextSession.combinations));
       setDeletedCombinations(parseJsonField(contextSession.deletedCombinations));
-      setVideoResults(parseJsonField(contextSession.videoResults));
+      
+      const loadedVideoResults = parseJsonField(contextSession.videoResults);
+      setVideoResults(loadedVideoResults);
+      
       setReviewHistory(parseJsonField(contextSession.reviewHistory));
       
       // Update previousCharacterIdRef to track initial character
@@ -7087,21 +7090,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       // Calculate duration from video metadata or use suggestedEnd as fallback
                       const duration = suggestedEnd > 0 ? suggestedEnd + 1 : 10; // +1 second buffer
                       
-                      // Debug logging
-                      console.log('[VideoEditorV2 Props]', video.videoName, ':', {
-                        startTimestamp: video.startTimestamp,
-                        endTimestamp: video.endTimestamp,
-                        isStartLocked: video.isStartLocked,
-                        isEndLocked: video.isEndLocked,
-                        suggestedStart,
-                        suggestedEnd,
-                      });
-                      
                       return (
                         <VideoEditorV2
-                          key={video.id}
+                          key={video.videoName}
                           video={{
-                            id: video.id || '',
+                            id: video.videoName, // Use videoName as unique identifier
                             videoName: video.videoName,
                             videoUrl: video.videoUrl!,
                             audioUrl: video.audioUrl || '',
@@ -7120,8 +7113,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           }}
                           onTrimChange={(videoId, trimStart, trimEnd, isStartLocked, isEndLocked) => {
                             // Update local state when user adjusts trim markers or lock state
+                            // videoId is actually videoName (unique identifier)
                             const updatedVideoResults = videoResults.map(v =>
-                              v.id === videoId
+                              v.videoName === videoId
                                 ? { 
                                     ...v, 
                                     startTimestamp: trimStart, // Already in seconds

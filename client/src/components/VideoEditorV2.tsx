@@ -145,6 +145,16 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
       setTrimSegment(segment);
       console.log('[VideoEditorV2] Trim segment created:', segment);
 
+      // 🔒 Freeze pan/drag on waveform canvas
+      const zoomviewContainer = zoomviewRef.current;
+      if (zoomviewContainer) {
+        const canvases = zoomviewContainer.getElementsByTagName('canvas');
+        Array.from(canvases).forEach((canvas) => {
+          canvas.style.pointerEvents = 'none'; // Make canvas passive to mouse
+        });
+        console.log('[VideoEditorV2] Waveform canvas frozen (pointerEvents: none)');
+      }
+
       // Set initial zoom
       const initialWindow = Math.min(8, video.duration);
       const view = peaks!.views.getView('zoomview');
@@ -590,29 +600,30 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
         {/* Waveform Container with Custom Markers Overlay */}
         <div 
           ref={waveformContainerRef}
-          className="relative"
+          className="waveform-scroll-container"
           style={{ 
             height: '120px', 
             width: '100%', 
             overflowX: 'auto', // Enable horizontal scroll
             overflowY: 'hidden',
+            position: 'relative',
           }}
         >
           {/* Custom thin scrollbar CSS */}
           <style>{`
-            .relative::-webkit-scrollbar {
-              height: 6px;
+            .waveform-scroll-container::-webkit-scrollbar {
+              height: 4px;
             }
-            .relative::-webkit-scrollbar-track {
-              background: #f1f1f1;
-              border-radius: 3px;
+            .waveform-scroll-container::-webkit-scrollbar-track {
+              background: #e5e7eb;
+              border-radius: 2px;
             }
-            .relative::-webkit-scrollbar-thumb {
-              background: #888;
-              border-radius: 3px;
+            .waveform-scroll-container::-webkit-scrollbar-thumb {
+              background: #9ca3af;
+              border-radius: 2px;
             }
-            .relative::-webkit-scrollbar-thumb:hover {
-              background: #555;
+            .waveform-scroll-container::-webkit-scrollbar-thumb:hover {
+              background: #6b7280;
             }
           `}</style>
           {/* Peaks.js Waveform */}
