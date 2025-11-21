@@ -511,20 +511,21 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
       <div className="mb-2">
         <div className="flex items-center justify-between mb-1">
           <h4 className="text-sm font-semibold text-gray-900">
-            🎵 Wav            {/* Current Time Display */}
-            <span className="text-xs text-gray-600">
-              Current: <span className="font-mono font-bold text-purple-600">{formatTime(currentTime)}</span>
-              {' / '}
-              <span className="font-mono">{formatTime(video.duration)}</span>
-            </span>
-            <div className="flex gap-2">
-              <Button onClick={handleZoomOut} size="sm" variant="outline">
-                <ZoomOut className="w-4 h-4" />
-              </Button>
-              <Button onClick={handleZoomIn} size="sm" variant="outline">
-                <ZoomIn className="w-4 h-4" />
-              </Button>
-            </div>
+            🎵 Waveform
+          </h4>
+          {/* Current Time Display */}
+          <span className="text-xs text-gray-600">
+            Current: <span className="font-mono font-bold text-purple-600">{formatTime(currentTime)}</span>
+            {' / '}
+            <span className="font-mono">{formatTime(video.duration)}</span>
+          </span>
+          <div className="flex gap-2">
+            <Button onClick={handleZoomOut} size="sm" variant="outline">
+              <ZoomOut className="w-4 h-4" />
+            </Button>
+            <Button onClick={handleZoomIn} size="sm" variant="outline">
+              <ZoomIn className="w-4 h-4" />
+            </Button>
           </div>
         </div>
 
