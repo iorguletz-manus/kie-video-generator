@@ -495,15 +495,34 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
     if (!containerWidth || containerWidth === 0) return;
     
     // Calculate required width to show full duration
-    // Formula: if 8 seconds fits in containerWidth, then full duration needs:
+    // Formula: if currentWindowSize fits in containerWidth, then full duration needs:
     const requiredWidth = Math.ceil((duration / currentWindowSize) * containerWidth);
     
-    // Set width on inner waveform div
-    const innerDiv = zoomviewContainer.querySelector('div');
-    if (innerDiv) {
-      (innerDiv as HTMLElement).style.width = `${requiredWidth}px`;
-      console.log(`[VideoEditorV2] Waveform width updated: ${requiredWidth}px (${duration.toFixed(2)}s / ${currentWindowSize.toFixed(2)}s × ${containerWidth}px)`);
+    console.log(`[VideoEditorV2] Updating waveform width to ${requiredWidth}px`);
+    console.log('[VideoEditorV2] DOM structure:', zoomviewContainer.innerHTML.substring(0, 500));
+    
+    // Peaks.js uses Konva.js which creates:
+    // <div class="konvajs-content">
+    //   <canvas></canvas>
+    // </div>
+    
+    // Set width on ALL relevant elements
+    const konvaContent = zoomviewContainer.querySelector('.konvajs-content');
+    if (konvaContent) {
+      (konvaContent as HTMLElement).style.width = `${requiredWidth}px`;
+      console.log('[VideoEditorV2] Set width on .konvajs-content');
     }
+    
+    // Also set width on canvas elements
+    const canvases = zoomviewContainer.querySelectorAll('canvas');
+    canvases.forEach((canvas, i) => {
+      (canvas as HTMLCanvasElement).style.width = `${requiredWidth}px`;
+      // Also update canvas width attribute
+      (canvas as HTMLCanvasElement).width = requiredWidth;
+      console.log(`[VideoEditorV2] Set width on canvas ${i}: ${requiredWidth}px`);
+    });
+    
+    console.log(`[VideoEditorV2] Waveform width updated: ${requiredWidth}px (${duration.toFixed(2)}s / ${currentWindowSize.toFixed(2)}s × ${containerWidth}px)`);
   };
 
   const handleZoomIn = () => {
