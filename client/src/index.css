@@ -175,3 +175,8 @@
     }
   }
 }
+
+/* Peaks.js Waveform Styling - Classic Line Style */
+#peaks-zoomview-container canvas {
+  filter: contrast(1.2);
+}

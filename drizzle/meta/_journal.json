@@ -71,6 +71,13 @@
       "when": 1763548630396,
       "tag": "0009_past_banshee",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1763720831378,
+      "tag": "0010_boring_sebastian_shaw",
+      "breakpoints": true
     }
   ]
 }

@@ -1,14 +1,65 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { exec as execCallback } from 'child_process';
+import { promisify } from 'util';
 import OpenAI from 'openai';
 import FormData from 'form-data';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || '',
-});
+const exec = promisify(execCallback);
+
+// Initialize OpenAI client with explicit API key and base URL
+const getOpenAIClient = (userApiKey?: string) => {
+  // Priority: user API key > ENV API key
+  const apiKey = userApiKey || process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error('OpenAI API key is not configured. Please add it in Settings.');
+  }
+  console.log('[OpenAI] Using API key:', apiKey.substring(0, 20) + '...', userApiKey ? '(from user settings)' : '(from ENV)');
+  // Use official OpenAI API, not Manus proxy
+  return new OpenAI({ 
+    apiKey,
+    baseURL: 'https://api.openai.com/v1'
+  });
+};
 
 const FFMPEG_API_KEY = 'Basic QjZlZ3lJd3RrOVNDZUZHT0xabGk6NDFkNjQ1ODBkMzAwM2U5MmZjYTg5OWU3';
 const FFMPEG_API_BASE = 'https://api.ffmpeg-api.com';
+
+// BunnyCDN configuration
+const BUNNYCDN_STORAGE_PASSWORD = '4c9257d6-aede-4ff1-bb0f9fc95279-997e-412b';
+const BUNNYCDN_STORAGE_ZONE = 'manus-storage';
+const BUNNYCDN_PULL_ZONE_URL = 'https://manus.b-cdn.net';
+
+/**
+ * Upload file to BunnyCDN Storage
+ */
+async function uploadToBunnyCDN(
+  buffer: Buffer,
+  fileName: string,
+  contentType: string
+): Promise<string> {
+  const storageUrl = `https://storage.bunnycdn.com/${BUNNYCDN_STORAGE_ZONE}/${fileName}`;
+  
+  console.log(`[uploadToBunnyCDN] Uploading to:`, storageUrl);
+  
+  const uploadResponse = await fetch(storageUrl, {
+    method: 'PUT',
+    headers: {
+      'AccessKey': BUNNYCDN_STORAGE_PASSWORD,
+      'Content-Type': contentType,
+    },
+    body: buffer,
+  });
+  
+  if (!uploadResponse.ok) {
+    throw new Error(`BunnyCDN upload failed: ${uploadResponse.statusText}`);
+  }
+  
+  const publicUrl = `${BUNNYCDN_PULL_ZONE_URL}/${fileName}`;
+  console.log(`[uploadToBunnyCDN] Upload successful:`, publicUrl);
+  
+  return publicUrl;
+}
 
 // ============================================================================
 // TYPES
@@ -31,6 +82,8 @@ export interface ProcessingResult {
   words: WhisperWord[];
   cutPoints: CutPoints | null;
   whisperTranscript: any;
+  audioUrl: string;  // Audio download URL
+  waveformJson: string;  // Waveform JSON data
 }
 
 // ============================================================================
@@ -143,7 +196,65 @@ async function extractAudioWithFFmpegAPI(
 }
 
 // ============================================================================
-// 3. WHISPER TRANSCRIPTION
+// 3. WAVEFORM GENERATION
+// ============================================================================
+
+/**
+ * Generate waveform JSON using audiowaveform CLI
+ * Returns the waveform JSON as a string (to be stored in database or uploaded to CDN)
+ */
+async function generateWaveformData(
+  audioDownloadUrl: string,
+  videoId: number
+): Promise<string> {
+  try {
+    console.log(`[generateWaveformData] Generating waveform for video ${videoId}...`);
+    
+    // Create temp directory if it doesn't exist
+    const tempDir = path.join('/tmp', 'waveforms');
+    await fs.mkdir(tempDir, { recursive: true });
+    
+    const audioPath = path.join(tempDir, `audio_${videoId}.mp3`);
+    const waveformPath = path.join(tempDir, `waveform_${videoId}.json`);
+    
+    // Download audio file
+    console.log(`[generateWaveformData] Downloading audio from ${audioDownloadUrl}...`);
+    const audioRes = await fetch(audioDownloadUrl);
+    if (!audioRes.ok) {
+      throw new Error(`Failed to download audio: ${audioRes.statusText}`);
+    }
+    const audioBuffer = await audioRes.arrayBuffer();
+    await fs.writeFile(audioPath, Buffer.from(audioBuffer));
+    
+    // Generate waveform JSON with audiowaveform CLI
+    console.log(`[generateWaveformData] Running audiowaveform...`);
+    // Use high resolution for short clips to enable zoom in Peaks.js
+    // pixels-per-second 1000 gives samples_per_pixel ≈ 48 at 48kHz (vs 960 at pps=50)
+    const command = `audiowaveform -i "${audioPath}" -o "${waveformPath}" --pixels-per-second 1000 -b 8`;
+    const { stdout, stderr } = await exec(command);
+    
+    if (stderr) {
+      console.warn(`[generateWaveformData] audiowaveform stderr:`, stderr);
+    }
+    
+    // Read generated JSON
+    const waveformJson = await fs.readFile(waveformPath, 'utf-8');
+    
+    // Clean up temp files
+    await fs.unlink(audioPath).catch(() => {});
+    await fs.unlink(waveformPath).catch(() => {});
+    
+    console.log(`[generateWaveformData] Waveform generated successfully (${waveformJson.length} bytes)`);
+    
+    return waveformJson;
+  } catch (error) {
+    console.error('[generateWaveformData] Error:', error);
+    throw new Error(`Failed to generate waveform: ${error.message}`);
+  }
+}
+
+// ============================================================================
+// 4. WHISPER TRANSCRIPTION
 // ============================================================================
 
 /**
@@ -152,7 +263,8 @@ async function extractAudioWithFFmpegAPI(
  */
 async function transcribeWithWhisper(
   audioDownloadUrl: string,
-  language: string = 'ro'
+  language: string = 'ro',
+  userApiKey?: string
 ): Promise<{ words: WhisperWord[]; fullTranscript: any }> {
   try {
     console.log(`[transcribeWithWhisper] Downloading audio from ${audioDownloadUrl}...`);
@@ -166,32 +278,19 @@ async function transcribeWithWhisper(
     
     console.log(`[transcribeWithWhisper] Sending to Whisper API...`);
     
-    // Create FormData for Whisper API
-    const formData = new FormData();
-    formData.append('file', Buffer.from(audioBuffer), {
-      filename: 'audio.mp3',
-      contentType: 'audio/mpeg',
-    });
-    formData.append('model', 'whisper-1');
-    formData.append('language', language);
-    formData.append('response_format', 'verbose_json');
-    formData.append('timestamp_granularities[]', 'word');
+    // Use OpenAI SDK for Whisper transcription (handles multipart form correctly)
+    // Create a File-like object from the buffer
+    const audioFile = new File([Buffer.from(audioBuffer)], 'audio.mp3', { type: 'audio/mpeg' });
     
-    const whisperRes = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-        ...formData.getHeaders(),
-      },
-      body: formData,
+    const openai = getOpenAIClient(userApiKey);
+    const transcription: any = await openai.audio.transcriptions.create({
+      file: audioFile,
+      model: 'whisper-1',
+      language: language,
+      response_format: 'verbose_json',
+      timestamp_granularities: ['word'],
     });
     
-    if (!whisperRes.ok) {
-      const errorText = await whisperRes.text();
-      throw new Error(`Whisper API failed: ${whisperRes.statusText} - ${errorText}`);
-    }
-    
-    const transcription = await whisperRes.json();
     const words: WhisperWord[] = transcription.words || [];
     
     console.log(`[transcribeWithWhisper] Transcribed ${words.length} words`);
@@ -345,7 +444,8 @@ export async function processVideoForEditing(
   videoId: number,
   fullText: string,
   redText: string,
-  marginMs: number = 50
+  marginMs: number = 50,
+  userApiKey?: string
 ): Promise<ProcessingResult> {
   try {
     console.log(`[processVideoForEditing] Starting for video ${videoId}...`);
@@ -358,10 +458,29 @@ export async function processVideoForEditing(
     const audioFileName = `audio_${videoId}.mp3`;
     const audioDownloadUrl = await extractAudioWithFFmpegAPI(videoFilePath, audioFileName);
     
-    // 3. Transcribe with Whisper
-    const { words, fullTranscript } = await transcribeWithWhisper(audioDownloadUrl, 'ro');
+    // 2.5. Download audio and upload to Bunny.net for permanent storage
+    console.log(`[processVideoForEditing] Downloading audio from FFMPEG...`);
+    const audioResponse = await fetch(audioDownloadUrl);
+    if (!audioResponse.ok) {
+      throw new Error(`Failed to download audio: ${audioResponse.statusText}`);
+    }
+    const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
     
-    // 4. Calculate cut points
+    console.log(`[processVideoForEditing] Uploading audio to Bunny.net...`);
+    const bunnyAudioUrl = await uploadToBunnyCDN(
+      audioBuffer,
+      `audio-files/${audioFileName}`,
+      'audio/mpeg'
+    );
+    console.log(`[processVideoForEditing] Audio uploaded to Bunny.net: ${bunnyAudioUrl}`);
+    
+    // 3. Generate waveform JSON (use Bunny URL)
+    const waveformJson = await generateWaveformData(bunnyAudioUrl, videoId);
+    
+    // 4. Transcribe with Whisper
+    const { words, fullTranscript } = await transcribeWithWhisper(audioDownloadUrl, 'ro', userApiKey);
+    
+    // 5. Calculate cut points
     const cutPoints = calculateCutPoints(fullText, redText, words, marginMs);
     
     console.log(`[processVideoForEditing] Processing complete for video ${videoId}`);
@@ -370,6 +489,8 @@ export async function processVideoForEditing(
       words,
       cutPoints,
       whisperTranscript: fullTranscript,
+      audioUrl: bunnyAudioUrl, // Use permanent Bunny.net URL
+      waveformJson,
     };
   } catch (error) {
     console.error(`[processVideoForEditing] Error for video ${videoId}:`, error);

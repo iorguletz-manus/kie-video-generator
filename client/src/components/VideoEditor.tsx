@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import ReactPlayer from 'react-player';
 import Slider from 'rc-slider';
 import 'rc-slider/assets/index.css';
 import { Button } from './ui/button';
@@ -18,10 +17,14 @@ interface VideoEditorProps {
 }
 
 export function VideoEditor({ video, onTimestampChange }: VideoEditorProps) {
-  const playerRef = useRef<ReactPlayer>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
+  
+  console.log('[VideoEditor] Received video prop:', video);
+  console.log('[VideoEditor] Video URL:', video.videoUrl);
+  console.log('[VideoEditor] Playing state:', playing);
   
   // Timestamps in milliseconds - initialized from Whisper API cutPoints
   const [startKeep, setStartKeep] = useState(video.startKeep || 0);
@@ -34,31 +37,74 @@ export function VideoEditor({ video, onTimestampChange }: VideoEditorProps) {
     }
   }, [startKeep, endKeep]);
 
-  const handleDuration = (duration: number) => {
-    const durationMs = duration * 1000;
-    setDuration(durationMs);
-    
-    // If no endKeep set, use full duration
-    if (endKeep === 0) {
-      setEndKeep(durationMs);
-    }
-  };
+  // Handle video loaded metadata
+  useEffect(() => {
+    const videoElement = videoRef.current;
+    if (!videoElement) return;
 
-  const handleProgress = (state: { playedSeconds: number }) => {
-    setCurrentTime(state.playedSeconds * 1000);
-  };
+    const handleLoadedMetadata = () => {
+      const durationMs = videoElement.duration * 1000;
+      setDuration(durationMs);
+      console.log('[VideoEditor] Video duration loaded:', durationMs, 'ms');
+      
+      // If no endKeep set, use full duration
+      if (endKeep === 0) {
+        setEndKeep(durationMs);
+      }
+    };
+
+    const handleTimeUpdate = () => {
+      setCurrentTime(videoElement.currentTime * 1000);
+    };
+
+    const handleError = (e: Event) => {
+      console.error('[VideoEditor] Video error:', e);
+      const target = e.target as HTMLVideoElement;
+      if (target.error) {
+        console.error('[VideoEditor] Video error details:', {
+          code: target.error.code,
+          message: target.error.message
+        });
+      }
+    };
+
+    videoElement.addEventListener('loadedmetadata', handleLoadedMetadata);
+    videoElement.addEventListener('timeupdate', handleTimeUpdate);
+    videoElement.addEventListener('error', handleError);
+
+    return () => {
+      videoElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      videoElement.removeEventListener('timeupdate', handleTimeUpdate);
+      videoElement.removeEventListener('error', handleError);
+    };
+  }, [video.videoUrl]);
+
+  // Handle play/pause
+  useEffect(() => {
+    const videoElement = videoRef.current;
+    if (!videoElement) return;
+
+    if (playing) {
+      videoElement.play().catch(err => {
+        console.error('[VideoEditor] Play error:', err);
+        setPlaying(false);
+      });
+    } else {
+      videoElement.pause();
+    }
+  }, [playing]);
 
   const handleSeekToStart = () => {
-    if (playerRef.current) {
-      playerRef.current.seekTo(startKeep / 1000);
+    if (videoRef.current) {
+      videoRef.current.currentTime = startKeep / 1000;
       setPlaying(true);
     }
   };
 
   const handleSeekToEnd = () => {
-    if (playerRef.current) {
+    if (videoRef.current) {
       // Seek to 1 second before end to see the end point
-      playerRef.current.seekTo(Math.max(0, (endKeep / 1000) - 1));
+      videoRef.current.currentTime = Math.max(0, (endKeep / 1000) - 1);
       setPlaying(true);
     }
   };
@@ -87,16 +133,12 @@ export function VideoEditor({ video, onTimestampChange }: VideoEditorProps) {
           className="relative bg-black rounded-lg overflow-hidden mx-auto" 
           style={{ aspectRatio: '9/16', width: '300px' }}
         >
-          <ReactPlayer
-            ref={playerRef}
-            url={video.videoUrl}
-            playing={playing}
-            controls={false}
-            width="100%"
-            height="100%"
-            onDuration={handleDuration}
-            onProgress={handleProgress}
-            progressInterval={100}
+          <video
+            ref={videoRef}
+            src={video.videoUrl}
+            className="absolute top-0 left-0 w-full h-full object-contain"
+            playsInline
+            crossOrigin="anonymous"
           />
         </div>
         
@@ -156,8 +198,8 @@ export function VideoEditor({ video, onTimestampChange }: VideoEditorProps) {
               const newStart = Array.isArray(value) ? value[0] : value;
               setStartKeep(newStart);
               // LIVE SEEK when slider moves
-              if (playerRef.current) {
-                playerRef.current.seekTo(newStart / 1000);
+              if (videoRef.current) {
+                videoRef.current.currentTime = newStart / 1000;
               }
             }}
             railStyle={{ backgroundColor: '#e5e7eb', height: 8 }}
@@ -187,8 +229,8 @@ export function VideoEditor({ video, onTimestampChange }: VideoEditorProps) {
               const newEnd = Array.isArray(value) ? value[0] : value;
               setEndKeep(newEnd);
               // LIVE SEEK when slider moves
-              if (playerRef.current) {
-                playerRef.current.seekTo(newEnd / 1000);
+              if (videoRef.current) {
+                videoRef.current.currentTime = newEnd / 1000;
               }
             }}
             railStyle={{ backgroundColor: '#e5e7eb', height: 8 }}

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
 import EditProfileModal from '@/components/EditProfileModal';
 
-import { VideoEditor } from '@/components/VideoEditor';
+import { VideoEditorV2 } from '@/components/VideoEditorV2';
 import { ProcessingModal } from '@/components/ProcessingModal';
 import { trpc } from '../lib/trpc';
 import mammoth from 'mammoth';
@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -87,6 +88,8 @@ interface VideoResult {
   editStatus?: 'pending' | 'processed' | 'edited'; // Processing status
   startTimestamp?: number;  // User-adjusted start time (seconds)
   endTimestamp?: number;    // User-adjusted end time (seconds)
+  audioUrl?: string;        // Audio download URL from FFmpeg API
+  waveformData?: string;    // Waveform JSON data
 }
 
 interface HomeProps {
@@ -208,11 +211,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // State pentru tracking modificări (pentru blocare navigare)
   const [hasModifications, setHasModifications] = useState(false);
   
-  // Lock system pentru Step 1-5 după generare
-  const [isWorkflowLocked, setIsWorkflowLocked] = useState(false); // true dacă există videouri generate
-  const [isStepUnlocked, setIsStepUnlocked] = useState<Record<number, boolean>>({}); // track unlock per step
-  const [compromisedLineIds, setCompromisedLineIds] = useState<Set<string>>(new Set()); // linii editate în Step 2
-  const [compromisedCombinationIds, setCompromisedCombinationIds] = useState<Set<string>>(new Set()); // combinations editate
+  // Removed lock system - free navigation enabled
   
   // Step 2: Manual prompt textarea
   const [manualPromptText, setManualPromptText] = useState('');
@@ -236,6 +235,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     newStatus: 'pending' | 'accepted' | 'regenerate' | null;
   }>>([]);
   
+  // Step 9: Recut review
+  const [step9Filter, setStep9Filter] = useState<'all' | 'accepted' | 'recut'>('all');
+  const [recutHistory, setRecutHistory] = useState<Array<{
+    videoName: string;
+    previousStatus: 'pending' | 'accepted' | 'recut' | null;
+    newStatus: 'pending' | 'accepted' | 'recut' | null;
+  }>>([]);
+  
   // Current step
   const [currentStep, setCurrentStep] = useState(1);
   
@@ -246,6 +253,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // Edit Profile modal
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [localCurrentUser, setLocalCurrentUser] = useState(currentUser);
+  
+  // Step 8 → Step 9: Trimming modal
+  const [isTrimmingModalOpen, setIsTrimmingModalOpen] = useState(false);
+  const [trimmingProgress, setTrimmingProgress] = useState<{
+    current: number;
+    total: number;
+    currentVideo: string;
+    status: 'trimming' | 'uploading' | 'complete' | 'error';
+    message: string;
+  }>({ current: 0, total: 0, currentVideo: '', status: 'trimming', message: '' });
   
   // Images Library modal
   const [isImagesLibraryOpen, setIsImagesLibraryOpen] = useState(false);
@@ -910,89 +927,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
   }, [selectedAdId, selectedCharacterId, allContextSessions]);
 
-  // Set workflow lock when videos are generated
-  useEffect(() => {
-    const hasGeneratedVideos = videoResults.some(v => v.status === 'success' || v.status === 'pending' || v.status === 'failed');
-    setIsWorkflowLocked(hasGeneratedVideos);
-  }, [videoResults]);
-  
-  // Delete video cards for compromised items when navigating to another step
-  // Also re-lock steps that were unlocked but not modified
-  useEffect(() => {
-    // Re-lock all unlocked steps (they will be locked again if no modifications were made)
-    // Only keep unlocked if there are pending compromised items
-    if (compromisedLineIds.size === 0 && compromisedCombinationIds.size === 0) {
-      // No modifications were made, re-lock all steps
-      setIsStepUnlocked({});
-      console.log('[Navigation] No modifications made, re-locking all steps');
-      return;
-    }
-    
-    console.log('[Navigation] Deleting video cards for compromised items...');
-    console.log('[Navigation] Compromised lines:', Array.from(compromisedLineIds));
-    console.log('[Navigation] Compromised combinations:', Array.from(compromisedCombinationIds));
-    
-    // Find indices of video cards to delete
-    const indicesToDelete = new Set<number>();
-    
-    // Check each video card if it corresponds to a compromised line or combination
-    videoResults.forEach((video, index) => {
-      const combo = combinations[index];
-      if (!combo) return;
-      
-      // Check if this video's combination corresponds to a compromised line
-      const correspondingLine = adLines.find(line => line.videoName === combo.videoName);
-      if (correspondingLine && compromisedLineIds.has(correspondingLine.id)) {
-        indicesToDelete.add(index);
-      }
-      
-      // Check if this combination itself is compromised
-      if (compromisedCombinationIds.has(combo.id)) {
-        indicesToDelete.add(index);
-      }
-    });
-    
-    if (indicesToDelete.size > 0) {
-      console.log('[Navigation] Deleting', indicesToDelete.size, 'video cards');
-      
-      // Delete video cards and combinations
-      setVideoResults(prev => prev.filter((_, i) => !indicesToDelete.has(i)));
-      setCombinations(prev => prev.filter((_, i) => !indicesToDelete.has(i)));
-      
-      // Clear compromised sets and re-lock steps
-      setCompromisedLineIds(new Set());
-      setCompromisedCombinationIds(new Set());
-      setIsStepUnlocked({}); // Re-lock all steps after deletion
-      
-      // Save to database
-      upsertContextSessionMutation.mutate({
-        userId: localCurrentUser.id,
-        tamId: selectedTamId,
-        coreBeliefId: selectedCoreBeliefId!,
-        emotionalAngleId: selectedEmotionalAngleId!,
-        adId: selectedAdId!,
-        characterId: selectedCharacterId!,
-        currentStep,
-        rawTextAd,
-        processedTextAd,
-        adLines,
-        prompts,
-        images,
-        combinations: combinations.filter((_, i) => !indicesToDelete.has(i)),
-        deletedCombinations,
-        videoResults: videoResults.filter((_, i) => !indicesToDelete.has(i)),
-        reviewHistory,
-      }, {
-        onSuccess: () => {
-          console.log('[Navigation] Database updated after deleting compromised video cards');
-          toast.success(`${indicesToDelete.size} video card(s) deleted for modified items`);
-        },
-        onError: (error) => {
-          console.error('[Navigation] Failed to save:', error);
-        },
-      });
-    }
-  }, [currentStep]); // Trigger on step change
+  // Lock system removed - free navigation enabled
 
   // ========== COMPUTED VALUES (MEMOIZED) ==========
   // Filtered video lists (evită re-compute la fiecare render)
@@ -1085,11 +1020,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       setDeletedCombinations([]);
       setReviewHistory([]);
       
-      // Reset lock states when processing new document
-      setIsWorkflowLocked(false);
-      setIsStepUnlocked({});
-      setCompromisedLineIds(new Set());
-      setCompromisedCombinationIds(new Set());
+      // Lock system removed - no reset needed
       
       // Clear database immediately to prevent old data from being loaded
       console.log('[Process Text] Clearing database before processing new document');
@@ -1631,13 +1562,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           fullText: video.text,
           redText: redText,
           marginMs: 50,
+          userApiKey: localCurrentUser.openaiApiKey || undefined,
         });
         
         console.log(`[Batch Processing] 💾 Saving results...`);
         setProcessingStep('save');
         await new Promise(resolve => setTimeout(resolve, 300));
         
-        // Update videoResults state with whisperTranscript and cutPoints
+        // Update videoResults state with whisperTranscript, cutPoints, audioUrl, and waveformData
         setVideoResults(prev => prev.map(v => 
           v.id === video.id 
             ? { 
@@ -1645,6 +1577,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 whisperTranscript: result.whisperTranscript,
                 cutPoints: result.cutPoints,
                 words: result.words,
+                audioUrl: result.audioUrl,
+                waveformData: result.waveformJson,
                 editStatus: 'processed'
               }
             : v
@@ -1675,6 +1609,104 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     if (successCount === 0) {
       throw new Error('Toate videouri au eșuat la procesare!');
     }
+  };
+
+  // Step 8 → Step 9: Trim all videos using FFMPEG API
+  const handleTrimAllVideos = async () => {
+    const approvedVideos = videoResults.filter(v => 
+      v.reviewStatus === 'accepted' && 
+      v.status === 'success' && 
+      v.videoUrl
+    );
+    
+    if (approvedVideos.length === 0) {
+      toast.error('Nu există videouri pentru tăiere!');
+      setIsTrimmingModalOpen(false);
+      return;
+    }
+    
+    console.log('[Trimming] Starting trim process for', approvedVideos.length, 'videos');
+    
+    let successCount = 0;
+    let failCount = 0;
+    
+    for (let i = 0; i < approvedVideos.length; i++) {
+      const video = approvedVideos[i];
+      
+      // Update progress
+      setTrimmingProgress({
+        current: i + 1,
+        total: approvedVideos.length,
+        currentVideo: video.videoName,
+        status: 'trimming',
+        message: `Trimming video ${i + 1}/${approvedVideos.length}...`
+      });
+      
+      try {
+        // Get trim timestamps (use startTimestamp/endTimestamp from VideoEditorV2)
+        const trimStart = video.startTimestamp || 0;
+        const trimEnd = video.endTimestamp || video.cutPoints?.endKeep / 1000 || 10;
+        
+        console.log(`[Trimming] Video ${i + 1}/${approvedVideos.length}:`, {
+          videoName: video.videoName,
+          videoUrl: video.videoUrl,
+          trimStart,
+          trimEnd
+        });
+        
+        // Call FFMPEG API to trim video via tRPC
+        const result = await trpc.videoEditing.cutVideo.mutate({
+          videoUrl: video.videoUrl!,
+          videoId: parseInt(video.id),
+          startTimeSeconds: trimStart,
+          endTimeSeconds: trimEnd
+        });
+        
+        if (!result.success || !result.downloadUrl) {
+          throw new Error('Failed to trim video');
+        }
+        
+        const trimmedVideoUrl = result.downloadUrl;
+        
+        // Update video with trimmed URL
+        setVideoResults(prev => prev.map(v =>
+          v.id === video.id
+            ? {
+                ...v,
+                trimmedVideoUrl: trimmedVideoUrl,
+                trimStart,
+                trimEnd
+              }
+            : v
+        ));
+        
+        successCount++;
+        console.log(`[Trimming] ✅ Video ${i + 1}/${approvedVideos.length} SUCCESS`);
+        
+      } catch (error: any) {
+        failCount++;
+        console.error(`[Trimming] ❌ Video ${i + 1}/${approvedVideos.length} FAILED:`, error);
+        toast.error(`❌ ${video.videoName}: ${error.message}`);
+      }
+    }
+    
+    // Complete
+    setTrimmingProgress({
+      current: approvedVideos.length,
+      total: approvedVideos.length,
+      currentVideo: '',
+      status: 'complete',
+      message: `✅ Complete! Success: ${successCount}, Failed: ${failCount}`
+    });
+    
+    console.log(`[Trimming] 🎉 COMPLETE! Success: ${successCount}, Failed: ${failCount}`);
+    toast.success(`✂️ Trimming complete! ${successCount}/${approvedVideos.length} videos trimmed`);
+    
+    // Navigate to Step 9 after 2 seconds
+    setTimeout(() => {
+      setIsTrimmingModalOpen(false);
+      setCurrentStep(9);
+    }, 2000);
   };
 
   // Step 4: Create mappings
@@ -1790,11 +1822,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       )
     );
     
-    // Mark combination as compromised (will delete video card on navigation)
-    if (isWorkflowLocked && (isStepUnlocked[4] || isStepUnlocked[5])) {
-      setCompromisedCombinationIds(prev => new Set(prev).add(id));
-      console.log('[Step 4/5] Combination marked as compromised (prompt change):', id);
-    }
+    // Lock system removed
   };
 
   const updateCombinationText = (id: string, text: string) => {
@@ -1814,11 +1842,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         )
       );
       
-      // Mark combination as compromised (will delete video card on navigation)
-      if (isWorkflowLocked && (isStepUnlocked[4] || isStepUnlocked[5])) {
-        setCompromisedCombinationIds(prev => new Set(prev).add(id));
-        console.log('[Step 4/5] Combination marked as compromised (image change):', id);
-      }
+      // Lock system removed
     }
   };
 
@@ -2795,10 +2819,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
   // Navigation
   const goToStep = (step: number) => {
-    // Allow navigation to any step that's been reached (backward navigation always allowed)
-    if (step <= currentStep) {
-      setCurrentStep(step);
-    }
+    // Allow free navigation in both directions
+    setCurrentStep(step);
   };
 
   const goBack = () => {
@@ -2900,7 +2922,55 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         processingStep={processingStep}
       />
       
-
+      {/* Trimming Modal for Step 8 → Step 9 */}
+      <Dialog open={isTrimmingModalOpen} onOpenChange={setIsTrimmingModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center text-2xl font-bold text-purple-900">
+              ✂️ Trimming Videos
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* Progress Bar */}
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm text-gray-600">
+                <span>Progress</span>
+                <span className="font-bold">{trimmingProgress.current}/{trimmingProgress.total}</span>
+              </div>
+              <Progress 
+                value={(trimmingProgress.current / trimmingProgress.total) * 100} 
+                className="h-3"
+              />
+            </div>
+            
+            {/* Current Video */}
+            {trimmingProgress.currentVideo && (
+              <div className="p-3 bg-purple-50 rounded-lg">
+                <p className="text-sm text-gray-600 mb-1">Current Video:</p>
+                <p className="font-mono text-sm font-bold text-purple-900">
+                  {trimmingProgress.currentVideo}
+                </p>
+              </div>
+            )}
+            
+            {/* Status Message */}
+            <div className="text-center">
+              <p className="text-sm text-gray-700">{trimmingProgress.message}</p>
+            </div>
+            
+            {/* Status Icon */}
+            <div className="flex justify-center">
+              {trimmingProgress.status === 'complete' ? (
+                <div className="text-green-600 text-4xl">✅</div>
+              ) : trimmingProgress.status === 'error' ? (
+                <div className="text-red-600 text-4xl">❌</div>
+              ) : (
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
         <div className="text-center mb-6 md:mb-12">
           <h1 className="text-2xl md:text-4xl font-bold text-blue-900 mb-2">A.I Ads Engine</h1>
@@ -3218,18 +3288,18 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             { num: 4, label: "Images", icon: ImageIcon },
             { num: 5, label: "Mapping", icon: MapIcon },
             { num: 6, label: "Generate", icon: Play },
-            { num: 7, label: "Check\u00A0Videos", icon: Video },
-            { num: 8, label: "Video\u00A0Editing", icon: Video },
+            { num: 7, label: "Check Videos", icon: Video },
+            { num: 8, label: "Video Editing", icon: Video },
+            { num: 9, label: "Final Videos", icon: Download },
           ].map((step, index) => (
             <div key={step.num} className="flex items-center flex-1">
               <div className="flex flex-col items-center flex-1">
                 <button
                   onClick={() => goToStep(step.num)}
-                  disabled={step.num > currentStep}
                   className={`w-12 h-12 rounded-full flex items-center justify-center font-bold transition-all ${
                     currentStep >= step.num
                       ? "bg-blue-600 text-white cursor-pointer hover:bg-blue-700"
-                      : "bg-gray-200 text-gray-500 cursor-not-allowed"
+                      : "bg-gray-300 text-gray-600 cursor-pointer hover:bg-gray-400"
                   }`}
                 >
                   {currentStep > step.num ? (
@@ -3249,7 +3319,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   {step.label}
                 </span>
               </div>
-              {index < 7 && (
+              {index < 8 && (
                 <div
                   className={`h-1 flex-1 mx-2 transition-all ${
                     currentStep > step.num ? "bg-blue-600" : "bg-gray-200"
@@ -3280,35 +3350,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         <>
         {/* STEP 1: Prepare Text Ad */}
         {currentStep === 1 && (
-          <Card className="mb-8 border-2 border-blue-200 relative">
-            {/* Lock Overlay */}
-            {isWorkflowLocked && !isStepUnlocked[1] && (
-              <div className="absolute inset-0 z-50 bg-white/80 backdrop-blur-sm rounded-lg flex flex-col items-center justify-center gap-6">
-                <div className="text-center">
-                  <div className="inline-flex items-center justify-center w-24 h-24 bg-red-100 rounded-full mb-4">
-                    <svg className="w-12 h-12 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                  </div>
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">Step Locked</h3>
-                  <p className="text-gray-600 max-w-md">This step is locked because videos have been generated. Unlock to edit.</p>
-                </div>
-                <Button
-                  size="lg"
-                  onClick={() => {
-                    if (confirm('⚠️ Atenție! Încărcarea unui nou document va șterge TOATE videouri generate și va reseta workflow-ul. Continui?')) {
-                      setIsStepUnlocked(prev => ({ ...prev, 1: true }));
-                    }
-                  }}
-                  className="bg-red-600 hover:bg-red-700 text-white px-8 py-6 text-lg"
-                >
-                  <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
-                  </svg>
-                  UNLOCK TO EDIT
-                </Button>
-              </div>
-            )}
+          <Card className="mb-8 border-2 border-blue-200">
             <CardHeader className="bg-blue-50">
               <CardTitle className="flex items-center gap-2 text-blue-900">
                 <FileText className="w-5 h-5" />
@@ -3758,35 +3800,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
         {/* STEP 2: Text Ad Document */}
         {currentStep === 2 && (
-          <Card className="mb-8 border-2 border-blue-200 relative">
-            {/* Lock Overlay */}
-            {isWorkflowLocked && !isStepUnlocked[2] && (
-              <div className="absolute inset-0 z-50 bg-white/80 backdrop-blur-sm rounded-lg flex flex-col items-center justify-center gap-6">
-                <div className="text-center">
-                  <div className="inline-flex items-center justify-center w-24 h-24 bg-red-100 rounded-full mb-4">
-                    <svg className="w-12 h-12 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                  </div>
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">Step Locked</h3>
-                  <p className="text-gray-600 max-w-md">This step is locked because videos have been generated. Unlock to edit.</p>
-                </div>
-                <Button
-                  size="lg"
-                  onClick={() => {
-                    if (confirm('⚠️ Atenție! Editarea va șterge videouri generate pentru liniile modificate. Continui?')) {
-                      setIsStepUnlocked(prev => ({ ...prev, 2: true }));
-                    }
-                  }}
-                  className="bg-red-600 hover:bg-red-700 text-white px-8 py-6 text-lg"
-                >
-                  <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
-                  </svg>
-                  UNLOCK TO EDIT
-                </Button>
-              </div>
-            )}
+          <Card className="mb-8 border-2 border-blue-200">
             <CardHeader className="bg-blue-50">
               <CardTitle className="flex items-center gap-2 text-blue-900">
                 <FileText className="w-5 h-5" />
@@ -4086,11 +4100,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                       }
                                       return l;
                                     }));
-                                    
-                                    if (isWorkflowLocked && isStepUnlocked[2]) {
-                                      setCompromisedLineIds(prev => new Set(prev).add(line.id));
-                                      console.log('[Step 2] Line marked as compromised:', line.id);
-                                    }
+                                    // Lock system removed
                                     
                                     toast.success('Text saved!');
                                     setEditingLineId(null);
@@ -4286,35 +4296,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
         {/* STEP 3: Prompts */}
         {currentStep === 3 && (
-          <Card className="mb-8 border-2 border-blue-200 relative">
-            {/* Lock Overlay */}
-            {isWorkflowLocked && !isStepUnlocked[3] && (
-              <div className="absolute inset-0 z-50 bg-white/80 backdrop-blur-sm rounded-lg flex flex-col items-center justify-center gap-6">
-                <div className="text-center">
-                  <div className="inline-flex items-center justify-center w-24 h-24 bg-red-100 rounded-full mb-4">
-                    <svg className="w-12 h-12 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                  </div>
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">Step Locked</h3>
-                  <p className="text-gray-600 max-w-md">This step is locked because videos have been generated. Unlock to edit.</p>
-                </div>
-                <Button
-                  size="lg"
-                  onClick={() => {
-                    if (confirm('⚠️ Atenție! Editarea va șterge videouri generate pentru elementele modificate. Continui?')) {
-                      setIsStepUnlocked(prev => ({ ...prev, 3: true }));
-                    }
-                  }}
-                  className="bg-red-600 hover:bg-red-700 text-white px-8 py-6 text-lg"
-                >
-                  <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
-                  </svg>
-                  UNLOCK TO EDIT
-                </Button>
-              </div>
-            )}
+          <Card className="mb-8 border-2 border-blue-200">
             <CardHeader className="bg-blue-50">
               <CardTitle className="flex items-center gap-2 text-blue-900">
                 <FileText className="w-5 h-5" />
@@ -4419,36 +4401,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
         {/* STEP 4: Images */}
         {currentStep === 4 && (
-          <Card className="mb-8 border-2 border-blue-200 relative">
-            {/* Lock Overlay */}
-            {isWorkflowLocked && !isStepUnlocked[4] && (
-              <div className="absolute inset-0 z-50 bg-white/80 backdrop-blur-sm rounded-lg flex flex-col items-center justify-center gap-6">
-                <div className="text-center">
-                  <div className="inline-flex items-center justify-center w-24 h-24 bg-red-100 rounded-full mb-4">
-                    <svg className="w-12 h-12 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                  </div>
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">Step Locked</h3>
-                  <p className="text-gray-600 max-w-md">This step is locked because videos have been generated. Unlock to edit.</p>
-                </div>
-                <Button
-                  size="lg"
-                  onClick={() => {
-                    if (confirm('⚠️ Atenție! Editarea va șterge videouri generate pentru elementele modificate. Continui?')) {
-                      setIsStepUnlocked(prev => ({ ...prev, 4: true }));
-                    }
-                  }}
-                  className="bg-red-600 hover:bg-red-700 text-white px-8 py-6 text-lg"
-                >
-                  <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
-                  </svg>
-                  UNLOCK TO EDIT
-                </Button>
-              </div>
-            )}
-            
+          <Card className="mb-8 border-2 border-blue-200">
             <CardHeader className="bg-blue-50">
               <CardTitle className="flex items-center gap-2 text-blue-900">
                 <ImageIcon className="w-5 h-5" />
@@ -4753,35 +4706,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
         {/* STEP 5: Mapping */}
         {currentStep === 5 && combinations.length > 0 && (
-          <Card className="mb-8 border-2 border-blue-200 relative">
-            {/* Lock Overlay */}
-            {isWorkflowLocked && !isStepUnlocked[5] && (
-              <div className="absolute inset-0 z-50 bg-white/80 backdrop-blur-sm rounded-lg flex flex-col items-center justify-center gap-6">
-                <div className="text-center">
-                  <div className="inline-flex items-center justify-center w-24 h-24 bg-red-100 rounded-full mb-4">
-                    <svg className="w-12 h-12 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                  </div>
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">Step Locked</h3>
-                  <p className="text-gray-600 max-w-md">This step is locked because videos have been generated. Unlock to edit.</p>
-                </div>
-                <Button
-                  size="lg"
-                  onClick={() => {
-                    if (confirm('⚠️ Atenție! Editarea va șterge videouri generate pentru elementele modificate. Continui?')) {
-                      setIsStepUnlocked(prev => ({ ...prev, 5: true }));
-                    }
-                  }}
-                  className="bg-red-600 hover:bg-red-700 text-white px-8 py-6 text-lg"
-                >
-                  <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
-                  </svg>
-                  UNLOCK TO EDIT
-                </Button>
-              </div>
-            )}
+          <Card className="mb-8 border-2 border-blue-200">
             <CardHeader className="bg-blue-50">
               <CardTitle className="flex items-center gap-2 text-blue-900">
                 <MapIcon className="w-5 h-5" />
@@ -5478,10 +5403,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                                       setVideoResults(updatedVideoResults);
                                                     }
                                                     
-                                                    // Mark as compromised if workflow is locked
-                                                    if (isWorkflowLocked && isStepUnlocked[6]) {
-                                                      setCompromisedCombinationIds(prev => new Set(prev).add(updatedCombinations[modifyingVideoIndex].id));
-                                                    }
+                                                    // Lock system removed
                                                   }
                                                 }}
                                                 className={`relative cursor-pointer rounded border-2 transition-all ${
@@ -7092,11 +7014,18 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         {/* STEP 8: Video Editing */}
         {currentStep === 8 && (() => {
           // Filter approved videos that have videoUrl
-          const approvedVideos = videoResults.filter(v => 
+          let approvedVideos = videoResults.filter(v => 
             v.reviewStatus === 'accepted' && 
             v.status === 'success' && 
             v.videoUrl
           );
+          
+          // If coming from Step 9 with recut filter, show only recut videos
+          const recutVideos = approvedVideos.filter(v => v.recutStatus === 'recut');
+          const showRecutOnly = recutVideos.length > 0 && step9Filter === 'recut';
+          if (showRecutOnly) {
+            approvedVideos = recutVideos;
+          }
           return (
             <Card className="mb-8 border-2 border-purple-200">
               <CardHeader className="bg-purple-50">
@@ -7122,31 +7051,50 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 ) : (
                   <div className="space-y-8">
                     {/* Video Editors - One per approved video */}
-                    {approvedVideos.map((video) => (
-                      <VideoEditor
-                        key={video.id}
-                        video={{
-                          id: video.id || '',
-                          videoName: video.videoName,
-                          videoUrl: video.videoUrl!,
-                          text: video.text,
-                          startKeep: video.cutPoints?.startKeep || 0,
-                          endKeep: video.cutPoints?.endKeep || 0,
-                        }}
-                        onTimestampChange={(videoId, startKeep, endKeep) => {
-                          // Update local state when user adjusts sliders
-                          setVideoResults(prev => prev.map(v =>
-                            v.id === videoId
-                              ? { 
-                                  ...v, 
-                                  startTimestamp: startKeep / 1000, // Convert to seconds
-                                  endTimestamp: endKeep / 1000,     // Convert to seconds
-                                }
-                              : v
-                          ));
-                        }}
-                      />
-                    ))}
+                    {approvedVideos.map((video) => {
+                      // Convert waveformData JSON string to data URI for Peaks.js
+                      const peaksUrl = video.waveformData 
+                        ? `data:application/json;base64,${btoa(video.waveformData)}`
+                        : '';
+                      
+                      // Get suggested start/end from cutPoints (in milliseconds), convert to seconds
+                      const suggestedStart = (video.cutPoints?.startKeep || 0) / 1000;
+                      const suggestedEnd = (video.cutPoints?.endKeep || 0) / 1000;
+                      
+                      // Calculate duration from video metadata or use suggestedEnd as fallback
+                      const duration = suggestedEnd > 0 ? suggestedEnd + 1 : 10; // +1 second buffer
+                      
+                      return (
+                        <VideoEditorV2
+                          key={video.id}
+                          video={{
+                            id: video.id || '',
+                            videoName: video.videoName,
+                            videoUrl: video.videoUrl!,
+                            audioUrl: video.audioUrl || '',
+                            peaksUrl: peaksUrl,
+                            suggestedStart: suggestedStart,
+                            suggestedEnd: suggestedEnd,
+                            duration: duration,
+                            text: video.text,
+                            redStart: video.redStart,
+                            redEnd: video.redEnd,
+                          }}
+                          onTrimChange={(videoId, trimStart, trimEnd) => {
+                            // Update local state when user adjusts trim markers
+                            setVideoResults(prev => prev.map(v =>
+                              v.id === videoId
+                                ? { 
+                                    ...v, 
+                                    startTimestamp: trimStart, // Already in seconds
+                                    endTimestamp: trimEnd,     // Already in seconds
+                                  }
+                                : v
+                            ));
+                          }}
+                        />
+                      );
+                    })}
 
                     {/* Navigation Buttons */}
                     <div className="flex gap-4">
@@ -7161,12 +7109,234 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       {/* Buton TRIM ALL VIDEOS - va trimite la FFmpeg API pentru cutting */}
                       <Button
                         onClick={() => {
-                          toast.info('✂️ TRIM functionality will be implemented in Step 10');
+                          // Open trimming modal
+                          setIsTrimmingModalOpen(true);
+                          // Start trimming process
+                          handleTrimAllVideos();
                         }}
                         className="flex-1 bg-red-600 hover:bg-red-700"
-                        disabled
                       >
-                        ✂️ TRIM ALL VIDEOS
+                        ✂️ TRIM ALL VIDEOS ({approvedVideos.length})
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })()}
+
+        {/* STEP 9: Final Trimmed Videos */}
+        {currentStep === 9 && (() => {
+          let trimmedVideos = videoResults.filter(v => 
+            v.reviewStatus === 'accepted' && 
+            v.trimmedVideoUrl
+          );
+          
+          // Apply filter
+          if (step9Filter === 'accepted') {
+            trimmedVideos = trimmedVideos.filter(v => v.recutStatus === 'accepted');
+          } else if (step9Filter === 'recut') {
+            trimmedVideos = trimmedVideos.filter(v => v.recutStatus === 'recut');
+          }
+          
+          return (
+            <Card className="mb-8 border-2 border-blue-200">
+              <CardHeader className="bg-blue-50">
+                <CardTitle className="flex items-center gap-2 text-blue-900">
+                  <Video className="w-5 h-5" />
+                  STEP 9 - Final Trimmed Videos
+                </CardTitle>
+                <CardDescription>
+                  Videoclipurile tăiate și gata pentru download.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-6">
+                {trimmedVideos.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-600">Nu există videouri trimmed încă.</p>
+                    <Button
+                      onClick={() => setCurrentStep(8)}
+                      className="mt-4"
+                    >
+                      Înapoi la Step 8
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Filter and UNDO */}
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-6">
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-blue-900">Filtrează videouri:</label>
+                        <select
+                          value={step9Filter || 'all'}
+                          onChange={(e) => setStep9Filter(e.target.value as 'all' | 'accepted' | 'recut')}
+                          className="px-4 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="all">Toate ({trimmedVideos.length})</option>
+                          <option value="accepted">Acceptate ({trimmedVideos.filter(v => v.recutStatus === 'accepted').length})</option>
+                          <option value="recut">Necesită Retăiere ({trimmedVideos.filter(v => v.recutStatus === 'recut').length})</option>
+                        </select>
+                      </div>
+                      
+                      {/* UNDO Button */}
+                      {recutHistory.length > 0 && (
+                        <Button
+                          onClick={() => {
+                            const lastAction = recutHistory[recutHistory.length - 1];
+                            // Restore previous status
+                            setVideoResults(prev => prev.map(v =>
+                              v.videoName === lastAction.videoName
+                                ? { ...v, recutStatus: lastAction.previousStatus }
+                                : v
+                            ));
+                            // Remove from history
+                            setRecutHistory(prev => prev.slice(0, -1));
+                            toast.success(`Acțiune anulată pentru ${lastAction.videoName}`);
+                          }}
+                          variant="outline"
+                          className="border-orange-500 text-orange-700 hover:bg-orange-50"
+                        >
+                          <Undo2 className="w-4 h-4 mr-2" />
+                          UNDO ({recutHistory.length} acțiuni)
+                        </Button>
+                      )}
+                    </div>
+                    
+                    {/* Grid de videoclipuri */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {trimmedVideos.map((video) => (
+                        <div key={video.id} className="border-2 border-blue-200 rounded-lg p-4 bg-white">
+                          {/* Video Name */}
+                          <h3 className="text-sm font-bold text-gray-900 mb-2 text-center">
+                            {video.videoName}
+                          </h3>
+                          
+                          {/* Video Player */}
+                          <div className="relative bg-black rounded-lg overflow-hidden mb-3" style={{ aspectRatio: '9/16' }}>
+                            <video
+                              src={video.trimmedVideoUrl}
+                              className="absolute top-0 left-0 w-full h-full object-contain"
+                              controls
+                              playsInline
+                            />
+                          </div>
+                          
+                          {/* Video Text */}
+                          {video.text && (
+                            <p className="text-xs text-gray-700 mb-3 text-center">
+                              {video.redStart !== undefined && video.redEnd !== undefined ? (
+                                <>
+                                  {video.text.substring(0, video.redStart)}
+                                  <span className="text-red-600 font-bold">
+                                    {video.text.substring(video.redStart, video.redEnd)}
+                                  </span>
+                                  {video.text.substring(video.redEnd)}
+                                </>
+                              ) : (
+                                video.text
+                              )}
+                            </p>
+                          )}
+                          
+                          {/* Trim Info */}
+                          <div className="text-xs text-gray-600 mb-3 text-center">
+                            <p>✂️ Trimmed: {video.trimStart?.toFixed(2)}s → {video.trimEnd?.toFixed(2)}s</p>
+                            <p>Duration: {((video.trimEnd || 0) - (video.trimStart || 0)).toFixed(2)}s</p>
+                          </div>
+                          
+                          {/* Accept/Recut Buttons */}
+                          <div className="flex gap-2 mb-3">
+                            <Button
+                              onClick={() => {
+                                // Save to history
+                                setRecutHistory(prev => [...prev, {
+                                  videoName: video.videoName,
+                                  previousStatus: video.recutStatus || null,
+                                  newStatus: 'accepted'
+                                }]);
+                                // Mark as accepted
+                                setVideoResults(prev => prev.map(v =>
+                                  v.id === video.id
+                                    ? { ...v, recutStatus: 'accepted' }
+                                    : v
+                                ));
+                                toast.success(`✅ ${video.videoName} acceptat!`);
+                              }}
+                              className={`flex-1 ${
+                                video.recutStatus === 'accepted'
+                                  ? 'bg-green-600 hover:bg-green-700'
+                                  : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                              }`}
+                              size="sm"
+                            >
+                              <Check className="w-4 h-4 mr-1" />
+                              Accept
+                            </Button>
+                            <Button
+                              onClick={() => {
+                                // Save to history
+                                setRecutHistory(prev => [...prev, {
+                                  videoName: video.videoName,
+                                  previousStatus: video.recutStatus || null,
+                                  newStatus: 'recut'
+                                }]);
+                                // Mark for recut
+                                setVideoResults(prev => prev.map(v =>
+                                  v.id === video.id
+                                    ? { ...v, recutStatus: 'recut' }
+                                    : v
+                                ));
+                                toast.info(`✂️ ${video.videoName} marcat pentru retăiere!`);
+                              }}
+                              className={`flex-1 ${
+                                video.recutStatus === 'recut'
+                                  ? 'bg-orange-600 hover:bg-orange-700'
+                                  : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                              }`}
+                              size="sm"
+                            >
+                              <RefreshCw className="w-4 h-4 mr-1" />
+                              Recut
+                            </Button>
+                          </div>
+                          
+                          {/* Download Button */}
+                          <Button
+                            onClick={() => {
+                              const link = document.createElement('a');
+                              link.href = video.trimmedVideoUrl!;
+                              link.download = `${video.videoName}.mp4`;
+                              link.click();
+                            }}
+                            className="w-full bg-blue-600 hover:bg-blue-700"
+                            size="sm"
+                          >
+                            <Download className="w-4 h-4 mr-2" />
+                            Download
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {/* Navigation Buttons */}
+                    <div className="flex gap-4 mt-6">
+                      <Button
+                        onClick={() => setCurrentStep(8)}
+                        variant="outline"
+                        className="flex-1"
+                      >
+                        Înapoi la Step 8
+                      </Button>
+                      
+                      <Button
+                        onClick={() => {
+                          toast.success('🎉 Workflow complet! Toate videoclipurile sunt gata.');
+                        }}
+                        className="flex-1 bg-green-600 hover:bg-green-700"
+                      >
+                        <Check className="w-4 h-4 mr-2" />
+                        Finalizare
                       </Button>
                     </div>
                   </div>

@@ -125,12 +125,14 @@ export const appRouter = router({
         password: z.string().optional(),
         profileImageUrl: z.string().optional(),
         kieApiKey: z.string().optional(),
+        openaiApiKey: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
-        const updateData: Partial<{ password: string; profileImageUrl: string | null; kieApiKey: string | null }> = {};
+        const updateData: Partial<{ password: string; profileImageUrl: string | null; kieApiKey: string | null; openaiApiKey: string | null }> = {};
         if (input.password) updateData.password = input.password;
         if (input.profileImageUrl !== undefined) updateData.profileImageUrl = input.profileImageUrl;
         if (input.kieApiKey !== undefined) updateData.kieApiKey = input.kieApiKey;
+        if (input.openaiApiKey !== undefined) updateData.openaiApiKey = input.openaiApiKey;
 
         await updateAppUser(input.userId, updateData);
 
@@ -142,6 +144,7 @@ export const appRouter = router({
             username: user.username,
             profileImageUrl: user.profileImageUrl,
             kieApiKey: user.kieApiKey,
+            openaiApiKey: user.openaiApiKey,
           } : null,
         };
       }),
@@ -1547,6 +1550,7 @@ export const appRouter = router({
         fullText: z.string(),
         redText: z.string(),
         marginMs: z.number().optional().default(50),
+        userApiKey: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
         try {
@@ -1557,7 +1561,8 @@ export const appRouter = router({
             input.videoId,
             input.fullText,
             input.redText,
-            input.marginMs
+            input.marginMs,
+            input.userApiKey
           );
 
           return {
@@ -1565,6 +1570,8 @@ export const appRouter = router({
             words: result.words,
             cutPoints: result.cutPoints,
             whisperTranscript: result.whisperTranscript,
+            audioUrl: result.audioUrl,
+            waveformJson: result.waveformJson,
           };
         } catch (error) {
           console.error(`[videoEditing.processVideoForEditing] Error for video ${input.videoId}:`, error);
@@ -1595,12 +1602,46 @@ export const appRouter = router({
             input.endTimeSeconds
           );
 
-          // TODO: Upload trimmed video to Bunny CDN and return final URL
-          // For now, return the FFmpeg API download URL (expires after 24h)
+          // Download trimmed video from FFmpeg API
+          console.log(`[videoEditing.cutVideo] Downloading trimmed video from:`, downloadUrl);
+          const videoResponse = await fetch(downloadUrl);
+          if (!videoResponse.ok) {
+            throw new Error(`Failed to download trimmed video: ${videoResponse.status}`);
+          }
+          const videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
+          
+          // Upload to Bunny CDN
+          const timestamp = Date.now();
+          const randomSuffix = Math.random().toString(36).substring(2, 8);
+          const fileName = `trimmed-videos/video-${input.videoId}-${timestamp}-${randomSuffix}.mp4`;
+          
+          const BUNNYCDN_STORAGE_PASSWORD = '4c9257d6-aede-4ff1-bb0f9fc95279-997e-412b';
+          const BUNNYCDN_STORAGE_ZONE = 'manus-storage';
+          const BUNNYCDN_PULL_ZONE_URL = 'https://manus.b-cdn.net';
+          
+          const storageUrl = `https://storage.bunnycdn.com/${BUNNYCDN_STORAGE_ZONE}/${fileName}`;
+          console.log(`[videoEditing.cutVideo] Uploading to Bunny CDN:`, storageUrl);
+          
+          const uploadResponse = await fetch(storageUrl, {
+            method: 'PUT',
+            headers: {
+              'AccessKey': BUNNYCDN_STORAGE_PASSWORD,
+              'Content-Type': 'video/mp4',
+            },
+            body: videoBuffer,
+          });
+          
+          if (!uploadResponse.ok) {
+            const errorText = await uploadResponse.text();
+            throw new Error(`Bunny CDN upload failed: ${uploadResponse.status} ${errorText}`);
+          }
+          
+          const finalVideoUrl = `${BUNNYCDN_PULL_ZONE_URL}/${fileName}`;
+          console.log(`[videoEditing.cutVideo] Upload successful:`, finalVideoUrl);
           
           return {
             success: true,
-            downloadUrl,
+            downloadUrl: finalVideoUrl, // Return Bunny CDN URL instead of temporary FFmpeg URL
           };
         } catch (error) {
           console.error(`[videoEditing.cutVideo] Error for video ${input.videoId}:`, error);
