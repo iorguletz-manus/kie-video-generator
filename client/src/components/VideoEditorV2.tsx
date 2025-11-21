@@ -253,6 +253,9 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
         const startTime = Math.max(0, centerTime - initialWindow / 2);
         view.setStartTime(startTime);
         console.log('[VideoEditorV2] Initial zoom set to', initialWindow, 'seconds');
+        
+        // Update waveform width to show full duration
+        setTimeout(() => updateWaveformWidth(peaks!, video.duration), 100);
       }
     });
   };
@@ -482,6 +485,30 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
     }
   }, [isStartLocked, isEndLocked]);
 
+  // Helper: Update waveform width to show full duration
+  const updateWaveformWidth = (peaks: any, duration: number) => {
+    const view = peaks.views.getView('zoomview');
+    if (!view) return;
+    
+    // Get current zoom level (pixels per second)
+    const zoomLevel = view.getZoom();
+    if (!zoomLevel || !zoomLevel.scale) return;
+    
+    // Calculate required width to show full duration
+    const pixelsPerSecond = zoomLevel.scale;
+    const requiredWidth = Math.ceil(duration * pixelsPerSecond);
+    
+    // Set width on inner waveform div
+    const zoomviewContainer = zoomviewRef.current;
+    if (zoomviewContainer) {
+      const innerDiv = zoomviewContainer.querySelector('div');
+      if (innerDiv) {
+        (innerDiv as HTMLElement).style.width = `${requiredWidth}px`;
+        console.log(`[VideoEditorV2] Waveform width updated: ${requiredWidth}px (${pixelsPerSecond.toFixed(2)} px/s × ${duration.toFixed(2)}s)`);
+      }
+    }
+  };
+
   const handleZoomIn = () => {
     if (!peaksInstance) return;
 
@@ -509,6 +536,9 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
     view.setStartTime(newStart);
 
     setWindowSize(newWindow);
+    
+    // Update waveform width to show full duration and enable scrollbar
+    setTimeout(() => updateWaveformWidth(peaksInstance, video.duration), 50);
   };
 
   const handleZoomOut = () => {
@@ -538,6 +568,9 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
     view.setStartTime(newStart);
 
     setWindowSize(newWindow);
+    
+    // Update waveform width to show full duration and enable scrollbar
+    setTimeout(() => updateWaveformWidth(peaksInstance, video.duration), 50);
   };
 
   const formatTime = (seconds: number) => {
