@@ -214,7 +214,8 @@ async function generateWaveformData(
     const tempDir = path.join('/tmp', 'waveforms');
     await fs.mkdir(tempDir, { recursive: true });
     
-    const audioPath = path.join(tempDir, `audio_${videoId}.mp3`);
+    const audioPathMp3 = path.join(tempDir, `audio_${videoId}.mp3`);
+    const audioPathWav = path.join(tempDir, `audio_${videoId}.wav`);
     const waveformPath = path.join(tempDir, `waveform_${videoId}.json`);
     
     // Download audio file
@@ -224,13 +225,19 @@ async function generateWaveformData(
       throw new Error(`Failed to download audio: ${audioRes.statusText}`);
     }
     const audioBuffer = await audioRes.arrayBuffer();
-    await fs.writeFile(audioPath, Buffer.from(audioBuffer));
+    await fs.writeFile(audioPathMp3, Buffer.from(audioBuffer));
     
-    // Generate waveform JSON with audiowaveform CLI
-    console.log(`[generateWaveformData] Running audiowaveform...`);
+    // 🔧 FIX: Convert MP3 → WAV PCM 16-bit (audiowaveform doesn't support MP3 VBR)
+    console.log(`[generateWaveformData] Converting MP3 → WAV PCM 16-bit...`);
+    const convertCommand = `ffmpeg -y -i "${audioPathMp3}" -ac 1 -ar 48000 -c:a pcm_s16le "${audioPathWav}"`;
+    await exec(convertCommand);
+    console.log(`[generateWaveformData] Conversion complete`);
+    
+    // Generate waveform JSON with audiowaveform CLI (from WAV, not MP3!)
+    console.log(`[generateWaveformData] Running audiowaveform on WAV...`);
     // Use high resolution for short clips to enable zoom in Peaks.js
     // pixels-per-second 1000 gives samples_per_pixel ≈ 48 at 48kHz (vs 960 at pps=50)
-    const command = `audiowaveform -i "${audioPath}" -o "${waveformPath}" --pixels-per-second 1000 -b 8`;
+    const command = `audiowaveform -i "${audioPathWav}" -o "${waveformPath}" --pixels-per-second 1000 -b 8`;
     const { stdout, stderr } = await exec(command);
     
     if (stderr) {
@@ -251,8 +258,8 @@ async function generateWaveformData(
     console.log(`  - sample_rate: ${sample_rate}`);
     console.log(`  - calculated duration: ${waveformDuration.toFixed(3)}s`);
     
-    // Get actual audio duration using ffprobe
-    const ffprobeCommand = `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${audioPath}"`;
+    // Get actual audio duration using ffprobe (from WAV file)
+    const ffprobeCommand = `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${audioPathWav}"`;
     const { stdout: durationStr } = await exec(ffprobeCommand);
     const audioDuration = parseFloat(durationStr.trim());
     
@@ -267,7 +274,8 @@ async function generateWaveformData(
     }
     
     // Clean up temp files
-    await fs.unlink(audioPath).catch(() => {});
+    await fs.unlink(audioPathMp3).catch(() => {});
+    await fs.unlink(audioPathWav).catch(() => {});
     await fs.unlink(waveformPath).catch(() => {});
     
     console.log(`[generateWaveformData] Waveform generated successfully (${waveformJson.length} bytes)`);
