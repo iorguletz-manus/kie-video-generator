@@ -33,16 +33,16 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
   
   const [peaksInstance, setPeaksInstance] = useState<PeaksInstance | null>(null);
   const [trimSegment, setTrimSegment] = useState<Segment | null>(null);
-  const [trimStart, setTrimStart] = useState(video.suggestedStart);
-  const [trimEnd, setTrimEnd] = useState(video.suggestedEnd);
+  const [trimStart, setTrimStart] = useState(video.trimStart ?? video.suggestedStart);
+  const [trimEnd, setTrimEnd] = useState(video.trimEnd ?? video.suggestedEnd);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [refsReady, setRefsReady] = useState(false);
   const [windowSize, setWindowSize] = useState(Math.min(8, video.duration));
   
-  // Lock system
-  const [isStartLocked, setIsStartLocked] = useState(false);
-  const [isEndLocked, setIsEndLocked] = useState(false);
+  // Lock system - restore from persisted state
+  const [isStartLocked, setIsStartLocked] = useState(video.isStartLocked ?? false);
+  const [isEndLocked, setIsEndLocked] = useState(video.isEndLocked ?? false);
   
   // Playhead (black marker) - only visible when START is locked
   const [playheadTime, setPlayheadTime] = useState<number | null>(null);
@@ -101,7 +101,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
         container: zoomviewRef.current!,
         waveformColor: '#cccccc',
         playheadColor: 'transparent', // Hide default playhead, we'll use custom
-        wheelMode: 'zoom' as const,
+        wheelMode: 'none' as const, // Disable wheel zoom/scroll
         segmentOptions: {
           startMarkerColor: 'transparent', // Hide default markers
           endMarkerColor: 'transparent',
@@ -591,7 +591,12 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
         <div 
           ref={waveformContainerRef}
           className="relative"
-          style={{ height: '120px', width: '100%' }}
+          style={{ 
+            height: '120px', 
+            width: '100%', 
+            overflowX: 'auto', // Enable horizontal scroll
+            overflowY: 'hidden',
+          }}
         >
           {/* Peaks.js Waveform */}
           <div 
@@ -637,6 +642,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
                     height: '12px',
                     backgroundColor: isStartLocked ? '#d1d5db' : '#22c55e',
                     cursor: isStartLocked ? 'not-allowed' : 'ew-resize',
+                    pointerEvents: isStartLocked ? 'none' : 'auto',
                     borderRadius: '2px',
                     border: '2px solid white',
                     boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
@@ -678,6 +684,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
                     height: '12px',
                     backgroundColor: isEndLocked ? '#d1d5db' : '#ef4444',
                     cursor: isEndLocked ? 'not-allowed' : 'ew-resize',
+                    pointerEvents: isEndLocked ? 'none' : 'auto',
                     borderRadius: '2px',
                     border: '2px solid white',
                     boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
@@ -721,7 +728,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
               )}
 
               {/* LIVE Playback Marker (Blue) - Shows current video position */}
-              {playing && currentTime > 0 && (
+              {currentTime > 0 && (
                 <div
                   style={{
                     position: 'absolute',
