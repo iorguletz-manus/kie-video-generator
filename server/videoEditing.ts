@@ -589,9 +589,27 @@ export async function cutVideoWithFFmpegAPI(
     }
     
     const downloadUrl = result.result[0].download_url;
-    console.log(`[cutVideoWithFFmpegAPI] Video cut successfully! URL: ${downloadUrl}`);
+    console.log(`[cutVideoWithFFmpegAPI] Video cut successfully! Temporary URL: ${downloadUrl}`);
     
-    return downloadUrl;
+    // 3. Download trimmed video from FFMPEG API
+    console.log(`[cutVideoWithFFmpegAPI] Downloading trimmed video...`);
+    const videoRes = await fetch(downloadUrl);
+    if (!videoRes.ok) {
+      throw new Error(`Failed to download trimmed video: ${videoRes.statusText}`);
+    }
+    const videoBuffer = Buffer.from(await videoRes.arrayBuffer());
+    
+    // 4. Upload to Bunny CDN for permanent storage
+    console.log(`[cutVideoWithFFmpegAPI] Uploading to Bunny CDN...`);
+    const bunnyFileName = `trimmed-videos/${outputFileName}`;
+    const bunnyVideoUrl = await uploadToBunnyCDN(
+      videoBuffer,
+      bunnyFileName,
+      'video/mp4'
+    );
+    console.log(`[cutVideoWithFFmpegAPI] Video uploaded to Bunny CDN: ${bunnyVideoUrl}`);
+    
+    return bunnyVideoUrl;
   } catch (error) {
     console.error('[cutVideoWithFFmpegAPI] Error:', error);
     throw new Error(`Failed to cut video: ${error.message}`);

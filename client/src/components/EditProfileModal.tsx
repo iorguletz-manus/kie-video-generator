@@ -7,8 +7,8 @@ import { toast } from 'sonner';
 interface EditProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
-  currentUser: { id: number; username: string; profileImageUrl: string | null; kieApiKey: string | null; openaiApiKey: string | null };
-  onProfileUpdated: (user: { id: number; username: string; profileImageUrl: string | null; kieApiKey: string | null; openaiApiKey: string | null }) => void;
+  currentUser: { id: number; username: string; profileImageUrl: string | null; kieApiKey: string | null; openaiApiKey: string | null; ffmpegApiKey: string | null };
+  onProfileUpdated: (user: { id: number; username: string; profileImageUrl: string | null; kieApiKey: string | null; openaiApiKey: string | null; ffmpegApiKey: string | null }) => void;
 }
 
 export default function EditProfileModal({ isOpen, onClose, currentUser, onProfileUpdated }: EditProfileModalProps) {
@@ -18,6 +18,7 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
   const [profileImagePreview, setProfileImagePreview] = useState<string | null>(currentUser.profileImageUrl);
   const [kieApiKey, setKieApiKey] = useState(currentUser.kieApiKey || '');
   const [openaiApiKey, setOpenaiApiKey] = useState(currentUser.openaiApiKey || '');
+  const [ffmpegApiKey, setFfmpegApiKey] = useState(currentUser.ffmpegApiKey || '');
 
   const updateProfileMutation = trpc.appAuth.updateProfile.useMutation();
   const uploadImageMutation = trpc.video.uploadImage.useMutation();
@@ -68,6 +69,7 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
               profileImageUrl: profileImageUrl || undefined,
               kieApiKey: kieApiKey || undefined,
               openaiApiKey: openaiApiKey || undefined,
+              ffmpegApiKey: ffmpegApiKey || undefined,
             });
 
             if (updateResult.success && updateResult.user) {
@@ -88,6 +90,7 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
           password: newPassword || undefined,
           kieApiKey: kieApiKey || undefined,
           openaiApiKey: openaiApiKey || undefined,
+          ffmpegApiKey: ffmpegApiKey || undefined,
         });
 
         if (updateResult.success && updateResult.user) {
@@ -148,7 +151,7 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full px-4 py-3 border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 bg-white border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Lasă gol pentru a păstra password-ul actual"
             />
           </div>
@@ -163,7 +166,7 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-3 bg-white border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Confirmă password-ul nou"
               />
             </div>
@@ -178,7 +181,7 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
               type="text"
               value={kieApiKey}
               onChange={(e) => setKieApiKey(e.target.value)}
-              className="w-full px-4 py-3 border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 bg-white border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Introdu API key-ul tău de la kie.ai"
             />
           </div>
@@ -192,8 +195,22 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
               type="text"
               value={openaiApiKey}
               onChange={(e) => setOpenaiApiKey(e.target.value)}
-              className="w-full px-4 py-3 border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 bg-white border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Introdu API key-ul tău de la OpenAI"
+            />
+          </div>
+
+          {/* FFMPEG API Key */}
+          <div>
+            <label className="block text-sm font-medium text-blue-900 mb-2">
+              FFMPEG API Key
+            </label>
+            <input
+              type="text"
+              value={ffmpegApiKey}
+              onChange={(e) => setFfmpegApiKey(e.target.value)}
+              className="w-full px-4 py-3 bg-white border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Introdu API key-ul tău de la FFMPEG API"
             />
           </div>
 

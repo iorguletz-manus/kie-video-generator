@@ -126,13 +126,15 @@ export const appRouter = router({
         profileImageUrl: z.string().optional(),
         kieApiKey: z.string().optional(),
         openaiApiKey: z.string().optional(),
+        ffmpegApiKey: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
-        const updateData: Partial<{ password: string; profileImageUrl: string | null; kieApiKey: string | null; openaiApiKey: string | null }> = {};
+        const updateData: Partial<{ password: string; profileImageUrl: string | null; kieApiKey: string | null; openaiApiKey: string | null; ffmpegApiKey: string | null }> = {};
         if (input.password) updateData.password = input.password;
         if (input.profileImageUrl !== undefined) updateData.profileImageUrl = input.profileImageUrl;
         if (input.kieApiKey !== undefined) updateData.kieApiKey = input.kieApiKey;
         if (input.openaiApiKey !== undefined) updateData.openaiApiKey = input.openaiApiKey;
+        if (input.ffmpegApiKey !== undefined) updateData.ffmpegApiKey = input.ffmpegApiKey;
 
         await updateAppUser(input.userId, updateData);
 
@@ -145,6 +147,7 @@ export const appRouter = router({
             profileImageUrl: user.profileImageUrl,
             kieApiKey: user.kieApiKey,
             openaiApiKey: user.openaiApiKey,
+            ffmpegApiKey: user.ffmpegApiKey,
           } : null,
         };
       }),

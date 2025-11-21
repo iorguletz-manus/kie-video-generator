@@ -93,7 +93,7 @@ interface VideoResult {
 }
 
 interface HomeProps {
-  currentUser: { id: number; username: string; profileImageUrl: string | null };
+  currentUser: { id: number; username: string; profileImageUrl: string | null; kieApiKey: string | null; openaiApiKey: string | null; ffmpegApiKey: string | null };
   onLogout: () => void;
 }
 

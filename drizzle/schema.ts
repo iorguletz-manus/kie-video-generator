@@ -36,6 +36,7 @@ export const appUsers = mysqlTable("app_users", {
   profileImageUrl: text("profileImageUrl"), // BunnyCDN URL for profile image
   kieApiKey: text("kieApiKey"), // Kling AI API key per user
   openaiApiKey: text("openaiApiKey"), // OpenAI API key per user
+  ffmpegApiKey: text("ffmpegApiKey"), // FFMPEG API key per user
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
