@@ -1738,6 +1738,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         console.log(`[Trimming] Video ${i + 1}/${videosToTrim.length}:`, {
           videoName: video.videoName,
           videoUrl: video.videoUrl,
+          startTimestamp: video.startTimestamp,
+          endTimestamp: video.endTimestamp,
+          cutPoints: video.cutPoints,
           trimStart,
           trimEnd
         });
