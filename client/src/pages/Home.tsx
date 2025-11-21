@@ -1789,7 +1789,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     });
     
     console.log(`[Trimming] 🎉 COMPLETE! Success: ${successCount}, Failed: ${failCount}`);
-    toast.success(`✂️ Trimming complete! ${successCount}/${approvedVideos.length} videos trimmed`);
+    toast.success(`✂️ Trimming complete! ${successCount}/${videosToTrim.length} videos trimmed`);
     
     // Navigate to Step 9 after 2 seconds
     setTimeout(() => {
