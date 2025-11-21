@@ -290,7 +290,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [noteText, setNoteText] = useState<string>('');
   
   // Step 8: Filter
-  const [step8Filter, setStep8Filter] = useState<'all' | 'accepted' | 'recut'>('all');
+  const [step8Filter, setStep8Filter] = useState<'all' | 'accepted' | 'recut' | 'unlocked'>('all');
   
   // Step 9: Internal Notes
   const [editingStep9NoteVideoName, setEditingStep9NoteVideoName] = useState<string | null>(null);
@@ -7117,6 +7117,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             approvedVideos = approvedVideos.filter(v => v.recutStatus === 'accepted');
           } else if (step8Filter === 'recut') {
             approvedVideos = approvedVideos.filter(v => v.recutStatus === 'recut');
+          } else if (step8Filter === 'unlocked') {
+            approvedVideos = approvedVideos.filter(v => !v.isStartLocked || !v.isEndLocked);
           }
           return (
             <Card className="mb-8 border-2 border-purple-200">
@@ -7135,12 +7137,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   <label className="text-sm font-medium text-purple-900">Filtrează videouri:</label>
                   <select
                     value={step8Filter}
-                    onChange={(e) => setStep8Filter(e.target.value as 'all' | 'accepted' | 'recut')}
+                    onChange={(e) => setStep8Filter(e.target.value as 'all' | 'accepted' | 'recut' | 'unlocked')}
                     className="px-4 py-2 border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                   >
                     <option value="all">Toate ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length})</option>
                     <option value="accepted">Acceptate ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.recutStatus === 'accepted').length})</option>
                     <option value="recut">Necesită Retăiere ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.recutStatus === 'recut').length})</option>
+                    <option value="unlocked">Fără Lock ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && (!v.isStartLocked || !v.isEndLocked)).length})</option>
                   </select>
                 </div>
                 
@@ -7519,7 +7522,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                       onClick={() => {
                                         // Save note
                                         setVideoResults(prev => prev.map(v =>
-                                          v.id === video.id
+                                          v.videoName === video.videoName  // Use videoName for matching
                                             ? { ...v, step9Note: step9NoteText }
                                             : v
                                         ));
