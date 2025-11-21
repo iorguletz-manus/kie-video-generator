@@ -7120,12 +7120,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         
                         console.log(`[Video Editing] Starting batch processing for ${videosWithRedText.length} videos with red text`);
                         
-                        // CLEAR old processed videos from Step 8 before starting new batch
-                        setVideoResults(prev => prev.map(v => 
-                          v.editStatus === 'processed'
-                            ? { ...v, editStatus: null, whisperTranscript: null, cutPoints: null, words: null, audioUrl: null, waveformData: null }
-                            : v
-                        ));
+                        // REMOVE old processed videos from Step 8 completely before starting new batch
+                        setVideoResults(prev => prev.filter(v => v.editStatus !== 'processed'));
                         
                         // Open ProcessingModal and start batch processing
                         setShowProcessingModal(true);
