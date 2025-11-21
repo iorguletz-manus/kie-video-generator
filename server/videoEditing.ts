@@ -240,6 +240,32 @@ async function generateWaveformData(
     // Read generated JSON
     const waveformJson = await fs.readFile(waveformPath, 'utf-8');
     
+    // ✅ VALIDATION: Check if waveform covers full audio duration
+    const waveformData = JSON.parse(waveformJson);
+    const { length, samples_per_pixel, sample_rate } = waveformData;
+    const waveformDuration = (length * samples_per_pixel) / sample_rate;
+    
+    console.log(`[generateWaveformData] Waveform validation:`);
+    console.log(`  - length: ${length}`);
+    console.log(`  - samples_per_pixel: ${samples_per_pixel}`);
+    console.log(`  - sample_rate: ${sample_rate}`);
+    console.log(`  - calculated duration: ${waveformDuration.toFixed(3)}s`);
+    
+    // Get actual audio duration using ffprobe
+    const ffprobeCommand = `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${audioPath}"`;
+    const { stdout: durationStr } = await exec(ffprobeCommand);
+    const audioDuration = parseFloat(durationStr.trim());
+    
+    console.log(`  - actual audio duration: ${audioDuration.toFixed(3)}s`);
+    console.log(`  - coverage: ${((waveformDuration / audioDuration) * 100).toFixed(2)}%`);
+    
+    if (waveformDuration < audioDuration - 0.1) {
+      console.warn(`[generateWaveformData] ⚠️  WARNING: Waveform is truncated!`);
+      console.warn(`  Missing ${(audioDuration - waveformDuration).toFixed(3)}s of audio data`);
+    } else {
+      console.log(`[generateWaveformData] ✅ Waveform covers full audio duration`);
+    }
+    
     // Clean up temp files
     await fs.unlink(audioPath).catch(() => {});
     await fs.unlink(waveformPath).catch(() => {});

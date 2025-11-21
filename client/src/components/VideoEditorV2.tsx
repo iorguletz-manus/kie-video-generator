@@ -38,7 +38,10 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [refsReady, setRefsReady] = useState(false);
-  const [windowSize, setWindowSize] = useState(Math.min(8, video.duration));
+  
+  // Calculate REAL audio duration from waveform data (not video.duration)
+  const [audioDuration, setAudioDuration] = useState(video.duration);
+  const [windowSize, setWindowSize] = useState(Math.min(8, audioDuration));
   
   // Lock system - restore from persisted state
   const [isStartLocked, setIsStartLocked] = useState(video.isStartLocked ?? false);
