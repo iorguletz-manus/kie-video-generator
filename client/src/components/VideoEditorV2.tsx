@@ -293,34 +293,8 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
   }, [trimStart, trimEnd, isStartLocked, playheadTime]);
 
   const handleVideoTimeUpdate = () => {
-    if (videoRef.current) {
-      const time = videoRef.current.currentTime;
-      setCurrentTime(time);
-      
-      // Stop playback if we've reached the END marker
-      const frameTolerance = 1 / 30; // ~0.033s (video frame duration at 30 FPS)
-      
-      if (playing && time >= trimEnd - frameTolerance) {
-        // 1. Fix video EXACT at trimEnd (BEFORE pause)
-        videoRef.current.currentTime = trimEnd;
-        
-        // 2. Stop playback
-        videoRef.current.pause();
-        
-        // 3. Stop React loop
-        setPlaying(false);
-        
-        // 4. Sync Peaks.js EXACT at trimEnd
-        if (peaksInstance) {
-          // Stop the internal player
-          peaksInstance.player.pause();
-          // Seek playhead EXACT at trimEnd
-          peaksInstance.player.seek(trimEnd);
-        }
-        
-        console.log('[VideoEditorV2] Stopped EXACT at END marker:', trimEnd);
-      }
-    }
+    // Only used for UI updates if needed
+    // STOP logic is in requestAnimationFrame loop
   };
 
   // Smooth LIVE marker update with requestAnimationFrame
@@ -329,7 +303,23 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
     
     const updateCurrentTime = () => {
       if (videoRef.current && playing) {
-        setCurrentTime(videoRef.current.currentTime);
+        const time = videoRef.current.currentTime;
+        setCurrentTime(time);
+        
+        // Check if we've reached END marker
+        if (time >= trimEnd - 0.02) { // 20ms tolerance
+          // Stop playback
+          videoRef.current.pause();
+          setPlaying(false);
+          
+          // Optional: snap to exact trimEnd
+          videoRef.current.currentTime = trimEnd;
+          
+          console.log('[VideoEditorV2] Stopped at END marker:', trimEnd);
+          return; // STOP, no more rAF
+        }
+        
+        // Continue animation loop
         animationFrameId = requestAnimationFrame(updateCurrentTime);
       }
     };
@@ -343,7 +333,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
         cancelAnimationFrame(animationFrameId);
       }
     };
-  }, [playing]);
+  }, [playing, trimEnd]);
 
   const handlePlayPause = () => {
     if (!videoRef.current) return;
