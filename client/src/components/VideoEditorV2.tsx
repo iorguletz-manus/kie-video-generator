@@ -149,10 +149,30 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
       const zoomviewContainer = zoomviewRef.current;
       if (zoomviewContainer) {
         const canvases = zoomviewContainer.getElementsByTagName('canvas');
-        Array.from(canvases).forEach((canvas) => {
-          canvas.style.pointerEvents = 'none'; // Make canvas passive to mouse
+        console.log('[VideoEditorV2] Found', canvases.length, 'canvas elements');
+        
+        Array.from(canvases).forEach((canvas, index) => {
+          // Try multiple methods to freeze canvas
+          canvas.style.pointerEvents = 'none';
+          canvas.style.touchAction = 'none';
+          
+          // Also try preventing mouse events
+          canvas.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('[VideoEditorV2] Canvas mousedown blocked');
+          }, true);
+          
+          canvas.addEventListener('mousemove', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }, true);
+          
+          console.log(`[VideoEditorV2] Canvas ${index} frozen:`, {
+            pointerEvents: canvas.style.pointerEvents,
+            touchAction: canvas.style.touchAction,
+          });
         });
-        console.log('[VideoEditorV2] Waveform canvas frozen (pointerEvents: none)');
       }
 
       // Set initial zoom
@@ -611,6 +631,13 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
         >
           {/* Custom thin scrollbar CSS */}
           <style>{`
+            /* Firefox scrollbar */
+            .waveform-scroll-container {
+              scrollbar-width: thin;
+              scrollbar-color: #9ca3af #e5e7eb;
+            }
+            
+            /* Chrome/Safari/Edge scrollbar */
             .waveform-scroll-container::-webkit-scrollbar {
               height: 4px;
             }
