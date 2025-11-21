@@ -253,9 +253,6 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
         const startTime = Math.max(0, centerTime - initialWindow / 2);
         view.setStartTime(startTime);
         console.log('[VideoEditorV2] Initial zoom set to', initialWindow, 'seconds');
-        
-        // Update waveform width to show full duration
-        setTimeout(() => updateWaveformWidth(peaks!, video.duration, initialWindow), 100);
       }
     });
   };
@@ -485,45 +482,9 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
     }
   }, [isStartLocked, isEndLocked]);
 
-  // Helper: Update waveform width to show full duration
-  const updateWaveformWidth = (peaks: any, duration: number, currentWindowSize: number) => {
-    const zoomviewContainer = zoomviewRef.current;
-    if (!zoomviewContainer) return;
-    
-    // Get container width
-    const containerWidth = zoomviewContainer.clientWidth;
-    if (!containerWidth || containerWidth === 0) return;
-    
-    // Calculate required width to show full duration
-    // Formula: if currentWindowSize fits in containerWidth, then full duration needs:
-    const requiredWidth = Math.ceil((duration / currentWindowSize) * containerWidth);
-    
-    console.log(`[VideoEditorV2] Updating waveform width to ${requiredWidth}px`);
-    console.log('[VideoEditorV2] DOM structure:', zoomviewContainer.innerHTML.substring(0, 500));
-    
-    // Peaks.js uses Konva.js which creates:
-    // <div class="konvajs-content">
-    //   <canvas></canvas>
-    // </div>
-    
-    // Set width on ALL relevant elements
-    const konvaContent = zoomviewContainer.querySelector('.konvajs-content');
-    if (konvaContent) {
-      (konvaContent as HTMLElement).style.width = `${requiredWidth}px`;
-      console.log('[VideoEditorV2] Set width on .konvajs-content');
-    }
-    
-    // Also set width on canvas elements
-    const canvases = zoomviewContainer.querySelectorAll('canvas');
-    canvases.forEach((canvas, i) => {
-      (canvas as HTMLCanvasElement).style.width = `${requiredWidth}px`;
-      // Also update canvas width attribute
-      (canvas as HTMLCanvasElement).width = requiredWidth;
-      console.log(`[VideoEditorV2] Set width on canvas ${i}: ${requiredWidth}px`);
-    });
-    
-    console.log(`[VideoEditorV2] Waveform width updated: ${requiredWidth}px (${duration.toFixed(2)}s / ${currentWindowSize.toFixed(2)}s × ${containerWidth}px)`);
-  };
+  // Note: Cannot manually set canvas width as it clears Konva.js rendering
+  // Peaks.js manages waveform rendering internally
+  // Use zoom + scroll to navigate the waveform
 
   const handleZoomIn = () => {
     if (!peaksInstance) return;
@@ -552,9 +513,6 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
     view.setStartTime(newStart);
 
     setWindowSize(newWindow);
-    
-    // Update waveform width to show full duration and enable scrollbar
-    setTimeout(() => updateWaveformWidth(peaksInstance, video.duration, newWindow), 50);
   };
 
   const handleZoomOut = () => {
@@ -584,9 +542,6 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
     view.setStartTime(newStart);
 
     setWindowSize(newWindow);
-    
-    // Update waveform width to show full duration and enable scrollbar
-    setTimeout(() => updateWaveformWidth(peaksInstance, video.duration, newWindow), 50);
   };
 
   const formatTime = (seconds: number) => {
