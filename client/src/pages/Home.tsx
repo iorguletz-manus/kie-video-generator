@@ -90,6 +90,12 @@ interface VideoResult {
   endTimestamp?: number;    // User-adjusted end time (seconds)
   audioUrl?: string;        // Audio download URL from FFmpeg API
   waveformData?: string;    // Waveform JSON data
+  // Step 9: Trimmed video fields
+  trimmedVideoUrl?: string; // Trimmed video URL from Bunny CDN
+  trimStart?: number;       // Trim start time (seconds)
+  trimEnd?: number;         // Trim end time (seconds)
+  recutStatus?: 'accepted' | 'recut' | null; // Review status in Step 9
+  step9Note?: string;       // Internal note added by user in Step 9
 }
 
 interface HomeProps {
@@ -282,6 +288,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // Step 7: Internal Notes
   const [editingNoteVideoName, setEditingNoteVideoName] = useState<string | null>(null);
   const [noteText, setNoteText] = useState<string>('');
+  
+  // Step 8: Filter
+  const [step8Filter, setStep8Filter] = useState<'all' | 'accepted' | 'recut'>('all');
+  
+  // Step 9: Internal Notes
+  const [editingStep9NoteVideoName, setEditingStep9NoteVideoName] = useState<string | null>(null);
+  const [step9NoteText, setStep9NoteText] = useState<string>('');
   
   // WYSIWYG Editor for STEP 2
   const [editingLineId, setEditingLineId] = useState<string | null>(null);
@@ -7048,11 +7061,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             v.videoUrl
           );
           
-          // If coming from Step 9 with recut filter, show only recut videos
-          const recutVideos = approvedVideos.filter(v => v.recutStatus === 'recut');
-          const showRecutOnly = recutVideos.length > 0 && step9Filter === 'recut';
-          if (showRecutOnly) {
-            approvedVideos = recutVideos;
+          // Apply Step 8 filter
+          if (step8Filter === 'accepted') {
+            approvedVideos = approvedVideos.filter(v => v.recutStatus === 'accepted');
+          } else if (step8Filter === 'recut') {
+            approvedVideos = approvedVideos.filter(v => v.recutStatus === 'recut');
           }
           return (
             <Card className="mb-8 border-2 border-purple-200">
@@ -7066,6 +7079,20 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-6">
+                {/* Filter Dropdown */}
+                <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
+                  <label className="text-sm font-medium text-purple-900">Filtrează videouri:</label>
+                  <select
+                    value={step8Filter}
+                    onChange={(e) => setStep8Filter(e.target.value as 'all' | 'accepted' | 'recut')}
+                    className="px-4 py-2 border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="all">Toate ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length})</option>
+                    <option value="accepted">Acceptate ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.recutStatus === 'accepted').length})</option>
+                    <option value="recut">Necesită Retăiere ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.recutStatus === 'recut').length})</option>
+                  </select>
+                </div>
+                
                 {approvedVideos.length === 0 ? (
                   <div className="text-center py-8">
                     <p className="text-gray-600">Nu există videouri approved pentru editare.</p>
@@ -7093,9 +7120,29 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       const duration = suggestedEnd > 0 ? suggestedEnd + 1 : 10; // +1 second buffer
                       
                       return (
-                        <VideoEditorV2
-                          key={video.videoName}
-                          video={{
+                        <div key={video.videoName} className="space-y-4">
+                          {/* Display Notes from Step 7 and Step 9 */}
+                          {(video.internalNote || video.step9Note) && (
+                            <div className="space-y-2">
+                              {video.internalNote && (
+                                <div className="p-3 bg-blue-50 border border-blue-300 rounded">
+                                  <p className="text-sm text-gray-700">
+                                    <strong className="text-blue-900">Step 7 Note:</strong> {video.internalNote}
+                                  </p>
+                                </div>
+                              )}
+                              {video.step9Note && (
+                                <div className="p-3 bg-yellow-50 border border-yellow-300 rounded">
+                                  <p className="text-sm text-gray-700">
+                                    <strong className="text-yellow-900">Step 9 Note:</strong> {video.step9Note}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          
+                          <VideoEditorV2
+                            video={{
                             id: video.videoName, // Use videoName as unique identifier
                             videoName: video.videoName,
                             videoUrl: video.videoUrl!,
@@ -7112,8 +7159,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             trimEnd: video.endTimestamp,
                             isStartLocked: video.isStartLocked,
                             isEndLocked: video.isEndLocked,
-                          }}
-                          onTrimChange={(videoId, trimStart, trimEnd, isStartLocked, isEndLocked) => {
+                            }}
+                            onTrimChange={(videoId, trimStart, trimEnd, isStartLocked, isEndLocked) => {
                             // Update local state when user adjusts trim markers or lock state
                             // videoId is actually videoName (unique identifier)
                             const updatedVideoResults = videoResults.map(v =>
@@ -7152,10 +7199,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                 onSuccess: () => {
                                   console.log('[VideoEditorV2] Lock state saved to DB immediately');
                                 },
-                              });
-                            }
-                          }}
-                        />
+                              })                              });
+                            }}
+                          />
+                        </div>
                       );
                     })}
 
@@ -7308,6 +7355,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             <p>Duration: {((video.trimEnd || 0) - (video.trimStart || 0)).toFixed(2)}s</p>
                           </div>
                           
+                          {/* Step 9 Note Display */}
+                          {video.step9Note && (
+                            <div className="mb-3 p-2 bg-yellow-50 border border-yellow-300 rounded text-xs">
+                              <p className="text-gray-700"><strong>Note:</strong> {video.step9Note}</p>
+                            </div>
+                          )}
+                          
                           {/* Accept/Recut Buttons */}
                           <div className="flex gap-2 mb-3">
                             <Button
@@ -7363,6 +7417,64 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                               Recut
                             </Button>
                           </div>
+                          
+                          {/* Add Note Button (doar pentru Recut) */}
+                          {video.recutStatus === 'recut' && (
+                            <div className="mb-3">
+                              {editingStep9NoteVideoName === video.videoName ? (
+                                <div className="bg-yellow-50 border-2 border-yellow-400 rounded p-3 space-y-2">
+                                  <textarea
+                                    value={step9NoteText}
+                                    onChange={(e) => setStep9NoteText(e.target.value)}
+                                    placeholder="Add internal note..."
+                                    className="w-full p-2 border border-yellow-300 rounded text-xs bg-white"
+                                    rows={3}
+                                  />
+                                  <div className="flex gap-2">
+                                    <Button
+                                      onClick={() => {
+                                        // Save note
+                                        setVideoResults(prev => prev.map(v =>
+                                          v.id === video.id
+                                            ? { ...v, step9Note: step9NoteText }
+                                            : v
+                                        ));
+                                        setEditingStep9NoteVideoName(null);
+                                        setStep9NoteText('');
+                                        toast.success(`Note saved for ${video.videoName}`);
+                                      }}
+                                      size="sm"
+                                      className="flex-1 bg-green-600 hover:bg-green-700 text-xs py-1"
+                                    >
+                                      Save
+                                    </Button>
+                                    <Button
+                                      onClick={() => {
+                                        setEditingStep9NoteVideoName(null);
+                                        setStep9NoteText('');
+                                      }}
+                                      size="sm"
+                                      variant="outline"
+                                      className="flex-1 text-xs py-1"
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <Button
+                                  onClick={() => {
+                                    setEditingStep9NoteVideoName(video.videoName);
+                                    setStep9NoteText(video.step9Note || '');
+                                  }}
+                                  size="sm"
+                                  className="w-full bg-yellow-500 hover:bg-yellow-600 text-white text-xs py-1"
+                                >
+                                  {video.step9Note ? '📝 Edit Note' : '📝 Add Note'}
+                                </Button>
+                              )}
+                            </div>
+                          )}
                           
                           {/* Download Button */}
                           <Button
