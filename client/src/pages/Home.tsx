@@ -7211,6 +7211,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             onTrimChange={(videoId, trimStart, trimEnd, isStartLocked, isEndLocked) => {
                             // Update local state when user adjusts trim markers or lock state
                             // videoId is actually videoName (unique identifier)
+                            console.log('[DEBUG onTrimChange]', {
+                              videoId,
+                              trimStart,
+                              trimEnd,
+                              isStartLocked,
+                              isEndLocked,
+                              matchingVideo: videoResults.find(v => v.videoName === videoId)?.videoName
+                            });
+                            
                             const updatedVideoResults = videoResults.map(v =>
                               v.videoName === videoId
                                 ? { 
