@@ -3015,51 +3015,62 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       />
       
       {/* Trimming Modal for Step 8 → Step 9 */}
+      {/* Trimming Modal - same design as ProcessingModal */}
       <Dialog open={isTrimmingModalOpen} onOpenChange={setIsTrimmingModalOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md" onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
-            <DialogTitle className="text-center text-2xl font-bold text-purple-900">
-              ✂️ Trimming Videos
+            <DialogTitle className="flex items-center gap-2">
+              <Loader2 className="w-5 h-5 animate-spin text-purple-600" />
+              ✂️ Trimming Videos cu FFMPEG API
             </DialogTitle>
+            <DialogDescription>
+              Tăiem fiecare video la dimensiunea corectă folosind markerele setate...
+            </DialogDescription>
           </DialogHeader>
+
           <div className="space-y-4 py-4">
             {/* Progress Bar */}
             <div className="space-y-2">
-              <div className="flex justify-between text-sm text-gray-600">
-                <span>Progress</span>
-                <span className="font-bold">{trimmingProgress.current}/{trimmingProgress.total}</span>
-              </div>
               <Progress 
                 value={(trimmingProgress.current / trimmingProgress.total) * 100} 
-                className="h-3"
+                className="h-3" 
               />
+              <p className="text-center text-sm font-medium text-gray-700">
+                {trimmingProgress.current}/{trimmingProgress.total} videouri trimmed
+              </p>
             </div>
-            
+
             {/* Current Video */}
-            {trimmingProgress.currentVideo && (
-              <div className="p-3 bg-purple-50 rounded-lg">
-                <p className="text-sm text-gray-600 mb-1">Current Video:</p>
-                <p className="font-mono text-sm font-bold text-purple-900">
-                  {trimmingProgress.currentVideo}
+            {trimmingProgress.current < trimmingProgress.total && trimmingProgress.currentVideo && (
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                <p className="text-sm font-semibold text-purple-900 mb-1">
+                  Video curent: {trimmingProgress.currentVideo}
+                </p>
+                <div className="flex items-center gap-2 text-xs text-purple-700">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  {trimmingProgress.status === 'trimming' ? '✂️ Trimming...' : '⏳ Processing...'}
+                </div>
+              </div>
+            )}
+
+            {/* Estimated Time */}
+            {trimmingProgress.current < trimmingProgress.total && trimmingProgress.total > 0 && (
+              <p className="text-xs text-center text-gray-500">
+                ⏱️ Timp estimat rămas: ~{Math.ceil((trimmingProgress.total - trimmingProgress.current) * 10 / 60)} {Math.ceil((trimmingProgress.total - trimmingProgress.current) * 10 / 60) === 1 ? 'minut' : 'minute'}
+              </p>
+            )}
+
+            {/* Completion Message */}
+            {trimmingProgress.status === 'complete' && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+                <p className="text-sm font-semibold text-green-900">
+                  ✅ Toate videouri trimmed cu succes!
+                </p>
+                <p className="text-xs text-green-700 mt-1">
+                  Deschidere Step 9...
                 </p>
               </div>
             )}
-            
-            {/* Status Message */}
-            <div className="text-center">
-              <p className="text-sm text-gray-700">{trimmingProgress.message}</p>
-            </div>
-            
-            {/* Status Icon */}
-            <div className="flex justify-center">
-              {trimmingProgress.status === 'complete' ? (
-                <div className="text-green-600 text-4xl">✅</div>
-              ) : trimmingProgress.status === 'error' ? (
-                <div className="text-red-600 text-4xl">❌</div>
-              ) : (
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
-              )}
-            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -7309,8 +7320,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       {videoResults.some(v => v.trimmedVideoUrl) && (
                         <Button
                           onClick={() => setCurrentStep(9)}
-                          variant="outline"
-                          className="w-full bg-blue-50 hover:bg-blue-100 border-blue-300"
+                          className="w-full bg-green-600 hover:bg-green-700 text-white"
                         >
                           👁️ Check Videos (Step 9)
                         </Button>
@@ -7449,60 +7459,76 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             </div>
                           )}
                           
-                          {/* Accept/Recut Buttons */}
-                          <div className="flex gap-2 mb-3">
-                            <Button
-                              onClick={() => {
-                                // Save to history
-                                setRecutHistory(prev => [...prev, {
-                                  videoName: video.videoName,
-                                  previousStatus: video.recutStatus || null,
-                                  newStatus: 'accepted'
-                                }]);
-                                // Mark as accepted
-                                setVideoResults(prev => prev.map(v =>
-                                  v.id === video.id
-                                    ? { ...v, recutStatus: 'accepted' }
-                                    : v
-                                ));
-                                toast.success(`✅ ${video.videoName} acceptat!`);
-                              }}
-                              className={`flex-1 ${
-                                video.recutStatus === 'accepted'
-                                  ? 'bg-green-600 hover:bg-green-700'
-                                  : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                              }`}
-                              size="sm"
-                            >
-                              <Check className="w-4 h-4 mr-1" />
-                              Accept
-                            </Button>
-                            <Button
-                              onClick={() => {
-                                // Save to history
-                                setRecutHistory(prev => [...prev, {
-                                  videoName: video.videoName,
-                                  previousStatus: video.recutStatus || null,
-                                  newStatus: 'recut'
-                                }]);
-                                // Mark for recut
-                                setVideoResults(prev => prev.map(v =>
-                                  v.id === video.id
-                                    ? { ...v, recutStatus: 'recut' }
-                                    : v
-                                ));
-                                toast.info(`✂️ ${video.videoName} marcat pentru retăiere!`);
-                              }}
-                              className={`flex-1 ${
-                                video.recutStatus === 'recut'
-                                  ? 'bg-orange-600 hover:bg-orange-700'
-                                  : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                              }`}
-                              size="sm"
-                            >
-                              <RefreshCw className="w-4 h-4 mr-1" />
-                              Recut
-                            </Button>
+                          {/* Accept/Recut Buttons - same design as Step 7 */}
+                          <div className="space-y-2 mb-3">
+                            {!video.recutStatus ? (
+                              <div className="flex gap-2">
+                                <Button
+                                  onClick={() => {
+                                    setVideoResults(prev => prev.map(v =>
+                                      v.videoName === video.videoName
+                                        ? { ...v, recutStatus: 'accepted' }
+                                        : v
+                                    ));
+                                    toast.success(`✅ ${video.videoName} acceptat!`);
+                                  }}
+                                  size="sm"
+                                  className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs py-1"
+                                >
+                                  <Check className="w-3 h-3 mr-1" />
+                                  Accept
+                                </Button>
+                                
+                                <Button
+                                  onClick={() => {
+                                    setVideoResults(prev => prev.map(v =>
+                                      v.videoName === video.videoName
+                                        ? { ...v, recutStatus: 'recut' }
+                                        : v
+                                    ));
+                                    toast.info(`✂️ ${video.videoName} marcat pentru retăiere!`);
+                                  }}
+                                  size="sm"
+                                  className="flex-1 bg-red-600 hover:bg-red-700 text-white text-xs py-1"
+                                >
+                                  <RefreshCw className="w-3 h-3 mr-1" />
+                                  Recut
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="flex gap-2 items-center">
+                                {/* Status badge after decision */}
+                                <div className={`flex-1 px-3 py-2 rounded text-xs font-medium text-center ${
+                                  video.recutStatus === 'accepted' 
+                                    ? 'bg-green-100 text-green-700 border border-green-300'
+                                    : 'bg-red-100 text-red-700 border border-red-300'
+                                }`}>
+                                  {video.recutStatus === 'accepted' ? (
+                                    <><Check className="w-3 h-3 inline mr-1" />Acceptat</>
+                                  ) : (
+                                    <><RefreshCw className="w-3 h-3 inline mr-1" />Recut</>
+                                  )}
+                                </div>
+                                
+                                {/* UNDO button */}
+                                <Button
+                                  onClick={() => {
+                                    setVideoResults(prev => prev.map(v =>
+                                      v.videoName === video.videoName
+                                        ? { ...v, recutStatus: null }
+                                        : v
+                                    ));
+                                    toast.info('Decizie anulată');
+                                  }}
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-gray-400 text-gray-700 hover:bg-gray-100 text-xs py-1"
+                                >
+                                  <Undo2 className="w-3 h-3 mr-1" />
+                                  Undo
+                                </Button>
+                              </div>
+                            )}
                           </div>
                           
                           {/* Add Note Button (doar pentru Recut) */}
