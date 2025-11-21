@@ -598,6 +598,23 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
             overflowY: 'hidden',
           }}
         >
+          {/* Custom thin scrollbar CSS */}
+          <style>{`
+            .relative::-webkit-scrollbar {
+              height: 6px;
+            }
+            .relative::-webkit-scrollbar-track {
+              background: #f1f1f1;
+              border-radius: 3px;
+            }
+            .relative::-webkit-scrollbar-thumb {
+              background: #888;
+              border-radius: 3px;
+            }
+            .relative::-webkit-scrollbar-thumb:hover {
+              background: #555;
+            }
+          `}</style>
           {/* Peaks.js Waveform */}
           <div 
             id="peaks-zoomview-container"

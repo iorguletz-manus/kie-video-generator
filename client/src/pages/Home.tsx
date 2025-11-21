@@ -7087,6 +7087,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       // Calculate duration from video metadata or use suggestedEnd as fallback
                       const duration = suggestedEnd > 0 ? suggestedEnd + 1 : 10; // +1 second buffer
                       
+                      // Debug logging
+                      console.log('[VideoEditorV2 Props]', video.videoName, ':', {
+                        startTimestamp: video.startTimestamp,
+                        endTimestamp: video.endTimestamp,
+                        isStartLocked: video.isStartLocked,
+                        isEndLocked: video.isEndLocked,
+                        suggestedStart,
+                        suggestedEnd,
+                      });
+                      
                       return (
                         <VideoEditorV2
                           key={video.id}
