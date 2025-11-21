@@ -255,7 +255,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
         console.log('[VideoEditorV2] Initial zoom set to', initialWindow, 'seconds');
         
         // Update waveform width to show full duration
-        setTimeout(() => updateWaveformWidth(peaks!, video.duration), 100);
+        setTimeout(() => updateWaveformWidth(peaks!, video.duration, initialWindow), 100);
       }
     });
   };
@@ -486,26 +486,23 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
   }, [isStartLocked, isEndLocked]);
 
   // Helper: Update waveform width to show full duration
-  const updateWaveformWidth = (peaks: any, duration: number) => {
-    const view = peaks.views.getView('zoomview');
-    if (!view) return;
+  const updateWaveformWidth = (peaks: any, duration: number, currentWindowSize: number) => {
+    const zoomviewContainer = zoomviewRef.current;
+    if (!zoomviewContainer) return;
     
-    // Get current zoom level (pixels per second)
-    const zoomLevel = view.getZoom();
-    if (!zoomLevel || !zoomLevel.scale) return;
+    // Get container width
+    const containerWidth = zoomviewContainer.clientWidth;
+    if (!containerWidth || containerWidth === 0) return;
     
     // Calculate required width to show full duration
-    const pixelsPerSecond = zoomLevel.scale;
-    const requiredWidth = Math.ceil(duration * pixelsPerSecond);
+    // Formula: if 8 seconds fits in containerWidth, then full duration needs:
+    const requiredWidth = Math.ceil((duration / currentWindowSize) * containerWidth);
     
     // Set width on inner waveform div
-    const zoomviewContainer = zoomviewRef.current;
-    if (zoomviewContainer) {
-      const innerDiv = zoomviewContainer.querySelector('div');
-      if (innerDiv) {
-        (innerDiv as HTMLElement).style.width = `${requiredWidth}px`;
-        console.log(`[VideoEditorV2] Waveform width updated: ${requiredWidth}px (${pixelsPerSecond.toFixed(2)} px/s × ${duration.toFixed(2)}s)`);
-      }
+    const innerDiv = zoomviewContainer.querySelector('div');
+    if (innerDiv) {
+      (innerDiv as HTMLElement).style.width = `${requiredWidth}px`;
+      console.log(`[VideoEditorV2] Waveform width updated: ${requiredWidth}px (${duration.toFixed(2)}s / ${currentWindowSize.toFixed(2)}s × ${containerWidth}px)`);
     }
   };
 
@@ -538,7 +535,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
     setWindowSize(newWindow);
     
     // Update waveform width to show full duration and enable scrollbar
-    setTimeout(() => updateWaveformWidth(peaksInstance, video.duration), 50);
+    setTimeout(() => updateWaveformWidth(peaksInstance, video.duration, newWindow), 50);
   };
 
   const handleZoomOut = () => {
@@ -570,7 +567,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
     setWindowSize(newWindow);
     
     // Update waveform width to show full duration and enable scrollbar
-    setTimeout(() => updateWaveformWidth(peaksInstance, video.duration), 50);
+    setTimeout(() => updateWaveformWidth(peaksInstance, video.duration, newWindow), 50);
   };
 
   const formatTime = (seconds: number) => {
