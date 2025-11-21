@@ -1685,6 +1685,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       return;
     }
     
+    // Debug: Log lock state for all videos
+    console.log('[DEBUG] Videos to trim:', videosToTrim.map(v => ({
+      name: v.videoName,
+      isStartLocked: v.isStartLocked,
+      isEndLocked: v.isEndLocked
+    })));
+    
     // Validate that all videos have START and END locked
     const unlockedVideos = videosToTrim.filter(v => 
       !v.isStartLocked || !v.isEndLocked
