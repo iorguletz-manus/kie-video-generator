@@ -7110,7 +7110,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           }}
                           onTrimChange={(videoId, trimStart, trimEnd, isStartLocked, isEndLocked) => {
                             // Update local state when user adjusts trim markers or lock state
-                            setVideoResults(prev => prev.map(v =>
+                            const updatedVideoResults = videoResults.map(v =>
                               v.id === videoId
                                 ? { 
                                     ...v, 
@@ -7120,7 +7120,34 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                     isEndLocked: isEndLocked,
                                   }
                                 : v
-                            ));
+                            );
+                            
+                            setVideoResults(updatedVideoResults);
+                            
+                            // Immediate save to database
+                            if (selectedTamId && selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
+                              upsertContextSessionMutation.mutate({
+                                userId: currentUser.id,
+                                coreBeliefId: selectedCoreBeliefId,
+                                emotionalAngleId: selectedEmotionalAngleId,
+                                adId: selectedAdId,
+                                characterId: selectedCharacterId,
+                                currentStep,
+                                rawTextAd,
+                                processedTextAd,
+                                adLines,
+                                prompts,
+                                images,
+                                combinations,
+                                deletedCombinations,
+                                videoResults: updatedVideoResults,
+                                reviewHistory,
+                              }, {
+                                onSuccess: () => {
+                                  console.log('[VideoEditorV2] Lock state saved to DB immediately');
+                                },
+                              });
+                            }
                           }}
                         />
                       );

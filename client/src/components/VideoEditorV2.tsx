@@ -205,6 +205,28 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
     }
   };
 
+  // Smooth LIVE marker update with requestAnimationFrame
+  useEffect(() => {
+    let animationFrameId: number;
+    
+    const updateCurrentTime = () => {
+      if (videoRef.current && playing) {
+        setCurrentTime(videoRef.current.currentTime);
+        animationFrameId = requestAnimationFrame(updateCurrentTime);
+      }
+    };
+    
+    if (playing) {
+      animationFrameId = requestAnimationFrame(updateCurrentTime);
+    }
+    
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, [playing]);
+
   const handlePlayPause = () => {
     if (!videoRef.current) return;
     
@@ -519,7 +541,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
             }}
           >
             {isStartLocked ? <Lock className="w-3 h-3 mr-1" /> : <Unlock className="w-3 h-3 mr-1" />}
-            START
+            {isStartLocked ? 'START Locked' : 'Lock START'}
           </Button>
           
           {/* Center Group: Zoom + Current Time */}
@@ -561,7 +583,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
             }}
           >
             {isEndLocked ? <Lock className="w-3 h-3 mr-1" /> : <Unlock className="w-3 h-3 mr-1" />}
-            END
+            {isEndLocked ? 'END Locked' : 'Lock END'}
           </Button>
         </div>
 
