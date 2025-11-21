@@ -298,10 +298,16 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
       setCurrentTime(time);
       
       // Stop playback if we've reached the END marker
-      if (playing && time >= trimEnd - 0.05) {
+      if (playing && time >= trimEnd - 0.01) {
         videoRef.current.pause();
         videoRef.current.currentTime = trimEnd;
         setPlaying(false);
+        
+        // Force Peaks.js to sync with video position
+        if (peaksInstance) {
+          peaksInstance.player.seek(trimEnd);
+        }
+        
         console.log('[VideoEditorV2] Playback stopped at END marker:', trimEnd);
       }
     }
