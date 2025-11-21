@@ -462,10 +462,13 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
             ▶ JUMP to START
           </Button>
         </div>
-      </      {/* Video Text (from database) - Above Waveform */}
+      </div>
+
+      {/* Video Text (from database) - Above Waveform */}
       {video.text && (
         <div className="mb-2 mx-auto" style={{ maxWidth: '300px' }}>
-          <p className="text-xs text-gray-800 text-center">t !== undefined && video.redEnd !== undefined ? (
+          <p className="text-xs text-gray-800 text-center">
+            {video.redStart !== undefined && video.redEnd !== undefined ? (
               <>
                 {video.text.substring(0, video.redStart)}
                 <span className="text-red-600 font-bold">
