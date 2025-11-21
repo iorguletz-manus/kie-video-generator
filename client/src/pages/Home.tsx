@@ -1682,7 +1682,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         });
         
         // Call FFMPEG API to trim video via tRPC
-        const result = await trpc.videoEditing.cutVideo.mutate({
+        const result = await cutVideoMutation.mutateAsync({
           videoUrl: video.videoUrl!,
           videoId: parseInt(video.id),
           startTimeSeconds: trimStart,
