@@ -7200,7 +7200,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                   console.log('[VideoEditorV2] Lock state saved to DB immediately');
                                 },
                               });
-                            }}
+                            }
+                          }}
                           />
                         </div>
                       );
