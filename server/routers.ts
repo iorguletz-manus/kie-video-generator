@@ -1591,19 +1591,19 @@ export const appRouter = router({
     cutVideo: publicProcedure
       .input(z.object({
         videoUrl: z.string(),
-        videoId: z.number(),
+        videoName: z.string(),
         startTimeSeconds: z.number(),
         endTimeSeconds: z.number(),
         ffmpegApiKey: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
         try {
-          console.log(`[videoEditing.cutVideo] Cutting video ${input.videoId}: ${input.startTimeSeconds}s → ${input.endTimeSeconds}s`);
+          console.log(`[videoEditing.cutVideo] Cutting video ${input.videoName}: ${input.startTimeSeconds}s → ${input.endTimeSeconds}s`);
           
           // Cut video using FFmpeg API
           const downloadUrl = await cutVideoWithFFmpegAPI(
             input.videoUrl,
-            input.videoId,
+            input.videoName,
             input.startTimeSeconds,
             input.endTimeSeconds,
             input.ffmpegApiKey!

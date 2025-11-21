@@ -549,13 +549,13 @@ export async function processVideoForEditing(
  */
 export async function cutVideoWithFFmpegAPI(
   videoUrl: string,
-  videoId: number,
+  videoName: string,
   startTimeSeconds: number,
   endTimeSeconds: number,
   ffmpegApiKey: string
 ): Promise<string> {
   try {
-    console.log(`[cutVideoWithFFmpegAPI] Cutting video ${videoId}: ${startTimeSeconds}s → ${endTimeSeconds}s`);
+    console.log(`[cutVideoWithFFmpegAPI] Cutting video ${videoName}: ${startTimeSeconds}s → ${endTimeSeconds}s`);
     
     if (!ffmpegApiKey) {
       throw new Error('FFMPEG API Key not configured. Please set it in Settings.');
@@ -564,11 +564,11 @@ export async function cutVideoWithFFmpegAPI(
     const duration = endTimeSeconds - startTimeSeconds;
     
     // 1. Upload video to FFmpeg API
-    const videoFileName = `video_${videoId}_original.mp4`;
+    const videoFileName = `${videoName}_original.mp4`;
     const videoFilePath = await uploadVideoToFFmpegAPI(videoUrl, videoFileName, ffmpegApiKey);
     
     // 2. Trim video
-    const outputFileName = `video_${videoId}_trimmed_${Date.now()}.mp4`;
+    const outputFileName = `${videoName}_trimmed_${Date.now()}.mp4`;
     
     const processRes = await fetch(`${FFMPEG_API_BASE}/ffmpeg/process`, {
       method: 'POST',
