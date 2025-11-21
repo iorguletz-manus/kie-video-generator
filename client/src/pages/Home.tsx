@@ -7079,15 +7079,22 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             text: video.text,
                             redStart: video.redStart,
                             redEnd: video.redEnd,
+                            // Restore persisted trim and lock state
+                            trimStart: video.startTimestamp,
+                            trimEnd: video.endTimestamp,
+                            isStartLocked: video.isStartLocked,
+                            isEndLocked: video.isEndLocked,
                           }}
-                          onTrimChange={(videoId, trimStart, trimEnd) => {
-                            // Update local state when user adjusts trim markers
+                          onTrimChange={(videoId, trimStart, trimEnd, isStartLocked, isEndLocked) => {
+                            // Update local state when user adjusts trim markers or lock state
                             setVideoResults(prev => prev.map(v =>
                               v.id === videoId
                                 ? { 
                                     ...v, 
                                     startTimestamp: trimStart, // Already in seconds
                                     endTimestamp: trimEnd,     // Already in seconds
+                                    isStartLocked: isStartLocked,
+                                    isEndLocked: isEndLocked,
                                   }
                                 : v
                             ));

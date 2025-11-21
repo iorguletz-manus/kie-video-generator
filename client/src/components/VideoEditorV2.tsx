@@ -16,8 +16,13 @@ interface VideoEditorV2Props {
     text?: string;
     redStart?: number;
     redEnd?: number;
+    // Persistent trim and lock state
+    trimStart?: number;
+    trimEnd?: number;
+    isStartLocked?: boolean;
+    isEndLocked?: boolean;
   };
-  onTrimChange?: (videoId: string, trimStart: number, trimEnd: number) => void;
+  onTrimChange?: (videoId: string, trimStart: number, trimEnd: number, isStartLocked: boolean, isEndLocked: boolean) => void;
 }
 
 export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimChange }: VideoEditorV2Props) {
@@ -305,7 +310,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
         const clampedTime = Math.max(0, Math.min(newTime, trimEnd - 0.1));
         setTrimStart(clampedTime);
         if (onTrimChange) {
-          onTrimChange(video.id, clampedTime, trimEnd);
+          onTrimChange(video.id, clampedTime, trimEnd, isStartLocked, isEndLocked);
         }
         // Sync video to new START position
         if (videoRef.current) {
@@ -315,7 +320,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
         const clampedTime = Math.max(trimStart + 0.1, Math.min(newTime, video.duration));
         setTrimEnd(clampedTime);
         if (onTrimChange) {
-          onTrimChange(video.id, trimStart, clampedTime);
+          onTrimChange(video.id, trimStart, clampedTime, isStartLocked, isEndLocked);
         }
         // Sync video to new END position
         if (videoRef.current) {
@@ -347,7 +352,15 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, trimStart, trimEnd, playheadTime, video.duration, video.id, onTrimChange]);
+  }, [isDragging, trimStart, trimEnd, playheadTime, video.duration, video.id, onTrimChange, isStartLocked, isEndLocked]);
+
+  // Notify parent when lock state changes
+  useEffect(() => {
+    if (onTrimChange) {
+      onTrimChange(video.id, trimStart, trimEnd, isStartLocked, isEndLocked);
+      console.log('[VideoEditorV2] Lock state changed:', { isStartLocked, isEndLocked });
+    }
+  }, [isStartLocked, isEndLocked]);
 
   const handleZoomIn = () => {
     if (!peaksInstance) return;
