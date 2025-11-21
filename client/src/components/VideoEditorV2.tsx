@@ -21,6 +21,7 @@ interface VideoEditorV2Props {
     trimEnd?: number;
     isStartLocked?: boolean;
     isEndLocked?: boolean;
+    step9Note?: string | null;  // Note from Step 9
   };
   onTrimChange?: (videoId: string, trimStart: number, trimEnd: number, isStartLocked: boolean, isEndLocked: boolean) => void;
 }
@@ -697,6 +698,13 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
             {isEndLocked ? <Lock className="w-3 h-3 mr-1" /> : <Unlock className="w-3 h-3 mr-1" />}
             {isEndLocked ? 'END Locked' : 'Lock END'}
           </Button>
+          
+          {/* Step 9 Note - Right of LOCK END */}
+          {video.step9Note && (
+            <div className="ml-3 px-3 py-1 bg-yellow-100 border border-yellow-400 rounded text-xs text-yellow-900 max-w-xs truncate" title={video.step9Note}>
+              📝 {video.step9Note}
+            </div>
+          )}
         </div>
 
         {/* Waveform Container with Custom Markers Overlay */}

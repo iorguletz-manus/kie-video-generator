@@ -7120,6 +7120,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         
                         console.log(`[Video Editing] Starting batch processing for ${videosWithRedText.length} videos with red text`);
                         
+                        // CLEAR old processed videos from Step 8 before starting new batch
+                        setVideoResults(prev => prev.map(v => 
+                          v.editStatus === 'processed'
+                            ? { ...v, editStatus: null, whisperTranscript: null, cutPoints: null, words: null, audioUrl: null, waveformData: null }
+                            : v
+                        ));
+                        
                         // Open ProcessingModal and start batch processing
                         setShowProcessingModal(true);
                         setProcessingProgress({ current: 0, total: videosWithRedText.length, currentVideoName: '' });
@@ -7233,13 +7240,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                   </p>
                                 </div>
                               )}
-                              {video.step9Note && (
-                                <div className="p-3 bg-yellow-50 border border-yellow-300 rounded">
-                                  <p className="text-sm text-gray-700">
-                                    <strong className="text-yellow-900">Step 9 Note:</strong> {video.step9Note}
-                                  </p>
-                                </div>
-                              )}
+
                             </div>
                           )}
                           
@@ -7261,6 +7262,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             trimEnd: video.endTimestamp,
                             isStartLocked: video.isStartLocked,
                             isEndLocked: video.isEndLocked,
+                            step9Note: video.step9Note,
                             }}
                             onTrimChange={(videoId, trimStart, trimEnd, isStartLocked, isEndLocked) => {
                             // Update local state when user adjusts trim markers or lock state
