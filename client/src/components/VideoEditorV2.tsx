@@ -146,43 +146,103 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
       console.log('[VideoEditorV2] Trim segment created:', segment);
 
       // 🔒 Freeze pan/drag on waveform
-      // Peaks.js attaches pan to .peaks-zoomview div, not canvas!
+      // Peaks.js attaches pan to internal div, need to identify it
       setTimeout(() => {
         const zoomviewContainer = zoomviewRef.current;
-        if (!zoomviewContainer) return;
+        if (!zoomviewContainer) {
+          console.error('[VideoEditorV2] zoomviewContainer is null');
+          return;
+        }
 
-        const draggableWrapper = zoomviewContainer.querySelector('.peaks-zoomview');
+        console.log('[VideoEditorV2] DEBUG: zoomviewContainer:', zoomviewContainer);
+        console.log('[VideoEditorV2] DEBUG: All children:', zoomviewContainer.children);
+        
+        // Try multiple selectors
+        const selectors = [
+          '.peaks-zoomview',
+          '.peaks-workspace',
+          '[data-peaks-zoomview]',
+          'div > div',  // First nested div
+        ];
+        
+        let draggableWrapper: Element | null = null;
+        let usedSelector = '';
+        
+        for (const selector of selectors) {
+          draggableWrapper = zoomviewContainer.querySelector(selector);
+          if (draggableWrapper) {
+            usedSelector = selector;
+            console.log(`[VideoEditorV2] Found draggable wrapper with selector: ${selector}`);
+            break;
+          }
+        }
+        
+        // If still not found, try first child div
+        if (!draggableWrapper) {
+          const firstDiv = zoomviewContainer.querySelector('div');
+          if (firstDiv) {
+            draggableWrapper = firstDiv;
+            usedSelector = 'first div child';
+            console.log('[VideoEditorV2] Using first div child as draggable wrapper');
+          }
+        }
 
         if (draggableWrapper) {
-          (draggableWrapper as HTMLElement).style.pointerEvents = 'none';
+          const wrapper = draggableWrapper as HTMLElement;
+          
+          console.log('[VideoEditorV2] Freezing element:', {
+            selector: usedSelector,
+            element: wrapper,
+            tagName: wrapper.tagName,
+            className: wrapper.className,
+            id: wrapper.id,
+          });
+          
+          wrapper.style.pointerEvents = 'none';
+          wrapper.style.touchAction = 'none';
+          wrapper.style.userSelect = 'none';
 
-          draggableWrapper.addEventListener('mousedown', (e) => {
+          wrapper.addEventListener('mousedown', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            console.log('[VideoEditorV2] Peaks pan mousedown blocked');
-          }, true);
+            console.log('[VideoEditorV2] Pan mousedown BLOCKED');
+            return false;
+          }, { capture: true, passive: false });
 
-          draggableWrapper.addEventListener('mousemove', (e) => {
+          wrapper.addEventListener('mousemove', (e) => {
             e.preventDefault();
             e.stopPropagation();
-          }, true);
+            return false;
+          }, { capture: true, passive: false });
 
-          draggableWrapper.addEventListener('mouseup', (e) => {
+          wrapper.addEventListener('mouseup', (e) => {
             e.preventDefault();
             e.stopPropagation();
-          }, true);
+            return false;
+          }, { capture: true, passive: false });
 
-          draggableWrapper.addEventListener('touchstart', (e) => {
+          wrapper.addEventListener('touchstart', (e) => {
             e.preventDefault();
             e.stopPropagation();
-          }, true);
+            return false;
+          }, { capture: true, passive: false });
+          
+          wrapper.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+          }, { capture: true, passive: false });
 
-          console.log('[VideoEditorV2] Waveform pan frozen on .peaks-zoomview');
+          console.log('[VideoEditorV2] ✅ Waveform pan FROZEN successfully');
         } else {
-          console.warn('[VideoEditorV2] .peaks-zoomview not found, listing all children:');
-          console.log(zoomviewContainer.querySelectorAll('*'));
+          console.error('[VideoEditorV2] ❌ Could not find draggable wrapper!');
+          console.log('[VideoEditorV2] All elements in container:');
+          const allElements = zoomviewContainer.querySelectorAll('*');
+          allElements.forEach((el, i) => {
+            console.log(`  ${i}: ${el.tagName}.${el.className} #${el.id}`);
+          });
         }
-      }, 100);
+      }, 200);  // Increased timeout to 200ms
 
       // Set initial zoom
       const initialWindow = Math.min(8, video.duration);
