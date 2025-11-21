@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Peaks, { PeaksInstance, Segment } from 'peaks.js';
 import { Button } from './ui/button';
-import { Play, Pause, ZoomIn, ZoomOut } from 'lucide-react';
+import { Play, Pause, ZoomIn, ZoomOut, Lock, Unlock } from 'lucide-react';
 
 interface VideoEditorV2Props {
   video: {
@@ -22,9 +22,9 @@ interface VideoEditorV2Props {
 
 export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimChange }: VideoEditorV2Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const overviewRef = useRef<HTMLDivElement>(null);
   const zoomviewRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const waveformContainerRef = useRef<HTMLDivElement>(null);
   
   const [peaksInstance, setPeaksInstance] = useState<PeaksInstance | null>(null);
   const [trimSegment, setTrimSegment] = useState<Segment | null>(null);
@@ -32,11 +32,20 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
   const [trimEnd, setTrimEnd] = useState(video.suggestedEnd);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [zoomLevel, setZoomLevel] = useState(0);
   const [refsReady, setRefsReady] = useState(false);
-  const [windowSize, setWindowSize] = useState(Math.min(8, video.duration)); // Default 8 seconds zoom, or full duration if shorter
-  const [centerTime, setCenterTime] = useState((video.suggestedStart + video.suggestedEnd) / 2); // Center point for zoom
-  const isSyncingRef = useRef(false); // Prevent event loop (using ref to avoid re-renders)
+  const [windowSize, setWindowSize] = useState(Math.min(8, video.duration));
+  
+  // Lock system
+  const [isStartLocked, setIsStartLocked] = useState(false);
+  const [isEndLocked, setIsEndLocked] = useState(false);
+  
+  // Playhead (black marker) - only visible when START is locked
+  const [playheadTime, setPlayheadTime] = useState<number | null>(null);
+  
+  // Dragging state
+  const [isDragging, setIsDragging] = useState<'start' | 'end' | 'playhead' | null>(null);
+  const dragStartX = useRef(0);
+  const dragStartTime = useRef(0);
 
   console.log('[VideoEditorV2] Received video:', video);
 
@@ -51,14 +60,12 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
           zoomview: !!zoomviewRef.current,
           audio: !!audioRef.current
         });
-        // Retry after a short delay
         setTimeout(checkRefs, 100);
       }
     };
     
-    // Wait for DOM to render
     setTimeout(checkRefs, 0);
-  }, []); // Run once on mount
+  }, []);
 
   // Initialize Peaks.js when refs are ready
   useEffect(() => {
@@ -74,12 +81,10 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
       console.log('[VideoEditorV2] Destroying Peaks.js instance');
       peaksInstance?.destroy();
     };
-  }, [refsReady]); // Initialize when refs are ready
+  }, [refsReady]);
 
   const initializePeaks = async () => {
     console.log('[VideoEditorV2] initializePeaks called');
-    console.log('[VideoEditorV2] zoomviewRef.current:', zoomviewRef.current);
-    console.log('[VideoEditorV2] audioRef.current:', audioRef.current);
     
     if (!zoomviewRef.current || !videoRef.current) {
       console.error('[VideoEditorV2] Missing refs!');
@@ -89,14 +94,14 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
     const options = {
       zoomview: {
         container: zoomviewRef.current!,
-        waveformColor: '#cccccc', // Classic gray waveform line
-        playheadColor: '#000000', // Black playhead
-        wheelMode: 'zoom',
+        waveformColor: '#cccccc',
+        playheadColor: 'transparent', // Hide default playhead, we'll use custom
+        wheelMode: 'zoom' as const,
         segmentOptions: {
-          startMarkerColor: '#22c55e', // Green for START
-          endMarkerColor: '#ef4444',   // Red for END
-          waveformColor: 'transparent', // No segment fill
-          overlayColor: 'transparent', // No overlay
+          startMarkerColor: 'transparent', // Hide default markers
+          endMarkerColor: 'transparent',
+          waveformColor: 'transparent',
+          overlayColor: 'transparent',
         },
       },
       mediaElement: videoRef.current!,
@@ -104,13 +109,13 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
         json: video.peaksUrl,
       },
       keyboard: true,
-      showPlayheadTime: true,
+      showPlayheadTime: false,
       zoomLevels: [1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072],
       segmentOptions: {
-        startMarkerColor: '#22c55e', // Green for START
-        endMarkerColor: '#ef4444',   // Red for END
-        waveformColor: 'transparent', // No segment fill
-        overlayColor: 'transparent', // No overlay
+        startMarkerColor: 'transparent',
+        endMarkerColor: 'transparent',
+        waveformColor: 'transparent',
+        overlayColor: 'transparent',
       },
     };
 
@@ -123,61 +128,61 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
       console.log('[VideoEditorV2] Peaks.js initialized successfully');
       setPeaksInstance(peaks!);
 
-      // Create initial trim segment
+      // Create initial trim segment (non-editable, just for visual reference)
       const segment = peaks!.segments.add({
         startTime: video.suggestedStart,
         endTime: video.suggestedEnd,
-        editable: true,
-        color: 'transparent', // No fill, only show markers
-        labelText: '', // No label
+        editable: false, // We handle dragging with custom overlay
+        color: 'transparent',
+        labelText: '',
       });
 
       setTrimSegment(segment);
       console.log('[VideoEditorV2] Trim segment created:', segment);
 
-      // Listen to segment updates (multiple events to ensure updates)
-      peaks!.on('segments.dragend', handleSegmentUpdate);
-      peaks!.on('segments.dragged', handleSegmentUpdate);
-      peaks!.on('segments.dragstart', (segment: Segment) => {
-        console.log('[VideoEditorV2] Segment drag started:', segment);
-      });
-      peaks!.on('segments.change', handleSegmentUpdate);
-
-      // Set initial zoom to 8 seconds (or full duration if shorter)
+      // Set initial zoom
       const initialWindow = Math.min(8, video.duration);
       const view = peaks!.views.getView('zoomview');
       if (view) {
         view.setZoom({ seconds: initialWindow });
-        // Center on the trim segment
         const centerTime = (video.suggestedStart + video.suggestedEnd) / 2;
         const startTime = Math.max(0, centerTime - initialWindow / 2);
         view.setStartTime(startTime);
         console.log('[VideoEditorV2] Initial zoom set to', initialWindow, 'seconds');
       }
-
-      // No need for player event handlers - video is the source of truth
-      // Peaks automatically syncs with mediaElement (videoRef)
     });
   };
 
-  const handleSegmentUpdate = (segment: Segment) => {
-    console.log('[VideoEditorV2] Segment updated:', segment);
-    setTrimStart(segment.startTime);
-    setTrimEnd(segment.endTime);
-    if (onTrimChange) {
-      onTrimChange(video.id, segment.startTime, segment.endTime);
+  // Update segment when trim times change
+  useEffect(() => {
+    if (trimSegment) {
+      trimSegment.update({
+        startTime: trimStart,
+        endTime: trimEnd,
+      });
     }
-  };
+  }, [trimStart, trimEnd, trimSegment]);
+
+  // When START becomes locked, initialize playhead
+  useEffect(() => {
+    if (isStartLocked && playheadTime === null) {
+      setPlayheadTime(trimStart);
+      console.log('[VideoEditorV2] START locked, playhead initialized at', trimStart);
+    } else if (!isStartLocked && playheadTime !== null) {
+      setPlayheadTime(null);
+      console.log('[VideoEditorV2] START unlocked, playhead hidden');
+    }
+  }, [isStartLocked]);
 
   const handleVideoTimeUpdate = () => {
     if (videoRef.current) {
       const time = videoRef.current.currentTime;
       setCurrentTime(time);
       
-      // Stop playback if we've reached the END marker (with 0.1s tolerance)
+      // Stop playback if we've reached the END marker
       if (playing && time >= trimEnd - 0.05) {
         videoRef.current.pause();
-        videoRef.current.currentTime = trimEnd; // Snap to exact END position
+        videoRef.current.currentTime = trimEnd;
         setPlaying(false);
         console.log('[VideoEditorV2] Playback stopped at END marker:', trimEnd);
       }
@@ -188,101 +193,173 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
     if (!videoRef.current) return;
     
     if (playing) {
-      // Only control video - Peaks will sync automatically
       videoRef.current.pause();
       setPlaying(false);
     } else {
-      // Start playback from START marker
-      if (isFinite(trimStart) && !isNaN(trimStart)) {
-        videoRef.current.currentTime = trimStart;
-        videoRef.current.play();
-        setPlaying(true);
+      // Start playback from appropriate position
+      if (isStartLocked && playheadTime !== null) {
+        // If START is locked, play from playhead position
+        videoRef.current.currentTime = playheadTime;
+        console.log('[VideoEditorV2] Playing from playhead:', playheadTime);
       } else {
-        console.error('[VideoEditorV2] trimStart is not a valid number:', trimStart);
+        // Otherwise play from START marker
+        videoRef.current.currentTime = trimStart;
+        console.log('[VideoEditorV2] Playing from START:', trimStart);
       }
+      videoRef.current.play();
+      setPlaying(true);
     }
   };
 
-  const setStartMarker = () => {
-    if (trimSegment && videoRef.current) {
-      const currentTime = videoRef.current.currentTime;
-      trimSegment.update({ startTime: currentTime });
-      setTrimStart(currentTime);
-      if (onTrimChange) {
-        onTrimChange(video.id, currentTime, trimEnd);
-      }
-      console.log('[VideoEditorV2] START marker set to:', currentTime);
-    }
-  };
-
-  const setEndMarker = () => {
-    if (trimSegment && videoRef.current) {
-      const currentTime = videoRef.current.currentTime;
-      trimSegment.update({ endTime: currentTime });
-      setTrimEnd(currentTime);
-      if (onTrimChange) {
-        onTrimChange(video.id, trimStart, currentTime);
-      }
-      console.log('[VideoEditorV2] END marker set to:', currentTime);
-    }
-  };
-
-   const seekToStart = () => {
+  const seekToStart = () => {
     if (videoRef.current) {
       videoRef.current.currentTime = trimStart;
-      // Peaks will sync automatically
     }
   };
 
   const seekToEnd = () => {
     if (videoRef.current) {
       videoRef.current.currentTime = trimEnd;
-      // Peaks will sync automatically
     }
   };
 
-  const handleZoomIn = () => {
-    if (!peaksInstance) {
-      console.error('[VideoEditorV2] No peaks instance!');
-      return;
+  // Convert time to pixel position on waveform
+  const timeToPixel = (time: number): number => {
+    if (!peaksInstance || !waveformContainerRef.current) return 0;
+    
+    const view = peaksInstance.views.getView('zoomview');
+    if (!view) return 0;
+    
+    const viewStartTime = view.getStartTime();
+    const viewEndTime = view.getEndTime();
+    const containerWidth = waveformContainerRef.current.offsetWidth;
+    
+    const relativeTime = time - viewStartTime;
+    const viewDuration = viewEndTime - viewStartTime;
+    
+    return (relativeTime / viewDuration) * containerWidth;
+  };
+
+  // Convert pixel position to time
+  const pixelToTime = (pixel: number): number => {
+    if (!peaksInstance || !waveformContainerRef.current) return 0;
+    
+    const view = peaksInstance.views.getView('zoomview');
+    if (!view) return 0;
+    
+    const viewStartTime = view.getStartTime();
+    const viewEndTime = view.getEndTime();
+    const containerWidth = waveformContainerRef.current.offsetWidth;
+    
+    const viewDuration = viewEndTime - viewStartTime;
+    const relativeTime = (pixel / containerWidth) * viewDuration;
+    
+    return Math.max(0, Math.min(video.duration, viewStartTime + relativeTime));
+  };
+
+  // Mouse down on marker
+  const handleMarkerMouseDown = (e: React.MouseEvent, markerType: 'start' | 'end' | 'playhead') => {
+    // Check if marker is locked
+    if (markerType === 'start' && isStartLocked) return;
+    if (markerType === 'end' && isEndLocked) return;
+    
+    e.preventDefault();
+    e.stopPropagation();
+    
+    setIsDragging(markerType);
+    dragStartX.current = e.clientX;
+    
+    if (markerType === 'start') {
+      dragStartTime.current = trimStart;
+    } else if (markerType === 'end') {
+      dragStartTime.current = trimEnd;
+    } else if (markerType === 'playhead' && playheadTime !== null) {
+      dragStartTime.current = playheadTime;
+    }
+    
+    console.log('[VideoEditorV2] Started dragging', markerType);
+  };
+
+  // Mouse move (global)
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging || !waveformContainerRef.current) return;
+      
+      const rect = waveformContainerRef.current.getBoundingClientRect();
+      const relativeX = e.clientX - rect.left;
+      const newTime = pixelToTime(relativeX);
+      
+      if (isDragging === 'start') {
+        const clampedTime = Math.max(0, Math.min(newTime, trimEnd - 0.1));
+        setTrimStart(clampedTime);
+        if (onTrimChange) {
+          onTrimChange(video.id, clampedTime, trimEnd);
+        }
+        // Sync video to new START position
+        if (videoRef.current) {
+          videoRef.current.currentTime = clampedTime;
+        }
+      } else if (isDragging === 'end') {
+        const clampedTime = Math.max(trimStart + 0.1, Math.min(newTime, video.duration));
+        setTrimEnd(clampedTime);
+        if (onTrimChange) {
+          onTrimChange(video.id, trimStart, clampedTime);
+        }
+        // Sync video to new END position
+        if (videoRef.current) {
+          videoRef.current.currentTime = clampedTime;
+        }
+      } else if (isDragging === 'playhead') {
+        const clampedTime = Math.max(0, Math.min(newTime, video.duration));
+        setPlayheadTime(clampedTime);
+        // Sync video to playhead position
+        if (videoRef.current) {
+          videoRef.current.currentTime = clampedTime;
+        }
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (isDragging) {
+        console.log('[VideoEditorV2] Stopped dragging', isDragging);
+        setIsDragging(null);
+      }
+    };
+
+    if (isDragging) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
     }
 
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, trimStart, trimEnd, playheadTime, video.duration, video.id, onTrimChange]);
+
+  const handleZoomIn = () => {
+    if (!peaksInstance) return;
+
     const view = peaksInstance.views.getView('zoomview');
-    if (!view) {
-      console.error('[VideoEditorV2] No zoomview found!');
-      return;
-    }
+    if (!view) return;
 
     const duration = video.duration;
     if (!duration) return;
 
-    // Calculate new window (in seconds)
-    const MIN_WINDOW = 0.5; // 500ms minimum
+    const MIN_WINDOW = 0.5;
     const currentWindow = windowSize || duration;
     const newWindow = Math.max(MIN_WINDOW, currentWindow / 2);
 
-    // Center on current playback time or midpoint of START-END segment
     const centerTime = videoRef.current?.currentTime || (trimStart + trimEnd) / 2;
     const half = newWindow / 2;
 
-    // Start of window, centered on centerTime
     let newStart = centerTime - half;
     if (newStart < 0) newStart = 0;
 
-    // Ensure we don't exceed duration
     if (newStart + newWindow > duration) {
       newStart = Math.max(0, duration - newWindow);
     }
 
-    console.log('[VideoEditorV2] Zoom In:', {
-      currentWindow,
-      newWindow,
-      centerTime,
-      newStart,
-      newEnd: newStart + newWindow,
-    });
-
-    // PEAKS V4 API: setZoom with seconds
     view.setZoom({ seconds: newWindow });
     view.setStartTime(newStart);
 
@@ -290,25 +367,18 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
   };
 
   const handleZoomOut = () => {
-    if (!peaksInstance) {
-      console.error('[VideoEditorV2] No peaks instance!');
-      return;
-    }
+    if (!peaksInstance) return;
 
     const view = peaksInstance.views.getView('zoomview');
-    if (!view) {
-      console.error('[VideoEditorV2] No zoomview found!');
-      return;
-    }
+    if (!view) return;
 
     const duration = video.duration;
     if (!duration) return;
 
-    const MAX_WINDOW = duration; // Maximum is full video duration
+    const MAX_WINDOW = duration;
     const currentWindow = windowSize || duration;
     const newWindow = Math.min(MAX_WINDOW, currentWindow * 2);
 
-    // Center on current playback time or midpoint of START-END segment
     const centerTime = videoRef.current?.currentTime || (trimStart + trimEnd) / 2;
     const half = newWindow / 2;
 
@@ -319,15 +389,6 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
       newStart = Math.max(0, duration - newWindow);
     }
 
-    console.log('[VideoEditorV2] Zoom Out:', {
-      currentWindow,
-      newWindow,
-      centerTime,
-      newStart,
-      newEnd: newStart + newWindow,
-    });
-
-    // PEAKS V4 API: setZoom with seconds
     view.setZoom({ seconds: newWindow });
     view.setStartTime(newStart);
 
@@ -348,7 +409,6 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
     <div className="border-2 border-purple-300 rounded-lg p-6 bg-white">
       {/* Video Player */}
       <div className="mb-6">
-        {/* Video Name */}
         <h3 className="text-lg font-bold text-center mb-3 text-gray-900">
           {video.videoName}
         </h3>
@@ -365,7 +425,6 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
             onTimeUpdate={handleVideoTimeUpdate}
           />
         </div>
-        {/* Hidden Audio Element for Peaks.js */}
         <audio 
           id="peaks-audio-element"
           ref={audioRef} 
@@ -399,10 +458,9 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
             ▶ Seek to END
           </Button>
         </div>
-
       </div>
 
-      {/* Video Text (from database) - Above Waveform */}
+      {/* Video Text */}
       {video.text && (
         <div className="mb-4 mx-auto" style={{ maxWidth: '300px' }}>
           <p className="text-sm text-gray-800 text-center">
@@ -421,15 +479,37 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
         </div>
       )}
 
+      {/* Lock Controls */}
+      <div className="mb-4">
+        <div className="grid grid-cols-2 gap-4">
+          <Button
+            onClick={() => setIsStartLocked(!isStartLocked)}
+            size="sm"
+            variant={isStartLocked ? "default" : "outline"}
+            className={isStartLocked ? "bg-gray-600 hover:bg-gray-700" : ""}
+          >
+            {isStartLocked ? <Lock className="w-4 h-4 mr-1" /> : <Unlock className="w-4 h-4 mr-1" />}
+            {isStartLocked ? 'START Locked' : 'Lock START'}
+          </Button>
+          <Button
+            onClick={() => setIsEndLocked(!isEndLocked)}
+            size="sm"
+            variant={isEndLocked ? "default" : "outline"}
+            className={isEndLocked ? "bg-gray-600 hover:bg-gray-700" : ""}
+          >
+            {isEndLocked ? <Lock className="w-4 h-4 mr-1" /> : <Unlock className="w-4 h-4 mr-1" />}
+            {isEndLocked ? 'END Locked' : 'Lock END'}
+          </Button>
+        </div>
+      </div>
+
       {/* Waveform Timeline */}
       <div className="mb-6">
-        {/* Header with Current Time and Zoom Controls */}
         <div className="flex items-center justify-between mb-3">
           <h4 className="text-sm font-semibold text-gray-900">
             🎵 Waveform Timeline
           </h4>
           <div className="flex items-center gap-4">
-            {/* Trimmed Duration Info */}
             <span className="text-sm text-gray-600">
               ✂️ Trimmed: <span className="font-mono font-bold text-purple-600">{formatTime(Math.max(0, trimEnd - trimStart))}</span>
               {' | '}
@@ -437,75 +517,148 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
               {' → '}
               <span className="font-mono text-red-600">{formatTime(trimEnd)}</span>
             </span>
-            {/* Current Time Display */}
             <span className="text-sm text-gray-600">
               Current: <span className="font-mono font-bold text-purple-600">{formatTime(currentTime)}</span>
               {' / '}
               <span className="font-mono">{formatTime(video.duration)}</span>
             </span>
-            {/* Zoom Controls */}
             <div className="flex gap-2">
-              <Button
-                onClick={handleZoomOut}
-                size="sm"
-                variant="outline"
-              >
+              <Button onClick={handleZoomOut} size="sm" variant="outline">
                 <ZoomOut className="w-4 h-4" />
               </Button>
-              <Button
-                onClick={handleZoomIn}
-                size="sm"
-                variant="outline"
-              >
+              <Button onClick={handleZoomIn} size="sm" variant="outline">
                 <ZoomIn className="w-4 h-4" />
               </Button>
             </div>
           </div>
         </div>
 
-        {/* Waveform Zoomview */}
+        {/* Waveform Container with Custom Markers Overlay */}
         <div 
-          id="peaks-zoomview-container"
-          ref={zoomviewRef} 
-          className="waveform-zoomview border border-gray-300 rounded"
+          ref={waveformContainerRef}
+          className="relative"
           style={{ height: '120px', width: '100%' }}
-        />
+        >
+          {/* Peaks.js Waveform */}
+          <div 
+            id="peaks-zoomview-container"
+            ref={zoomviewRef} 
+            className="border border-gray-300 rounded"
+            style={{ height: '120px', width: '100%' }}
+          />
 
+          {/* Custom Markers Overlay */}
+          {peaksInstance && (
+            <>
+              {/* START Marker (Green) */}
+              <div
+                onMouseDown={(e) => handleMarkerMouseDown(e, 'start')}
+                style={{
+                  position: 'absolute',
+                  left: `${timeToPixel(trimStart)}px`,
+                  top: 0,
+                  width: '12px',
+                  height: '12px',
+                  backgroundColor: isStartLocked ? '#d1d5db' : '#22c55e',
+                  cursor: isStartLocked ? 'not-allowed' : 'ew-resize',
+                  transform: 'translateX(-6px)',
+                  zIndex: 10,
+                  borderRadius: '2px',
+                  border: '2px solid white',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                }}
+                title={isStartLocked ? "START (Locked)" : "START (Drag to move)"}
+              />
+
+              {/* END Marker (Red) */}
+              <div
+                onMouseDown={(e) => handleMarkerMouseDown(e, 'end')}
+                style={{
+                  position: 'absolute',
+                  left: `${timeToPixel(trimEnd)}px`,
+                  top: 0,
+                  width: '12px',
+                  height: '12px',
+                  backgroundColor: isEndLocked ? '#d1d5db' : '#ef4444',
+                  cursor: isEndLocked ? 'not-allowed' : 'ew-resize',
+                  transform: 'translateX(-6px)',
+                  zIndex: 10,
+                  borderRadius: '2px',
+                  border: '2px solid white',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                }}
+                title={isEndLocked ? "END (Locked)" : "END (Drag to move)"}
+              />
+
+              {/* PLAYHEAD Marker (Black) - Only visible when START is locked */}
+              {isStartLocked && playheadTime !== null && (
+                <div
+                  onMouseDown={(e) => handleMarkerMouseDown(e, 'playhead')}
+                  style={{
+                    position: 'absolute',
+                    left: `${timeToPixel(playheadTime)}px`,
+                    top: 0,
+                    width: '3px',
+                    height: '120px',
+                    backgroundColor: '#000000',
+                    cursor: 'ew-resize',
+                    transform: 'translateX(-1.5px)',
+                    zIndex: 9,
+                    boxShadow: '0 0 4px rgba(0,0,0,0.5)',
+                  }}
+                  title="PLAYHEAD (Drag to move)"
+                >
+                  {/* Playhead handle at top */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      width: '10px',
+                      height: '10px',
+                      backgroundColor: '#000000',
+                      borderRadius: '2px',
+                      border: '2px solid white',
+                    }}
+                  />
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Trim Markers - Dual Control: Drag on waveform OR use buttons */}
+      {/* Marker Info */}
       <div className="mb-6">
-        <div className="grid grid-cols-2 gap-4 mb-4">
+        <div className="grid grid-cols-3 gap-4 text-center">
           <div>
-            <Button
-              onClick={setStartMarker}
-              size="sm"
-              className="w-full bg-green-600 hover:bg-green-700"
-            >
-              🟢 Set START Here
-            </Button>
-            <div className="text-center mt-2">
-              <span className="text-sm font-mono font-bold text-green-700">
-                {formatTime(trimStart)}
-              </span>
+            <div className="text-xs text-gray-600 mb-1">
+              🟢 START {isStartLocked && '(Locked)'}
+            </div>
+            <div className="text-sm font-mono font-bold" style={{ color: isStartLocked ? '#9ca3af' : '#22c55e' }}>
+              {formatTime(trimStart)}
             </div>
           </div>
           <div>
-            <Button
-              onClick={setEndMarker}
-              size="sm"
-              className="w-full bg-red-600 hover:bg-red-700"
-            >
-              🔴 Set END Here
-            </Button>
-            <div className="text-center mt-2">
-              <span className="text-sm font-mono font-bold text-red-700">
-                {formatTime(trimEnd)}
-              </span>
+            <div className="text-xs text-gray-600 mb-1">
+              🔴 END {isEndLocked && '(Locked)'}
+            </div>
+            <div className="text-sm font-mono font-bold" style={{ color: isEndLocked ? '#9ca3af' : '#ef4444' }}>
+              {formatTime(trimEnd)}
             </div>
           </div>
+          {isStartLocked && playheadTime !== null && (
+            <div>
+              <div className="text-xs text-gray-600 mb-1">
+                ⚫ PLAYHEAD
+              </div>
+              <div className="text-sm font-mono font-bold text-black">
+                {formatTime(playheadTime)}
+              </div>
+            </div>
+          )}
         </div>
-
       </div>
 
       {/* Error State */}
@@ -519,6 +672,5 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
     </div>
   );
 }, (prevProps, nextProps) => {
-  // Only re-render if video.id changes
   return prevProps.video.id === nextProps.video.id;
 });
