@@ -1682,9 +1682,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         });
         
         // Call FFMPEG API to trim video via tRPC
+        // Use index as videoId since video.id is a string (e.g., "T1_C1_E1_AD2_CTA1_TEST")
         const result = await cutVideoMutation.mutateAsync({
           videoUrl: video.videoUrl!,
-          videoId: parseInt(video.id),
+          videoId: i, // Use loop index as numeric ID
           startTimeSeconds: trimStart,
           endTimeSeconds: trimEnd,
           ffmpegApiKey: localCurrentUser.ffmpegApiKey || undefined
