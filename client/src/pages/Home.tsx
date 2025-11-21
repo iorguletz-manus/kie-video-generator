@@ -272,9 +272,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     current: number;
     total: number;
     currentVideo: string;
-    status: 'trimming' | 'uploading' | 'complete' | 'error';
+    status: 'processing' | 'complete' | 'error';
     message: string;
-  }>({ current: 0, total: 0, currentVideo: '', status: 'trimming', message: '' });
+  }>({ current: 0, total: 0, currentVideo: '', status: 'processing', message: '' });
   
   // Images Library modal
   const [isImagesLibraryOpen, setIsImagesLibraryOpen] = useState(false);
@@ -637,35 +637,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
   };
   
+  // DISABLED: localStorage restore - using database as single source of truth
   // Auto-restore session la mount
   useEffect(() => {
-    try {
-      const savedSession = localStorage.getItem('kie-video-generator-session');
-      if (savedSession) {
-        const session = JSON.parse(savedSession);
-        
-        // Restore state-uri
-        if (session.currentStep) setCurrentStep(session.currentStep);
-        if (session.adLines) setAdLines(session.adLines);
-        if (session.prompts) setPrompts(session.prompts);
-        if (session.images) setImages(session.images);
-        if (session.combinations) setCombinations(session.combinations);
-        if (session.deletedCombinations) setDeletedCombinations(session.deletedCombinations);
-        if (session.videoResults) setVideoResults(session.videoResults);
-        if (session.reviewHistory) setReviewHistory(session.reviewHistory);
-        if (session.selectedVideoIndex !== undefined) setSelectedVideoIndex(session.selectedVideoIndex);
-        if (session.regenerateMultiple !== undefined) setRegenerateMultiple(session.regenerateMultiple);
-        if (session.regenerateVariantCount) setRegenerateVariantCount(session.regenerateVariantCount);
-        if (session.regenerateVariants) setRegenerateVariants(session.regenerateVariants);
-        
-        toast.success('Sesiune restaurată!');
-      }
-    } catch (error) {
-      console.error('Eroare la restore session:', error);
-      toast.error('Eroare la restaurare sesiune');
-    } finally {
-      setIsRestoringSession(false);
-    }
+    // DISABLED: No longer restoring from localStorage
+    // Database is the only source of truth
+    setIsRestoringSession(false);
   }, []);
   
   // Load data from context session when context changes
@@ -734,35 +711,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
   }, [contextSession]);
   
+  // DISABLED: localStorage save - using database as single source of truth
   // Auto-save session la fiecare schimbare (debounced)
   useEffect(() => {
-    if (isRestoringSession) return; // Nu salva în timpul restore
-    
-    const timeoutId = setTimeout(() => {
-      try {
-        const session = {
-          currentStep,
-          adLines,
-          prompts: prompts.map(p => ({ ...p, file: null })), // Exclude File objects
-          images,
-          combinations,
-          deletedCombinations,
-          videoResults,
-          reviewHistory,
-          selectedVideoIndex,
-          regenerateMultiple,
-          regenerateVariantCount,
-          regenerateVariants,
-          timestamp: new Date().toISOString(),
-        };
-        
-        localStorage.setItem('kie-video-generator-session', JSON.stringify(session));
-      } catch (error) {
-        console.error('Eroare la save session:', error);
-      }
-    }, 1000); // Debounce 1 secundă
-    
-    return () => clearTimeout(timeoutId);
+    // DISABLED: No longer saving to localStorage
+    // Database is the only source of truth
+    return;
   }, [
     currentStep,
     adLines,
@@ -1561,6 +1515,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     let successCount = 0;
     let failCount = 0;
     
+    // Collect all results in a Map to avoid React state closure issues
+    const resultsMap = new Map<string, any>();
+    
     for (let i = 0; i < videos.length; i++) {
       const video = videos[i];
       
@@ -1574,13 +1531,34 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         console.log(`[Batch Processing] 🎥 Processing video ${i + 1}/${videos.length}:`, video.videoName);
         
         // Extract red text from video
-        const redText = video.redStart !== undefined && video.redEnd !== undefined
+        const hasRedText = video.redStart !== undefined && 
+                          video.redEnd !== undefined && 
+                          video.redStart >= 0 && 
+                          video.redEnd > video.redStart;
+        
+        const redText = hasRedText
           ? video.text.substring(video.redStart, video.redEnd)
           : '';
         
-        if (!redText) {
-          console.error(`[Batch Processing] ❌ No red text for ${video.videoName}`);
-          failCount++;
+        if (!hasRedText || !redText) {
+          // Video without red text - set default markers (0 to duration) without FFMPEG processing
+          console.log(`[Batch Processing] 🟠 No red text for ${video.videoName} - setting default markers (0 to duration)`);
+          
+          setProcessingStep('save');
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
+          // Store default result without FFMPEG/Whisper processing
+          resultsMap.set(video.videoName, {
+            whisperTranscript: null,
+            cutPoints: null,
+            words: null,
+            audioUrl: null,
+            waveformData: null,
+            noCutNeeded: true, // Flag to indicate no cut needed
+          });
+          
+          console.log(`[Batch Processing] ✅ Default markers set for ${video.videoName}`);
+          successCount++;
           continue;
         }
         
@@ -1605,24 +1583,23 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           ffmpegApiKey: localCurrentUser.ffmpegApiKey || undefined,
         });
         
-        console.log(`[Batch Processing] 💾 Saving results...`);
+        console.log(`[Batch Processing] 💾 Saving results for ${video.videoName}...`);
         setProcessingStep('save');
         await new Promise(resolve => setTimeout(resolve, 300));
         
-        // Update videoResults state with whisperTranscript, cutPoints, audioUrl, and waveformData
-        setVideoResults(prev => prev.map(v => 
-          v.id === video.id 
-            ? { 
-                ...v, 
-                whisperTranscript: result.whisperTranscript,
-                cutPoints: result.cutPoints,
-                words: result.words,
-                audioUrl: result.audioUrl,
-                waveformData: result.waveformJson,
-                editStatus: 'processed'
-              }
-            : v
-        ));
+        // Store result in Map (will apply all at once at the end)
+        resultsMap.set(video.videoName, {
+          whisperTranscript: result.whisperTranscript,
+          cutPoints: result.cutPoints,
+          words: result.words,
+          audioUrl: result.audioUrl,
+          waveformData: result.waveformJson,
+          noCutNeeded: false,
+        });
+        
+        console.log(`[Batch Processing] ✅ Stored result for ${video.videoName}:`, {
+          cutPoints: result.cutPoints,
+        });
         
         successCount++;
         console.log(`[Batch Processing] ✅ Video ${i + 1}/${videos.length} SUCCESS!`, {
@@ -1649,6 +1626,63 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     if (successCount === 0) {
       throw new Error('Toate videouri au eșuat la procesare!');
     }
+    
+    // Apply all results at once to avoid React state closure issues
+    console.log('[Batch Processing] 🔄 Applying all results to state...', {
+      totalResults: resultsMap.size,
+      videoNames: Array.from(resultsMap.keys())
+    });
+    
+    setVideoResults(prev => prev.map(v => {
+      const result = resultsMap.get(v.videoName);
+      if (result) {
+        console.log(`[Batch Processing] ✅ Applying result for ${v.videoName}:`, {
+          cutPoints: result.cutPoints,
+          noCutNeeded: result.noCutNeeded
+        });
+        
+        // If video has no red text, set default markers (0 to duration)
+        if (result.noCutNeeded) {
+          return {
+            ...v,
+            whisperTranscript: null,
+            cutPoints: null,
+            words: null,
+            audioUrl: null,
+            waveformData: null,
+            startMarker: 0,
+            endMarker: v.duration || 0,
+            startLocked: false,
+            endLocked: false,
+            editStatus: 'no_cut_needed',
+            noCutNeeded: true
+          };
+        }
+        
+        // Normal processing with FFMPEG/Whisper
+        // Set startMarker and endMarker from cutPoints (convert from ms to seconds)
+        const startMarker = result.cutPoints?.startKeep ? result.cutPoints.startKeep / 1000 : 0;
+        const endMarker = result.cutPoints?.endKeep ? result.cutPoints.endKeep / 1000 : v.duration || 0;
+        
+        return {
+          ...v,
+          whisperTranscript: result.whisperTranscript,
+          cutPoints: result.cutPoints,
+          words: result.words,
+          audioUrl: result.audioUrl,
+          waveformData: result.waveformData,
+          startMarker: startMarker,
+          endMarker: endMarker,
+          startLocked: false, // Reset locks when new markers are set
+          endLocked: false,
+          editStatus: 'processed',
+          noCutNeeded: false
+        };
+      }
+      return v;
+    }));
+    
+    console.log('[Batch Processing] ✅ All results applied to state!');
   };
 
   // Step 8 → Step 9: Trim all videos using FFMPEG API
@@ -1715,6 +1749,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     console.log('[Trimming] Starting trim process for', videosToTrim.length, 'videos');
     
+    // DISABLED: localStorage save - database is the single source of truth
+    // Markers are already saved to database via onTrimChange
+    
     let successCount = 0;
     let failCount = 0;
     
@@ -1726,7 +1763,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         current: i + 1,
         total: videosToTrim.length,
         currentVideo: video.videoName,
-        status: 'trimming',
+        status: 'processing',
         message: `Trimming video ${i + 1}/${videosToTrim.length}...`
       });
       
@@ -7120,8 +7157,28 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         
                         console.log(`[Video Editing] Starting batch processing for ${videosWithRedText.length} videos with red text`);
                         
-                        // REMOVE old processed videos from Step 8 completely before starting new batch
-                        setVideoResults(prev => prev.filter(v => v.editStatus !== 'processed'));
+                        // CLEAR old Step 8 data (editStatus, whisperTranscript, cutPoints, etc.) before starting new batch
+                        // This preserves videos in Step 7 while removing Step 8 processing data
+                        setVideoResults(prev => prev.map(v => 
+                          v.editStatus === 'processed' 
+                            ? { 
+                                ...v, 
+                                editStatus: null,
+                                whisperTranscript: undefined,
+                                cutPoints: undefined,
+                                words: undefined,
+                                audioUrl: undefined,
+                                waveformData: undefined,
+                                startMarker: undefined,
+                                endMarker: undefined,
+                                startLocked: false,
+                                endLocked: false,
+                                trimStatus: null,
+                                trimmedVideoUrl: undefined,
+                                acceptRejectStatus: null
+                              }
+                            : v
+                        ));
                         
                         // Open ProcessingModal and start batch processing
                         setShowProcessingModal(true);
@@ -7287,7 +7344,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             setVideoResults(updatedVideoResults);
                             
                             // Immediate save to database
-                            if (selectedTamId && selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
+                            if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
                               upsertContextSessionMutation.mutate({
                                 userId: currentUser.id,
                                 coreBeliefId: selectedCoreBeliefId,

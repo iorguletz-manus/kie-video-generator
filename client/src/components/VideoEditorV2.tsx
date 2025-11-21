@@ -34,8 +34,9 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
   
   const [peaksInstance, setPeaksInstance] = useState<PeaksInstance | null>(null);
   const [trimSegment, setTrimSegment] = useState<Segment | null>(null);
-  const [trimStart, setTrimStart] = useState(video.trimStart ?? video.suggestedStart);
-  const [trimEnd, setTrimEnd] = useState(video.trimEnd ?? video.suggestedEnd);
+  // ALWAYS use suggestedStart/suggestedEnd when available (new from Whisper), fallback to trimStart/trimEnd (old from DB)
+  const [trimStart, setTrimStart] = useState(video.suggestedStart ?? video.trimStart ?? 0);
+  const [trimEnd, setTrimEnd] = useState(video.suggestedEnd ?? video.trimEnd ?? video.duration);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [refsReady, setRefsReady] = useState(false);
@@ -57,6 +58,18 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
   const dragStartTime = useRef(0);
 
   console.log('[VideoEditorV2] Received video:', video);
+
+  // Update trimStart/trimEnd when suggestedStart/suggestedEnd change (new values from Whisper)
+  useEffect(() => {
+    if (video.suggestedStart !== undefined && video.suggestedStart !== trimStart) {
+      console.log('[VideoEditorV2] Updating trimStart from suggestedStart:', video.suggestedStart);
+      setTrimStart(video.suggestedStart);
+    }
+    if (video.suggestedEnd !== undefined && video.suggestedEnd !== trimEnd) {
+      console.log('[VideoEditorV2] Updating trimEnd from suggestedEnd:', video.suggestedEnd);
+      setTrimEnd(video.suggestedEnd);
+    }
+  }, [video.suggestedStart, video.suggestedEnd]);
 
   // Check if refs are ready after DOM renders
   useEffect(() => {
@@ -634,6 +647,14 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
       {/* Waveform Timeline */}
       <div className="mb-2">
         <div className="flex items-center justify-center gap-4 mb-1">
+          {/* NO CUT NEEDED Badge - Left of Lock START */}
+          {video.noCutNeeded && (
+            <div className="px-3 py-1 bg-orange-100 border border-orange-400 rounded text-xs font-semibold text-orange-700 flex items-center gap-1">
+              <span>⚠️</span>
+              <span>NO CUT NEEDED</span>
+            </div>
+          )}
+          
           {/* Lock START Button - Left of center */}
           <Button
             onClick={() => {

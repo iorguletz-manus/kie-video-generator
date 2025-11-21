@@ -96,6 +96,9 @@ export const appRouter = router({
             id: user.id,
             username: user.username,
             profileImageUrl: user.profileImageUrl,
+            kieApiKey: user.kieApiKey,
+            openaiApiKey: user.openaiApiKey,
+            ffmpegApiKey: user.ffmpegApiKey,
           },
         };
       }),
@@ -115,6 +118,9 @@ export const appRouter = router({
           id: user.id,
           username: user.username,
           profileImageUrl: user.profileImageUrl,
+          kieApiKey: user.kieApiKey,
+          openaiApiKey: user.openaiApiKey,
+          ffmpegApiKey: user.ffmpegApiKey,
         };
       }),
 
