@@ -1653,33 +1653,74 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
   // Step 8 → Step 9: Trim all videos using FFMPEG API
   const handleTrimAllVideos = async () => {
-    const approvedVideos = videoResults.filter(v => 
-      v.reviewStatus === 'accepted' && 
-      v.status === 'success' && 
-      v.videoUrl
-    );
+    // Check if we have trimmed videos (Step 9 exists)
+    const hasTrimmedVideos = videoResults.some(v => v.trimmedVideoUrl);
     
-    if (approvedVideos.length === 0) {
-      toast.error('Nu există videouri pentru tăiere!');
+    let videosToTrim;
+    
+    if (hasTrimmedVideos) {
+      // Scenario 2: We've been to Step 9, only trim videos with "recut" status
+      videosToTrim = videoResults.filter(v => 
+        v.reviewStatus === 'accepted' && 
+        v.status === 'success' && 
+        v.videoUrl &&
+        v.recutStatus === 'recut' // Only recut videos
+      );
+    } else {
+      // Scenario 1: First time, trim all approved videos
+      videosToTrim = videoResults.filter(v => 
+        v.reviewStatus === 'accepted' && 
+        v.status === 'success' && 
+        v.videoUrl
+      );
+    }
+    
+    if (videosToTrim.length === 0) {
+      if (hasTrimmedVideos) {
+        toast.error('Nu există videouri cu status "Recut" pentru tăiere!');
+      } else {
+        toast.error('Nu există videouri pentru tăiere!');
+      }
       setIsTrimmingModalOpen(false);
       return;
     }
     
-    console.log('[Trimming] Starting trim process for', approvedVideos.length, 'videos');
+    // Validate that all videos have START and END locked
+    const unlockedVideos = videosToTrim.filter(v => 
+      !v.isStartLocked || !v.isEndLocked
+    );
+    
+    if (unlockedVideos.length > 0) {
+      const unlockedNames = unlockedVideos.map(v => {
+        const issues = [];
+        if (!v.isStartLocked) issues.push('START');
+        if (!v.isEndLocked) issues.push('END');
+        return `${v.videoName} (${issues.join(', ')} not locked)`;
+      }).join('\n');
+      
+      toast.error(
+        `❌ Următoarele videouri nu sunt locked:\n\n${unlockedNames}\n\nTe rog să blochezi START și END pentru toate videourile înainte de trimming!`,
+        { duration: 8000 }
+      );
+      setIsTrimmingModalOpen(false);
+      return;
+    }
+    
+    console.log('[Trimming] Starting trim process for', videosToTrim.length, 'videos');
     
     let successCount = 0;
     let failCount = 0;
     
-    for (let i = 0; i < approvedVideos.length; i++) {
-      const video = approvedVideos[i];
+    for (let i = 0; i < videosToTrim.length; i++) {
+      const video = videosToTrim[i];
       
       // Update progress
       setTrimmingProgress({
         current: i + 1,
-        total: approvedVideos.length,
+        total: videosToTrim.length,
         currentVideo: video.videoName,
         status: 'trimming',
-        message: `Trimming video ${i + 1}/${approvedVideos.length}...`
+        message: `Trimming video ${i + 1}/${videosToTrim.length}...`
       });
       
       try {
@@ -1687,7 +1728,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         const trimStart = video.startTimestamp || 0;
         const trimEnd = video.endTimestamp || video.cutPoints?.endKeep / 1000 || 10;
         
-        console.log(`[Trimming] Video ${i + 1}/${approvedVideos.length}:`, {
+        console.log(`[Trimming] Video ${i + 1}/${videosToTrim.length}:`, {
           videoName: video.videoName,
           videoUrl: video.videoUrl,
           trimStart,
@@ -1722,19 +1763,19 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         ));
         
         successCount++;
-        console.log(`[Trimming] ✅ Video ${i + 1}/${approvedVideos.length} SUCCESS`);
+        console.log(`[Trimming] ✅ Video ${i + 1}/${videosToTrim.length} SUCCESS`);
         
       } catch (error: any) {
         failCount++;
-        console.error(`[Trimming] ❌ Video ${i + 1}/${approvedVideos.length} FAILED:`, error);
+        console.error(`[Trimming] ❌ Video ${i + 1}/${videosToTrim.length} FAILED:`, error);
         toast.error(`❌ ${video.videoName}: ${error.message}`);
       }
     }
     
     // Complete
     setTrimmingProgress({
-      current: approvedVideos.length,
-      total: approvedVideos.length,
+      current: videosToTrim.length,
+      total: videosToTrim.length,
       currentVideo: '',
       status: 'complete',
       message: `✅ Complete! Success: ${successCount}, Failed: ${failCount}`
@@ -7208,27 +7249,50 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     })}
 
                     {/* Navigation Buttons */}
-                    <div className="flex gap-4">
-                      <Button
-                        onClick={() => setCurrentStep(7)}
-                        variant="outline"
-                        className="flex-1"
-                      >
-                        Înapoi la Step 7
-                      </Button>
+                    <div className="flex flex-col gap-3">
+                      <div className="flex gap-4">
+                        <Button
+                          onClick={() => setCurrentStep(7)}
+                          variant="outline"
+                          className="flex-1"
+                        >
+                          Înapoi la Step 7
+                        </Button>
 
-                      {/* Buton TRIM ALL VIDEOS - va trimite la FFmpeg API pentru cutting */}
-                      <Button
-                        onClick={() => {
-                          // Open trimming modal
-                          setIsTrimmingModalOpen(true);
-                          // Start trimming process
-                          handleTrimAllVideos();
-                        }}
-                        className="flex-1 bg-red-600 hover:bg-red-700"
-                      >
-                        ✂️ TRIM ALL VIDEOS ({approvedVideos.length})
-                      </Button>
+                        {/* Buton TRIM ALL VIDEOS - va trimite la FFmpeg API pentru cutting */}
+                        <Button
+                          onClick={() => {
+                            // Open trimming modal
+                            setIsTrimmingModalOpen(true);
+                            // Start trimming process
+                            handleTrimAllVideos();
+                          }}
+                          className="flex-1 bg-red-600 hover:bg-red-700"
+                        >
+                          {(() => {
+                            const hasTrimmedVideos = videoResults.some(v => v.trimmedVideoUrl);
+                            if (hasTrimmedVideos) {
+                              // Show recut count
+                              const recutCount = approvedVideos.filter(v => v.recutStatus === 'recut').length;
+                              return `✂️ TRIM ALL VIDEOS (${recutCount})`;
+                            } else {
+                              // Show all approved count
+                              return `✂️ TRIM ALL VIDEOS (${approvedVideos.length})`;
+                            }
+                          })()}
+                        </Button>
+                      </div>
+                      
+                      {/* Check Videos button - only show if we have trimmed videos */}
+                      {videoResults.some(v => v.trimmedVideoUrl) && (
+                        <Button
+                          onClick={() => setCurrentStep(9)}
+                          variant="outline"
+                          className="w-full bg-blue-50 hover:bg-blue-100 border-blue-300"
+                        >
+                          👁️ Check Videos (Step 9)
+                        </Button>
+                      )}
                     </div>
                   </div>
                 )}
