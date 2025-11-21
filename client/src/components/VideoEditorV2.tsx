@@ -491,9 +491,21 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
     }
   }, [isStartLocked, isEndLocked]);
 
-  // Note: Cannot manually set canvas width as it clears Konva.js rendering
-  // Peaks.js manages waveform rendering internally
-  // Use zoom + scroll to navigate the waveform
+  // Helper function to resize waveform canvas after zoom
+  const resizeWaveformCanvas = (zoomFactor: number) => {
+    if (!zoomviewRef.current) return;
+    
+    const duration = audioDuration; // Use actual audio duration
+    const pixelsPerSecond = 1000; // Adjust for desired zoom granularity
+    const totalWidth = (duration * pixelsPerSecond) / zoomFactor;
+    
+    // Find the internal Peaks.js canvas container
+    const inner = zoomviewRef.current.querySelector('.konvajs-content');
+    if (inner && inner instanceof HTMLElement) {
+      inner.style.width = `${totalWidth}px`;
+      console.log(`[VideoEditorV2] Resized waveform canvas to ${totalWidth}px (duration: ${duration}s, zoom: ${zoomFactor})`);
+    }
+  }
 
   const handleZoomIn = () => {
     if (!peaksInstance) return;
@@ -522,6 +534,10 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
     view.setStartTime(newStart);
 
     setWindowSize(newWindow);
+    
+    // Resize canvas to fix Peaks.js zoom bug
+    const zoomFactor = duration / newWindow;
+    resizeWaveformCanvas(zoomFactor);
   };
 
   const handleZoomOut = () => {
@@ -551,6 +567,10 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
     view.setStartTime(newStart);
 
     setWindowSize(newWindow);
+    
+    // Resize canvas to fix Peaks.js zoom bug
+    const zoomFactor = duration / newWindow;
+    resizeWaveformCanvas(zoomFactor);
   };
 
   const formatTime = (seconds: number) => {
@@ -739,8 +759,8 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
           <div 
             id="peaks-zoomview-container"
             ref={zoomviewRef} 
-            className="border border-gray-300 rounded"
-            style={{ height: '120px', width: '100%' }}
+            className="border border-gray-300 rounded waveform-scroll-container"
+            style={{ height: '120px', width: '100%', overflowX: 'auto' }}
           />
 
           {/* Custom Markers Overlay */}
