@@ -145,35 +145,44 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
       setTrimSegment(segment);
       console.log('[VideoEditorV2] Trim segment created:', segment);
 
-      // 🔒 Freeze pan/drag on waveform canvas
-      const zoomviewContainer = zoomviewRef.current;
-      if (zoomviewContainer) {
-        const canvases = zoomviewContainer.getElementsByTagName('canvas');
-        console.log('[VideoEditorV2] Found', canvases.length, 'canvas elements');
-        
-        Array.from(canvases).forEach((canvas, index) => {
-          // Try multiple methods to freeze canvas
-          canvas.style.pointerEvents = 'none';
-          canvas.style.touchAction = 'none';
-          
-          // Also try preventing mouse events
-          canvas.addEventListener('mousedown', (e) => {
+      // 🔒 Freeze pan/drag on waveform
+      // Peaks.js attaches pan to .peaks-zoomview div, not canvas!
+      setTimeout(() => {
+        const zoomviewContainer = zoomviewRef.current;
+        if (!zoomviewContainer) return;
+
+        const draggableWrapper = zoomviewContainer.querySelector('.peaks-zoomview');
+
+        if (draggableWrapper) {
+          (draggableWrapper as HTMLElement).style.pointerEvents = 'none';
+
+          draggableWrapper.addEventListener('mousedown', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            console.log('[VideoEditorV2] Canvas mousedown blocked');
+            console.log('[VideoEditorV2] Peaks pan mousedown blocked');
           }, true);
-          
-          canvas.addEventListener('mousemove', (e) => {
+
+          draggableWrapper.addEventListener('mousemove', (e) => {
             e.preventDefault();
             e.stopPropagation();
           }, true);
-          
-          console.log(`[VideoEditorV2] Canvas ${index} frozen:`, {
-            pointerEvents: canvas.style.pointerEvents,
-            touchAction: canvas.style.touchAction,
-          });
-        });
-      }
+
+          draggableWrapper.addEventListener('mouseup', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }, true);
+
+          draggableWrapper.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }, true);
+
+          console.log('[VideoEditorV2] Waveform pan frozen on .peaks-zoomview');
+        } else {
+          console.warn('[VideoEditorV2] .peaks-zoomview not found, listing all children:');
+          console.log(zoomviewContainer.querySelectorAll('*'));
+        }
+      }, 100);
 
       // Set initial zoom
       const initialWindow = Math.min(8, video.duration);
