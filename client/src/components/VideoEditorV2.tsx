@@ -523,21 +523,52 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
       {/* Waveform Timeline */}
       <div className="mb-2">
         <div className="flex items-center justify-between mb-1">
-          <h4 className="text-sm font-semibold text-gray-900">
-            🎵 Waveform
-          </h4>
+          {/* Lock START Button */}
+          <Button
+            onClick={() => setIsStartLocked(!isStartLocked)}
+            size="sm"
+            variant={isStartLocked ? "default" : "outline"}
+            className="h-7 text-xs px-2"
+            style={{
+              backgroundColor: isStartLocked ? '#22c55e' : undefined,
+              borderColor: isStartLocked ? '#22c55e' : undefined,
+              color: isStartLocked ? 'white' : undefined,
+            }}
+          >
+            {isStartLocked ? <Lock className="w-3 h-3 mr-1" /> : <Unlock className="w-3 h-3 mr-1" />}
+            START
+          </Button>
+          
           {/* Current Time Display */}
           <span className="text-xs text-gray-600">
             Current: <span className="font-mono font-bold text-purple-600">{formatTime(currentTime)}</span>
             {' / '}
             <span className="font-mono">{formatTime(video.duration)}</span>
           </span>
-          <div className="flex gap-2">
-            <Button onClick={handleZoomOut} size="sm" variant="outline">
-              <ZoomOut className="w-4 h-4" />
+          
+          {/* Lock END Button */}
+          <Button
+            onClick={() => setIsEndLocked(!isEndLocked)}
+            size="sm"
+            variant={isEndLocked ? "default" : "outline"}
+            className="h-7 text-xs px-2"
+            style={{
+              backgroundColor: isEndLocked ? '#ef4444' : undefined,
+              borderColor: isEndLocked ? '#ef4444' : undefined,
+              color: isEndLocked ? 'white' : undefined,
+            }}
+          >
+            {isEndLocked ? <Lock className="w-3 h-3 mr-1" /> : <Unlock className="w-3 h-3 mr-1" />}
+            END
+          </Button>
+          
+          {/* Zoom Controls */}
+          <div className="flex gap-1">
+            <Button onClick={handleZoomOut} size="sm" variant="outline" className="h-7 w-7 p-0">
+              <ZoomOut className="w-3 h-3" />
             </Button>
-            <Button onClick={handleZoomIn} size="sm" variant="outline">
-              <ZoomIn className="w-4 h-4" />
+            <Button onClick={handleZoomIn} size="sm" variant="outline" className="h-7 w-7 p-0">
+              <ZoomIn className="w-3 h-3" />
             </Button>
           </div>
         </div>
