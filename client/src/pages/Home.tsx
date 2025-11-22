@@ -289,9 +289,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [isSampleMergeModalOpen, setIsSampleMergeModalOpen] = useState(false);
   const [sampleMergedVideoUrl, setSampleMergedVideoUrl] = useState<string | null>(null);
   const [sampleMergeProgress, setSampleMergeProgress] = useState<string>('');
-  const [sampleMergeVideos, setSampleMergeVideos] = useState<Array<{id: string, name: string, note: string}>>([]);
+  const [sampleMergeVideos, setSampleMergeVideos] = useState<Array<{name: string, note: string}>>([]);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingNoteText, setEditingNoteText] = useState<string>('');
+  // Cache for Sample Merge to avoid re-cutting if videos haven't changed
+  const [lastMergedVideosHash, setLastMergedVideosHash] = useState<string>('');
   
   // Images Library modal
   const [isImagesLibraryOpen, setIsImagesLibraryOpen] = useState(false);
@@ -3285,7 +3287,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       </Dialog>
       
       {/* Sample Merge Modal */}
-      <Dialog open={isSampleMergeModalOpen} onOpenChange={setIsSampleMergeModalOpen}>
+      <Dialog open={isSampleMergeModalOpen} onOpenChange={(open) => {
+        setIsSampleMergeModalOpen(open);
+        if (!open) {
+          // Reset editing state when modal closes
+          setEditingNoteId(null);
+          setEditingNoteText('');
+        }
+      }}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -3322,13 +3331,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 <div className="border-t pt-4">
                   <h3 className="text-sm font-semibold text-gray-900 mb-3">Videos in this merge:</h3>
                   <div className="space-y-2">
-                    {sampleMergeVideos.map((video) => (
-                      <div key={video.id} className="flex items-start justify-between gap-3 p-3 bg-gray-50 rounded-lg">
+                    {sampleMergeVideos.map((video) => {
+                      console.log('[Sample Merge Modal] Video name:', video.name, 'Editing name:', editingNoteId);
+                      return (
+                      <div key={video.name} className="flex items-start justify-between gap-3 p-3 bg-gray-50 rounded-lg">
                         <div className="flex-1">
                           <p className="text-sm font-medium text-gray-900">{video.name}</p>
                           
                           {/* Note editor */}
-                          {editingNoteId === video.id ? (
+                          {editingNoteId === video.name ? (
                             <div className="mt-2 space-y-2">
                               <textarea
                                 value={editingNoteText}
@@ -3340,22 +3351,33 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                               <div className="flex gap-2">
                                 <Button
                                   size="sm"
-                                  onClick={() => {
-                                    // Save note
-                                    const updatedVideos = sampleMergeVideos.map(v =>
-                                      v.id === video.id ? { ...v, note: editingNoteText } : v
-                                    );
-                                    setSampleMergeVideos(updatedVideos);
-                                    
-                                    // Update in videoResults
-                                    const updatedVideoResults = videoResults.map(v =>
-                                      v.id === video.id ? { ...v, step9Note: editingNoteText } : v
-                                    );
-                                    setVideoResults(updatedVideoResults);
-                                    
-                                    setEditingNoteId(null);
-                                    setEditingNoteText('');
-                                    toast.success('Note saved!');
+                                  onClick={async () => {
+                                    try {
+                                      // Save note
+                                      const updatedVideos = sampleMergeVideos.map(v =>
+                                        v.name === video.name ? { ...v, note: editingNoteText } : v
+                                      );
+                                      setSampleMergeVideos(updatedVideos);
+                                      
+                                      // Update in videoResults
+                                      const updatedVideoResults = videoResults.map(v =>
+                                        v.videoName === video.name ? { ...v, step9Note: editingNoteText } : v
+                                      );
+                                      setVideoResults(updatedVideoResults);
+                                      
+                                      // Save to database
+                                      await saveVideoEditing.mutateAsync({
+                                        contextSessionId: contextSession.id,
+                                        videoResults: updatedVideoResults,
+                                      });
+                                      
+                                      setEditingNoteId(null);
+                                      setEditingNoteText('');
+                                      toast.success('Note saved!');
+                                    } catch (error) {
+                                      console.error('[Sample Merge] Error saving note:', error);
+                                      toast.error('Failed to save note');
+                                    }
                                   }}
                                   className="bg-green-600 hover:bg-green-700"
                                 >
@@ -3381,10 +3403,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         </div>
                         
                         {/* Add Note link */}
-                        {editingNoteId !== video.id && (
+                        {editingNoteId !== video.name && (
                           <button
                             onClick={() => {
-                              setEditingNoteId(video.id);
+                              setEditingNoteId(video.name);
                               setEditingNoteText(video.note);
                             }}
                             className="text-xs text-blue-600 hover:text-blue-800 underline whitespace-nowrap"
@@ -3393,7 +3415,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           </button>
                         )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
                 
@@ -7741,14 +7764,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             
                             // Prepare video list with notes
                             const videoList = approvedVideos.map(v => ({
-                              id: v.id,
                               name: v.videoName,
                               note: v.step9Note || ''
                             }));
                             
                             setSampleMergeVideos(videoList);
-                            setSampleMergedVideoUrl(null);
-                            setSampleMergeProgress('Preparing videos...');
                             setIsSampleMergeModalOpen(true);
                             
                             try {
@@ -7768,6 +7788,24 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                 endMs: v.cutPoints?.endKeep || 0,
                               }));
                               
+                              // Create hash of videos to check if they changed
+                              const videosHash = JSON.stringify(videos.map(v => ({
+                                name: v.name,
+                                startMs: v.startMs,
+                                endMs: v.endMs
+                              })));
+                              
+                              // Check cache: if videos haven't changed, skip recut
+                              if (videosHash === lastMergedVideosHash && sampleMergedVideoUrl) {
+                                console.log('[Sample Merge] Using cached video (no changes detected)');
+                                setSampleMergeProgress('');
+                                return;
+                              }
+                              
+                              console.log('[Sample Merge] Videos changed or first run, re-cutting and merging...');
+                              setSampleMergedVideoUrl(null);
+                              setSampleMergeProgress('Preparing videos...');
+                              
                               console.log('[Sample Merge] Videos:', videos);
                               setSampleMergeProgress(`Uploading ${videos.length} videos to FFmpeg API...`);
                               
@@ -7778,6 +7816,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                               
                               console.log('[Sample Merge] Success!', result);
                               setSampleMergedVideoUrl(result.downloadUrl);
+                              setLastMergedVideosHash(videosHash);
                               setSampleMergeProgress('');
                             } catch (error) {
                               console.error('[Sample Merge] Error:', error);

@@ -1736,13 +1736,25 @@ export const appRouter = router({
           const outputFileName = `merged_${Date.now()}.mp4`;
           
           // Build filter_complex: trim both videos + drawtext overlay, then concat
-          // Escape single quotes in video names
-          const escapedName1 = input.video1Name.replace(/'/g, "\\\\\\'");
-          const escapedName2 = input.video2Name.replace(/'/g, "\\\\\\'");
+          // Helper function to split text on 2 lines after "AD"
+          const splitTextForDrawtext = (name: string): string => {
+            const adMatch = name.match(/(.+?)(AD\d+.*)/);
+            if (adMatch) {
+              // Split: line1 = before AD, line2 = from AD to end
+              const line1 = adMatch[1].replace(/'/g, "\\\\\\'");
+              const line2 = adMatch[2].replace(/'/g, "\\\\\\'");
+              return `${line1}\\n${line2}`;
+            }
+            // No AD found, return as single line
+            return name.replace(/'/g, "\\\\\\'");
+          };
           
-          // Drawtext filter: large red text at bottom center with semi-transparent black background
-          const drawtext1 = `drawtext=text='${escapedName1}':x=(w-text_w)/2:y=h-text_h-20:fontsize=60:fontcolor=red:box=1:boxcolor=black@0.7:boxborderw=5`;
-          const drawtext2 = `drawtext=text='${escapedName2}':x=(w-text_w)/2:y=h-text_h-20:fontsize=60:fontcolor=red:box=1:boxcolor=black@0.7:boxborderw=5`;
+          const escapedName1 = splitTextForDrawtext(input.video1Name);
+          const escapedName2 = splitTextForDrawtext(input.video2Name);
+          
+          // Drawtext filter: bold red text at bottom center (higher position) with semi-transparent black background
+          const drawtext1 = `drawtext=text='${escapedName1}':x=(w-text_w)/2:y=h-text_h-100:fontsize=45:fontcolor=red:font=Arial-Bold:box=1:boxcolor=black@0.7:boxborderw=5`;
+          const drawtext2 = `drawtext=text='${escapedName2}':x=(w-text_w)/2:y=h-text_h-100:fontsize=45:fontcolor=red:font=Arial-Bold:box=1:boxcolor=black@0.7:boxborderw=5`;
           
           const filterComplex = `[0:v]trim=start=${video1Start}:end=${video1End},setpts=PTS-STARTPTS,${drawtext1}[v1];[0:a]atrim=start=${video1Start}:end=${video1End},asetpts=PTS-STARTPTS[a1];[1:v]trim=start=${video2Start}:end=${video2End},setpts=PTS-STARTPTS,${drawtext2}[v2];[1:a]atrim=start=${video2Start}:end=${video2End},asetpts=PTS-STARTPTS[a2];[v1][a1][v2][a2]concat=n=2:v=1:a=1[outv][outa]`;
           
@@ -1867,12 +1879,24 @@ export const appRouter = router({
             const startSec = (video.startMs / 1000).toFixed(3);
             const endSec = (video.endMs / 1000).toFixed(3);
             
-            // Escape single quotes in video name for FFmpeg
-            const escapedName = video.name.replace(/'/g, "\\\\\\'");
+            // Helper function to split text on 2 lines after "AD"
+            const splitTextForDrawtext = (name: string): string => {
+              const adMatch = name.match(/(.+?)(AD\d+.*)/);
+              if (adMatch) {
+                // Split: line1 = before AD, line2 = from AD to end
+                const line1 = adMatch[1].replace(/'/g, "\\\\\\'");
+                const line2 = adMatch[2].replace(/'/g, "\\\\\\'");
+                return `${line1}\\n${line2}`;
+              }
+              // No AD found, return as single line
+              return name.replace(/'/g, "\\\\\\'");
+            };
+            
+            const escapedName = splitTextForDrawtext(video.name);
             
             // Video trim + drawtext overlay
-            // Position: bottom center, large red text with semi-transparent black background
-            const drawtextFilter = `drawtext=text='${escapedName}':x=(w-text_w)/2:y=h-text_h-20:fontsize=60:fontcolor=red:box=1:boxcolor=black@0.7:boxborderw=5`;
+            // Position: bottom center (higher position), bold red text with semi-transparent black background
+            const drawtextFilter = `drawtext=text='${escapedName}':x=(w-text_w)/2:y=h-text_h-100:fontsize=45:fontcolor=red:font=Arial-Bold:box=1:boxcolor=black@0.7:boxborderw=5`;
             filterParts.push(`[${index}:v]trim=start=${startSec}:end=${endSec},setpts=PTS-STARTPTS,${drawtextFilter}[v${index}]`);
             
             // Audio trim
