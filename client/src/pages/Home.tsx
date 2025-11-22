@@ -1546,6 +1546,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           ? video.text.substring(video.redStart, video.redEnd)
           : '';
         
+        // Calculate red text position from redStart/redEnd
+        const redTextPosition: 'START' | 'END' = (video.redStart === 0 || (video.redStart || 0) < 10)
+          ? 'START'
+          : 'END';
+        
+        console.log(`[Batch Processing] Red text position: ${redTextPosition} (redStart: ${video.redStart}, redEnd: ${video.redEnd}, textLength: ${video.text.length})`);
+        
         if (!hasRedText || !redText) {
           // Video without red text - set default markers (0 to duration) without FFMPEG processing
           console.log(`[Batch Processing] 🟠 No red text for ${video.videoName} - setting default markers (0 to duration)`);
@@ -1584,6 +1591,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           videoId: parseInt(video.id || '0'),
           fullText: video.text,
           redText: redText,
+          redTextPosition: redTextPosition,
           marginMs: 50,
           userApiKey: localCurrentUser.openaiApiKey || undefined,
           ffmpegApiKey: localCurrentUser.ffmpegApiKey || undefined,

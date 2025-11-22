@@ -1558,6 +1558,7 @@ export const appRouter = router({
         videoId: z.number(),
         fullText: z.string(),
         redText: z.string(),
+        redTextPosition: z.enum(['START', 'END']),  // Position from database
         marginMs: z.number().optional().default(50),
         userApiKey: z.string().optional(),
         ffmpegApiKey: z.string().optional(),
@@ -1571,6 +1572,7 @@ export const appRouter = router({
             input.videoId,
             input.fullText,
             input.redText,
+            input.redTextPosition,
             input.marginMs,
             input.userApiKey,
             input.ffmpegApiKey

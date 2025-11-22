@@ -88,6 +88,9 @@ export interface EditingDebugInfo {
     timeRange?: { start: number; end: number };  // In seconds
     matchedWords?: string[]; // Words found in transcript
   };
+  whisperTranscript?: string;  // Full transcript text from Whisper
+  whisperWordCount?: number;   // Number of words transcribed
+  algorithmLogs?: string[];    // Step-by-step algorithm execution logs
   error?: string;
 }
 
@@ -434,54 +437,101 @@ export function calculateCutPoints(
   fullText: string,
   redText: string,
   words: WhisperWord[],
+  redTextPosition: 'START' | 'END',  // Position from database (redStart/redEnd)
   marginMs: number = 50
 ): { cutPoints: CutPoints | null; debugInfo: EditingDebugInfo } {
   try {
-    // Split red text into words
+    const marginS = marginMs / 1000.0;
+    
+    // STEP 1: Use red text position from database (not startsWith/endsWith!)
+    const redAtStart = redTextPosition === 'START';
+    const redAtEnd = redTextPosition === 'END';
+    
+    console.log(`[calculateCutPoints] Red text position from database: ${redTextPosition}`);
+    console.log(`[calculateCutPoints] fullText: "${fullText}"`);
+    console.log(`[calculateCutPoints] redText: "${redText}"`);
+    
+    // STEP 2: Extract the key word to search for
     const redWords = redText.split(/\s+/).filter(w => w.length > 0);
+    let keyWord: string;
+    let searchForFirst: boolean; // true = search for first occurrence, false = search for last
     
-    // Find red text sequence in timestamps
-    const redRange = findSequenceInWords(words, redWords);
+    if (redAtStart) {
+      // Red text at START → search for LAST red word (FIRST occurrence)
+      keyWord = redWords[redWords.length - 1];
+      searchForFirst = true;
+      console.log(`[calculateCutPoints] Red text at START, searching for LAST red word: "${keyWord}" (FIRST occurrence)`);
+    } else {
+      // Red text at END → search for FIRST red word (LAST occurrence)
+      keyWord = redWords[0];
+      searchForFirst = false;
+      console.log(`[calculateCutPoints] 🔴 NEW CODE: Red text at END, searching for FIRST red word: "${keyWord}" (LAST occurrence)`);
+      console.log(`[calculateCutPoints] 🔴 redWords array:`, redWords);
+    }
     
-    if (!redRange) {
-      console.error('[calculateCutPoints] Red text not found in timestamps');
+    // STEP 3: Find the key word in transcript
+    const normalizedKeyWord = normalizeWord(keyWord);
+    let keyWordIndex = -1;
+    
+    if (searchForFirst) {
+      // Find FIRST occurrence
+      for (let i = 0; i < words.length; i++) {
+        if (normalizeWord(words[i].word) === normalizedKeyWord) {
+          keyWordIndex = i;
+          break;
+        }
+      }
+    } else {
+      // Find LAST occurrence
+      for (let i = words.length - 1; i >= 0; i--) {
+        if (normalizeWord(words[i].word) === normalizedKeyWord) {
+          keyWordIndex = i;
+          break;
+        }
+      }
+    }
+    
+    if (keyWordIndex === -1) {
+      console.error(`[calculateCutPoints] Key word "${keyWord}" not found in transcript`);
       const debugInfo: EditingDebugInfo = {
         status: 'warning',
-        message: `⚠️ No red text found in transcript`,
+        message: `⚠️ Key word "${keyWord}" not found in transcript`,
         redTextDetected: {
           found: false,
           fullText: redText,
         },
+        whisperTranscript: words.map(w => w.word).join(' '),
+        whisperWordCount: words.length,
       };
       return { cutPoints: null, debugInfo };
     }
+    
+    console.log(`[calculateCutPoints] Found key word "${keyWord}" at index ${keyWordIndex}, timestamp: ${words[keyWordIndex].start}s - ${words[keyWordIndex].end}s`);
 
-    const { startIdx, endIdx } = redRange;
-    const marginS = marginMs / 1000.0;
-
-    // Determine if red text is at START or END
-    const redAtStart = startIdx < words.length / 2;
-
+    // STEP 4: Calculate cut points based on position
     let startKeep: number;
     let endKeep: number;
     let redPosition: 'START' | 'END';
 
     if (redAtStart) {
-      // RED TEXT AT START → Keep from AFTER red text until END
-      const lastRedWord = words[endIdx];
-      startKeep = (lastRedWord.end + marginS) * 1000;
+      // RED TEXT AT START → Keep from AFTER key word until END
+      const keyWordTimestamp = words[keyWordIndex];
+      startKeep = (keyWordTimestamp.end + marginS) * 1000;
 
       const lastWord = words[words.length - 1];
       endKeep = (lastWord.end + marginS) * 1000;
 
       redPosition = 'START';
+      console.log(`[calculateCutPoints] RED AT START: Keep ${startKeep}ms (after "${keyWord}") → ${endKeep}ms (end)`);
     } else {
-      // RED TEXT AT END → Keep from START until BEFORE red text
+      // RED TEXT AT END → Keep from START until BEFORE key word
       const firstWord = words[0];
       startKeep = Math.max(0, (firstWord.start + marginS) * 1000);
 
-      const lastWhiteIdx = startIdx - 1;
-      if (lastWhiteIdx < 0) {
+      const keyWordTimestamp = words[keyWordIndex];
+      endKeep = (keyWordTimestamp.start - marginS) * 1000;
+
+      if (endKeep <= startKeep) {
         console.error('[calculateCutPoints] No white text before red text');
         const debugInfo: EditingDebugInfo = {
           status: 'error',
@@ -491,28 +541,20 @@ export function calculateCutPoints(
             position: 'END',
             fullText: redText,
           },
+          whisperTranscript: words.map(w => w.word).join(' '),
+          whisperWordCount: words.length,
         };
         return { cutPoints: null, debugInfo };
       }
 
-      const lastWhiteWord = words[lastWhiteIdx];
-      endKeep = (lastWhiteWord.end + marginS) * 1000;
-
       redPosition = 'END';
+      console.log(`[calculateCutPoints] RED AT END: Keep ${startKeep}ms (start) → ${endKeep}ms (before "${keyWord}")`);
     }
 
     const confidence = 0.95;
 
-    // Get matched words from transcript
-    const matchedWords = words.slice(startIdx, endIdx + 1).map(w => w.word);
-    
-    // Get time range of red text
-    const redStartTime = words[startIdx].start;
-    const redEndTime = words[endIdx].end;
-
-    console.log(`[calculateCutPoints] Red text at ${redPosition}`);
-    console.log(`[calculateCutPoints] Keep range: ${startKeep}ms → ${endKeep}ms`);
-    console.log(`[calculateCutPoints] Red text range: ${redStartTime}s → ${redEndTime}s`);
+    // Get key word timestamp
+    const keyWordTimestamp = words[keyWordIndex];
 
     const cutPoints: CutPoints = {
       startKeep: Math.round(startKeep),
@@ -523,14 +565,16 @@ export function calculateCutPoints(
 
     const debugInfo: EditingDebugInfo = {
       status: 'success',
-      message: `✅ Red text detected at ${redPosition}: "${matchedWords.join(' ')}" (${redStartTime.toFixed(2)}s - ${redEndTime.toFixed(2)}s)`,
+      message: `✅ Red text detected at ${redPosition}: "${redText}" (key word: "${keyWord}" at ${keyWordTimestamp.start.toFixed(2)}s - ${keyWordTimestamp.end.toFixed(2)}s)`,
       redTextDetected: {
         found: true,
         position: redPosition,
-        fullText: matchedWords.join(' '),
-        timeRange: { start: redStartTime, end: redEndTime },
-        matchedWords,
+        fullText: redText,
+        timeRange: { start: keyWordTimestamp.start, end: keyWordTimestamp.end },
+        matchedWords: [keyWord],
       },
+      whisperTranscript: words.map(w => w.word).join(' '),
+      whisperWordCount: words.length,
     };
 
     return { cutPoints, debugInfo };
@@ -558,6 +602,7 @@ export async function processVideoForEditing(
   videoId: number,
   fullText: string,
   redText: string,
+  redTextPosition: 'START' | 'END',  // Position from database (redStart/redEnd)
   marginMs: number = 50,
   userApiKey?: string,
   ffmpegApiKey?: string
@@ -599,8 +644,8 @@ export async function processVideoForEditing(
     // 4. Transcribe with Whisper
     const { words, fullTranscript } = await transcribeWithWhisper(audioDownloadUrl, 'ro', userApiKey);
     
-    // 5. Calculate cut points
-    const { cutPoints, debugInfo } = calculateCutPoints(fullText, redText, words, marginMs);
+    // 5. Calculate cut points using NEW ALGORITHM
+    const { cutPoints, debugInfo } = calculateCutPointsNew(fullText, redText, words, redTextPosition, marginMs);
     
     console.log(`[processVideoForEditing] Processing complete for video ${videoId}`);
     console.log(`[processVideoForEditing] Debug info:`, debugInfo.message);
@@ -721,4 +766,461 @@ export async function cutVideoWithFFmpegAPI(
     console.error('[cutVideoWithFFmpegAPI] Error:', error);
     throw new Error(`Failed to cut video: ${error.message}`);
   }
+}
+// NEW ALGORITHM WITH DETAILED LOGGING
+// Based on Scenariu.txt requirements
+
+import { WhisperWord, CutPoints, EditingDebugInfo } from './videoEditing';
+
+/**
+ * Normalize text for comparison (remove punctuation, lowercase, trim)
+ */
+function normalizeText(text: string): string {
+  return text
+    .replace(/[,\.:\;!?]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+/**
+ * Search for a sequence of words in transcript
+ * Returns the index range if found, null otherwise
+ */
+function findSequence(
+  words: WhisperWord[],
+  searchWords: string[]
+): { startIdx: number; endIdx: number } | null {
+  const normalizedSearch = searchWords.map(normalizeText);
+
+  for (let i = 0; i <= words.length - normalizedSearch.length; i++) {
+    let match = true;
+    
+    for (let j = 0; j < normalizedSearch.length; j++) {
+      const wordNormalized = normalizeText(words[i + j].word);
+      if (wordNormalized !== normalizedSearch[j]) {
+        match = false;
+        break;
+      }
+    }
+
+    if (match) {
+      return {
+        startIdx: i,
+        endIdx: i + normalizedSearch.length - 1,
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Check if sequence is at the beginning of transcript (within first 20% of words)
+ */
+function isAtBeginning(startIdx: number, totalWords: number): boolean {
+  return startIdx < totalWords * 0.2;
+}
+
+/**
+ * Check if sequence is at the end of transcript (within last 20% of words)
+ */
+function isAtEnd(endIdx: number, totalWords: number): boolean {
+  return endIdx > totalWords * 0.8;
+}
+
+/**
+ * NEW ALGORITHM: Calculate cut points with detailed logging
+ */
+export function calculateCutPointsNew(
+  fullText: string,
+  redText: string,
+  words: WhisperWord[],
+  redTextPosition: 'START' | 'END',
+  marginMs: number = 50
+): { cutPoints: CutPoints | null; debugInfo: EditingDebugInfo } {
+  const logs: string[] = [];
+  const marginS = marginMs / 1000.0;
+  
+  // Derive white text based on red text position
+  let whiteText: string;
+  if (redTextPosition === 'START') {
+    // Red at start → white text is everything AFTER red text
+    whiteText = fullText.substring(redText.length).trim();
+  } else {
+    // Red at end → white text is everything BEFORE red text
+    whiteText = fullText.substring(0, fullText.length - redText.length).trim();
+  }
+  
+  const whiteWords = whiteText.split(/\s+/).filter(w => w.length > 0);
+  const redWords = redText.split(/\s+/).filter(w => w.length > 0);
+  
+  logs.push(`🔍 Starting search algorithm...`);
+  logs.push(`📄 Full text: "${fullText}"`);
+  logs.push(`⚪ White text: "${whiteText}" (${whiteWords.length} words)`);
+  logs.push(`🔴 Red text: "${redText}" (${redWords.length} words, position: ${redTextPosition})`);
+  logs.push(`🎤 Whisper transcript: "${words.map(w => w.word).join(' ')}" (${words.length} words)`);
+  logs.push(``);
+  
+  // STEP 1: Search for entire white text
+  logs.push(`🔎 Step 1: Searching for entire white text...`);
+  const whiteMatch = findSequence(words, whiteWords);
+  
+  if (whiteMatch) {
+    logs.push(`✅ Searched for entire white text: FOUND at indices ${whiteMatch.startIdx}-${whiteMatch.endIdx}`);
+    
+    const startWord = words[whiteMatch.startIdx];
+    const endWord = words[whiteMatch.endIdx];
+    
+    const startKeep = Math.max(0, (startWord.start - marginS) * 1000);
+    const endKeep = (endWord.end + marginS) * 1000;
+    
+    logs.push(`✅ Placed START marker before "${startWord.word}" at ${startKeep.toFixed(0)}ms`);
+    logs.push(`✅ Placed END marker after "${endWord.word}" at ${endKeep.toFixed(0)}ms`);
+    logs.push(`🎯 Algorithm complete!`);
+    
+    return {
+      cutPoints: {
+        startKeep: Math.round(startKeep),
+        endKeep: Math.round(endKeep),
+        redPosition: redTextPosition,
+        confidence: 0.95,
+      },
+      debugInfo: {
+        status: 'success',
+        message: `✅ Found entire white text`,
+        whisperTranscript: words.map(w => w.word).join(' '),
+        whisperWordCount: words.length,
+        redTextDetected: {
+          found: true,
+          position: redTextPosition,
+          fullText: redText,
+        },
+        algorithmLogs: logs,
+      },
+    };
+  }
+  
+  logs.push(`❌ Searched for entire white text: NOT FOUND`);
+  logs.push(``);
+  
+  // STEP 2: Search for entire red text
+  logs.push(`🔎 Step 2: Searching for entire red text...`);
+  const redMatch = findSequence(words, redWords);
+  
+  if (redMatch) {
+    logs.push(`✅ Searched for entire red text: FOUND at indices ${redMatch.startIdx}-${redMatch.endIdx}`);
+    
+    const redAtBeginning = isAtBeginning(redMatch.startIdx, words.length);
+    const redAtEnd = isAtEnd(redMatch.endIdx, words.length);
+    
+    if (redAtEnd) {
+      // Red text at END → place END marker BEFORE first red word
+      logs.push(`✅ Red text is at END of transcript → placing END marker BEFORE first red word`);
+      
+      const firstRedWord = words[redMatch.startIdx];
+      const startKeep = Math.max(0, (words[0].start - marginS) * 1000);
+      const endKeep = (firstRedWord.start - marginS) * 1000;
+      
+      if (endKeep <= startKeep) {
+        logs.push(`❌ No white text before red text - cannot calculate cut points`);
+        
+        return {
+          cutPoints: null,
+          debugInfo: {
+            status: 'error',
+            message: `❌ No white text before red text`,
+            whisperTranscript: words.map(w => w.word).join(' '),
+            whisperWordCount: words.length,
+            algorithmLogs: logs,
+          },
+        };
+      }
+      
+      logs.push(`✅ Placed START marker at ${startKeep.toFixed(0)}ms`);
+      logs.push(`✅ Placed END marker before "${firstRedWord.word}" at ${endKeep.toFixed(0)}ms`);
+      logs.push(`🎯 Algorithm complete!`);
+      
+      return {
+        cutPoints: {
+          startKeep: Math.round(startKeep),
+          endKeep: Math.round(endKeep),
+          redPosition: 'END',
+          confidence: 0.90,
+        },
+        debugInfo: {
+          status: 'success',
+          message: `✅ Found entire red text at END`,
+          whisperTranscript: words.map(w => w.word).join(' '),
+          whisperWordCount: words.length,
+          redTextDetected: {
+            found: true,
+            position: 'END',
+            fullText: redText,
+            timeRange: { start: words[redMatch.startIdx].start, end: words[redMatch.endIdx].end },
+          },
+          algorithmLogs: logs,
+        },
+      };
+    } else if (redAtBeginning) {
+      // Red text at START → place START marker AFTER last red word
+      logs.push(`✅ Red text is at BEGINNING of transcript → placing START marker AFTER last red word`);
+      
+      const lastRedWord = words[redMatch.endIdx];
+      const startKeep = (lastRedWord.end + marginS) * 1000;
+      const endKeep = (words[words.length - 1].end + marginS) * 1000;
+      
+      logs.push(`✅ Placed START marker after "${lastRedWord.word}" at ${startKeep.toFixed(0)}ms`);
+      logs.push(`✅ Placed END marker at ${endKeep.toFixed(0)}ms`);
+      logs.push(`🎯 Algorithm complete!`);
+      
+      return {
+        cutPoints: {
+          startKeep: Math.round(startKeep),
+          endKeep: Math.round(endKeep),
+          redPosition: 'START',
+          confidence: 0.90,
+        },
+        debugInfo: {
+          status: 'success',
+          message: `✅ Found entire red text at START`,
+          whisperTranscript: words.map(w => w.word).join(' '),
+          whisperWordCount: words.length,
+          redTextDetected: {
+            found: true,
+            position: 'START',
+            fullText: redText,
+            timeRange: { start: words[redMatch.startIdx].start, end: words[redMatch.endIdx].end },
+          },
+          algorithmLogs: logs,
+        },
+      };
+    }
+  }
+  
+  logs.push(`❌ Searched for entire red text: NOT FOUND`);
+  logs.push(``);
+  
+  // STEP 3: Search for last 3/2 words of white text
+  logs.push(`🔎 Step 3: Searching for last 3 words of white text...`);
+  
+  for (let n = 3; n >= 2; n--) {
+    if (whiteWords.length < n) continue;
+    
+    const lastNWords = whiteWords.slice(-n);
+    logs.push(`🔍 Searching for last ${n} white words: "${lastNWords.join(' ')}"`);
+    
+    const match = findSequence(words, lastNWords);
+    
+    if (match) {
+      logs.push(`✅ Found last ${n} white words at indices ${match.startIdx}-${match.endIdx}`);
+      
+      // Check if white text is at beginning of original text
+      if (redTextPosition === 'END') {
+        // White text is at beginning → place END marker AFTER last word of match
+        logs.push(`✅ White text is at beginning → placing END marker AFTER last word`);
+        
+        const lastMatchWord = words[match.endIdx];
+        const startKeep = Math.max(0, (words[0].start - marginS) * 1000);
+        const endKeep = (lastMatchWord.end + marginS) * 1000;
+        
+        logs.push(`✅ Placed START marker at ${startKeep.toFixed(0)}ms`);
+        logs.push(`✅ Placed END marker after "${lastMatchWord.word}" at ${endKeep.toFixed(0)}ms`);
+        logs.push(`🎯 Algorithm complete!`);
+        
+        return {
+          cutPoints: {
+            startKeep: Math.round(startKeep),
+            endKeep: Math.round(endKeep),
+            redPosition: 'END',
+            confidence: 0.80,
+          },
+          debugInfo: {
+            status: 'success',
+            message: `✅ Found last ${n} white words`,
+            whisperTranscript: words.map(w => w.word).join(' '),
+            whisperWordCount: words.length,
+            algorithmLogs: logs,
+          },
+        };
+      } else {
+        logs.push(`⚠️ White text is at end → last words don't help us`);
+      }
+    } else {
+      logs.push(`❌ Last ${n} white words: NOT FOUND`);
+    }
+  }
+  
+  logs.push(``);
+  
+  // STEP 4: Search for first 3/2 words of white text
+  logs.push(`🔎 Step 4: Searching for first 3 words of white text...`);
+  
+  for (let n = 3; n >= 2; n--) {
+    if (whiteWords.length < n) continue;
+    
+    const firstNWords = whiteWords.slice(0, n);
+    logs.push(`🔍 Searching for first ${n} white words: "${firstNWords.join(' ')}"`);
+    
+    const match = findSequence(words, firstNWords);
+    
+    if (match) {
+      logs.push(`✅ Found first ${n} white words at indices ${match.startIdx}-${match.endIdx}`);
+      
+      // Check if white text is at end of original text
+      if (redTextPosition === 'START') {
+        // White text is at end → place START marker BEFORE first word of match
+        logs.push(`✅ White text is at end → placing START marker BEFORE first word`);
+        
+        const firstMatchWord = words[match.startIdx];
+        const startKeep = (firstMatchWord.start - marginS) * 1000;
+        const endKeep = (words[words.length - 1].end + marginS) * 1000;
+        
+        logs.push(`✅ Placed START marker before "${firstMatchWord.word}" at ${startKeep.toFixed(0)}ms`);
+        logs.push(`✅ Placed END marker at ${endKeep.toFixed(0)}ms`);
+        logs.push(`🎯 Algorithm complete!`);
+        
+        return {
+          cutPoints: {
+            startKeep: Math.round(startKeep),
+            endKeep: Math.round(endKeep),
+            redPosition: 'START',
+            confidence: 0.80,
+          },
+          debugInfo: {
+            status: 'success',
+            message: `✅ Found first ${n} white words`,
+            whisperTranscript: words.map(w => w.word).join(' '),
+            whisperWordCount: words.length,
+            algorithmLogs: logs,
+          },
+        };
+      } else {
+        logs.push(`⚠️ White text is at beginning → first words don't help us`);
+      }
+    } else {
+      logs.push(`❌ First ${n} white words: NOT FOUND`);
+    }
+  }
+  
+  logs.push(``);
+  
+  // STEP 5: Search for last 3/2 words of red text (if red at START)
+  if (redTextPosition === 'START') {
+    logs.push(`🔎 Step 5: Red text is at START → searching for last 3 words of red text...`);
+    
+    for (let n = 3; n >= 2; n--) {
+      if (redWords.length < n) continue;
+      
+      const lastNWords = redWords.slice(-n);
+      logs.push(`🔍 Searching for last ${n} red words: "${lastNWords.join(' ')}"`);
+      
+      const match = findSequence(words, lastNWords);
+      
+      if (match) {
+        logs.push(`✅ Found last ${n} red words at indices ${match.startIdx}-${match.endIdx}`);
+        logs.push(`✅ This marks END of red text → placing START marker AFTER last word`);
+        
+        const lastMatchWord = words[match.endIdx];
+        const startKeep = (lastMatchWord.end + marginS) * 1000;
+        const endKeep = (words[words.length - 1].end + marginS) * 1000;
+        
+        logs.push(`✅ Placed START marker after "${lastMatchWord.word}" at ${startKeep.toFixed(0)}ms`);
+        logs.push(`✅ Placed END marker at ${endKeep.toFixed(0)}ms`);
+        logs.push(`🎯 Algorithm complete!`);
+        
+        return {
+          cutPoints: {
+            startKeep: Math.round(startKeep),
+            endKeep: Math.round(endKeep),
+            redPosition: 'START',
+            confidence: 0.75,
+          },
+          debugInfo: {
+            status: 'success',
+            message: `✅ Found last ${n} red words`,
+            whisperTranscript: words.map(w => w.word).join(' '),
+            whisperWordCount: words.length,
+            algorithmLogs: logs,
+          },
+        };
+      } else {
+        logs.push(`❌ Last ${n} red words: NOT FOUND`);
+      }
+    }
+  }
+  
+  // STEP 6: Search for first 3/2 words of red text (if red at END)
+  if (redTextPosition === 'END') {
+    logs.push(`🔎 Step 6: Red text is at END → searching for first 3 words of red text...`);
+    
+    for (let n = 3; n >= 2; n--) {
+      if (redWords.length < n) continue;
+      
+      const firstNWords = redWords.slice(0, n);
+      logs.push(`🔍 Searching for first ${n} red words: "${firstNWords.join(' ')}"`);
+      
+      const match = findSequence(words, firstNWords);
+      
+      if (match) {
+        logs.push(`✅ Found first ${n} red words at indices ${match.startIdx}-${match.endIdx}`);
+        logs.push(`✅ This marks START of red text → placing END marker BEFORE first word`);
+        
+        const firstMatchWord = words[match.startIdx];
+        const startKeep = Math.max(0, (words[0].start - marginS) * 1000);
+        const endKeep = (firstMatchWord.start - marginS) * 1000;
+        
+        if (endKeep <= startKeep) {
+          logs.push(`❌ No white text before red text - cannot calculate cut points`);
+          
+          return {
+            cutPoints: null,
+            debugInfo: {
+              status: 'error',
+              message: `❌ No white text before red text`,
+              whisperTranscript: words.map(w => w.word).join(' '),
+              whisperWordCount: words.length,
+              algorithmLogs: logs,
+            },
+          };
+        }
+        
+        logs.push(`✅ Placed START marker at ${startKeep.toFixed(0)}ms`);
+        logs.push(`✅ Placed END marker before "${firstMatchWord.word}" at ${endKeep.toFixed(0)}ms`);
+        logs.push(`🎯 Algorithm complete!`);
+        
+        return {
+          cutPoints: {
+            startKeep: Math.round(startKeep),
+            endKeep: Math.round(endKeep),
+            redPosition: 'END',
+            confidence: 0.75,
+          },
+          debugInfo: {
+            status: 'success',
+            message: `✅ Found first ${n} red words`,
+            whisperTranscript: words.map(w => w.word).join(' '),
+            whisperWordCount: words.length,
+            algorithmLogs: logs,
+          },
+        };
+      } else {
+        logs.push(`❌ First ${n} red words: NOT FOUND`);
+      }
+    }
+  }
+  
+  // FAILURE: No matches found
+  logs.push(``);
+  logs.push(`❌ Algorithm failed: Could not find any matching text in transcript`);
+  
+  return {
+    cutPoints: null,
+    debugInfo: {
+      status: 'error',
+      message: `❌ Could not find any matching text`,
+      whisperTranscript: words.map(w => w.word).join(' '),
+      whisperWordCount: words.length,
+      algorithmLogs: logs,
+    },
+  };
 }
