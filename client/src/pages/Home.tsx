@@ -86,14 +86,12 @@ interface VideoResult {
   cutPoints?: any;          // Calculated cut points from backend
   words?: any[];            // Whisper word-level timestamps
   editStatus?: 'pending' | 'processed' | 'edited'; // Processing status
-  startTimestamp?: number;  // User-adjusted start time (seconds)
-  endTimestamp?: number;    // User-adjusted end time (seconds)
+
   audioUrl?: string;        // Audio download URL from FFmpeg API
   waveformData?: string;    // Waveform JSON data
   // Step 9: Trimmed video fields
   trimmedVideoUrl?: string; // Trimmed video URL from Bunny CDN
-  trimStart?: number;       // Trim start time (seconds)
-  trimEnd?: number;         // Trim end time (seconds)
+
   recutStatus?: 'accepted' | 'recut' | null; // Review status in Step 9
   step9Note?: string;       // Internal note added by user in Step 9
 }
@@ -1657,20 +1655,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             words: null,
             audioUrl: null,
             waveformData: null,
-            startMarker: 0,
-            endMarker: v.duration || 0,
-            startLocked: false,
-            endLocked: false,
             editStatus: 'no_cut_needed',
             noCutNeeded: true
           };
         }
         
         // Normal processing with FFMPEG/Whisper
-        // Set startMarker and endMarker from cutPoints (convert from ms to seconds)
-        const startMarker = result.cutPoints?.startKeep ? result.cutPoints.startKeep / 1000 : 0;
-        const endMarker = result.cutPoints?.endKeep ? result.cutPoints.endKeep / 1000 : v.duration || 0;
-        
         return {
           ...v,
           whisperTranscript: result.whisperTranscript,
@@ -1678,10 +1668,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           words: result.words,
           audioUrl: result.audioUrl,
           waveformData: result.waveformData,
-          startMarker: startMarker,
-          endMarker: endMarker,
-          startLocked: false, // Reset locks when new markers are set
-          endLocked: false,
           editStatus: 'processed',
           noCutNeeded: false
         };
@@ -1775,15 +1761,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       });
       
       try {
-        // Get trim timestamps (use startTimestamp/endTimestamp from VideoEditorV2)
-        const trimStart = video.startTimestamp || 0;
-        const trimEnd = video.endTimestamp || video.cutPoints?.endKeep / 1000 || 10;
+        // Get trim timestamps from cutPoints (single source of truth)
+        const trimStart = (video.cutPoints?.startKeep || 0) / 1000;
+        const trimEnd = (video.cutPoints?.endKeep || 0) / 1000;
         
         console.log(`[Trimming] Video ${i + 1}/${videosToTrim.length}:`, {
           videoName: video.videoName,
           videoUrl: video.videoUrl,
-          startTimestamp: video.startTimestamp,
-          endTimestamp: video.endTimestamp,
           cutPoints: video.cutPoints,
           trimStart,
           trimEnd
@@ -1810,8 +1794,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             ? {
                 ...v,
                 trimmedVideoUrl: trimmedVideoUrl,
-                trimStart,
-                trimEnd
+                // trimStart/trimEnd removed - already in cutPoints
               }
             : v
         ));
@@ -7176,10 +7159,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                 words: undefined,
                                 audioUrl: undefined,
                                 waveformData: undefined,
-                                startMarker: undefined,
-                                endMarker: undefined,
-                                startLocked: false,
-                                endLocked: false,
                                 trimStatus: null,
                                 trimmedVideoUrl: undefined,
                                 acceptRejectStatus: null
@@ -7277,16 +7256,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     {/* Video Editors - One per approved video */}
                     {approvedVideos.map((video) => {
                       // Convert waveformData JSON string to data URI for Peaks.js
+                      // Use proper UTF-8 to base64 encoding (btoa doesn't handle UTF-8 correctly)
                       const peaksUrl = video.waveformData 
-                        ? `data:application/json;base64,${btoa(video.waveformData)}`
+                        ? `data:application/json;base64,${btoa(unescape(encodeURIComponent(video.waveformData)))}`
                         : '';
                       
-                      // Get suggested start/end from cutPoints (in milliseconds), convert to seconds
-                      const suggestedStart = (video.cutPoints?.startKeep || 0) / 1000;
-                      const suggestedEnd = (video.cutPoints?.endKeep || 0) / 1000;
-                      
-                      // Calculate duration from video metadata or use suggestedEnd as fallback
-                      const duration = suggestedEnd > 0 ? suggestedEnd + 1 : 10; // +1 second buffer
+                      // Calculate duration from whisperTranscript (actual audio duration)
+                      // DO NOT use cutPoints.endKeep as it changes when user adjusts markers!
+                      const duration = video.whisperTranscript?.duration || 10; // Use actual audio duration
                       
                       return (
                         <div key={video.videoName} className="space-y-4">
@@ -7308,29 +7285,25 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             video={{
                             id: video.videoName, // Use videoName as unique identifier
                             videoName: video.videoName,
-                            videoUrl: video.videoUrl!,
+                            videoUrl: `/api/proxy-video?url=${encodeURIComponent(video.videoUrl!)}`,
                             audioUrl: video.audioUrl || '',
                             peaksUrl: peaksUrl,
-                            suggestedStart: suggestedStart,
-                            suggestedEnd: suggestedEnd,
+                            cutPoints: video.cutPoints || { startKeep: 0, endKeep: duration * 1000 }, // Default: full video
                             duration: duration,
                             text: video.text,
                             redStart: video.redStart,
                             redEnd: video.redEnd,
-                            // Restore persisted trim and lock state
-                            trimStart: video.startTimestamp,
-                            trimEnd: video.endTimestamp,
+                            // Restore persisted lock state
                             isStartLocked: video.isStartLocked,
                             isEndLocked: video.isEndLocked,
                             step9Note: video.step9Note,
                             }}
-                            onTrimChange={(videoId, trimStart, trimEnd, isStartLocked, isEndLocked) => {
+                            onTrimChange={(videoId, cutPoints, isStartLocked, isEndLocked) => {
                             // Update local state when user adjusts trim markers or lock state
                             // videoId is actually videoName (unique identifier)
                             console.log('[DEBUG onTrimChange]', {
                               videoId,
-                              trimStart,
-                              trimEnd,
+                              cutPoints,
                               isStartLocked,
                               isEndLocked,
                               matchingVideo: videoResults.find(v => v.videoName === videoId)?.videoName
@@ -7340,8 +7313,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                               v.videoName === videoId
                                 ? { 
                                     ...v, 
-                                    startTimestamp: trimStart, // Already in seconds
-                                    endTimestamp: trimEnd,     // Already in seconds
+                                    cutPoints,
                                     isStartLocked: isStartLocked,
                                     isEndLocked: isEndLocked,
                                   }
@@ -7547,8 +7519,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           
                           {/* Trim Info */}
                           <div className="text-xs text-gray-600 mb-3 text-center">
-                            <p>✂️ Trimmed: {video.startTimestamp?.toFixed(2)}s → {video.endTimestamp?.toFixed(2)}s</p>
-                            <p>Duration: {((video.endTimestamp || 0) - (video.startTimestamp || 0)).toFixed(2)}s</p>
+                            <p>✂️ Trimmed: {((video.cutPoints?.startKeep || 0) / 1000).toFixed(2)}s → {((video.cutPoints?.endKeep || 0) / 1000).toFixed(2)}s</p>
+                            <p>Duration: {(((video.cutPoints?.endKeep || 0) - (video.cutPoints?.startKeep || 0)) / 1000).toFixed(2)}s</p>
                           </div>
                           
                           {/* Step 9 Note Display */}

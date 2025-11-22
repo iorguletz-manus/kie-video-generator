@@ -35,6 +35,58 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+  
+  // Video streaming proxy to avoid CORS issues
+  app.get('/api/proxy-video', async (req, res) => {
+    try {
+      const videoUrl = req.query.url as string;
+      
+      if (!videoUrl) {
+        return res.status(400).json({ error: 'Missing url parameter' });
+      }
+      
+      console.log('[Video Proxy] Streaming video:', videoUrl);
+      
+      // Fetch video from external source
+      const response = await fetch(videoUrl);
+      
+      if (!response.ok) {
+        return res.status(response.status).json({ error: `Failed to fetch video: ${response.status}` });
+      }
+      
+      // Set CORS headers
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Range');
+      
+      // Forward content type
+      const contentType = response.headers.get('content-type') || 'video/mp4';
+      res.setHeader('Content-Type', contentType);
+      
+      // Forward content length if available
+      const contentLength = response.headers.get('content-length');
+      if (contentLength) {
+        res.setHeader('Content-Length', contentLength);
+      }
+      
+      // Enable range requests for seeking
+      res.setHeader('Accept-Ranges', 'bytes');
+      
+      // Stream the video
+      if (response.body) {
+        // @ts-ignore - ReadableStream types
+        for await (const chunk of response.body) {
+          res.write(chunk);
+        }
+      }
+      
+      res.end();
+    } catch (error: any) {
+      console.error('[Video Proxy] Error:', error);
+      res.status(500).json({ error: `Failed to proxy video: ${error.message}` });
+    }
+  });
+  
   // tRPC API
   app.use(
     "/api/trpc",
