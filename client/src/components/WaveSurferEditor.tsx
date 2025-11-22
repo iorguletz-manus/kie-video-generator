@@ -257,7 +257,7 @@ export const WaveSurferEditor: React.FC<WaveSurferEditorProps> = ({
       {/* Waveform Container */}
       <div 
         ref={containerRef}
-        className="relative border border-blue-300 rounded bg-white overflow-x-auto"
+        className="relative border border-blue-300 rounded bg-white overflow-hidden"
         style={{ height: '120px', width: '100%' }}
       >
         <div ref={waveformRef} />

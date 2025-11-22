@@ -48,6 +48,12 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
   const [isStartLocked, setIsStartLocked] = useState(video.isStartLocked ?? false);
   const [isEndLocked, setIsEndLocked] = useState(video.isEndLocked ?? false);
   
+  // View Log dropdown state
+  const [isLogVisible, setIsLogVisible] = useState(false);
+  
+  // Fine-tune controls state
+  const [fineTuneStep, setFineTuneStep] = useState(10); // Default 10ms
+  
   // Playhead (black marker) - only visible when START is locked
   const [playheadTime, setPlayheadTime] = useState<number | null>(null);
   
@@ -653,45 +659,58 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
       )}
 
 
+      {/* View Log Link - Above Waveform */}
+      {video.editingDebugInfo && (
+        <div className="mb-2 text-center">
+          <button
+            onClick={() => setIsLogVisible(!isLogVisible)}
+            className="text-blue-600 hover:text-blue-800 underline text-sm font-medium"
+          >
+            {isLogVisible ? 'Hide Log' : 'View Log'}
+          </button>
+        </div>
+      )}
+
+      {/* Debug Log Dropdown */}
+      {video.editingDebugInfo && isLogVisible && (
+        <div className="mb-4 p-4 bg-gray-50 border border-gray-300 rounded-lg">
+          <div className={`px-3 py-1 border rounded text-xs font-semibold inline-flex items-center gap-1 mb-3 ${
+            video.editingDebugInfo.status === 'success' ? 'bg-green-100 border-green-400 text-green-700' :
+            video.editingDebugInfo.status === 'warning' ? 'bg-yellow-100 border-yellow-400 text-yellow-700' :
+            'bg-red-100 border-red-400 text-red-700'
+          }`}>
+            <span>{video.editingDebugInfo.message}</span>
+          </div>
+          {video.editingDebugInfo.whisperTranscript && (
+            <div className="px-3 py-2 bg-blue-50 border border-blue-300 rounded text-xs mb-3">
+              <div className="font-semibold text-blue-700 mb-1">
+                📝 Whisper Transcript ({video.editingDebugInfo.whisperWordCount || 0} words):
+              </div>
+              <div className="text-blue-900 italic">
+                "{video.editingDebugInfo.whisperTranscript}"
+              </div>
+            </div>
+          )}
+          {video.editingDebugInfo.algorithmLogs && video.editingDebugInfo.algorithmLogs.length > 0 && (
+            <div className="px-3 py-2 bg-gray-50 border border-gray-300 rounded text-xs">
+              <div className="font-semibold text-gray-700 mb-2">
+                🔍 Algorithm Execution Log:
+              </div>
+              <div className="space-y-1 font-mono text-[10px] text-gray-800">
+                {video.editingDebugInfo.algorithmLogs.map((log, idx) => (
+                  <div key={idx} className="leading-tight">
+                    {log}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Waveform Timeline */}
       <div className="mb-2">
         <div className="flex items-center justify-center gap-4 mb-1">
-          {/* Editing Debug Info - Leftmost */}
-          {video.editingDebugInfo && (
-            <div className="flex flex-col items-center gap-2">
-              <div className={`px-3 py-1 border rounded text-xs font-semibold flex items-center gap-1 ${
-                video.editingDebugInfo.status === 'success' ? 'bg-green-100 border-green-400 text-green-700' :
-                video.editingDebugInfo.status === 'warning' ? 'bg-yellow-100 border-yellow-400 text-yellow-700' :
-                'bg-red-100 border-red-400 text-red-700'
-              }`}>
-                <span>{video.editingDebugInfo.message}</span>
-              </div>
-              {video.editingDebugInfo.whisperTranscript && (
-                <div className="px-3 py-2 bg-blue-50 border border-blue-300 rounded text-xs max-w-2xl">
-                  <div className="font-semibold text-blue-700 mb-1">
-                    📝 Whisper Transcript ({video.editingDebugInfo.whisperWordCount || 0} words):
-                  </div>
-                  <div className="text-blue-900 italic">
-                    "{video.editingDebugInfo.whisperTranscript}"
-                  </div>
-                </div>
-              )}
-              {video.editingDebugInfo.algorithmLogs && video.editingDebugInfo.algorithmLogs.length > 0 && (
-                <div className="px-3 py-2 bg-gray-50 border border-gray-300 rounded text-xs max-w-3xl">
-                  <div className="font-semibold text-gray-700 mb-2">
-                    🔍 Algorithm Execution Log:
-                  </div>
-                  <div className="space-y-1 font-mono text-[10px] text-gray-800">
-                    {video.editingDebugInfo.algorithmLogs.map((log, idx) => (
-                      <div key={idx} className="leading-tight">
-                        {log}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
           
           {/* NO CUT NEEDED Badge - Left of Lock START */}
           {video.noCutNeeded && (
@@ -787,7 +806,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
           style={{ 
             height: '120px', 
             width: '100%', 
-            overflowX: 'auto', // Enable horizontal scroll
+            overflowX: 'hidden', // Prevent page horizontal scroll
             overflowY: 'hidden',
             position: 'relative',
           }}
@@ -987,10 +1006,55 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
         <div className="grid grid-cols-3 gap-2 text-center">
           <div>
             <div className="text-xs text-gray-600 mb-1">
-              🟢 START {isStartLocked && '(Locked)'}
+              🟢 START
             </div>
             <div className="text-sm font-mono font-bold" style={{ color: isStartLocked ? '#9ca3af' : '#22c55e' }}>
               {formatTime(trimStart)}
+            </div>
+            {/* Fine-tune controls for START */}
+            <div className="flex items-center justify-center gap-1 mt-2">
+              <button
+                onClick={() => {
+                  const newStart = Math.max(0, trimStart - fineTuneStep);
+                  setTrimStart(newStart);
+                  if (onTrimChange) {
+                    onTrimChange(video.id, {
+                      startKeep: Math.round(newStart),
+                      endKeep: Math.round(trimEnd)
+                    }, isStartLocked, isEndLocked);
+                  }
+                }}
+                disabled={isStartLocked}
+                className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100 disabled:cursor-not-allowed rounded"
+                title="Move START left"
+              >
+                ←
+              </button>
+              <input
+                type="number"
+                value={fineTuneStep}
+                onChange={(e) => setFineTuneStep(Math.max(1, parseInt(e.target.value) || 1))}
+                className="w-12 px-1 py-1 text-xs text-center border border-gray-300 rounded"
+                min="1"
+              />
+              <span className="text-xs text-gray-600">ms</span>
+              <button
+                onClick={() => {
+                  const newStart = Math.min(trimEnd - 100, trimStart + fineTuneStep);
+                  setTrimStart(newStart);
+                  if (onTrimChange) {
+                    onTrimChange(video.id, {
+                      startKeep: Math.round(newStart),
+                      endKeep: Math.round(trimEnd)
+                    }, isStartLocked, isEndLocked);
+                  }
+                }}
+                disabled={isStartLocked}
+                className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100 disabled:cursor-not-allowed rounded"
+                title="Move START right"
+              >
+                →
+              </button>
             </div>
           </div>
           {isStartLocked && playheadTime !== null ? (
@@ -1007,10 +1071,56 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
           )}
           <div>
             <div className="text-xs text-gray-600 mb-1">
-              🔴 END {isEndLocked && '(Locked)'}
+              🔴 END
             </div>
             <div className="text-sm font-mono font-bold" style={{ color: isEndLocked ? '#9ca3af' : '#ef4444' }}>
               {formatTime(trimEnd)}
+            </div>
+            {/* Fine-tune controls for END */}
+            <div className="flex items-center justify-center gap-1 mt-2">
+              <button
+                onClick={() => {
+                  const newEnd = Math.max(trimStart + 100, trimEnd - fineTuneStep);
+                  setTrimEnd(newEnd);
+                  if (onTrimChange) {
+                    onTrimChange(video.id, {
+                      startKeep: Math.round(trimStart),
+                      endKeep: Math.round(newEnd)
+                    }, isStartLocked, isEndLocked);
+                  }
+                }}
+                disabled={isEndLocked}
+                className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100 disabled:cursor-not-allowed rounded"
+                title="Move END left"
+              >
+                ←
+              </button>
+              <input
+                type="number"
+                value={fineTuneStep}
+                onChange={(e) => setFineTuneStep(Math.max(1, parseInt(e.target.value) || 1))}
+                className="w-12 px-1 py-1 text-xs text-center border border-gray-300 rounded"
+                min="1"
+              />
+              <span className="text-xs text-gray-600">ms</span>
+              <button
+                onClick={() => {
+                  const maxEnd = audioDuration * 1000;
+                  const newEnd = Math.min(maxEnd, trimEnd + fineTuneStep);
+                  setTrimEnd(newEnd);
+                  if (onTrimChange) {
+                    onTrimChange(video.id, {
+                      startKeep: Math.round(trimStart),
+                      endKeep: Math.round(newEnd)
+                    }, isStartLocked, isEndLocked);
+                  }
+                }}
+                disabled={isEndLocked}
+                className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100 disabled:cursor-not-allowed rounded"
+                title="Move END right"
+              >
+                →
+              </button>
             </div>
           </div>
         </div>

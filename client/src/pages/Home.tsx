@@ -1781,45 +1781,56 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       return;
     }
     
-    console.log('[Trimming] Starting trim process for', videosToTrim.length, 'videos');
+    console.log('[Trimming] Starting BATCH trim process for', videosToTrim.length, 'videos (max 10 parallel)');
     
-    // DISABLED: localStorage save - database is the single source of truth
-    // Markers are already saved to database via onTrimChange
+    // Batch processing with max 10 parallel and retry logic
+    const MAX_PARALLEL = 10;
+    const MAX_RETRIES = 3;
+    
+    interface TrimJob {
+      video: typeof videosToTrim[0];
+      retries: number;
+      status: 'pending' | 'processing' | 'success' | 'failed';
+      error?: string;
+    }
+    
+    const jobs: TrimJob[] = videosToTrim.map(video => ({
+      video,
+      retries: 0,
+      status: 'pending' as const
+    }));
     
     let successCount = 0;
     let failCount = 0;
+    let activeJobs = 0;
     
-    for (let i = 0; i < videosToTrim.length; i++) {
-      const video = videosToTrim[i];
+    const processJob = async (job: TrimJob): Promise<void> => {
+      if (job.status === 'success') return;
+      
+      job.status = 'processing';
+      activeJobs++;
       
       // Update progress
+      const completedCount = successCount + failCount;
       setTrimmingProgress({
-        current: i + 1,
+        current: completedCount,
         total: videosToTrim.length,
-        currentVideo: video.videoName,
+        currentVideo: job.video.videoName,
         status: 'processing',
-        message: `Trimming video ${i + 1}/${videosToTrim.length}...`
+        message: `Trimming ${completedCount + 1}/${videosToTrim.length}...`
       });
       
       try {
-        // Get trim timestamps from cutPoints (single source of truth)
-        const trimStart = (video.cutPoints?.startKeep || 0) / 1000;
-        const trimEnd = (video.cutPoints?.endKeep || 0) / 1000;
+        const trimStart = job.video.cutPoints?.startKeep || 0;
+        const trimEnd = job.video.cutPoints?.endKeep || 0;
         
-        console.log(`[Trimming] Video ${i + 1}/${videosToTrim.length}:`, {
-          videoName: video.videoName,
-          videoUrl: video.videoUrl,
-          cutPoints: video.cutPoints,
-          trimStart,
-          trimEnd
-        });
+        console.log(`[Trimming] Processing ${job.video.videoName} (${completedCount + 1}/${videosToTrim.length})`);
         
-        // Call FFMPEG API to trim video via tRPC (send milliseconds)
         const result = await cutVideoMutation.mutateAsync({
-          videoUrl: video.videoUrl!,
-          videoName: video.videoName, // Use videoName as unique identifier
-          startTimeMs: trimStart,  // milliseconds
-          endTimeMs: trimEnd,      // milliseconds
+          videoUrl: job.video.videoUrl!,
+          videoName: job.video.videoName,
+          startTimeMs: trimStart,
+          endTimeMs: trimEnd,
           ffmpegApiKey: localCurrentUser.ffmpegApiKey || undefined
         });
         
@@ -1827,27 +1838,50 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           throw new Error('Failed to trim video');
         }
         
-        const trimmedVideoUrl = result.downloadUrl;
-        
-        // Update video with trimmed URL
         setVideoResults(prev => prev.map(v =>
-          v.videoName === video.videoName  // Use videoName for matching (works for duplicates)
-            ? {
-                ...v,
-                trimmedVideoUrl: trimmedVideoUrl,
-                // trimStart/trimEnd removed - already in cutPoints
+          v.videoName === job.video.videoName
+            ? { 
+                ...v, 
+                trimmedVideoUrl: result.downloadUrl,
+                recutStatus: null  // Reset status after regeneration
               }
             : v
         ));
         
+        job.status = 'success';
         successCount++;
-        console.log(`[Trimming] ✅ Video ${i + 1}/${videosToTrim.length} SUCCESS`);
+        console.log(`[Trimming] ✅ ${job.video.videoName} SUCCESS (${successCount}/${videosToTrim.length})`);
         
       } catch (error: any) {
-        failCount++;
-        console.error(`[Trimming] ❌ Video ${i + 1}/${videosToTrim.length} FAILED:`, error);
-        toast.error(`❌ ${video.videoName}: ${error.message}`);
+        console.error(`[Trimming] ❌ ${job.video.videoName} FAILED (attempt ${job.retries + 1}):`, error);
+        
+        if (job.retries < MAX_RETRIES) {
+          job.retries++;
+          job.status = 'pending';
+          console.log(`[Trimming] 🔄 Retrying ${job.video.videoName} (${job.retries}/${MAX_RETRIES})...`);
+        } else {
+          job.status = 'failed';
+          job.error = error.message;
+          failCount++;
+          toast.error(`❌ ${job.video.videoName}: ${error.message} (failed after ${MAX_RETRIES} retries)`);
+        }
+      } finally {
+        activeJobs--;
       }
+    };
+    
+    // Process queue with max parallelism
+    while (true) {
+      const pendingJobs = jobs.filter(j => j.status === 'pending');
+      
+      if (pendingJobs.length === 0 && activeJobs === 0) break;
+      
+      while (pendingJobs.length > 0 && activeJobs < MAX_PARALLEL) {
+        const job = pendingJobs.shift()!;
+        processJob(job);
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
     
     // Complete
@@ -1863,9 +1897,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     toast.success(`✂️ Trimming complete! ${successCount}/${videosToTrim.length} videos trimmed`);
     
     // Navigate to Step 9 after 2 seconds
+    console.log('[Trimming] Setting timeout for redirect to Step 9...');
     setTimeout(() => {
+      console.log('[Trimming] Timeout fired! Redirecting to Step 9...');
       setIsTrimmingModalOpen(false);
       setCurrentStep(9);
+      console.log('[Trimming] Redirect complete!');
     }, 2000);
   };
 
@@ -3088,14 +3125,18 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         if (!open && trimmingProgress.status === 'processing') return;
         setIsTrimmingModalOpen(open);
       }}>
-        <DialogContent className="sm:max-w-md" onInteractOutside={(e) => {
+        <DialogContent className="max-w-md" onInteractOutside={(e) => {
           // Prevent closing by clicking outside during processing
           if (trimmingProgress.status === 'processing') e.preventDefault();
         }}>
           <DialogHeader>
-            <DialogTitle className="text-center text-xl font-bold">
-              {trimmingProgress.status === 'complete' ? '✅ Trimming Complete!' : '✂️ Trimming Videos...'}
+            <DialogTitle className="flex items-center gap-2">
+              <Loader2 className="w-5 h-5 animate-spin text-red-600" />
+              ✂️ Tăiere Videouri cu FFmpeg API
             </DialogTitle>
+            <DialogDescription>
+              Tăiem fiecare video la timestamps-urile detectate...
+            </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
@@ -3103,56 +3144,44 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               <>
                 {/* Progress Bar */}
                 <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Progress</span>
-                    <span className="font-semibold text-gray-900">
-                      {trimmingProgress.current} / {trimmingProgress.total}
-                    </span>
-                  </div>
                   <Progress 
                     value={(trimmingProgress.current / trimmingProgress.total) * 100} 
-                    className="h-2"
+                    className="h-3"
                   />
+                  <p className="text-center text-sm font-medium text-gray-700">
+                    {trimmingProgress.current}/{trimmingProgress.total} videouri tăiate
+                  </p>
                 </div>
                 
                 {/* Current Video */}
-                {trimmingProgress.currentVideo && (
-                  <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg">
-                    <Loader2 className="w-5 h-5 text-blue-600 animate-spin mt-0.5 flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-gray-600 mb-1">Trimming:</p>
-                      <p className="text-sm font-medium text-gray-900 break-words">
-                        {trimmingProgress.currentVideo}
-                      </p>
+                {trimmingProgress.current < trimmingProgress.total && trimmingProgress.currentVideo && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                    <p className="text-sm font-semibold text-red-900 mb-1">
+                      🎥 Video curent: {trimmingProgress.currentVideo}
+                    </p>
+                    <div className="flex items-center gap-2 text-xs text-red-700">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      ✂️ Tăiere cu FFmpeg API...
                     </div>
                   </div>
                 )}
                 
                 {/* Estimated Time */}
-                <div className="flex items-center justify-center gap-2 text-sm text-gray-600">
-                  <Clock className="w-4 h-4" />
-                  <span>Estimated time: ~{Math.ceil((trimmingProgress.total - trimmingProgress.current) * 10 / 60)} min</span>
-                </div>
+                {trimmingProgress.current < trimmingProgress.total && (
+                  <p className="text-xs text-center text-gray-500">
+                    ⏱️ Timp estimat rămas: ~{Math.ceil((trimmingProgress.total - trimmingProgress.current) * 10 / 60)} {Math.ceil((trimmingProgress.total - trimmingProgress.current) * 10 / 60) === 1 ? 'minut' : 'minute'}
+                  </p>
+                )}
               </>
             ) : trimmingProgress.status === 'complete' ? (
               <>
                 {/* Success Message */}
-                <div className="text-center space-y-3">
-                  <div className="flex justify-center">
-                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-                      <Check className="w-8 h-8 text-green-600" />
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-lg font-semibold text-gray-900 mb-1">
-                      All videos trimmed successfully!
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      {trimmingProgress.total} video{trimmingProgress.total !== 1 ? 's' : ''} processed
-                    </p>
-                  </div>
-                  <p className="text-sm text-blue-600">
-                    Redirecting to Step 9...
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+                  <p className="text-sm font-semibold text-green-900">
+                    ✅ Toate videouri tăiate cu succes!
+                  </p>
+                  <p className="text-xs text-green-700 mt-1">
+                    Deschidere Step 9...
                   </p>
                 </div>
               </>
@@ -3498,7 +3527,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             { num: 6, label: "Generate", icon: Play },
             { num: 7, label: "Check Videos", icon: Video },
             { num: 8, label: "Video Editing", icon: Video },
-            { num: 9, label: "Final Videos", icon: Download },
+            { num: 9, label: "Cut Videos", icon: Download },
           ].map((step, index) => (
             <div key={step.num} className="flex items-center flex-1">
               <div className="flex flex-col items-center flex-1">
@@ -7263,7 +7292,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   STEP 8 - Video Editing
                 </CardTitle>
                 <CardDescription>
-                  Editează videouri approved: ajustează START și END pentru tăiere în Step 10.
+                  Editează videouri approved: ajustează START și END pentru tăiere în Step 9.
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-6">
@@ -7465,7 +7494,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               <CardHeader className="bg-blue-50">
                 <CardTitle className="flex items-center gap-2 text-blue-900">
                   <Video className="w-5 h-5" />
-                  STEP 9 - Final Trimmed Videos
+                  Cut Videos
                 </CardTitle>
                 <CardDescription>
                   Videoclipurile tăiate și gata pentru download.
@@ -7561,8 +7590,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           
                           {/* Trim Info */}
                           <div className="text-xs text-gray-600 mb-3 text-center">
-                            <p>✂️ Trimmed: {((video.cutPoints?.startKeep || 0) / 1000).toFixed(2)}s → {((video.cutPoints?.endKeep || 0) / 1000).toFixed(2)}s</p>
-                            <p>Duration: {(((video.cutPoints?.endKeep || 0) - (video.cutPoints?.startKeep || 0)) / 1000).toFixed(2)}s</p>
+                            <p>✂️ Trimmed: {((video.cutPoints?.startKeep || 0) / 1000).toFixed(3)}s → {((video.cutPoints?.endKeep || 0) / 1000).toFixed(3)}s</p>
+                            <p>Duration: {(((video.cutPoints?.endKeep || 0) - (video.cutPoints?.startKeep || 0)) / 1000).toFixed(3)}s</p>
                           </div>
                           
                           {/* Step 9 Note Display */}
@@ -7659,15 +7688,42 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                   <div className="flex gap-2">
                                     <Button
                                       onClick={() => {
-                                        // Save note
-                                        setVideoResults(prev => prev.map(v =>
-                                          v.videoName === video.videoName  // Use videoName for matching
+                                        // Save note to state
+                                        const updatedVideoResults = videoResults.map(v =>
+                                          v.videoName === video.videoName
                                             ? { ...v, step9Note: step9NoteText }
                                             : v
-                                        ));
+                                        );
+                                        setVideoResults(updatedVideoResults);
+                                        
+                                        // Save to database immediately
+                                        if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
+                                          upsertContextSessionMutation.mutate({
+                                            userId: currentUser.id,
+                                            coreBeliefId: selectedCoreBeliefId,
+                                            emotionalAngleId: selectedEmotionalAngleId,
+                                            adId: selectedAdId,
+                                            characterId: selectedCharacterId,
+                                            currentStep,
+                                            rawTextAd,
+                                            processedTextAd,
+                                            adLines,
+                                            prompts,
+                                            images,
+                                            combinations,
+                                            deletedCombinations,
+                                            videoResults: updatedVideoResults,
+                                            reviewHistory,
+                                          }, {
+                                            onSuccess: () => {
+                                              console.log('[Step9] Note saved to DB');
+                                              toast.success(`Note saved for ${video.videoName}`);
+                                            },
+                                          });
+                                        }
+                                        
                                         setEditingStep9NoteVideoName(null);
                                         setStep9NoteText('');
-                                        toast.success(`Note saved for ${video.videoName}`);
                                       }}
                                       size="sm"
                                       className="flex-1 bg-green-600 hover:bg-green-700 text-xs py-1"
