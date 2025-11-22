@@ -110,22 +110,27 @@ export interface ProcessingResult {
 /**
  * Upload video to FFmpeg API and return file_path
  */
-async function uploadVideoToFFmpegAPI(
+export async function uploadVideoToFFmpegAPI(
   videoUrl: string,
   fileName: string,
-  ffmpegApiKey: string
+  ffmpegApiKey: string,
+  dirId?: string  // Optional: directory ID for batch uploads (e.g., "dir_abc123")
 ): Promise<string> {
   try {
     console.log(`[uploadVideoToFFmpegAPI] Uploading ${fileName}...`);
     
     // Step 1: Get upload URL
+    const requestBody = dirId 
+      ? { file_name: fileName, dir_id: dirId }  // Use existing directory
+      : { file_name: fileName };  // Let FFmpeg API create new directory
+    
     const fileRes = await fetch(`${FFMPEG_API_BASE}/file`, {
       method: 'POST',
       headers: {
         'Authorization': ffmpegApiKey,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ file_name: fileName }),
+      body: JSON.stringify(requestBody),
     });
     
     if (!fileRes.ok) {

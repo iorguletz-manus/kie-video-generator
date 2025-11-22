@@ -1672,6 +1672,273 @@ export const appRouter = router({
         }
       }),
 
+    // Cut & Merge two consecutive videos (test mode - no DB save)
+    cutAndMergeVideos: publicProcedure
+      .input(z.object({
+        video1Url: z.string(),
+        video1Name: z.string(),
+        video1StartMs: z.number(),
+        video1EndMs: z.number(),
+        video2Url: z.string(),
+        video2Name: z.string(),
+        video2StartMs: z.number(),
+        video2EndMs: z.number(),
+        ffmpegApiKey: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          console.log('[cutAndMergeVideos] Starting cut & merge process...');
+          
+          // Convert milliseconds to seconds
+          const video1Start = (input.video1StartMs / 1000).toFixed(3);
+          const video1End = (input.video1EndMs / 1000).toFixed(3);
+          const video2Start = (input.video2StartMs / 1000).toFixed(3);
+          const video2End = (input.video2EndMs / 1000).toFixed(3);
+          
+          const duration1 = parseFloat(video1End) - parseFloat(video1Start);
+          const duration2 = parseFloat(video2End) - parseFloat(video2Start);
+          
+          console.log(`[cutAndMergeVideos] Video 1: ${input.video1Name} (${video1Start}s → ${video1End}s, duration: ${duration1}s)`);
+          console.log(`[cutAndMergeVideos] Video 2: ${input.video2Name} (${video2Start}s → ${video2End}s, duration: ${duration2}s)`);
+          
+          // 1. Create directory for batch upload
+          const FFMPEG_API_BASE = 'https://api.ffmpeg-api.com';
+          
+          console.log('[cutAndMergeVideos] Creating directory...');
+          const dirRes = await fetch(`${FFMPEG_API_BASE}/directory`, {
+            method: 'POST',
+            headers: {
+              'Authorization': input.ffmpegApiKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({}),
+          });
+          
+          if (!dirRes.ok) {
+            throw new Error(`Failed to create directory: ${dirRes.statusText}`);
+          }
+          
+          const dirData = await dirRes.json();
+          const dirId = dirData.directory.id;
+          console.log(`[cutAndMergeVideos] Created directory: ${dirId}`);
+          
+          // 2. Upload both videos to the same directory
+          const { uploadVideoToFFmpegAPI } = await import('./videoEditing');
+          
+          const video1Path = await uploadVideoToFFmpegAPI(input.video1Url, `${input.video1Name}_original.mp4`, input.ffmpegApiKey, dirId);
+          const video2Path = await uploadVideoToFFmpegAPI(input.video2Url, `${input.video2Name}_original.mp4`, input.ffmpegApiKey, dirId);
+          
+          console.log(`[cutAndMergeVideos] Uploaded: ${video1Path}, ${video2Path}`);
+          
+          console.log('[cutAndMergeVideos] Videos uploaded to FFmpeg API');
+          
+          // 3. Cut and merge using FFmpeg API with filter_complex
+          const outputFileName = `merged_${Date.now()}.mp4`;
+          
+          // Build filter_complex: trim both videos + drawtext overlay, then concat
+          // Escape single quotes in video names
+          const escapedName1 = input.video1Name.replace(/'/g, "\\\\\\'");
+          const escapedName2 = input.video2Name.replace(/'/g, "\\\\\\'");
+          
+          // Drawtext filter: large red text at bottom center with semi-transparent black background
+          const drawtext1 = `drawtext=text='${escapedName1}':x=(w-text_w)/2:y=h-text_h-20:fontsize=60:fontcolor=red:box=1:boxcolor=black@0.7:boxborderw=5`;
+          const drawtext2 = `drawtext=text='${escapedName2}':x=(w-text_w)/2:y=h-text_h-20:fontsize=60:fontcolor=red:box=1:boxcolor=black@0.7:boxborderw=5`;
+          
+          const filterComplex = `[0:v]trim=start=${video1Start}:end=${video1End},setpts=PTS-STARTPTS,${drawtext1}[v1];[0:a]atrim=start=${video1Start}:end=${video1End},asetpts=PTS-STARTPTS[a1];[1:v]trim=start=${video2Start}:end=${video2End},setpts=PTS-STARTPTS,${drawtext2}[v2];[1:a]atrim=start=${video2Start}:end=${video2End},asetpts=PTS-STARTPTS[a2];[v1][a1][v2][a2]concat=n=2:v=1:a=1[outv][outa]`;
+          
+          console.log('[cutAndMergeVideos] Filter complex:', filterComplex);
+          
+          const requestBody = {
+            task: {
+              inputs: [
+                { file_path: video1Path },
+                { file_path: video2Path }
+              ],
+              filter_complex: filterComplex,
+              outputs: [{
+                file: outputFileName,
+                options: [
+                  '-c:v', 'libx264',
+                  '-crf', '23',
+                  '-c:a', 'aac'
+                ],
+                maps: ['[outv]', '[outa]']
+              }]
+            }
+          };
+          
+          console.log('[cutAndMergeVideos] FFmpeg API request:', JSON.stringify(requestBody, null, 2));
+          
+          const processRes = await fetch(`${FFMPEG_API_BASE}/ffmpeg/process`, {
+            method: 'POST',
+            headers: {
+              'Authorization': input.ffmpegApiKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestBody),
+          });
+          
+          if (!processRes.ok) {
+            const errorText = await processRes.text();
+            console.error('[FFmpeg API] Error response:', errorText);
+            throw new Error(`FFmpeg API processing failed: ${processRes.statusText}`);
+          }
+          
+          const result = await processRes.json();
+          
+          if (!result.ok || !result.result || result.result.length === 0) {
+            throw new Error(`FFmpeg API returned error: ${JSON.stringify(result)}`);
+          }
+          
+          const downloadUrl = result.result[0].download_url;
+          console.log(`[cutAndMergeVideos] Merge successful! Temporary URL: ${downloadUrl}`);
+          
+          return {
+            success: true,
+            downloadUrl: downloadUrl, // Return temporary FFmpeg URL (no Bunny upload for test)
+          };
+        } catch (error) {
+          console.error('[cutAndMergeVideos] Error:', error);
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Failed to cut and merge videos: ${error.message}`,
+          });
+        }
+      }),
+
+    // Cut & Merge all videos (sample merge - no DB save)
+    cutAndMergeAllVideos: publicProcedure
+      .input(z.object({  
+        videos: z.array(z.object({
+          url: z.string(),
+          name: z.string(),
+          startMs: z.number(),
+          endMs: z.number(),
+        })),
+        ffmpegApiKey: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          console.log(`[cutAndMergeAllVideos] Starting sample merge of ${input.videos.length} videos...`);
+          
+          // 1. Create directory for batch upload
+          const FFMPEG_API_BASE = 'https://api.ffmpeg-api.com';
+          
+          console.log('[cutAndMergeAllVideos] Creating directory...');
+          const dirRes = await fetch(`${FFMPEG_API_BASE}/directory`, {
+            method: 'POST',
+            headers: {
+              'Authorization': input.ffmpegApiKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({}),
+          });
+          
+          if (!dirRes.ok) {
+            throw new Error(`Failed to create directory: ${dirRes.statusText}`);
+          }
+          
+          const dirData = await dirRes.json();
+          const dirId = dirData.directory.id;
+          console.log(`[cutAndMergeAllVideos] Created directory: ${dirId}`);
+          
+          // 2. Upload all videos to the same directory
+          const { uploadVideoToFFmpegAPI } = await import('./videoEditing');
+          const uploadedPaths: string[] = [];
+          
+          for (const video of input.videos) {
+            const filePath = await uploadVideoToFFmpegAPI(video.url, `${video.name}_original.mp4`, input.ffmpegApiKey, dirId);
+            uploadedPaths.push(filePath);
+            console.log(`[cutAndMergeAllVideos] Uploaded: ${video.name} → ${filePath}`);
+          }
+          
+          console.log('[cutAndMergeAllVideos] All videos uploaded to FFmpeg API');
+          
+          // 3. Build filter_complex for all videos
+          // [0:v]trim=...,setpts=...[v0]; [0:a]atrim=...,asetpts=...[a0];
+          // [1:v]trim=...,setpts=...[v1]; [1:a]atrim=...,asetpts=...[a1];
+          // ...
+          // [v0][a0][v1][a1]...concat=n=N:v=1:a=1[outv][outa]
+          
+          const filterParts: string[] = [];
+          const concatInputs: string[] = [];
+          
+          input.videos.forEach((video, index) => {
+            const startSec = (video.startMs / 1000).toFixed(3);
+            const endSec = (video.endMs / 1000).toFixed(3);
+            
+            // Escape single quotes in video name for FFmpeg
+            const escapedName = video.name.replace(/'/g, "\\\\\\'");
+            
+            // Video trim + drawtext overlay
+            // Position: bottom center, large red text with semi-transparent black background
+            const drawtextFilter = `drawtext=text='${escapedName}':x=(w-text_w)/2:y=h-text_h-20:fontsize=60:fontcolor=red:box=1:boxcolor=black@0.7:boxborderw=5`;
+            filterParts.push(`[${index}:v]trim=start=${startSec}:end=${endSec},setpts=PTS-STARTPTS,${drawtextFilter}[v${index}]`);
+            
+            // Audio trim
+            filterParts.push(`[${index}:a]atrim=start=${startSec}:end=${endSec},asetpts=PTS-STARTPTS[a${index}]`);
+            
+            concatInputs.push(`[v${index}][a${index}]`);
+          });
+          
+          const filterComplex = filterParts.join(';') + ';' + concatInputs.join('') + `concat=n=${input.videos.length}:v=1:a=1[outv][outa]`;
+          
+          console.log('[cutAndMergeAllVideos] Filter complex:', filterComplex);
+          
+          // 3. Process with FFmpeg API
+          const outputFileName = `sample_merge_${Date.now()}.mp4`;
+          
+          const processRes = await fetch(`${FFMPEG_API_BASE}/ffmpeg/process`, {
+            method: 'POST',
+            headers: {
+              'Authorization': input.ffmpegApiKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              task: {
+                inputs: uploadedPaths.map(path => ({ file_path: path })),
+                filter_complex: filterComplex,
+                outputs: [{
+                  file: outputFileName,
+                  options: [
+                    '-c:v', 'libx264',
+                    '-crf', '23',
+                    '-c:a', 'aac'
+                  ],
+                  maps: ['[outv]', '[outa]']
+                }]
+              }
+            }),
+          });
+          
+          if (!processRes.ok) {
+            const errorText = await processRes.text();
+            console.error('[FFmpeg API] Error response:', errorText);
+            throw new Error(`FFmpeg API processing failed: ${processRes.statusText}`);
+          }
+          
+          const result = await processRes.json();
+          
+          if (!result.ok || !result.result || result.result.length === 0) {
+            throw new Error(`FFmpeg API returned error: ${JSON.stringify(result)}`);
+          }
+          
+          const downloadUrl = result.result[0].download_url;
+          console.log(`[cutAndMergeAllVideos] Sample merge successful! Temporary URL: ${downloadUrl}`);
+          
+          return {
+            success: true,
+            downloadUrl: downloadUrl,
+          };
+        } catch (error) {
+          console.error('[cutAndMergeAllVideos] Error:', error);
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Failed to cut and merge all videos: ${error.message}`,
+          });
+        }
+      }),
+
     // Save video editing data to context session
     save: publicProcedure
       .input(z.object({

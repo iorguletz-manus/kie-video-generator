@@ -264,16 +264,34 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // Edit Profile modal
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [localCurrentUser, setLocalCurrentUser] = useState(currentUser);
-  
   // Step 8 → Step 9: Trimming modal
   const [isTrimmingModalOpen, setIsTrimmingModalOpen] = useState(false);
   const [trimmingProgress, setTrimmingProgress] = useState<{
     current: number;
     total: number;
     currentVideo: string;
-    status: 'processing' | 'complete' | 'error';
+    status: 'idle' | 'processing' | 'complete';
     message: string;
-  }>({ current: 0, total: 0, currentVideo: '', status: 'processing', message: '' });
+  }>({
+    current: 0,
+    total: 0,
+    currentVideo: '',
+    status: 'idle',
+    message: ''
+  });
+  
+  // Cut & Merge modal
+  const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
+  const [mergedVideoUrl, setMergedVideoUrl] = useState<string | null>(null);
+  const [mergeProgress, setMergeProgress] = useState<string>('');
+  
+  // Sample Merge modal
+  const [isSampleMergeModalOpen, setIsSampleMergeModalOpen] = useState(false);
+  const [sampleMergedVideoUrl, setSampleMergedVideoUrl] = useState<string | null>(null);
+  const [sampleMergeProgress, setSampleMergeProgress] = useState<string>('');
+  const [sampleMergeVideos, setSampleMergeVideos] = useState<Array<{id: string, name: string, note: string}>>([]);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingNoteText, setEditingNoteText] = useState<string>('');
   
   // Images Library modal
   const [isImagesLibraryOpen, setIsImagesLibraryOpen] = useState(false);
@@ -312,6 +330,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // Video Editing mutations (Step 8)
   const processVideoForEditingMutation = trpc.videoEditing.processVideoForEditing.useMutation();
   const cutVideoMutation = trpc.videoEditing.cutVideo.useMutation();
+  const cutAndMergeMutation = trpc.videoEditing.cutAndMergeVideos.useMutation();
+  const cutAndMergeAllMutation = trpc.videoEditing.cutAndMergeAllVideos.useMutation();
   const saveVideoEditing = trpc.videoEditing.save.useMutation();
   
   // Prompt Library query - load all prompts from database
@@ -3206,6 +3226,198 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               </>
             ) : null}
           </div>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Cut & Merge Modal */}
+      <Dialog open={isMergeModalOpen} onOpenChange={setIsMergeModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              ✂️ Cut & Merge (Test)
+            </DialogTitle>
+            <DialogDescription>
+              Preview merged video (temporary - not saved to database)
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {!mergedVideoUrl ? (
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                <p className="text-sm text-gray-600">{mergeProgress}</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                  <p className="text-sm font-semibold text-green-900">
+                    ✅ Merge complete! Preview below:
+                  </p>
+                </div>
+                
+                <video
+                  src={mergedVideoUrl}
+                  controls
+                  className="w-full rounded-lg border border-gray-300"
+                  style={{ maxHeight: '400px' }}
+                />
+                
+                <p className="text-xs text-gray-500 text-center">
+                  💡 This is a temporary preview. Click "TRIM ALL VIDEOS" to save final cuts.
+                </p>
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                setIsMergeModalOpen(false);
+                setMergedVideoUrl(null);
+                setMergeProgress('');
+              }}
+              variant="outline"
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Sample Merge Modal */}
+      <Dialog open={isSampleMergeModalOpen} onOpenChange={setIsSampleMergeModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              🎬 Sample Merge Video
+            </DialogTitle>
+            <DialogDescription>
+              Preview all videos merged together (temporary - not saved to database)
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {!sampleMergedVideoUrl ? (
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                <p className="text-sm text-gray-600">{sampleMergeProgress}</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                  <p className="text-sm font-semibold text-green-900">
+                    ✅ Sample merge complete! Preview below:
+                  </p>
+                </div>
+                
+                {/* Video Player */}
+                <video
+                  src={sampleMergedVideoUrl}
+                  controls
+                  className="w-full rounded-lg border border-gray-300"
+                  style={{ maxHeight: '400px' }}
+                />
+                
+                {/* Video List with Notes */}
+                <div className="border-t pt-4">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Videos in this merge:</h3>
+                  <div className="space-y-2">
+                    {sampleMergeVideos.map((video) => (
+                      <div key={video.id} className="flex items-start justify-between gap-3 p-3 bg-gray-50 rounded-lg">
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-900">{video.name}</p>
+                          
+                          {/* Note editor */}
+                          {editingNoteId === video.id ? (
+                            <div className="mt-2 space-y-2">
+                              <textarea
+                                value={editingNoteText}
+                                onChange={(e) => setEditingNoteText(e.target.value)}
+                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                rows={3}
+                                placeholder="Add note for Step 9..."
+                              />
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    // Save note
+                                    const updatedVideos = sampleMergeVideos.map(v =>
+                                      v.id === video.id ? { ...v, note: editingNoteText } : v
+                                    );
+                                    setSampleMergeVideos(updatedVideos);
+                                    
+                                    // Update in videoResults
+                                    const updatedVideoResults = videoResults.map(v =>
+                                      v.id === video.id ? { ...v, step9Note: editingNoteText } : v
+                                    );
+                                    setVideoResults(updatedVideoResults);
+                                    
+                                    setEditingNoteId(null);
+                                    setEditingNoteText('');
+                                    toast.success('Note saved!');
+                                  }}
+                                  className="bg-green-600 hover:bg-green-700"
+                                >
+                                  Save
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setEditingNoteId(null);
+                                    setEditingNoteText('');
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            video.note && (
+                              <p className="mt-1 text-xs text-gray-600">📝 {video.note}</p>
+                            )
+                          )}
+                        </div>
+                        
+                        {/* Add Note link */}
+                        {editingNoteId !== video.id && (
+                          <button
+                            onClick={() => {
+                              setEditingNoteId(video.id);
+                              setEditingNoteText(video.note);
+                            }}
+                            className="text-xs text-blue-600 hover:text-blue-800 underline whitespace-nowrap"
+                          >
+                            {video.note ? 'Edit note' : 'Add note'}
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                <p className="text-xs text-gray-500 text-center">
+                  💡 This is a temporary preview. Click "TRIM ALL VIDEOS" to save final cuts.
+                </p>
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                setIsSampleMergeModalOpen(false);
+                setSampleMergedVideoUrl(null);
+                setSampleMergeProgress('');
+                setEditingNoteId(null);
+                setEditingNoteText('');
+              }}
+              variant="outline"
+            >
+              Close
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -7324,7 +7536,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 ) : (
                   <div className="space-y-8">
                     {/* Video Editors - One per approved video */}
-                    {approvedVideos.map((video) => {
+                    {approvedVideos.map((video, videoIndex) => {
                       // Convert waveformData JSON string to data URI for Peaks.js
                       // Use proper UTF-8 to base64 encoding (btoa doesn't handle UTF-8 correctly)
                       const peaksUrl = video.waveformData 
@@ -7368,6 +7580,59 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             isEndLocked: video.isEndLocked,
                             step9Note: video.step9Note,
                             editingDebugInfo: video.editingDebugInfo,
+                            }}
+                            nextVideo={videoIndex < approvedVideos.length - 1 ? {
+                              videoName: approvedVideos[videoIndex + 1].videoName,
+                              videoUrl: approvedVideos[videoIndex + 1].videoUrl!,
+                              cutPoints: approvedVideos[videoIndex + 1].cutPoints || { startKeep: 0, endKeep: 10000 },
+                            } : null}
+                            onCutAndMerge={async (video1, video2) => {
+                              console.log('[Cut & Merge] Starting merge:', video1.videoName, '+', video2.videoName);
+                              
+                              setIsMergeModalOpen(true);
+                              setMergeProgress('Uploading videos to FFmpeg API...');
+                              
+                              try {
+                                // Extract original URLs from proxy URLs
+                                const extractOriginalUrl = (proxyUrl: string) => {
+                                  if (proxyUrl.startsWith('/api/proxy-video?url=')) {
+                                    const urlParam = new URLSearchParams(proxyUrl.split('?')[1]).get('url');
+                                    return urlParam ? decodeURIComponent(urlParam) : proxyUrl;
+                                  }
+                                  return proxyUrl;
+                                };
+                                
+                                const video1OriginalUrl = extractOriginalUrl(video1.videoUrl);
+                                const video2OriginalUrl = extractOriginalUrl(video2.videoUrl);
+                                
+                                console.log('[Cut & Merge] Original URLs:', {
+                                  video1: video1OriginalUrl,
+                                  video2: video2OriginalUrl,
+                                });
+                                
+                                const result = await cutAndMergeMutation.mutateAsync({
+                                  video1Url: video1OriginalUrl,
+                                  video1Name: video1.videoName,
+                                  video1StartMs: video1.cutPoints.startKeep,
+                                  video1EndMs: video1.cutPoints.endKeep,
+                                  video2Url: video2OriginalUrl,
+                                  video2Name: video2.videoName,
+                                  video2StartMs: video2.cutPoints.startKeep,
+                                  video2EndMs: video2.cutPoints.endKeep,
+                                  ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
+                                });
+                                
+                                if (result.success && result.downloadUrl) {
+                                  setMergedVideoUrl(result.downloadUrl);
+                                  setMergeProgress('Merge complete!');
+                                } else {
+                                  throw new Error('Merge failed');
+                                }
+                              } catch (error: any) {
+                                console.error('[Cut & Merge] Error:', error);
+                                toast.error(`Merge failed: ${error.message}`);
+                                setIsMergeModalOpen(false);
+                              }
                             }}
                             onTrimChange={(videoId, cutPoints, isStartLocked, isEndLocked) => {
                             // Update local state when user adjusts trim markers or lock state
@@ -7467,6 +7732,64 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           👁️ Check Videos (Step 9)
                         </Button>
                       )}
+                      
+                      {/* Sample Merge Video button - merge all approved videos */}
+                      {approvedVideos.length > 1 && (
+                        <Button
+                          onClick={async () => {
+                            console.log('[Sample Merge] Starting...');
+                            
+                            // Prepare video list with notes
+                            const videoList = approvedVideos.map(v => ({
+                              id: v.id,
+                              name: v.videoName,
+                              note: v.step9Note || ''
+                            }));
+                            
+                            setSampleMergeVideos(videoList);
+                            setSampleMergedVideoUrl(null);
+                            setSampleMergeProgress('Preparing videos...');
+                            setIsSampleMergeModalOpen(true);
+                            
+                            try {
+                              // Extract original URLs
+                              const extractOriginalUrl = (url: string) => {
+                                if (url.startsWith('/api/proxy-video?url=')) {
+                                  const urlParam = new URLSearchParams(url.split('?')[1]).get('url');
+                                  return urlParam ? decodeURIComponent(urlParam) : url;
+                                }
+                                return url;
+                              };
+                              
+                              const videos = approvedVideos.map(v => ({
+                                url: extractOriginalUrl(v.videoUrl),
+                                name: v.videoName,
+                                startMs: v.cutPoints?.startKeep || 0,
+                                endMs: v.cutPoints?.endKeep || 0,
+                              }));
+                              
+                              console.log('[Sample Merge] Videos:', videos);
+                              setSampleMergeProgress(`Uploading ${videos.length} videos to FFmpeg API...`);
+                              
+                              const result = await cutAndMergeAllMutation.mutateAsync({
+                                videos,
+                                ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
+                              });
+                              
+                              console.log('[Sample Merge] Success!', result);
+                              setSampleMergedVideoUrl(result.downloadUrl);
+                              setSampleMergeProgress('');
+                            } catch (error) {
+                              console.error('[Sample Merge] Error:', error);
+                              setSampleMergeProgress(`Error: ${error.message}`);
+                              toast.error(`Sample merge failed: ${error.message}`);
+                            }
+                          }}
+                          className="w-full bg-blue-600 hover:bg-blue-700 text-white mt-3"
+                        >
+                          🎬 Sample Merge Video
+                        </Button>
+                      )}
                     </div>
                   </div>
                 )}
@@ -7561,14 +7884,35 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             {video.videoName}
                           </h3>
                           
-                          {/* Video Player */}
+                          {/* Video Player with milliseconds display */}
                           <div className="relative bg-black rounded-lg overflow-hidden mb-3" style={{ aspectRatio: '9/16' }}>
                             <video
+                              ref={(el) => {
+                                if (el && !el.dataset.initialized) {
+                                  el.dataset.initialized = 'true';
+                                  const timeDisplay = el.nextElementSibling as HTMLElement;
+                                  if (timeDisplay) {
+                                    el.addEventListener('timeupdate', () => {
+                                      const current = el.currentTime.toFixed(3);
+                                      const duration = el.duration ? el.duration.toFixed(3) : '0.000';
+                                      timeDisplay.textContent = `${current}s / ${duration}s`;
+                                    });
+                                    el.addEventListener('loadedmetadata', () => {
+                                      const duration = el.duration.toFixed(3);
+                                      timeDisplay.textContent = `0.000s / ${duration}s`;
+                                    });
+                                  }
+                                }
+                              }}
                               src={video.trimmedVideoUrl}
                               className="absolute top-0 left-0 w-full h-full object-contain"
                               controls
                               playsInline
                             />
+                            {/* Time display overlay */}
+                            <div className="absolute bottom-12 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded font-mono">
+                              0.000s / 0.000s
+                            </div>
                           </div>
                           
                           {/* Video Text */}

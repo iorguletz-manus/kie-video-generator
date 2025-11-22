@@ -22,10 +22,16 @@ interface VideoEditorV2Props {
     step9Note?: string | null;  // Note from Step 9
     editingDebugInfo?: any;  // Debug info from Whisper processing
   };
+  nextVideo?: {
+    videoName: string;
+    videoUrl: string;
+    cutPoints: { startKeep: number; endKeep: number };
+  } | null;
   onTrimChange?: (videoId: string, cutPoints: { startKeep: number; endKeep: number }, isStartLocked: boolean, isEndLocked: boolean) => void;
+  onCutAndMerge?: (video1: any, video2: any) => Promise<void>;
 }
 
-export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimChange }: VideoEditorV2Props) {
+export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, nextVideo, onTrimChange, onCutAndMerge }: VideoEditorV2Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const zoomviewRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -53,6 +59,11 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
   
   // Fine-tune controls state
   const [fineTuneStep, setFineTuneStep] = useState(10); // Default 10ms
+  
+  // Cut & Merge test state
+  const [isMerging, setIsMerging] = useState(false);
+  const [mergeProgress, setMergeProgress] = useState('');
+  const [mergedVideoUrl, setMergedVideoUrl] = useState<string | null>(null);
   
   // Playhead (black marker) - only visible when START is locked
   const [playheadTime, setPlayheadTime] = useState<number | null>(null);
@@ -797,6 +808,31 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
               📝 {video.step9Note}
             </div>
           )}
+          
+          {/* Cut & Merge (test) Button - Right of Notes */}
+          {nextVideo && onCutAndMerge && (
+            <Button
+              onClick={async () => {
+                if (!nextVideo) return;
+                setIsMerging(true);
+                setMergeProgress('Starting merge...');
+                try {
+                  await onCutAndMerge(video, nextVideo);
+                } catch (error) {
+                  console.error('[Cut & Merge] Error:', error);
+                } finally {
+                  setIsMerging(false);
+                  setMergeProgress('');
+                }
+              }}
+              disabled={isMerging}
+              size="sm"
+              variant="outline"
+              className="ml-3 h-7 text-xs px-3 border-blue-500 text-blue-700 hover:bg-blue-50"
+            >
+              {isMerging ? 'Merging...' : 'Cut & Merge (test)'}
+            </Button>
+          )}
         </div>
 
         {/* Waveform Container with Custom Markers Overlay */}
@@ -1033,9 +1069,13 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
               <input
                 type="number"
                 value={fineTuneStep}
-                onChange={(e) => setFineTuneStep(Math.max(1, parseInt(e.target.value) || 1))}
-                className="w-12 px-1 py-1 text-xs text-center border border-gray-300 rounded"
+                onChange={(e) => {
+                  const val = parseInt(e.target.value) || 1;
+                  setFineTuneStep(Math.max(1, Math.min(99, val))); // Max 2 digits
+                }}
+                className="w-10 px-1 py-1 text-xs text-center border border-gray-300 rounded"
                 min="1"
+                max="99"
               />
               <span className="text-xs text-gray-600">ms</span>
               <button
@@ -1098,9 +1138,13 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
               <input
                 type="number"
                 value={fineTuneStep}
-                onChange={(e) => setFineTuneStep(Math.max(1, parseInt(e.target.value) || 1))}
-                className="w-12 px-1 py-1 text-xs text-center border border-gray-300 rounded"
+                onChange={(e) => {
+                  const val = parseInt(e.target.value) || 1;
+                  setFineTuneStep(Math.max(1, Math.min(99, val))); // Max 2 digits
+                }}
+                className="w-10 px-1 py-1 text-xs text-center border border-gray-300 rounded"
                 min="1"
+                max="99"
               />
               <span className="text-xs text-gray-600">ms</span>
               <button
