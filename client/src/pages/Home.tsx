@@ -89,6 +89,7 @@ interface VideoResult {
 
   audioUrl?: string;        // Audio download URL from FFmpeg API
   waveformData?: string;    // Waveform JSON data
+  editingDebugInfo?: any;   // Debug info from Whisper processing
   // Step 9: Trimmed video fields
   trimmedVideoUrl?: string; // Trimmed video URL from Bunny CDN
 
@@ -1599,11 +1600,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           words: result.words,
           audioUrl: result.audioUrl,
           waveformData: result.waveformJson,
+          editingDebugInfo: result.editingDebugInfo,
           noCutNeeded: false,
         });
         
         console.log(`[Batch Processing] ✅ Stored result for ${video.videoName}:`, {
           cutPoints: result.cutPoints,
+          editingDebugInfo: result.editingDebugInfo,
+          hasWhisperTranscript: !!result.whisperTranscript,
+          hasWaveformData: !!result.waveformData,
         });
         
         successCount++;
@@ -1668,6 +1673,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           words: result.words,
           audioUrl: result.audioUrl,
           waveformData: result.waveformData,
+          editingDebugInfo: result.editingDebugInfo,
           editStatus: 'processed',
           noCutNeeded: false
         };
@@ -7297,6 +7303,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             isStartLocked: video.isStartLocked,
                             isEndLocked: video.isEndLocked,
                             step9Note: video.step9Note,
+                            editingDebugInfo: video.editingDebugInfo,
                             }}
                             onTrimChange={(videoId, cutPoints, isStartLocked, isEndLocked) => {
                             // Update local state when user adjusts trim markers or lock state

@@ -78,12 +78,26 @@ export interface CutPoints {
   confidence: number;
 }
 
+export interface EditingDebugInfo {
+  status: 'success' | 'warning' | 'error';
+  message: string;
+  redTextDetected?: {
+    found: boolean;
+    position?: 'START' | 'END';
+    fullText: string;        // Complete red text
+    timeRange?: { start: number; end: number };  // In seconds
+    matchedWords?: string[]; // Words found in transcript
+  };
+  error?: string;
+}
+
 export interface ProcessingResult {
   words: WhisperWord[];
   cutPoints: CutPoints | null;
   whisperTranscript: any;
   audioUrl: string;  // Audio download URL
   waveformJson: string;  // Waveform JSON data
+  editingDebugInfo: EditingDebugInfo;  // Debug info for Step 8
 }
 
 // ============================================================================
@@ -112,10 +126,21 @@ async function uploadVideoToFFmpegAPI(
     });
     
     if (!fileRes.ok) {
+      const errorText = await fileRes.text();
+      console.error('[uploadVideoToFFmpegAPI] FFmpeg API error response:', errorText.substring(0, 500));
       throw new Error(`FFmpeg API file creation failed: ${fileRes.statusText}`);
     }
     
-    const { file, upload } = await fileRes.json();
+    const responseText = await fileRes.text();
+    let fileData;
+    try {
+      fileData = JSON.parse(responseText);
+    } catch (e) {
+      console.error('[uploadVideoToFFmpegAPI] Invalid JSON response:', responseText.substring(0, 500));
+      throw new Error(`FFmpeg API returned invalid JSON (possibly HTML error page)`);
+    }
+    
+    const { file, upload } = fileData;
     
     // Step 2: Download video from Bunny CDN
     console.log(`[uploadVideoToFFmpegAPI] Downloading from ${videoUrl}...`);
@@ -178,10 +203,19 @@ async function extractAudioWithFFmpegAPI(
     });
     
     if (!processRes.ok) {
+      const errorText = await processRes.text();
+      console.error('[FFmpeg API] Error response:', errorText.substring(0, 500));
       throw new Error(`FFmpeg API processing failed: ${processRes.statusText}`);
     }
     
-    const result = await processRes.json();
+    const responseText = await processRes.text();
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch (e) {
+      console.error('[FFmpeg API] Invalid JSON response:', responseText.substring(0, 500));
+      throw new Error(`FFmpeg API returned invalid JSON (possibly HTML error page)`);
+    }
     
     if (!result.ok || !result.result || result.result.length === 0) {
       throw new Error(`FFmpeg API returned error: ${JSON.stringify(result)}`);
@@ -401,7 +435,7 @@ export function calculateCutPoints(
   redText: string,
   words: WhisperWord[],
   marginMs: number = 50
-): CutPoints | null {
+): { cutPoints: CutPoints | null; debugInfo: EditingDebugInfo } {
   try {
     // Split red text into words
     const redWords = redText.split(/\s+/).filter(w => w.length > 0);
@@ -411,7 +445,15 @@ export function calculateCutPoints(
     
     if (!redRange) {
       console.error('[calculateCutPoints] Red text not found in timestamps');
-      return null;
+      const debugInfo: EditingDebugInfo = {
+        status: 'warning',
+        message: `⚠️ No red text found in transcript`,
+        redTextDetected: {
+          found: false,
+          fullText: redText,
+        },
+      };
+      return { cutPoints: null, debugInfo };
     }
 
     const { startIdx, endIdx } = redRange;
@@ -441,7 +483,16 @@ export function calculateCutPoints(
       const lastWhiteIdx = startIdx - 1;
       if (lastWhiteIdx < 0) {
         console.error('[calculateCutPoints] No white text before red text');
-        return null;
+        const debugInfo: EditingDebugInfo = {
+          status: 'error',
+          message: `❌ No white text before red text - cannot calculate cut points`,
+          redTextDetected: {
+            found: true,
+            position: 'END',
+            fullText: redText,
+          },
+        };
+        return { cutPoints: null, debugInfo };
       }
 
       const lastWhiteWord = words[lastWhiteIdx];
@@ -452,18 +503,45 @@ export function calculateCutPoints(
 
     const confidence = 0.95;
 
+    // Get matched words from transcript
+    const matchedWords = words.slice(startIdx, endIdx + 1).map(w => w.word);
+    
+    // Get time range of red text
+    const redStartTime = words[startIdx].start;
+    const redEndTime = words[endIdx].end;
+
     console.log(`[calculateCutPoints] Red text at ${redPosition}`);
     console.log(`[calculateCutPoints] Keep range: ${startKeep}ms → ${endKeep}ms`);
+    console.log(`[calculateCutPoints] Red text range: ${redStartTime}s → ${redEndTime}s`);
 
-    return {
+    const cutPoints: CutPoints = {
       startKeep: Math.round(startKeep),
       endKeep: Math.round(endKeep),
       redPosition,
       confidence,
     };
+
+    const debugInfo: EditingDebugInfo = {
+      status: 'success',
+      message: `✅ Red text detected at ${redPosition}: "${matchedWords.join(' ')}" (${redStartTime.toFixed(2)}s - ${redEndTime.toFixed(2)}s)`,
+      redTextDetected: {
+        found: true,
+        position: redPosition,
+        fullText: matchedWords.join(' '),
+        timeRange: { start: redStartTime, end: redEndTime },
+        matchedWords,
+      },
+    };
+
+    return { cutPoints, debugInfo };
   } catch (error) {
     console.error('[calculateCutPoints] Error:', error);
-    return null;
+    const debugInfo: EditingDebugInfo = {
+      status: 'error',
+      message: `❌ Error calculating cut points: ${error instanceof Error ? error.message : String(error)}`,
+      error: error instanceof Error ? error.message : String(error),
+    };
+    return { cutPoints: null, debugInfo };
   }
 }
 
@@ -522,9 +600,10 @@ export async function processVideoForEditing(
     const { words, fullTranscript } = await transcribeWithWhisper(audioDownloadUrl, 'ro', userApiKey);
     
     // 5. Calculate cut points
-    const cutPoints = calculateCutPoints(fullText, redText, words, marginMs);
+    const { cutPoints, debugInfo } = calculateCutPoints(fullText, redText, words, marginMs);
     
     console.log(`[processVideoForEditing] Processing complete for video ${videoId}`);
+    console.log(`[processVideoForEditing] Debug info:`, debugInfo.message);
     
     return {
       words,
@@ -532,10 +611,17 @@ export async function processVideoForEditing(
       whisperTranscript: fullTranscript,
       audioUrl: bunnyAudioUrl, // Use permanent Bunny.net URL
       waveformJson,
+      editingDebugInfo: debugInfo,
     };
   } catch (error) {
     console.error(`[processVideoForEditing] Error for video ${videoId}:`, error);
-    throw error;
+    // Return error debug info instead of throwing
+    const errorDebugInfo: EditingDebugInfo = {
+      status: 'error',
+      message: `❌ Whisper API error: ${error instanceof Error ? error.message : String(error)}`,
+      error: error instanceof Error ? error.message : String(error),
+    };
+    throw error; // Still throw to maintain existing error handling
   }
 }
 
@@ -591,10 +677,19 @@ export async function cutVideoWithFFmpegAPI(
     });
     
     if (!processRes.ok) {
+      const errorText = await processRes.text();
+      console.error('[FFmpeg API] Error response:', errorText.substring(0, 500));
       throw new Error(`FFmpeg API processing failed: ${processRes.statusText}`);
     }
     
-    const result = await processRes.json();
+    const responseText = await processRes.text();
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch (e) {
+      console.error('[FFmpeg API] Invalid JSON response:', responseText.substring(0, 500));
+      throw new Error(`FFmpeg API returned invalid JSON (possibly HTML error page)`);
+    }
     
     if (!result.ok || !result.result || result.result.length === 0) {
       throw new Error(`FFmpeg API returned error: ${JSON.stringify(result)}`);

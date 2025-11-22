@@ -1583,6 +1583,7 @@ export const appRouter = router({
             whisperTranscript: result.whisperTranscript,
             audioUrl: result.audioUrl,
             waveformJson: result.waveformJson,
+            editingDebugInfo: result.editingDebugInfo,
           };
         } catch (error) {
           console.error(`[videoEditing.processVideoForEditing] Error for video ${input.videoId}:`, error);

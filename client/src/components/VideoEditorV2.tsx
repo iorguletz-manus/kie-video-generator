@@ -19,6 +19,7 @@ interface VideoEditorV2Props {
     isStartLocked?: boolean;
     isEndLocked?: boolean;
     step9Note?: string | null;  // Note from Step 9
+    editingDebugInfo?: any;  // Debug info from Whisper processing
   };
   onTrimChange?: (videoId: string, cutPoints: { startKeep: number; endKeep: number }, isStartLocked: boolean, isEndLocked: boolean) => void;
 }
@@ -641,6 +642,17 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
       {/* Waveform Timeline */}
       <div className="mb-2">
         <div className="flex items-center justify-center gap-4 mb-1">
+          {/* Editing Debug Info - Leftmost */}
+          {video.editingDebugInfo && (
+            <div className={`px-3 py-1 border rounded text-xs font-semibold flex items-center gap-1 ${
+              video.editingDebugInfo.status === 'success' ? 'bg-green-100 border-green-400 text-green-700' :
+              video.editingDebugInfo.status === 'warning' ? 'bg-yellow-100 border-yellow-400 text-yellow-700' :
+              'bg-red-100 border-red-400 text-red-700'
+            }`}>
+              <span>{video.editingDebugInfo.message}</span>
+            </div>
+          )}
+          
           {/* NO CUT NEEDED Badge - Left of Lock START */}
           {video.noCutNeeded && (
             <div className="px-3 py-1 bg-orange-100 border border-orange-400 rounded text-xs font-semibold text-orange-700 flex items-center gap-1">
