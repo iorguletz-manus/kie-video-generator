@@ -684,8 +684,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       setCombinations(parseJsonField(contextSession.combinations));
       setDeletedCombinations(parseJsonField(contextSession.deletedCombinations));
       
+      // Only load videoResults if they are empty (first load)
+      // Don't reload if videoResults already exist - this prevents overwriting manual marker changes
       const loadedVideoResults = parseJsonField(contextSession.videoResults);
-      setVideoResults(loadedVideoResults);
+      if (videoResults.length === 0) {
+        console.log('[Context Session] Loading videoResults from database (first load)');
+        setVideoResults(loadedVideoResults);
+      } else {
+        console.log('[Context Session] Skipping videoResults reload - already loaded');
+      }
       
       setReviewHistory(parseJsonField(contextSession.reviewHistory));
       
@@ -7540,8 +7547,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           
                           {/* Trim Info */}
                           <div className="text-xs text-gray-600 mb-3 text-center">
-                            <p>✂️ Trimmed: {video.trimStart?.toFixed(2)}s → {video.trimEnd?.toFixed(2)}s</p>
-                            <p>Duration: {((video.trimEnd || 0) - (video.trimStart || 0)).toFixed(2)}s</p>
+                            <p>✂️ Trimmed: {video.startTimestamp?.toFixed(2)}s → {video.endTimestamp?.toFixed(2)}s</p>
+                            <p>Duration: {((video.endTimestamp || 0) - (video.startTimestamp || 0)).toFixed(2)}s</p>
                           </div>
                           
                           {/* Step 9 Note Display */}

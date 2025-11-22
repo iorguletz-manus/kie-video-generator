@@ -34,9 +34,9 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
   
   const [peaksInstance, setPeaksInstance] = useState<PeaksInstance | null>(null);
   const [trimSegment, setTrimSegment] = useState<Segment | null>(null);
-  // ALWAYS use suggestedStart/suggestedEnd when available (new from Whisper), fallback to trimStart/trimEnd (old from DB)
-  const [trimStart, setTrimStart] = useState(video.suggestedStart ?? video.trimStart ?? 0);
-  const [trimEnd, setTrimEnd] = useState(video.suggestedEnd ?? video.trimEnd ?? video.duration);
+  // ALWAYS use suggestedStart/suggestedEnd when available (new from Whisper), fallback to startTimestamp/endTimestamp (old from DB)
+  const [trimStart, setTrimStart] = useState(video.suggestedStart ?? video.startTimestamp ?? 0);
+  const [trimEnd, setTrimEnd] = useState(video.suggestedEnd ?? video.endTimestamp ?? video.duration);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [refsReady, setRefsReady] = useState(false);
@@ -59,17 +59,26 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
 
   console.log('[VideoEditorV2] Received video:', video);
 
-  // Update trimStart/trimEnd when suggestedStart/suggestedEnd change (new values from Whisper)
+  // Update trimStart/trimEnd when suggestedStart/suggestedEnd change
+  // BUT only if user hasn't manually set markers (startTimestamp/endTimestamp from database)
   useEffect(() => {
-    if (video.suggestedStart !== undefined && video.suggestedStart !== trimStart) {
-      console.log('[VideoEditorV2] Updating trimStart from suggestedStart:', video.suggestedStart);
-      setTrimStart(video.suggestedStart);
+    // If video has startTimestamp/endTimestamp from database (user set them manually), don't override
+    const hasManualMarkers = video.startTimestamp !== undefined || video.endTimestamp !== undefined;
+    
+    if (!hasManualMarkers) {
+      // Only update if no manual markers exist
+      if (video.suggestedStart !== undefined && video.suggestedStart !== trimStart) {
+        console.log('[VideoEditorV2] Updating trimStart from suggestedStart:', video.suggestedStart);
+        setTrimStart(video.suggestedStart);
+      }
+      if (video.suggestedEnd !== undefined && video.suggestedEnd !== trimEnd) {
+        console.log('[VideoEditorV2] Updating trimEnd from suggestedEnd:', video.suggestedEnd);
+        setTrimEnd(video.suggestedEnd);
+      }
+    } else {
+      console.log('[VideoEditorV2] Skipping suggestedStart/suggestedEnd update - user has manual markers');
     }
-    if (video.suggestedEnd !== undefined && video.suggestedEnd !== trimEnd) {
-      console.log('[VideoEditorV2] Updating trimEnd from suggestedEnd:', video.suggestedEnd);
-      setTrimEnd(video.suggestedEnd);
-    }
-  }, [video.suggestedStart, video.suggestedEnd]);
+  }, [video.suggestedStart, video.suggestedEnd, video.startTimestamp, video.endTimestamp]);
 
   // Check if refs are ready after DOM renders
   useEffect(() => {
