@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Peaks.js Waveform - Complete Snippet for Styling</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 40px;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #1a1a1a;
+      color: #fff;
+    }
+    
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    
+    h1 {
+      margin-bottom: 30px;
+      font-size: 24px;
+    }
+    
+    /* ============================================
+       🎨 WAVEFORM CONTAINER - MODIFY HERE
+       ============================================ */
+    #waveform {
+      width: 100%;
+      height: 120px;
+      background: #000000;
+      border: 1px solid #333;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    /* Canvas styling (if needed) */
+    #waveform canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    
+    /* ============================================
+       VIDEO PLAYER
+       ============================================ */
+    video {
+      width: 100%;
+      max-width: 800px;
+      margin-bottom: 30px;
+      border-radius: 8px;
+    }
+    
+    /* ============================================
+       CONFIG PANEL
+       ============================================ */
+    .config {
+      background: #2a2a2a;
+      padding: 20px;
+      border-radius: 8px;
+      margin-top: 30px;
+    }
+    
+    .config h2 {
+      margin-top: 0;
+      font-size: 18px;
+      color: #4ade80;
+    }
+    
+    .config pre {
+      background: #1a1a1a;
+      padding: 15px;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #e5e5e5;
+    }
+    
+    .note {
+      background: #1e3a8a;
+      padding: 15px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+      border-left: 4px solid #3b82f6;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎵 Peaks.js Waveform - Complete Snippet</h1>
+    
+    <div class="note">
+      <strong>📋 For ChatGPT:</strong> This snippet contains ALL Peaks.js rendering options exposed.
+      Modify the <code>WAVEFORM_CONFIG</code> object below to achieve SoundCloud/CapCut style (dense vertical bars, symmetric, modern look).
+    </div>
+    
+    <video id="audio" controls>
+      <source src="https://www.w3schools.com/html/mov_bbb.mp4" type="video/mp4">
+    </video>
+    
+    <!-- 🎨 WAVEFORM CONTAINER -->
+    <div id="waveform"></div>
+    
+    <div class="config">
+      <h2>⚙️ Current Configuration</h2>
+      <pre id="config-display"></pre>
+    </div>
+  </div>
+  
+  <!-- Peaks.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/peaks.js@3.4.1/peaks.min.js"></script>
+  
+  <script>
+    // ============================================
+    // 🎨 WAVEFORM CONFIGURATION - MODIFY HERE
+    // ============================================
+    const WAVEFORM_CONFIG = {
+      // 🎨 VISUAL STYLING
+      waveformColor: '#cccccc',        // Main waveform color (hex or rgba)
+      playheadColor: '#ff0000',        // Playhead line color (set to 'transparent' to hide)
+      playheadTextColor: '#fff',       // Playhead time text color
+      axisGridlineColor: '#ccc',       // Grid lines color
+      axisLabelColor: '#ccc',          // Axis labels color
+      
+      // 📏 DIMENSIONS & ZOOM
+      height: 120,                     // Container height in pixels
+      zoomLevels: [512, 1024, 2048, 4096, 8192], // Samples per pixel at each zoom level
+      
+      // 🎚️ AMPLITUDE & RENDERING
+      amplitude: 1.0,                  // Amplitude scale (1.0 = normal, >1 = amplified)
+      
+      // 🎯 PLAYHEAD & TIME
+      showPlayheadTime: false,         // Show time label on playhead
+      
+      // ⚙️ INTERACTION
+      wheelMode: 'none',               // 'none' | 'scroll' - disable wheel zoom/pan
+      keyboard: true,                  // Enable keyboard shortcuts
+      
+      // 📊 SEGMENTS (trim regions)
+      segmentOptions: {
+        startMarkerColor: 'transparent',
+        endMarkerColor: 'transparent',
+        waveformColor: 'transparent',
+        overlayColor: 'transparent',
+      },
+    };
+    
+    // ============================================
+    // 📊 SAMPLE WAVEFORM DATA
+    // ============================================
+    // In production, this comes from audiowaveform CLI
+    // Here we generate a realistic sample pattern
+    const generateWaveformData = (length = 2000) => {
+      const data = [];
+      for (let i = 0; i < length; i++) {
+        const t = i / length;
+        // Mix of frequencies for realistic look
+        const low = Math.sin(t * Math.PI * 4) * 0.3;
+        const mid = Math.sin(t * Math.PI * 20) * 0.4;
+        const high = Math.sin(t * Math.PI * 80) * 0.2;
+        const noise = (Math.random() - 0.5) * 0.1;
+        const amplitude = Math.abs(low + mid + high + noise);
+        data.push(Math.floor(amplitude * 127));
+      }
+      return data;
+    };
+    
+    const waveformData = {
+      version: 2,
+      channels: 1,
+      sample_rate: 48000,
+      samples_per_pixel: 512,
+      bits: 8,
+      length: 2000,
+      data: generateWaveformData(2000)
+    };
+    
+    // Convert to Blob URL
+    const blob = new Blob([JSON.stringify(waveformData)], { type: 'application/json' });
+    const dataUrl = URL.createObjectURL(blob);
+    
+    // ============================================
+    // 🚀 INITIALIZE PEAKS.JS
+    // ============================================
+    const options = {
+      zoomview: {
+        container: document.getElementById('waveform'),
+        waveformColor: WAVEFORM_CONFIG.waveformColor,
+        playheadColor: WAVEFORM_CONFIG.playheadColor,
+        playheadTextColor: WAVEFORM_CONFIG.playheadTextColor,
+        axisGridlineColor: WAVEFORM_CONFIG.axisGridlineColor,
+        axisLabelColor: WAVEFORM_CONFIG.axisLabelColor,
+        wheelMode: WAVEFORM_CONFIG.wheelMode,
+        segmentOptions: WAVEFORM_CONFIG.segmentOptions,
+      },
+      mediaElement: document.getElementById('audio'),
+      dataUri: {
+        json: dataUrl,
+      },
+      keyboard: WAVEFORM_CONFIG.keyboard,
+      showPlayheadTime: WAVEFORM_CONFIG.showPlayheadTime,
+      zoomLevels: WAVEFORM_CONFIG.zoomLevels,
+      segmentOptions: WAVEFORM_CONFIG.segmentOptions,
+    };
+    
+    // Initialize
+    Peaks.init(options, (err, peaks) => {
+      if (err) {
+        console.error('Failed to initialize Peaks.js:', err);
+        document.getElementById('waveform').innerHTML = 
+          '<div style="padding: 20px; color: #ef4444;">Error: ' + err.message + '</div>';
+        return;
+      }
+      
+      console.log('✅ Peaks.js initialized successfully');
+      
+      // Optional: Add a sample segment (trim region)
+      peaks.segments.add({
+        startTime: 2,
+        endTime: 8,
+        editable: false,
+        color: 'rgba(59, 130, 246, 0.15)',
+        labelText: '',
+      });
+    });
+    
+    // Display config
+    document.getElementById('config-display').textContent = 
+      JSON.stringify(WAVEFORM_CONFIG, null, 2);
+  </script>
+  
+  <!-- 
+  ============================================
+  📝 NOTES FOR CHATGPT MODIFICATION:
+  ============================================
+  
+  To achieve SoundCloud/CapCut style:
+  
+  1. WAVEFORM APPEARANCE:
+     - Dense vertical bars (reduce samples_per_pixel or increase zoom)
+     - Symmetric bars (mirrored top/bottom)
+     - Narrow bar width with small gaps
+     - Modern gradient or solid color
+  
+  2. PEAKS.JS LIMITATIONS:
+     - Peaks.js uses canvas rendering with fixed bar style
+     - To get true "bar" style like SoundCloud, you may need:
+       a) Custom canvas rendering (override Peaks.js draw function)
+       b) Use a different library (WaveSurfer.js supports bar style natively)
+       c) CSS filters/transforms on canvas (limited control)
+  
+  3. RECOMMENDED APPROACH:
+     Option A: Switch to WaveSurfer.js (has built-in bar style)
+     Option B: Keep Peaks.js but apply CSS transforms to make it look denser
+     Option C: Fork Peaks.js and modify canvas rendering code
+  
+  4. KEY SETTINGS TO MODIFY:
+     - waveformColor: Change to gradient or modern color
+     - zoomLevels: Use lower values (256, 512) for denser bars
+     - amplitude: Increase to make bars taller
+     - CSS: Add filters, transforms, or overlays
+  
+  5. ALTERNATIVE LIBRARIES:
+     - WaveSurfer.js: Has barWidth, barGap, barRadius options
+     - Wavesurfer-react: React wrapper with full bar control
+     - Custom Canvas: Full control but more work
+  
+  ============================================
+  -->
+</body>
+</html>
