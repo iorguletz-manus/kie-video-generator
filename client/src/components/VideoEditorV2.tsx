@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import Peaks, { PeaksInstance, Segment } from 'peaks.js';
 import { Button } from './ui/button';
 import { Play, Pause, ZoomIn, ZoomOut, Lock, Unlock } from 'lucide-react';
+import { WaveSurferEditor } from './WaveSurferEditor';
 
 interface VideoEditorV2Props {
   video: {
@@ -32,9 +33,9 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
   
   const [peaksInstance, setPeaksInstance] = useState<PeaksInstance | null>(null);
   const [trimSegment, setTrimSegment] = useState<Segment | null>(null);
-  // Initialize from cutPoints (single source of truth)
-  const [trimStart, setTrimStart] = useState((video.cutPoints?.startKeep || 0) / 1000);
-  const [trimEnd, setTrimEnd] = useState((video.cutPoints?.endKeep || 0) / 1000);
+  // Initialize from cutPoints (single source of truth) - in MILLISECONDS
+  const [trimStart, setTrimStart] = useState(video.cutPoints?.startKeep || 0);
+  const [trimEnd, setTrimEnd] = useState(video.cutPoints?.endKeep || video.duration * 1000);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [refsReady, setRefsReady] = useState(false);
@@ -54,6 +55,11 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
   const [isDragging, setIsDragging] = useState<'start' | 'end' | 'playhead' | null>(null);
   const dragStartX = useRef(0);
   const dragStartTime = useRef(0);
+
+  // Helper functions for milliseconds ↔ seconds conversion
+  // Only use at library interfaces (Peaks.js, video element, FFmpeg)
+  const msToSeconds = (ms: number): number => ms / 1000;
+  const secondsToMs = (sec: number): number => Math.round(sec * 1000);
 
   console.log('[VideoEditorV2] Received video:', video);
 
@@ -138,8 +144,8 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
 
       // Create initial trim segment (non-editable, just for visual reference)
       const segment = peaks!.segments.add({
-        startTime: (video.cutPoints?.startKeep || 0) / 1000,
-        endTime: (video.cutPoints?.endKeep || 0) / 1000,
+        startTime: msToSeconds(video.cutPoints?.startKeep || 0),
+        endTime: msToSeconds(video.cutPoints?.endKeep || video.duration * 1000),
         editable: false, // We handle dragging with custom overlay
         color: 'transparent',
         labelText: '',
@@ -264,8 +270,8 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
   useEffect(() => {
     if (trimSegment) {
       trimSegment.update({
-        startTime: trimStart,
-        endTime: trimEnd,
+        startTime: msToSeconds(trimStart),
+        endTime: msToSeconds(trimEnd),
       });
     }
   }, [trimStart, trimEnd, trimSegment]);
@@ -303,17 +309,17 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
     
     const updateCurrentTime = () => {
       if (videoRef.current && playing) {
-        const time = videoRef.current.currentTime;
-        setCurrentTime(time);
+        const timeMs = secondsToMs(videoRef.current.currentTime);
+        setCurrentTime(timeMs);
         
         // Check if we've reached END marker
-        if (time >= trimEnd - 0.02) { // 20ms tolerance
+        if (timeMs >= trimEnd - 20) { // 20ms tolerance
           // Stop playback
           videoRef.current.pause();
           setPlaying(false);
           
           // Optional: snap to exact trimEnd
-          videoRef.current.currentTime = trimEnd;
+          videoRef.current.currentTime = msToSeconds(trimEnd);
           
           console.log('[VideoEditorV2] Stopped at END marker:', trimEnd);
           return; // STOP, no more rAF
@@ -345,11 +351,11 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
       // Start playback from appropriate position
       if (isStartLocked && playheadTime !== null) {
         // If START is locked, play from playhead position
-        videoRef.current.currentTime = playheadTime;
+        videoRef.current.currentTime = msToSeconds(playheadTime);
         console.log('[VideoEditorV2] Playing from playhead:', playheadTime);
       } else {
         // Otherwise play from START marker
-        videoRef.current.currentTime = trimStart;
+        videoRef.current.currentTime = msToSeconds(trimStart);
         console.log('[VideoEditorV2] Playing from START:', trimStart);
       }
       videoRef.current.play();
@@ -359,48 +365,50 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
 
   const seekToStart = () => {
     if (videoRef.current) {
-      videoRef.current.currentTime = trimStart;
+      videoRef.current.currentTime = msToSeconds(trimStart);
     }
   };
 
   const seekToEnd = () => {
     if (videoRef.current) {
-      videoRef.current.currentTime = trimEnd;
+      videoRef.current.currentTime = msToSeconds(trimEnd);
     }
   };
 
-  // Convert time to pixel position on waveform
-  const timeToPixel = (time: number): number => {
+  // Convert time (milliseconds) to pixel position on waveform
+  const timeToPixel = (timeMs: number): number => {
     if (!peaksInstance || !waveformContainerRef.current) return 0;
     
     const view = peaksInstance.views.getView('zoomview');
     if (!view) return 0;
     
-    const viewStartTime = view.getStartTime();
-    const viewEndTime = view.getEndTime();
+    const viewStartTime = view.getStartTime();  // seconds
+    const viewEndTime = view.getEndTime();      // seconds
     const containerWidth = waveformContainerRef.current.offsetWidth;
     
-    const relativeTime = time - viewStartTime;
+    const timeSeconds = msToSeconds(timeMs);
+    const relativeTime = timeSeconds - viewStartTime;
     const viewDuration = viewEndTime - viewStartTime;
     
     return (relativeTime / viewDuration) * containerWidth;
   };
 
-  // Convert pixel position to time
+  // Convert pixel position to time (returns milliseconds)
   const pixelToTime = (pixel: number): number => {
     if (!peaksInstance || !waveformContainerRef.current) return 0;
     
     const view = peaksInstance.views.getView('zoomview');
     if (!view) return 0;
     
-    const viewStartTime = view.getStartTime();
-    const viewEndTime = view.getEndTime();
+    const viewStartTime = view.getStartTime();  // seconds
+    const viewEndTime = view.getEndTime();      // seconds
     const containerWidth = waveformContainerRef.current.offsetWidth;
     
     const viewDuration = viewEndTime - viewStartTime;
     const relativeTime = (pixel / containerWidth) * viewDuration;
+    const timeSeconds = viewStartTime + relativeTime;
     
-    return Math.max(0, Math.min(video.duration, viewStartTime + relativeTime));
+    return Math.max(0, Math.min(video.duration * 1000, secondsToMs(timeSeconds)));
   };
 
   // Mouse down on marker
@@ -436,37 +444,37 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
       const newTime = pixelToTime(relativeX);
       
       if (isDragging === 'start') {
-        const clampedTime = Math.max(0, Math.min(newTime, trimEnd - 0.1));
+        const clampedTime = Math.max(0, Math.min(newTime, trimEnd - 100));  // 100ms min gap
         setTrimStart(clampedTime);
         if (onTrimChange) {
           onTrimChange(video.id, {
-            startKeep: Math.round(clampedTime * 1000),
-            endKeep: Math.round(trimEnd * 1000)
+            startKeep: Math.round(clampedTime),
+            endKeep: Math.round(trimEnd)
           }, isStartLocked, isEndLocked);
         }
         // Sync video to new START position
         if (videoRef.current) {
-          videoRef.current.currentTime = clampedTime;
+          videoRef.current.currentTime = msToSeconds(clampedTime);
         }
       } else if (isDragging === 'end') {
-        const clampedTime = Math.max(trimStart + 0.1, Math.min(newTime, video.duration));
+        const clampedTime = Math.max(trimStart + 100, Math.min(newTime, video.duration * 1000));  // 100ms min gap
         setTrimEnd(clampedTime);
         if (onTrimChange) {
           onTrimChange(video.id, {
-            startKeep: Math.round(trimStart * 1000),
-            endKeep: Math.round(clampedTime * 1000)
+            startKeep: Math.round(trimStart),
+            endKeep: Math.round(clampedTime)
           }, isStartLocked, isEndLocked);
         }
         // Sync video to new END position
         if (videoRef.current) {
-          videoRef.current.currentTime = clampedTime;
+          videoRef.current.currentTime = msToSeconds(clampedTime);
         }
       } else if (isDragging === 'playhead') {
-        const clampedTime = Math.max(0, Math.min(newTime, video.duration));
+        const clampedTime = Math.max(0, Math.min(newTime, video.duration * 1000));
         setPlayheadTime(clampedTime);
         // Sync video to playhead position
         if (videoRef.current) {
-          videoRef.current.currentTime = clampedTime;
+          videoRef.current.currentTime = msToSeconds(clampedTime);
         }
       }
     };
@@ -493,8 +501,8 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
   useEffect(() => {
     if (onTrimChange) {
       onTrimChange(video.id, {
-        startKeep: Math.round(trimStart * 1000),
-        endKeep: Math.round(trimEnd * 1000)
+        startKeep: Math.round(trimStart),
+        endKeep: Math.round(trimEnd)
       }, isStartLocked, isEndLocked);
       console.log('[VideoEditorV2] Lock state changed:', { isStartLocked, isEndLocked });
     }
@@ -517,7 +525,10 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
     const currentWindow = windowSize || duration;
     const newWindow = Math.max(MIN_WINDOW, currentWindow / 2);
 
-    const centerTime = videoRef.current?.currentTime || (trimStart + trimEnd) / 2;
+    // Center on current visible area, not video currentTime
+    const currentViewStart = view.getStartTime();
+    const currentViewEnd = view.getEndTime();
+    const centerTime = (currentViewStart + currentViewEnd) / 2;
     const half = newWindow / 2;
 
     let newStart = centerTime - half;
@@ -546,7 +557,10 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
     const currentWindow = windowSize || duration;
     const newWindow = Math.min(MAX_WINDOW, currentWindow * 2);
 
-    const centerTime = videoRef.current?.currentTime || (trimStart + trimEnd) / 2;
+    // Center on current visible area, not video currentTime
+    const currentViewStart = view.getStartTime();
+    const currentViewEnd = view.getEndTime();
+    const centerTime = (currentViewStart + currentViewEnd) / 2;
     const half = newWindow / 2;
 
     let newStart = centerTime - half;
@@ -562,13 +576,13 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
     setWindowSize(newWindow);
   };
 
-  const formatTime = (seconds: number) => {
-    if (isNaN(seconds) || !isFinite(seconds)) {
-      return '0.00';
+  // Format milliseconds to seconds with 3 decimals (e.g., 50ms → "0.050", 5810ms → "5.810")
+  const formatTime = (milliseconds: number) => {
+    if (isNaN(milliseconds) || !isFinite(milliseconds)) {
+      return '0.000';
     }
-    const secs = Math.floor(seconds);
-    const ms = Math.floor((seconds % 1) * 100);
-    return `${secs}.${ms.toString().padStart(2, '0')}`;
+    const seconds = milliseconds / 1000;
+    return seconds.toFixed(3);
   };
 
   return (
@@ -695,8 +709,8 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
               // Trigger immediate save
               if (onTrimChange) {
                 onTrimChange(video.id, {
-                  startKeep: Math.round(trimStart * 1000),
-                  endKeep: Math.round(trimEnd * 1000)
+                  startKeep: Math.round(trimStart),
+                  endKeep: Math.round(trimEnd)
                 }, newLockState, isEndLocked);
               }
             }}
@@ -740,8 +754,8 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
               // Trigger immediate save
               if (onTrimChange) {
                 onTrimChange(video.id, {
-                  startKeep: Math.round(trimStart * 1000),
-                  endKeep: Math.round(trimEnd * 1000)
+                  startKeep: Math.round(trimStart),
+                  endKeep: Math.round(trimEnd)
                 }, isStartLocked, newLockState);
               }
             }}
@@ -1001,6 +1015,49 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, onTrimCh
           </div>
         </div>
       </div>
+
+      {/* WaveSurfer.js Full Implementation */}
+      {video.audioUrl && (
+        <WaveSurferEditor
+          audioUrl={video.audioUrl}
+          videoRef={videoRef}
+          initialStart={trimStart}
+          initialEnd={trimEnd}
+          duration={video.duration}
+          onTrimChange={(start, end) => {
+            setTrimStart(start);
+            setTrimEnd(end);
+            if (onTrimChange) {
+              onTrimChange(video.id, {
+                startKeep: Math.round(start),
+                endKeep: Math.round(end)
+              }, isStartLocked, isEndLocked);
+            }
+          }}
+          isStartLocked={isStartLocked}
+          isEndLocked={isEndLocked}
+          onStartLockToggle={() => {
+            const newLockState = !isStartLocked;
+            setIsStartLocked(newLockState);
+            if (onTrimChange) {
+              onTrimChange(video.id, {
+                startKeep: Math.round(trimStart),
+                endKeep: Math.round(trimEnd)
+              }, newLockState, isEndLocked);
+            }
+          }}
+          onEndLockToggle={() => {
+            const newLockState = !isEndLocked;
+            setIsEndLocked(newLockState);
+            if (onTrimChange) {
+              onTrimChange(video.id, {
+                startKeep: Math.round(trimStart),
+                endKeep: Math.round(trimEnd)
+              }, isStartLocked, newLockState);
+            }
+          }}
+        />
+      )}
 
       {/* Error State */}
       {trimStart >= trimEnd && (

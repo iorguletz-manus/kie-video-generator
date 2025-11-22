@@ -82,6 +82,7 @@
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^1.1.2",
     "waveform-data": "^4.5.2",
+    "wavesurfer.js": "^7.11.1",
     "wouter": "^3.3.5",
     "zod": "^4.1.12"
   },

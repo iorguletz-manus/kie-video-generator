@@ -67,8 +67,8 @@ async function uploadToBunnyCDN(
 
 export interface WhisperWord {
   word: string;
-  start: number;  // seconds
-  end: number;    // seconds
+  start: number;  // milliseconds (converted from Whisper seconds)
+  end: number;    // milliseconds (converted from Whisper seconds)
 }
 
 export interface CutPoints {
@@ -364,9 +364,14 @@ async function transcribeWithWhisper(
       timestamp_granularities: ['word'],
     });
     
-    const words: WhisperWord[] = transcription.words || [];
+    // Convert Whisper timestamps from seconds to milliseconds
+    const words: WhisperWord[] = (transcription.words || []).map((w: any) => ({
+      word: w.word,
+      start: Math.round(w.start * 1000),  // Convert seconds → milliseconds
+      end: Math.round(w.end * 1000)       // Convert seconds → milliseconds
+    }));
     
-    console.log(`[transcribeWithWhisper] Transcribed ${words.length} words`);
+    console.log(`[transcribeWithWhisper] Transcribed ${words.length} words (timestamps in milliseconds)`);
     
     return {
       words,
@@ -516,20 +521,20 @@ export function calculateCutPoints(
     if (redAtStart) {
       // RED TEXT AT START → Keep from AFTER key word until END
       const keyWordTimestamp = words[keyWordIndex];
-      startKeep = (keyWordTimestamp.end + marginS) * 1000;
+      startKeep = keyWordTimestamp.end + marginS;
 
       const lastWord = words[words.length - 1];
-      endKeep = (lastWord.end + marginS) * 1000;
+      endKeep = lastWord.end + marginS;
 
       redPosition = 'START';
       console.log(`[calculateCutPoints] RED AT START: Keep ${startKeep}ms (after "${keyWord}") → ${endKeep}ms (end)`);
     } else {
       // RED TEXT AT END → Keep from START until BEFORE key word
       const firstWord = words[0];
-      startKeep = Math.max(0, (firstWord.start + marginS) * 1000);
+      startKeep = Math.max(0, firstWord.start + marginS);
 
       const keyWordTimestamp = words[keyWordIndex];
-      endKeep = (keyWordTimestamp.start - marginS) * 1000;
+      endKeep = keyWordTimestamp.start - marginS;
 
       if (endKeep <= startKeep) {
         console.error('[calculateCutPoints] No white text before red text');
@@ -871,8 +876,8 @@ export function calculateCutPointsNew(
     const startWord = words[whiteMatch.startIdx];
     const endWord = words[whiteMatch.endIdx];
     
-    const startKeep = Math.max(0, (startWord.start - marginS) * 1000);
-    const endKeep = (endWord.end + marginS) * 1000;
+      const startKeep = Math.max(0, startWord.start - marginS);
+    const endKeep = endWord.end + marginS;
     
     logs.push(`✅ Placed START marker before "${startWord.word}" at ${startKeep.toFixed(0)}ms`);
     logs.push(`✅ Placed END marker after "${endWord.word}" at ${endKeep.toFixed(0)}ms`);
@@ -918,8 +923,8 @@ export function calculateCutPointsNew(
       logs.push(`✅ Red text is at END of transcript → placing END marker BEFORE first red word`);
       
       const firstRedWord = words[redMatch.startIdx];
-      const startKeep = Math.max(0, (words[0].start - marginS) * 1000);
-      const endKeep = (firstRedWord.start - marginS) * 1000;
+      const startKeep = Math.max(0, words[0].start - marginS);
+      const endKeep = firstRedWord.start - marginS;
       
       if (endKeep <= startKeep) {
         logs.push(`❌ No white text before red text - cannot calculate cut points`);
@@ -966,8 +971,8 @@ export function calculateCutPointsNew(
       logs.push(`✅ Red text is at BEGINNING of transcript → placing START marker AFTER last red word`);
       
       const lastRedWord = words[redMatch.endIdx];
-      const startKeep = (lastRedWord.end + marginS) * 1000;
-      const endKeep = (words[words.length - 1].end + marginS) * 1000;
+      const startKeep = lastRedWord.end + marginS;
+      const endKeep = words[words.length - 1].end + marginS;
       
       logs.push(`✅ Placed START marker after "${lastRedWord.word}" at ${startKeep.toFixed(0)}ms`);
       logs.push(`✅ Placed END marker at ${endKeep.toFixed(0)}ms`);
@@ -1020,8 +1025,8 @@ export function calculateCutPointsNew(
         logs.push(`✅ White text is at beginning → placing END marker AFTER last word`);
         
         const lastMatchWord = words[match.endIdx];
-        const startKeep = Math.max(0, (words[0].start - marginS) * 1000);
-        const endKeep = (lastMatchWord.end + marginS) * 1000;
+        const startKeep = Math.max(0, words[0].start - marginS);
+        const endKeep = lastMatchWord.end + marginS;
         
         logs.push(`✅ Placed START marker at ${startKeep.toFixed(0)}ms`);
         logs.push(`✅ Placed END marker after "${lastMatchWord.word}" at ${endKeep.toFixed(0)}ms`);
@@ -1072,8 +1077,8 @@ export function calculateCutPointsNew(
         logs.push(`✅ White text is at end → placing START marker BEFORE first word`);
         
         const firstMatchWord = words[match.startIdx];
-        const startKeep = (firstMatchWord.start - marginS) * 1000;
-        const endKeep = (words[words.length - 1].end + marginS) * 1000;
+        const startKeep = firstMatchWord.start - marginS;
+        const endKeep = words[words.length - 1].end + marginS;
         
         logs.push(`✅ Placed START marker before "${firstMatchWord.word}" at ${startKeep.toFixed(0)}ms`);
         logs.push(`✅ Placed END marker at ${endKeep.toFixed(0)}ms`);
@@ -1121,8 +1126,8 @@ export function calculateCutPointsNew(
         logs.push(`✅ This marks END of red text → placing START marker AFTER last word`);
         
         const lastMatchWord = words[match.endIdx];
-        const startKeep = (lastMatchWord.end + marginS) * 1000;
-        const endKeep = (words[words.length - 1].end + marginS) * 1000;
+        const startKeep = lastMatchWord.end + marginS;
+        const endKeep = words[words.length - 1].end + marginS;
         
         logs.push(`✅ Placed START marker after "${lastMatchWord.word}" at ${startKeep.toFixed(0)}ms`);
         logs.push(`✅ Placed END marker at ${endKeep.toFixed(0)}ms`);
@@ -1166,8 +1171,8 @@ export function calculateCutPointsNew(
         logs.push(`✅ This marks START of red text → placing END marker BEFORE first word`);
         
         const firstMatchWord = words[match.startIdx];
-        const startKeep = Math.max(0, (words[0].start - marginS) * 1000);
-        const endKeep = (firstMatchWord.start - marginS) * 1000;
+        const startKeep = Math.max(0, words[0].start - marginS);
+        const endKeep = firstMatchWord.start - marginS;
         
         if (endKeep <= startKeep) {
           logs.push(`❌ No white text before red text - cannot calculate cut points`);

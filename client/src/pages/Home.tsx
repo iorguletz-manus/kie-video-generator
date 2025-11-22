@@ -1718,7 +1718,30 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     if (videosToTrim.length === 0) {
       if (hasTrimmedVideos) {
-        toast.error('Nu există videouri cu status "Recut" pentru tăiere!');
+        // Check if all recut videos are already trimmed
+        const recutVideos = videoResults.filter(v => 
+          v.reviewStatus === 'accepted' && 
+          v.status === 'success' && 
+          v.recutStatus === 'recut'
+        );
+        const allRecutTrimmed = recutVideos.every(v => v.trimmedVideoUrl);
+        
+        if (allRecutTrimmed && recutVideos.length > 0) {
+          toast.success('✅ Toate videourile sunt deja tăiate! Redirectăm către Step 9...', { duration: 3000 });
+          setIsTrimmingModalOpen(false);
+          // Auto-redirect with countdown
+          let countdown = 3;
+          const countdownInterval = setInterval(() => {
+            countdown--;
+            if (countdown === 0) {
+              clearInterval(countdownInterval);
+              setCurrentStep(9);
+            }
+          }, 1000);
+          return;
+        } else {
+          toast.error('Nu există videouri cu status "Recut" pentru tăiere!');
+        }
       } else {
         toast.error('Nu există videouri pentru tăiere!');
       }
@@ -1727,10 +1750,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
     
     // Debug: Log lock state for all videos
-    console.log('[DEBUG] Videos to trim:', videosToTrim.map(v => ({
+    console.log('[DEBUG] Videos to trim - FULL OBJECTS:', videosToTrim);
+    console.log('[DEBUG] Videos to trim - LOCK STATE:', videosToTrim.map(v => ({
       name: v.videoName,
       isStartLocked: v.isStartLocked,
-      isEndLocked: v.isEndLocked
+      isEndLocked: v.isEndLocked,
+      hasIsStartLocked: 'isStartLocked' in v,
+      hasIsEndLocked: 'isEndLocked' in v
     })));
     
     // Validate that all videos have START and END locked
@@ -1738,13 +1764,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       !v.isStartLocked || !v.isEndLocked
     );
     
+    console.log('[DEBUG] Unlocked videos:', unlockedVideos.map(v => ({
+      name: v.videoName,
+      isStartLocked: v.isStartLocked,
+      isEndLocked: v.isEndLocked
+    })));
+    
     if (unlockedVideos.length > 0) {
-      const unlockedNames = unlockedVideos.map(v => {
-        const issues = [];
-        if (!v.isStartLocked) issues.push('START');
-        if (!v.isEndLocked) issues.push('END');
-        return `${v.videoName} (${issues.join(', ')} not locked)`;
-      }).join('\n');
+      const unlockedNames = unlockedVideos.map(v => v.videoName).join('\n');
       
       toast.error(
         `❌ Următoarele videouri nu sunt locked:\n\n${unlockedNames}\n\nTe rog să blochezi START și END pentru toate videourile înainte de trimming!`,
@@ -1787,12 +1814,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           trimEnd
         });
         
-        // Call FFMPEG API to trim video via tRPC
+        // Call FFMPEG API to trim video via tRPC (send milliseconds)
         const result = await cutVideoMutation.mutateAsync({
           videoUrl: video.videoUrl!,
           videoName: video.videoName, // Use videoName as unique identifier
-          startTimeSeconds: trimStart,
-          endTimeSeconds: trimEnd,
+          startTimeMs: trimStart,  // milliseconds
+          endTimeMs: trimEnd,      // milliseconds
           ffmpegApiKey: localCurrentUser.ffmpegApiKey || undefined
         });
         

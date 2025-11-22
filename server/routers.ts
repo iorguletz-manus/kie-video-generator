@@ -1601,20 +1601,24 @@ export const appRouter = router({
       .input(z.object({
         videoUrl: z.string(),
         videoName: z.string(),
-        startTimeSeconds: z.number(),
-        endTimeSeconds: z.number(),
+        startTimeMs: z.number(),  // milliseconds
+        endTimeMs: z.number(),    // milliseconds
         ffmpegApiKey: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
         try {
-          console.log(`[videoEditing.cutVideo] Cutting video ${input.videoName}: ${input.startTimeSeconds}s → ${input.endTimeSeconds}s`);
+          // Convert milliseconds to seconds with 3 decimals for FFmpeg
+          const startTimeSeconds = (input.startTimeMs / 1000).toFixed(3);
+          const endTimeSeconds = (input.endTimeMs / 1000).toFixed(3);
+          
+          console.log(`[videoEditing.cutVideo] Cutting video ${input.videoName}: ${startTimeSeconds}s → ${endTimeSeconds}s (from ${input.startTimeMs}ms → ${input.endTimeMs}ms)`);
           
           // Cut video using FFmpeg API
           const downloadUrl = await cutVideoWithFFmpegAPI(
             input.videoUrl,
             input.videoName,
-            input.startTimeSeconds,
-            input.endTimeSeconds,
+            parseFloat(startTimeSeconds),
+            parseFloat(endTimeSeconds),
             input.ffmpegApiKey!
           );
 
