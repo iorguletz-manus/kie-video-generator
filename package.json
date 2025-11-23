@@ -59,6 +59,7 @@
     "framer-motion": "^12.23.22",
     "input-otp": "^1.4.2",
     "jose": "6.1.0",
+    "jszip": "^3.10.1",
     "konva": "^10.0.11",
     "lucide-react": "^0.453.0",
     "mammoth": "^1.11.0",

@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import JSZip from 'jszip';
 import { useLocation } from "wouter";
 import EditProfileModal from '@/components/EditProfileModal';
 
@@ -280,20 +281,79 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     message: ''
   });
   
-  // Cut & Merge modal
+  // Cut & Merge modal with localStorage persistence
   const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
-  const [mergedVideoUrl, setMergedVideoUrl] = useState<string | null>(null);
+  const [mergedVideoUrl, setMergedVideoUrl] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('mergedVideoUrl') || null;
+    } catch {
+      return null;
+    }
+  });
   const [mergeProgress, setMergeProgress] = useState<string>('');
+  const [lastMergedPairHash, setLastMergedPairHash] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('lastMergedPairHash') || null;
+    } catch {
+      return null;
+    }
+  });
+  
+  // Persist Cut & Merge cache to localStorage
+  useEffect(() => {
+    if (mergedVideoUrl) {
+      localStorage.setItem('mergedVideoUrl', mergedVideoUrl);
+    }
+  }, [mergedVideoUrl]);
+  
+  useEffect(() => {
+    if (lastMergedPairHash) {
+      localStorage.setItem('lastMergedPairHash', lastMergedPairHash);
+    }
+  }, [lastMergedPairHash]);
   
   // Sample Merge modal
   const [isSampleMergeModalOpen, setIsSampleMergeModalOpen] = useState(false);
-  const [sampleMergedVideoUrl, setSampleMergedVideoUrl] = useState<string | null>(null);
+  // Sample Merge cache with localStorage persistence
+  const [sampleMergedVideoUrl, setSampleMergedVideoUrl] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('sampleMergedVideoUrl') || null;
+    } catch {
+      return null;
+    }
+  });
   const [sampleMergeProgress, setSampleMergeProgress] = useState<string>('');
   const [sampleMergeVideos, setSampleMergeVideos] = useState<Array<{name: string, note: string}>>([]);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingNoteText, setEditingNoteText] = useState<string>('');
-  // Cache for Sample Merge to avoid re-cutting if videos haven't changed
-  const [lastMergedVideosHash, setLastMergedVideosHash] = useState<string>('');
+  
+  // Download ZIP progress
+  const [isDownloadZipModalOpen, setIsDownloadZipModalOpen] = useState(false);
+  const [downloadZipProgress, setDownloadZipProgress] = useState<string>('');
+  
+  // Initial videos hash for smart cache (tracks original marker values from DB)
+  const [initialVideosHash, setInitialVideosHash] = useState<string | null>(null);
+  const [initialPairHash, setInitialPairHash] = useState<string | null>(null);
+  const [lastMergedVideosHash, setLastMergedVideosHash] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('lastMergedVideosHash') || null;
+    } catch {
+      return null;
+    }
+  });
+  
+  // Persist cache to localStorage whenever it changes
+  useEffect(() => {
+    if (sampleMergedVideoUrl) {
+      localStorage.setItem('sampleMergedVideoUrl', sampleMergedVideoUrl);
+    }
+  }, [sampleMergedVideoUrl]);
+  
+  useEffect(() => {
+    if (lastMergedVideosHash) {
+      localStorage.setItem('lastMergedVideosHash', lastMergedVideosHash);
+    }
+  }, [lastMergedVideosHash]);
   
   // Images Library modal
   const [isImagesLibraryOpen, setIsImagesLibraryOpen] = useState(false);
@@ -604,7 +664,23 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       if (session.images) setImages(session.images);
       if (session.combinations) setCombinations(session.combinations);
       if (session.deletedCombinations) setDeletedCombinations(session.deletedCombinations);
-      if (session.videoResults) setVideoResults(session.videoResults);
+      if (session.videoResults) {
+        setVideoResults(session.videoResults);
+        
+        // Set initial hash for smart cache
+        const approvedVideos = session.videoResults.filter(v => 
+          v.reviewStatus === 'accepted' && 
+          v.status === 'success' && 
+          v.videoUrl
+        );
+        const hash = JSON.stringify(approvedVideos.map(v => ({
+          name: v.videoName,
+          startMs: Math.round(v.cutPoints?.startKeep || 0),
+          endMs: Math.round(v.cutPoints?.endKeep || 0),
+        })));
+        setInitialVideosHash(hash);
+        console.log('[Cache] Initial videos hash set:', hash);
+      }
       if (session.reviewHistory) setReviewHistory(session.reviewHistory);
       if (session.selectedVideoIndex !== undefined) setSelectedVideoIndex(session.selectedVideoIndex);
       if (session.regenerateMultiple !== undefined) setRegenerateMultiple(session.regenerateMultiple);
@@ -3286,11 +3362,32 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         </DialogContent>
       </Dialog>
       
+      {/* Download ZIP Progress Modal */}
+      <Dialog open={isDownloadZipModalOpen} onOpenChange={setIsDownloadZipModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Download className="w-5 h-5" />
+              Descarcă Arhivă ZIP
+            </DialogTitle>
+            <DialogDescription>
+              Creez arhiva cu toate videoclipurile acceptate...
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="flex flex-col items-center gap-3">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+              <p className="text-sm text-gray-600 text-center">{downloadZipProgress}</p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      
       {/* Sample Merge Modal */}
       <Dialog open={isSampleMergeModalOpen} onOpenChange={(open) => {
         setIsSampleMergeModalOpen(open);
         if (!open) {
-          // Reset editing state when modal closes
           setEditingNoteId(null);
           setEditingNoteText('');
         }
@@ -3298,7 +3395,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              🎬 Sample Merge Video
+              🎬 Sample Merge ALL Videos
             </DialogTitle>
             <DialogDescription>
               Preview all videos merged together (temporary - not saved to database)
@@ -3331,9 +3428,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 <div className="border-t pt-4">
                   <h3 className="text-sm font-semibold text-gray-900 mb-3">Videos in this merge:</h3>
                   <div className="space-y-2">
-                    {sampleMergeVideos.map((video) => {
-                      console.log('[Sample Merge Modal] Video name:', video.name, 'Editing name:', editingNoteId);
-                      return (
+                    {sampleMergeVideos.map((video) => (
                       <div key={video.name} className="flex items-start justify-between gap-3 p-3 bg-gray-50 rounded-lg">
                         <div className="flex-1">
                           <p className="text-sm font-medium text-gray-900">{video.name}</p>
@@ -3366,17 +3461,41 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                       setVideoResults(updatedVideoResults);
                                       
                                       // Save to database
-                                      await saveVideoEditing.mutateAsync({
-                                        contextSessionId: contextSession.id,
-                                        videoResults: updatedVideoResults,
-                                      });
+                                      if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
+                                        await new Promise((resolve, reject) => {
+                                          upsertContextSessionMutation.mutate({
+                                            userId: currentUser.id,
+                                            coreBeliefId: selectedCoreBeliefId,
+                                            emotionalAngleId: selectedEmotionalAngleId,
+                                            adId: selectedAdId,
+                                            characterId: selectedCharacterId,
+                                            currentStep,
+                                            rawTextAd,
+                                            processedTextAd,
+                                            adLines,
+                                            prompts,
+                                            images,
+                                            combinations,
+                                            deletedCombinations,
+                                            videoResults: updatedVideoResults,
+                                            reviewHistory,
+                                          }, {
+                                            onSuccess: () => {
+                                              console.log('[Sample Merge] Note saved to DB');
+                                              resolve(true);
+                                            },
+                                            onError: (error: any) => {
+                                              reject(error);
+                                            },
+                                          });
+                                        });
+                                      }
                                       
                                       setEditingNoteId(null);
                                       setEditingNoteText('');
                                       toast.success('Note saved!');
-                                    } catch (error) {
-                                      console.error('[Sample Merge] Error saving note:', error);
-                                      toast.error('Failed to save note');
+                                    } catch (error: any) {
+                                      toast.error(`Failed to save note: ${error.message}`);
                                     }
                                   }}
                                   className="bg-green-600 hover:bg-green-700"
@@ -3415,8 +3534,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           </button>
                         )}
                       </div>
-                      );
-                    })}
+                    ))}
                   </div>
                 </div>
                 
@@ -7039,20 +7157,24 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-4 md:pt-6 px-3 md:px-6">
-              {/* Filtru videouri */}
-              <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
-                <label className="text-sm font-medium text-green-900">Filtrează videouri:</label>
-                <select
-                  value={videoFilter}
-                  onChange={(e) => setVideoFilter(e.target.value as 'all' | 'accepted' | 'failed' | 'no_decision')}
-                  className="px-4 py-2 border border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                >
-                  <option value="all">Afișează Toate ({videoResults.length})</option>
-                  <option value="accepted">Doar Acceptate ({acceptedCount})</option>
-                  <option value="failed">Doar Failed/Pending ({failedCount})</option>
-                  <option value="no_decision">Doar Fără Decizie ({videosWithoutDecisionCount})</option>
-                </select>
-                <span className="text-xs text-gray-500 italic">Filtru funcționează doar la refresh</span>
+              {/* Filtru videouri + Sample Merge button */}
+              <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
+                  <label className="text-sm font-medium text-green-900">Filtrează videouri:</label>
+                  <select
+                    value={videoFilter}
+                    onChange={(e) => setVideoFilter(e.target.value as 'all' | 'accepted' | 'failed' | 'no_decision')}
+                    className="px-4 py-2 border border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    <option value="all">Afișează Toate ({videoResults.length})</option>
+                    <option value="accepted">Doar Acceptate ({acceptedCount})</option>
+                    <option value="failed">Doar Failed/Pending ({failedCount})</option>
+                    <option value="no_decision">Doar Fără Decizie ({videosWithoutDecisionCount})</option>
+                  </select>
+                  <span className="text-xs text-gray-500 italic">Filtru funcționează doar la refresh</span>
+                </div>
+                
+
               </div>
               
               {/* Buton UNDO */}
@@ -7380,36 +7502,68 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         return;
                       }
                       
-                      toast.info(`Se descarcă ${acceptedVideos.length} videouri...`);
+                      setIsDownloadZipModalOpen(true);
+                      setDownloadZipProgress('Pregătesc arhiva ZIP...');
                       
-                      // Download fiecare video individual
-                      for (const video of acceptedVideos) {
-                        try {
-                          const response = await fetch(video.videoUrl!);
-                          const blob = await response.blob();
-                          const url = window.URL.createObjectURL(blob);
-                          const link = document.createElement('a');
-                          link.href = url;
-                          link.download = `${video.videoName}.mp4`;
-                          document.body.appendChild(link);
-                          link.click();
-                          document.body.removeChild(link);
-                          window.URL.revokeObjectURL(url);
+                      try {
+                        const zip = new JSZip();
+                        
+                        // Order videos by category: HOOKS, MIRROR, DCS, TRANZITION, NEW_CAUSE, MECHANISM, EMOTIONAL_PROOF, TRANSFORMATION, CTA
+                        const categoryOrder = ['HOOKS', 'MIRROR', 'DCS', 'TRANZITION', 'NEW_CAUSE', 'MECHANISM', 'EMOTIONAL_PROOF', 'TRANSFORMATION', 'CTA'];
+                        const orderedVideos: typeof acceptedVideos = [];
+                        
+                        categoryOrder.forEach(category => {
+                          const categoryVideos = acceptedVideos.filter(v => v.section === category);
+                          orderedVideos.push(...categoryVideos);
+                        });
+                        
+                        // Download and add each video to ZIP with numbered prefix
+                        for (let i = 0; i < orderedVideos.length; i++) {
+                          const video = orderedVideos[i];
+                          const videoNumber = i + 1;
                           
-                          // Așteaptă puțin între download-uri pentru a nu suprasărcita browser-ul
-                          await new Promise(resolve => setTimeout(resolve, 500));
-                        } catch (error) {
-                          console.error(`Eroare la download ${video.videoName}:`, error);
-                          toast.error(`Eroare la download ${video.videoName}`);
+                          setDownloadZipProgress(`Descarc video ${videoNumber}/${orderedVideos.length}: ${video.videoName}...`);
+                          
+                          try {
+                            const response = await fetch(video.videoUrl!);
+                            const blob = await response.blob();
+                            
+                            // Add numbered prefix to filename
+                            const filename = `${videoNumber}. ${video.videoName}.mp4`;
+                            zip.file(filename, blob);
+                          } catch (error) {
+                            console.error(`Eroare la download ${video.videoName}:`, error);
+                            toast.error(`Eroare la download ${video.videoName}`);
+                          }
                         }
+                        
+                        setDownloadZipProgress('Creez arhiva ZIP...');
+                        const zipBlob = await zip.generateAsync({ type: 'blob' });
+                        
+                        setDownloadZipProgress('Descarc arhiva...');
+                        const url = window.URL.createObjectURL(zipBlob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = `Accepted_Videos_${new Date().toISOString().split('T')[0]}.zip`;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        window.URL.revokeObjectURL(url);
+                        
+                        toast.success(`Arhiva ZIP cu ${orderedVideos.length} videouri descărcată!`);
+                        setIsDownloadZipModalOpen(false);
+                        setDownloadZipProgress('');
+                      } catch (error: any) {
+                        console.error('Eroare la crearea arhivei ZIP:', error);
+                        toast.error(`Eroare: ${error.message}`);
+                        setIsDownloadZipModalOpen(false);
+                        setDownloadZipProgress('');
                       }
-                      
-                      toast.success(`${acceptedVideos.length} videouri descărcate!`);
                     }}
                     className="w-full bg-green-600 hover:bg-green-700 py-6 text-lg"
                   >
                     <Download className="w-5 h-5 mr-2" />
-                    Download All Accepted Videos ({acceptedVideosWithUrl.length})
+                    Download All Accepted Videos (ZIP - {acceptedVideosWithUrl.length})
                   </Button>
                   
                   {/* Link pentru descărcare document Word cu liniile din Step 2 */}
@@ -7532,18 +7686,109 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               </CardHeader>
               <CardContent className="pt-6">
                 {/* Filter Dropdown */}
-                <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
-                  <label className="text-sm font-medium text-purple-900">Filtrează videouri:</label>
-                  <select
-                    value={step8Filter}
-                    onChange={(e) => setStep8Filter(e.target.value as 'all' | 'accepted' | 'recut' | 'unlocked')}
-                    className="px-4 py-2 border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  >
-                    <option value="all">Toate ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length})</option>
-                    <option value="accepted">Acceptate ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.recutStatus === 'accepted').length})</option>
-                    <option value="recut">Necesită Retăiere ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.recutStatus === 'recut').length})</option>
-                    <option value="unlocked">Fără Lock ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && (!v.isStartLocked || !v.isEndLocked)).length})</option>
-                  </select>
+                <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4">
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium text-purple-900">Filtrează videouri:</label>
+                    <select
+                      value={step8Filter}
+                      onChange={(e) => setStep8Filter(e.target.value as 'all' | 'accepted' | 'recut' | 'unlocked')}
+                      className="px-4 py-2 border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    >
+                      <option value="all">Toate ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length})</option>
+                      <option value="accepted">Acceptate ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.recutStatus === 'accepted').length})</option>
+                      <option value="recut">Necesită Retăiere ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.recutStatus === 'recut').length})</option>
+                      <option value="unlocked">Fără Lock ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && (!v.isStartLocked || !v.isEndLocked)).length})</option>
+                    </select>
+                  </div>
+                  
+                  {/* Sample Merge ALL Videos button */}
+                  {approvedVideos.length > 1 && (
+                    <Button
+                      onClick={async () => {
+                        console.log('[Sample Merge] Starting from Step 8 button...');
+                        
+                        // Prepare video list with notes
+                        const videoList = approvedVideos.map(v => ({
+                          name: v.videoName,
+                          note: v.step9Note || ''
+                        }));
+                        
+                        setSampleMergeVideos(videoList);
+                        setIsSampleMergeModalOpen(true);
+                        
+                        // Smart cache: check if markers were modified
+                        const currentHash = JSON.stringify(approvedVideos.map(v => ({
+                          name: v.videoName,
+                          startMs: Math.round(v.cutPoints?.startKeep || 0),
+                          endMs: Math.round(v.cutPoints?.endKeep || 0),
+                        })));
+                        
+                        console.log('[Sample Merge] Cache check:');
+                        console.log('[Sample Merge]   Initial hash:', initialVideosHash);
+                        console.log('[Sample Merge]   Current hash:', currentHash);
+                        console.log('[Sample Merge]   Last merged hash:', lastMergedVideosHash);
+                        console.log('[Sample Merge]   Has cached video:', !!sampleMergedVideoUrl);
+                        
+                        // Check if we have a cached video with the same hash
+                        if (currentHash === lastMergedVideosHash && sampleMergedVideoUrl) {
+                          console.log('[Sample Merge] ✅ Cache hit! Using cached video.');
+                          setSampleMergeProgress('');
+                          return;
+                        }
+                        
+                        // Check if markers were modified compared to initial state
+                        const markersModified = initialVideosHash && currentHash !== initialVideosHash;
+                        if (markersModified) {
+                          console.log('[Sample Merge] ⚠️ Markers were modified, retransmitting to FFmpeg...');
+                        } else {
+                          console.log('[Sample Merge] 🆕 First merge or cache miss, proceeding...');
+                        }
+                        
+                        // Only clear if cache miss
+                        setSampleMergedVideoUrl(null);
+                        setSampleMergeProgress('Preparing videos...');
+                        
+                        try {
+                          // Extract original URLs
+                          const extractOriginalUrl = (url: string) => {
+                            if (url.startsWith('/api/proxy-video?url=')) {
+                              const urlParam = new URLSearchParams(url.split('?')[1]).get('url');
+                              return urlParam ? decodeURIComponent(urlParam) : url;
+                            }
+                            return url;
+                          };
+                          
+                          const videos = approvedVideos.map(v => ({
+                            url: extractOriginalUrl(v.videoUrl),
+                            name: v.videoName,
+                            startMs: v.cutPoints?.startKeep || 0,
+                            endMs: v.cutPoints?.endKeep || 0,
+                          }));
+                          
+                          console.log('[Sample Merge] Videos:', videos);
+                          setSampleMergeProgress(`Uploading ${videos.length} videos to FFmpeg API...`);
+                          
+                          const result = await cutAndMergeAllMutation.mutateAsync({
+                            videos,
+                            ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
+                          });
+                          
+                          console.log('[Sample Merge] Success!', result);
+                          setSampleMergedVideoUrl(result.downloadUrl);
+                          setLastMergedVideosHash(currentHash);
+                          setSampleMergeProgress('');
+                        } catch (error: any) {
+                          console.error('[Sample Merge] Error:', error);
+                          setSampleMergeProgress(`Error: ${error.message}`);
+                          toast.error(`Sample merge failed: ${error.message}`);
+                        }
+                      }}
+                      className="bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap"
+                      size="sm"
+                    >
+                      🎬 Sample Merge ALL Videos
+                    </Button>
+                  )}
                 </div>
                 
                 {approvedVideos.length === 0 ? (
@@ -7613,9 +7858,54 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                               console.log('[Cut & Merge] Starting merge:', video1.videoName, '+', video2.videoName);
                               
                               setIsMergeModalOpen(true);
+                              
+                              // Smart cache: check if markers were modified
+                              const currentHash = JSON.stringify({
+                                video1Name: video1.videoName,
+                                video1Start: Math.round(video1.cutPoints.startKeep),
+                                video1End: Math.round(video1.cutPoints.endKeep),
+                                video2Name: video2.videoName,
+                                video2Start: Math.round(video2.cutPoints.startKeep),
+                                video2End: Math.round(video2.cutPoints.endKeep),
+                              });
+                              
+                              console.log('[Cut & Merge] Cache check:');
+                              console.log('[Cut & Merge]   Initial hash:', initialPairHash);
+                              console.log('[Cut & Merge]   Current hash:', currentHash);
+                              console.log('[Cut & Merge]   Last merged hash:', lastMergedPairHash);
+                              console.log('[Cut & Merge]   Has cached video:', !!mergedVideoUrl);
+                              
+                              // Check if we have a cached video with the same hash
+                              if (currentHash === lastMergedPairHash && mergedVideoUrl) {
+                                console.log('[Cut & Merge] ✅ Cache hit! Using cached video.');
+                                setMergeProgress('');
+                                return;
+                              }
+                              
+                              // Check if this is first click (no initial hash set)
+                              const isFirstClick = !initialPairHash;
+                              
+                              if (isFirstClick) {
+                                // First click: set initial hash and proceed with merge
+                                setInitialPairHash(currentHash);
+                                console.log('[Cut & Merge] 🆕 First click - Initial pair hash set:', currentHash);
+                              } else {
+                                // Subsequent clicks: check if markers were modified
+                                const markersModified = currentHash !== initialPairHash;
+                                if (markersModified) {
+                                  console.log('[Cut & Merge] ⚠️ Markers were modified, retransmitting to FFmpeg...');
+                                  // Update initial hash to current for next comparison
+                                  setInitialPairHash(currentHash);
+                                } else {
+                                  console.log('[Cut & Merge] 🔁 Re-merge with same markers (cache miss).');
+                                }
+                              }
+                              
+                              // Clear old video before starting new merge
+                              setMergedVideoUrl(null);
                               setMergeProgress('Uploading videos to FFmpeg API...');
                               
-                              try {
+                              try{
                                 // Extract original URLs from proxy URLs
                                 const extractOriginalUrl = (proxyUrl: string) => {
                                   if (proxyUrl.startsWith('/api/proxy-video?url=')) {
@@ -7647,6 +7937,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                 
                                 if (result.success && result.downloadUrl) {
                                   setMergedVideoUrl(result.downloadUrl);
+                                  setLastMergedPairHash(currentHash);
                                   setMergeProgress('Merge complete!');
                                 } else {
                                   throw new Error('Merge failed');
@@ -7771,6 +8062,34 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             setSampleMergeVideos(videoList);
                             setIsSampleMergeModalOpen(true);
                             
+                            // Smart cache: check if markers were modified
+                            const currentHash = JSON.stringify(approvedVideos.map(v => ({
+                              name: v.videoName,
+                              startMs: Math.round(v.cutPoints?.startKeep || 0),
+                              endMs: Math.round(v.cutPoints?.endKeep || 0),
+                            })));
+                            
+                            // Check if markers were modified compared to initial state
+                            const markersModified = initialVideosHash && currentHash !== initialVideosHash;
+                            console.log('[Sample Merge] Markers modified:', markersModified);
+                            console.log('[Sample Merge] Initial hash:', initialVideosHash);
+                            console.log('[Sample Merge] Current hash:', currentHash);
+                            
+                            // Use cache if markers NOT modified AND we have cached video
+                            if (!markersModified && currentHash === lastMergedVideosHash && sampleMergedVideoUrl) {
+                              console.log('[Sample Merge] Cache hit! No markers modified, using cached video.');
+                              setSampleMergeProgress('');
+                              return;
+                            }
+                            
+                            if (markersModified) {
+                              console.log('[Sample Merge] Markers were modified, retransmitting to FFmpeg...');
+                            }
+                            
+                            // Only clear if cache miss
+                            setSampleMergedVideoUrl(null);
+                            setSampleMergeProgress('Preparing videos...');
+                            
                             try {
                               // Extract original URLs
                               const extractOriginalUrl = (url: string) => {
@@ -7788,24 +8107,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                 endMs: v.cutPoints?.endKeep || 0,
                               }));
                               
-                              // Create hash of videos to check if they changed
-                              const videosHash = JSON.stringify(videos.map(v => ({
-                                name: v.name,
-                                startMs: v.startMs,
-                                endMs: v.endMs
-                              })));
-                              
-                              // Check cache: if videos haven't changed, skip recut
-                              if (videosHash === lastMergedVideosHash && sampleMergedVideoUrl) {
-                                console.log('[Sample Merge] Using cached video (no changes detected)');
-                                setSampleMergeProgress('');
-                                return;
-                              }
-                              
-                              console.log('[Sample Merge] Videos changed or first run, re-cutting and merging...');
-                              setSampleMergedVideoUrl(null);
-                              setSampleMergeProgress('Preparing videos...');
-                              
                               console.log('[Sample Merge] Videos:', videos);
                               setSampleMergeProgress(`Uploading ${videos.length} videos to FFmpeg API...`);
                               
@@ -7816,7 +8117,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                               
                               console.log('[Sample Merge] Success!', result);
                               setSampleMergedVideoUrl(result.downloadUrl);
-                              setLastMergedVideosHash(videosHash);
+                              setLastMergedVideosHash(currentHash);
                               setSampleMergeProgress('');
                             } catch (error) {
                               console.error('[Sample Merge] Error:', error);
@@ -7826,7 +8127,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           }}
                           className="w-full bg-blue-600 hover:bg-blue-700 text-white mt-3"
                         >
-                          🎬 Sample Merge Video
+                          🎬 Sample Merge ALL Videos
                         </Button>
                       )}
                     </div>
@@ -7875,8 +8176,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    {/* Filter and UNDO */}
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-6">
+                    {/* Filter and Sample Merge button */}
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
                       <div className="flex items-center gap-2">
                         <label className="text-sm font-medium text-blue-900">Filtrează videouri:</label>
                         <select
@@ -7889,6 +8190,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           <option value="recut">Necesită Retăiere ({trimmedVideos.filter(v => v.recutStatus === 'recut').length})</option>
                         </select>
                       </div>
+                      
+
                       
                       {/* UNDO Button */}
                       {recutHistory.length > 0 && (
@@ -8143,11 +8446,27 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           
                           {/* Download Button */}
                           <Button
-                            onClick={() => {
-                              const link = document.createElement('a');
-                              link.href = video.trimmedVideoUrl!;
-                              link.download = `${video.videoName}.mp4`;
-                              link.click();
+                            onClick={async () => {
+                              try {
+                                // Fetch video as blob to force download
+                                const response = await fetch(video.trimmedVideoUrl!);
+                                const blob = await response.blob();
+                                const url = URL.createObjectURL(blob);
+                                
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.download = `${video.videoName}.mp4`;
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                                
+                                // Clean up blob URL
+                                setTimeout(() => URL.revokeObjectURL(url), 100);
+                                
+                                toast.success(`Downloading ${video.videoName}...`);
+                              } catch (error: any) {
+                                toast.error(`Download failed: ${error.message}`);
+                              }
                             }}
                             className="w-full bg-blue-600 hover:bg-blue-700"
                             size="sm"
