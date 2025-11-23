@@ -239,15 +239,16 @@ export function calculateCutPointsNew(
       
       // Check if white text is at beginning of original text
       if (redTextPosition === 'END') {
-        // White text is at beginning → place END marker AFTER last word of match
-        logs.push(`✅ White text is at beginning → placing END marker AFTER last word`);
+        // White text is at beginning → START marker at first white word, END marker after last white word
+        logs.push(`✅ White text is at beginning → START at first white word, END after last white word`);
         
+        const firstMatchWord = words[match.startIdx];
         const lastMatchWord = words[match.endIdx];
-        const startKeep = Math.max(0, (words[0].start - marginS) * 1000);
+        const startKeep = Math.max(0, (firstMatchWord.start - marginS) * 1000);
         const endKeep = (lastMatchWord.end + marginS) * 1000;
         
-        logs.push(`✅ Placed START marker at ${startKeep.toFixed(0)}ms`);
-        logs.push(`✅ Placed END marker after "${lastMatchWord.word}" at ${endKeep.toFixed(0)}ms`);
+        logs.push(`✅ Placed START marker at first white word "${firstMatchWord.word}" at ${startKeep.toFixed(0)}ms`);
+        logs.push(`✅ Placed END marker after last white word "${lastMatchWord.word}" at ${endKeep.toFixed(0)}ms`);
         logs.push(`🎯 Algorithm complete!`);
         
         return {
@@ -291,15 +292,16 @@ export function calculateCutPointsNew(
       
       // Check if white text is at end of original text
       if (redTextPosition === 'START') {
-        // White text is at end → place START marker BEFORE first word of match
-        logs.push(`✅ White text is at end → placing START marker BEFORE first word`);
+        // White text is at end → START marker at first white word, END marker after last white word
+        logs.push(`✅ White text is at end → START at first white word, END after last white word`);
         
         const firstMatchWord = words[match.startIdx];
+        const lastMatchWord = words[match.endIdx];
         const startKeep = (firstMatchWord.start - marginS) * 1000;
-        const endKeep = (words[words.length - 1].end + marginS) * 1000;
+        const endKeep = (lastMatchWord.end + marginS) * 1000;
         
-        logs.push(`✅ Placed START marker before "${firstMatchWord.word}" at ${startKeep.toFixed(0)}ms`);
-        logs.push(`✅ Placed END marker at ${endKeep.toFixed(0)}ms`);
+        logs.push(`✅ Placed START marker at first white word "${firstMatchWord.word}" at ${startKeep.toFixed(0)}ms`);
+        logs.push(`✅ Placed END marker after last white word "${lastMatchWord.word}" at ${endKeep.toFixed(0)}ms`);
         logs.push(`🎯 Algorithm complete!`);
         
         return {
