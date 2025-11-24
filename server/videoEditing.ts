@@ -904,8 +904,18 @@ export function calculateCutPointsNew(
     whiteText = fullText.substring(0, fullText.length - redText.length).trim();
   }
   
-  const whiteWords = whiteText.split(/\s+/).filter(w => w.length > 0);
-  const redWords = redText.split(/\s+/).filter(w => w.length > 0);
+  // Preprocess text: replace hyphens, commas, quotes with spaces for better matching
+  const preprocessText = (text: string) => text.replace(/[-,."']/g, ' ');
+  
+  // Normalize and split white text
+  const preprocessedWhiteText = preprocessText(whiteText);
+  const normalizedWhiteText = normalizeText(preprocessedWhiteText);
+  const whiteWords = normalizedWhiteText.split(/\s+/).filter(w => w.length > 0);
+  
+  // Normalize and split red text
+  const preprocessedRedText = preprocessText(redText);
+  const normalizedRedText = normalizeText(preprocessedRedText);
+  const redWords = normalizedRedText.split(/\s+/).filter(w => w.length > 0);
   
   logs.push(`🔍 Starting search algorithm...`);
   logs.push(`📄 Full text: "${fullText}"`);
@@ -956,8 +966,217 @@ export function calculateCutPointsNew(
   logs.push(`❌ Searched for entire white text: NOT FOUND`);
   logs.push(``);
   
+  
+  // STEP 3: Search for last 3/2 words of white text
+  logs.push(`🔎 Step 2: Searching for last 3 words of white text...`);
+  
+  for (let n = 3; n >= 2; n--) {
+    if (whiteWords.length < n) continue;
+    
+    const lastNWords = whiteWords.slice(-n);
+    logs.push(`🔍 Searching for last ${n} white words: "${lastNWords.join(' ')}"`);
+    
+    const match = findSequence(words, lastNWords);
+    
+    if (match) {
+      logs.push(`✅ Found last ${n} white words at indices ${match.startIdx}-${match.endIdx}`);
+      
+      // Check if white text is at beginning of original text
+      if (redTextPosition === 'END') {
+        // White text is at beginning → place END marker AFTER last word of match
+        logs.push(`✅ White text is at beginning → placing END marker AFTER last word`);
+        
+        const lastMatchWord = words[match.endIdx];
+        const startKeep = Math.max(0, words[0].start - marginS);
+        const endKeep = lastMatchWord.end + marginS;
+        
+        logs.push(`✅ Placed START marker at ${startKeep.toFixed(0)}ms`);
+        logs.push(`✅ Placed END marker after "${lastMatchWord.word}" at ${endKeep.toFixed(0)}ms`);
+        logs.push(`🎯 Algorithm complete!`);
+        
+        return {
+          cutPoints: {
+            startKeep: Math.round(startKeep),
+            endKeep: Math.round(endKeep),
+            redPosition: 'END',
+            confidence: 0.80,
+          },
+          debugInfo: {
+            status: 'success',
+            message: `✅ Found last ${n} white words`,
+            whisperTranscript: words.map(w => w.word).join(' '),
+            whisperWordCount: words.length,
+            algorithmLogs: logs,
+          },
+        };
+      } else {
+        logs.push(`⚠️ White text is at end → last words don't help us`);
+      }
+    } else {
+      logs.push(`❌ Last ${n} white words: NOT FOUND`);
+    }
+  }
+  
+  logs.push(``);
+  
+  // STEP 4: Search for first 3/2 words of white text
+  logs.push(`🔎 Step 3: Searching for first 3 words of white text...`);
+  
+  for (let n = 3; n >= 2; n--) {
+    if (whiteWords.length < n) continue;
+    
+    const firstNWords = whiteWords.slice(0, n);
+    logs.push(`🔍 Searching for first ${n} white words: "${firstNWords.join(' ')}"`);
+    
+    const match = findSequence(words, firstNWords);
+    
+    if (match) {
+      logs.push(`✅ Found first ${n} white words at indices ${match.startIdx}-${match.endIdx}`);
+      
+      // Check if white text is at end of original text
+      if (redTextPosition === 'START') {
+        // White text is at end → place START marker BEFORE first word of match
+        logs.push(`✅ White text is at end → placing START marker BEFORE first word`);
+        
+        const firstMatchWord = words[match.startIdx];
+        const startKeep = firstMatchWord.start - marginS;
+        const endKeep = words[words.length - 1].end + marginS;
+        
+        logs.push(`✅ Placed START marker before "${firstMatchWord.word}" at ${startKeep.toFixed(0)}ms`);
+        logs.push(`✅ Placed END marker at ${endKeep.toFixed(0)}ms`);
+        logs.push(`🎯 Algorithm complete!`);
+        
+        return {
+          cutPoints: {
+            startKeep: Math.round(startKeep),
+            endKeep: Math.round(endKeep),
+            redPosition: 'START',
+            confidence: 0.80,
+          },
+          debugInfo: {
+            status: 'success',
+            message: `✅ Found first ${n} white words`,
+            whisperTranscript: words.map(w => w.word).join(' '),
+            whisperWordCount: words.length,
+            algorithmLogs: logs,
+          },
+        };
+      } else {
+        logs.push(`⚠️ White text is at beginning → first words don't help us`);
+      }
+    } else {
+      logs.push(`❌ First ${n} white words: NOT FOUND`);
+    }
+  }
+  
+  logs.push(``);
+  
+  // STEP 5: Search for last 3/2 words of red text (if red at START)
+  if (redTextPosition === 'START') {
+    logs.push(`🔎 Step 4: Red text is at START → searching for last 3 words of red text...`);
+    
+    for (let n = 3; n >= 2; n--) {
+      if (redWords.length < n) continue;
+      
+      const lastNWords = redWords.slice(-n);
+      logs.push(`🔍 Searching for last ${n} red words: "${lastNWords.join(' ')}"`);
+      
+      const match = findSequence(words, lastNWords);
+      
+      if (match) {
+        logs.push(`✅ Found last ${n} red words at indices ${match.startIdx}-${match.endIdx}`);
+        logs.push(`✅ This marks END of red text → placing START marker AFTER last word`);
+        
+        const lastMatchWord = words[match.endIdx];
+        const startKeep = lastMatchWord.end + marginS;
+        const endKeep = words[words.length - 1].end + marginS;
+        
+        logs.push(`✅ Placed START marker after "${lastMatchWord.word}" at ${startKeep.toFixed(0)}ms`);
+        logs.push(`✅ Placed END marker at ${endKeep.toFixed(0)}ms`);
+        logs.push(`🎯 Algorithm complete!`);
+        
+        return {
+          cutPoints: {
+            startKeep: Math.round(startKeep),
+            endKeep: Math.round(endKeep),
+            redPosition: 'START',
+            confidence: 0.75,
+          },
+          debugInfo: {
+            status: 'success',
+            message: `✅ Found last ${n} red words`,
+            whisperTranscript: words.map(w => w.word).join(' '),
+            whisperWordCount: words.length,
+            algorithmLogs: logs,
+          },
+        };
+      } else {
+        logs.push(`❌ Last ${n} red words: NOT FOUND`);
+      }
+    }
+  }
+  
+  // STEP 6: Search for first 3/2 words of red text (if red at END)
+  if (redTextPosition === 'END') {
+    logs.push(`🔎 Step 5: Red text is at END → searching for first 3 words of red text...`);
+    
+    for (let n = 3; n >= 2; n--) {
+      if (redWords.length < n) continue;
+      
+      const firstNWords = redWords.slice(0, n);
+      logs.push(`🔍 Searching for first ${n} red words: "${firstNWords.join(' ')}"`);
+      
+      const match = findSequence(words, firstNWords);
+      
+      if (match) {
+        logs.push(`✅ Found first ${n} red words at indices ${match.startIdx}-${match.endIdx}`);
+        logs.push(`✅ This marks START of red text → placing END marker BEFORE first word`);
+        
+        const firstMatchWord = words[match.startIdx];
+        const startKeep = Math.max(0, words[0].start - marginS);
+        const endKeep = firstMatchWord.start - marginS;
+        
+        if (endKeep <= startKeep) {
+          logs.push(`❌ No white text before red text - cannot calculate cut points`);
+          
+          return {
+            cutPoints: null,
+            debugInfo: {
+              status: 'error',
+              message: `❌ No white text before red text`,
+              whisperTranscript: words.map(w => w.word).join(' '),
+              whisperWordCount: words.length,
+              algorithmLogs: logs,
+            },
+          };
+        }
+        
+        logs.push(`✅ Placed START marker at ${startKeep.toFixed(0)}ms`);
+        logs.push(`✅ Placed END marker before "${firstMatchWord.word}" at ${endKeep.toFixed(0)}ms`);
+        logs.push(`🎯 Algorithm complete!`);
+        
+        return {
+          cutPoints: {
+            startKeep: Math.round(startKeep),
+            endKeep: Math.round(endKeep),
+            redPosition: 'END',
+            confidence: 0.75,
+          },
+          debugInfo: {
+            status: 'success',
+            message: `✅ Found first ${n} red words`,
+            whisperTranscript: words.map(w => w.word).join(' '),
+            whisperWordCount: words.length,
+            algorithmLogs: logs,
+          },
+        };
+      } else {
+        logs.push(`❌ First ${n} red words: NOT FOUND`);
+      }
+    }
+  }
   // STEP 2: Search for entire red text
-  logs.push(`🔎 Step 2: Searching for entire red text...`);
+  logs.push(`🔎 Step 6: Searching for entire red text...`);
   // If redTextPosition is END, search from end to find LAST occurrence
   const searchFromEnd = redTextPosition === 'END';
   const redMatch = findSequence(words, redWords, searchFromEnd);
@@ -1054,215 +1273,6 @@ export function calculateCutPointsNew(
   
   logs.push(`❌ Searched for entire red text: NOT FOUND`);
   logs.push(``);
-  
-  // STEP 3: Search for last 3/2 words of white text
-  logs.push(`🔎 Step 3: Searching for last 3 words of white text...`);
-  
-  for (let n = 3; n >= 2; n--) {
-    if (whiteWords.length < n) continue;
-    
-    const lastNWords = whiteWords.slice(-n);
-    logs.push(`🔍 Searching for last ${n} white words: "${lastNWords.join(' ')}"`);
-    
-    const match = findSequence(words, lastNWords);
-    
-    if (match) {
-      logs.push(`✅ Found last ${n} white words at indices ${match.startIdx}-${match.endIdx}`);
-      
-      // Check if white text is at beginning of original text
-      if (redTextPosition === 'END') {
-        // White text is at beginning → place END marker AFTER last word of match
-        logs.push(`✅ White text is at beginning → placing END marker AFTER last word`);
-        
-        const lastMatchWord = words[match.endIdx];
-        const startKeep = Math.max(0, words[0].start - marginS);
-        const endKeep = lastMatchWord.end + marginS;
-        
-        logs.push(`✅ Placed START marker at ${startKeep.toFixed(0)}ms`);
-        logs.push(`✅ Placed END marker after "${lastMatchWord.word}" at ${endKeep.toFixed(0)}ms`);
-        logs.push(`🎯 Algorithm complete!`);
-        
-        return {
-          cutPoints: {
-            startKeep: Math.round(startKeep),
-            endKeep: Math.round(endKeep),
-            redPosition: 'END',
-            confidence: 0.80,
-          },
-          debugInfo: {
-            status: 'success',
-            message: `✅ Found last ${n} white words`,
-            whisperTranscript: words.map(w => w.word).join(' '),
-            whisperWordCount: words.length,
-            algorithmLogs: logs,
-          },
-        };
-      } else {
-        logs.push(`⚠️ White text is at end → last words don't help us`);
-      }
-    } else {
-      logs.push(`❌ Last ${n} white words: NOT FOUND`);
-    }
-  }
-  
-  logs.push(``);
-  
-  // STEP 4: Search for first 3/2 words of white text
-  logs.push(`🔎 Step 4: Searching for first 3 words of white text...`);
-  
-  for (let n = 3; n >= 2; n--) {
-    if (whiteWords.length < n) continue;
-    
-    const firstNWords = whiteWords.slice(0, n);
-    logs.push(`🔍 Searching for first ${n} white words: "${firstNWords.join(' ')}"`);
-    
-    const match = findSequence(words, firstNWords);
-    
-    if (match) {
-      logs.push(`✅ Found first ${n} white words at indices ${match.startIdx}-${match.endIdx}`);
-      
-      // Check if white text is at end of original text
-      if (redTextPosition === 'START') {
-        // White text is at end → place START marker BEFORE first word of match
-        logs.push(`✅ White text is at end → placing START marker BEFORE first word`);
-        
-        const firstMatchWord = words[match.startIdx];
-        const startKeep = firstMatchWord.start - marginS;
-        const endKeep = words[words.length - 1].end + marginS;
-        
-        logs.push(`✅ Placed START marker before "${firstMatchWord.word}" at ${startKeep.toFixed(0)}ms`);
-        logs.push(`✅ Placed END marker at ${endKeep.toFixed(0)}ms`);
-        logs.push(`🎯 Algorithm complete!`);
-        
-        return {
-          cutPoints: {
-            startKeep: Math.round(startKeep),
-            endKeep: Math.round(endKeep),
-            redPosition: 'START',
-            confidence: 0.80,
-          },
-          debugInfo: {
-            status: 'success',
-            message: `✅ Found first ${n} white words`,
-            whisperTranscript: words.map(w => w.word).join(' '),
-            whisperWordCount: words.length,
-            algorithmLogs: logs,
-          },
-        };
-      } else {
-        logs.push(`⚠️ White text is at beginning → first words don't help us`);
-      }
-    } else {
-      logs.push(`❌ First ${n} white words: NOT FOUND`);
-    }
-  }
-  
-  logs.push(``);
-  
-  // STEP 5: Search for last 3/2 words of red text (if red at START)
-  if (redTextPosition === 'START') {
-    logs.push(`🔎 Step 5: Red text is at START → searching for last 3 words of red text...`);
-    
-    for (let n = 3; n >= 2; n--) {
-      if (redWords.length < n) continue;
-      
-      const lastNWords = redWords.slice(-n);
-      logs.push(`🔍 Searching for last ${n} red words: "${lastNWords.join(' ')}"`);
-      
-      const match = findSequence(words, lastNWords);
-      
-      if (match) {
-        logs.push(`✅ Found last ${n} red words at indices ${match.startIdx}-${match.endIdx}`);
-        logs.push(`✅ This marks END of red text → placing START marker AFTER last word`);
-        
-        const lastMatchWord = words[match.endIdx];
-        const startKeep = lastMatchWord.end + marginS;
-        const endKeep = words[words.length - 1].end + marginS;
-        
-        logs.push(`✅ Placed START marker after "${lastMatchWord.word}" at ${startKeep.toFixed(0)}ms`);
-        logs.push(`✅ Placed END marker at ${endKeep.toFixed(0)}ms`);
-        logs.push(`🎯 Algorithm complete!`);
-        
-        return {
-          cutPoints: {
-            startKeep: Math.round(startKeep),
-            endKeep: Math.round(endKeep),
-            redPosition: 'START',
-            confidence: 0.75,
-          },
-          debugInfo: {
-            status: 'success',
-            message: `✅ Found last ${n} red words`,
-            whisperTranscript: words.map(w => w.word).join(' '),
-            whisperWordCount: words.length,
-            algorithmLogs: logs,
-          },
-        };
-      } else {
-        logs.push(`❌ Last ${n} red words: NOT FOUND`);
-      }
-    }
-  }
-  
-  // STEP 6: Search for first 3/2 words of red text (if red at END)
-  if (redTextPosition === 'END') {
-    logs.push(`🔎 Step 6: Red text is at END → searching for first 3 words of red text...`);
-    
-    for (let n = 3; n >= 2; n--) {
-      if (redWords.length < n) continue;
-      
-      const firstNWords = redWords.slice(0, n);
-      logs.push(`🔍 Searching for first ${n} red words: "${firstNWords.join(' ')}"`);
-      
-      const match = findSequence(words, firstNWords);
-      
-      if (match) {
-        logs.push(`✅ Found first ${n} red words at indices ${match.startIdx}-${match.endIdx}`);
-        logs.push(`✅ This marks START of red text → placing END marker BEFORE first word`);
-        
-        const firstMatchWord = words[match.startIdx];
-        const startKeep = Math.max(0, words[0].start - marginS);
-        const endKeep = firstMatchWord.start - marginS;
-        
-        if (endKeep <= startKeep) {
-          logs.push(`❌ No white text before red text - cannot calculate cut points`);
-          
-          return {
-            cutPoints: null,
-            debugInfo: {
-              status: 'error',
-              message: `❌ No white text before red text`,
-              whisperTranscript: words.map(w => w.word).join(' '),
-              whisperWordCount: words.length,
-              algorithmLogs: logs,
-            },
-          };
-        }
-        
-        logs.push(`✅ Placed START marker at ${startKeep.toFixed(0)}ms`);
-        logs.push(`✅ Placed END marker before "${firstMatchWord.word}" at ${endKeep.toFixed(0)}ms`);
-        logs.push(`🎯 Algorithm complete!`);
-        
-        return {
-          cutPoints: {
-            startKeep: Math.round(startKeep),
-            endKeep: Math.round(endKeep),
-            redPosition: 'END',
-            confidence: 0.75,
-          },
-          debugInfo: {
-            status: 'success',
-            message: `✅ Found first ${n} red words`,
-            whisperTranscript: words.map(w => w.word).join(' '),
-            whisperWordCount: words.length,
-            algorithmLogs: logs,
-          },
-        };
-      } else {
-        logs.push(`❌ First ${n} red words: NOT FOUND`);
-      }
-    }
-  }
   
   // FALLBACK: No matches found - return default cutPoints (0 to duration)
   logs.push(``);
