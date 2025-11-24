@@ -99,6 +99,7 @@ export const appRouter = router({
             kieApiKey: user.kieApiKey,
             openaiApiKey: user.openaiApiKey,
             ffmpegApiKey: user.ffmpegApiKey,
+            cleanvoiceApiKey: user.cleanvoiceApiKey,
           },
         };
       }),
@@ -121,6 +122,7 @@ export const appRouter = router({
           kieApiKey: user.kieApiKey,
           openaiApiKey: user.openaiApiKey,
           ffmpegApiKey: user.ffmpegApiKey,
+          cleanvoiceApiKey: user.cleanvoiceApiKey,
         };
       }),
 
@@ -133,14 +135,16 @@ export const appRouter = router({
         kieApiKey: z.string().optional(),
         openaiApiKey: z.string().optional(),
         ffmpegApiKey: z.string().optional(),
+        cleanvoiceApiKey: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
-        const updateData: Partial<{ password: string; profileImageUrl: string | null; kieApiKey: string | null; openaiApiKey: string | null; ffmpegApiKey: string | null }> = {};
+        const updateData: Partial<{ password: string; profileImageUrl: string | null; kieApiKey: string | null; openaiApiKey: string | null; ffmpegApiKey: string | null; cleanvoiceApiKey: string | null }> = {};
         if (input.password) updateData.password = input.password;
         if (input.profileImageUrl !== undefined) updateData.profileImageUrl = input.profileImageUrl;
         if (input.kieApiKey !== undefined) updateData.kieApiKey = input.kieApiKey;
         if (input.openaiApiKey !== undefined) updateData.openaiApiKey = input.openaiApiKey;
         if (input.ffmpegApiKey !== undefined) updateData.ffmpegApiKey = input.ffmpegApiKey;
+        if (input.cleanvoiceApiKey !== undefined) updateData.cleanvoiceApiKey = input.cleanvoiceApiKey;
 
         await updateAppUser(input.userId, updateData);
 
@@ -154,6 +158,7 @@ export const appRouter = router({
             kieApiKey: user.kieApiKey,
             openaiApiKey: user.openaiApiKey,
             ffmpegApiKey: user.ffmpegApiKey,
+            cleanvoiceApiKey: user.cleanvoiceApiKey,
           } : null,
         };
       }),
@@ -1563,6 +1568,8 @@ export const appRouter = router({
         marginMs: z.number().optional().default(50),
         userApiKey: z.string().optional(),
         ffmpegApiKey: z.string().optional(),
+        cleanvoiceApiKey: z.string().optional(),
+        userId: z.number().optional(),
       }))
       .mutation(async ({ input }) => {
         try {
@@ -1587,7 +1594,9 @@ export const appRouter = router({
             input.redTextPosition,
             input.marginMs,
             input.userApiKey,
-            input.ffmpegApiKey
+            input.ffmpegApiKey,
+            input.cleanvoiceApiKey,
+            input.userId
           );
 
           console.log(`[videoEditing.processVideoForEditing] ✅ Processing complete for ${input.videoName}`);
@@ -1607,6 +1616,7 @@ export const appRouter = router({
             audioUrl: result.audioUrl,
             waveformJson: result.waveformJson,
             editingDebugInfo: result.editingDebugInfo,
+            cleanvoiceAudioUrl: result.cleanvoiceAudioUrl,
           };
         } catch (error) {
           console.error(`[videoEditing.processVideoForEditing] Error for video ${input.videoId}:`, error);
@@ -2060,6 +2070,69 @@ export const appRouter = router({
           throw new TRPCError({
             code: 'INTERNAL_SERVER_ERROR',
             message: `Failed to list videos: ${error.message}`,
+          });
+        }
+      }),
+
+    // Process videos with CleanVoice API (Step 7)
+    processWithCleanVoice: publicProcedure
+      .input(z.object({
+        videos: z.array(z.object({
+          videoUrl: z.string(),
+          videoName: z.string(),
+          videoId: z.number(),
+        })),
+        userId: z.number(),
+        cleanvoiceApiKey: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          const { processVideoWithCleanVoice } = await import('./cleanvoice');
+          
+          console.log(`[CleanVoice] Processing ${input.videos.length} videos for user ${input.userId}`);
+
+          // Submit all videos to CleanVoice simultaneously
+          const results = await Promise.all(
+            input.videos.map(async (video) => {
+              try {
+                console.log(`[CleanVoice] Processing video: ${video.videoName}`);
+                
+                const cleanvoiceAudioUrl = await processVideoWithCleanVoice(
+                  video.videoUrl,
+                  video.videoName,
+                  input.userId,
+                  input.cleanvoiceApiKey
+                );
+
+                return {
+                  videoId: video.videoId,
+                  videoName: video.videoName,
+                  success: true,
+                  cleanvoiceAudioUrl,
+                };
+              } catch (error: any) {
+                console.error(`[CleanVoice] Error processing ${video.videoName}:`, error);
+                return {
+                  videoId: video.videoId,
+                  videoName: video.videoName,
+                  success: false,
+                  error: error.message,
+                };
+              }
+            })
+          );
+
+          console.log(`[CleanVoice] Completed processing ${results.filter(r => r.success).length}/${results.length} videos`);
+
+          return {
+            success: true,
+            results,
+          };
+        } catch (error: any) {
+          console.error('[CleanVoice] Error:', error);
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Failed to process videos with CleanVoice: ${error.message}`,
           });
         }
       }),

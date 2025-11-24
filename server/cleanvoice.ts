@@ -1,0 +1,180 @@
+import axios from 'axios';
+
+const CLEANVOICE_API_BASE = 'https://api.cleanvoice.ai/v2';
+
+interface CleanVoiceConfig {
+  video: boolean;
+  remove_noise: boolean;
+  breath: string;
+  normalize: boolean;
+  studio_sound: string;
+}
+
+interface CleanVoiceEditResponse {
+  id: string;
+}
+
+interface CleanVoiceStatusResponse {
+  id: string;
+  status: 'PENDING' | 'STARTED' | 'SUCCESS' | 'FAILURE';
+  download_url?: string;
+  error?: string;
+}
+
+/**
+ * Submit a video to CleanVoice for audio processing
+ */
+export async function submitToCleanVoice(
+  videoUrl: string,
+  apiKey: string
+): Promise<string> {
+  const config: CleanVoiceConfig = {
+    video: true,
+    remove_noise: true,
+    breath: 'mute',
+    normalize: true,
+    studio_sound: 'nightly',
+  };
+
+  console.log(`[CleanVoice] Submitting video: ${videoUrl}`);
+
+  const response = await axios.post<CleanVoiceEditResponse>(
+    `${CLEANVOICE_API_BASE}/edits`,
+    {
+      input: {
+        files: [videoUrl],
+      },
+      config,
+    },
+    {
+      headers: {
+        'X-Api-Key': apiKey,
+        'Content-Type': 'application/json',
+      },
+    }
+  );
+
+  console.log(`[CleanVoice] Edit created with ID: ${response.data.id}`);
+  return response.data.id;
+}
+
+/**
+ * Check status of a CleanVoice edit
+ */
+export async function getCleanVoiceStatus(
+  editId: string,
+  apiKey: string
+): Promise<CleanVoiceStatusResponse> {
+  const response = await axios.get<CleanVoiceStatusResponse>(
+    `${CLEANVOICE_API_BASE}/edits/${editId}`,
+    {
+      headers: {
+        'X-Api-Key': apiKey,
+      },
+    }
+  );
+
+  return response.data;
+}
+
+/**
+ * Poll CleanVoice status until completion or failure
+ */
+export async function pollCleanVoiceStatus(
+  editId: string,
+  apiKey: string,
+  maxAttempts: number = 60,
+  intervalMs: number = 5000
+): Promise<CleanVoiceStatusResponse> {
+  for (let i = 0; i < maxAttempts; i++) {
+    const status = await getCleanVoiceStatus(editId, apiKey);
+    
+    console.log(`[CleanVoice] Edit ${editId} status: ${status.status} (attempt ${i + 1}/${maxAttempts})`);
+
+    if (status.status === 'SUCCESS' || status.status === 'FAILURE') {
+      return status;
+    }
+
+    // Wait before next poll
+    await new Promise(resolve => setTimeout(resolve, intervalMs));
+  }
+
+  throw new Error(`CleanVoice processing timed out after ${maxAttempts} attempts`);
+}
+
+/**
+ * Download audio from CleanVoice and upload to Bunny CDN
+ */
+export async function downloadAndUploadCleanVoiceAudio(
+  downloadUrl: string,
+  videoName: string,
+  userId: number
+): Promise<string> {
+  console.log(`[CleanVoice] Downloading audio from: ${downloadUrl}`);
+
+  // Download audio file
+  const response = await axios.get(downloadUrl, {
+    responseType: 'arraybuffer',
+  });
+
+  const audioBuffer = Buffer.from(response.data);
+  const fileName = `${videoName}.mp3`;
+
+  console.log(`[CleanVoice] Uploading to Bunny CDN: cleanvoice/${fileName}`);
+
+  // Upload to Bunny CDN in cleanvoice folder
+  const BUNNYCDN_STORAGE_PASSWORD = '4c9257d6-aede-4ff1-bb0f9fc95279-997e-412b';
+  const BUNNYCDN_STORAGE_ZONE = 'manus-storage';
+  const BUNNYCDN_PULL_ZONE_URL = 'https://manus.b-cdn.net';
+
+  const storageUrl = `https://storage.bunnycdn.com/${BUNNYCDN_STORAGE_ZONE}/cleanvoice/${fileName}`;
+
+  const uploadResponse = await axios.put(storageUrl, audioBuffer, {
+    headers: {
+      'AccessKey': BUNNYCDN_STORAGE_PASSWORD,
+      'Content-Type': 'audio/mpeg',
+    },
+  });
+
+  if (uploadResponse.status !== 201) {
+    throw new Error(`Failed to upload to Bunny CDN: ${uploadResponse.status}`);
+  }
+
+  const cdnUrl = `${BUNNYCDN_PULL_ZONE_URL}/cleanvoice/${fileName}`;
+
+  console.log(`[CleanVoice] Audio uploaded successfully: ${cdnUrl}`);
+  return cdnUrl;
+}
+
+/**
+ * Process a single video with CleanVoice (submit + poll + download + upload)
+ */
+export async function processVideoWithCleanVoice(
+  videoUrl: string,
+  videoName: string,
+  userId: number,
+  apiKey: string
+): Promise<string> {
+  // Submit to CleanVoice
+  const editId = await submitToCleanVoice(videoUrl, apiKey);
+
+  // Poll until complete
+  const result = await pollCleanVoiceStatus(editId, apiKey);
+
+  if (result.status === 'FAILURE') {
+    throw new Error(`CleanVoice processing failed: ${result.error || 'Unknown error'}`);
+  }
+
+  if (!result.download_url) {
+    throw new Error('CleanVoice processing succeeded but no download URL provided');
+  }
+
+  // Download and upload to Bunny CDN
+  const cleanvoiceAudioUrl = await downloadAndUploadCleanVoiceAudio(
+    result.download_url,
+    videoName,
+    userId
+  );
+
+  return cleanvoiceAudioUrl;
+}

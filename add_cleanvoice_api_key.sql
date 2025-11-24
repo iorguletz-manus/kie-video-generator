@@ -1,0 +1,1 @@
+ALTER TABLE app_users ADD COLUMN cleanvoiceApiKey VARCHAR(255) DEFAULT NULL;

@@ -91,6 +91,7 @@ interface VideoResult {
   audioUrl?: string;        // Audio download URL from FFmpeg API
   waveformData?: string;    // Waveform JSON data
   editingDebugInfo?: any;   // Debug info from Whisper processing
+  cleanvoiceAudioUrl?: string; // CleanVoice processed audio URL
   // Step 9: Trimmed video fields
   trimmedVideoUrl?: string; // Trimmed video URL from Bunny CDN
 
@@ -99,7 +100,7 @@ interface VideoResult {
 }
 
 interface HomeProps {
-  currentUser: { id: number; username: string; profileImageUrl: string | null; kieApiKey: string | null; openaiApiKey: string | null; ffmpegApiKey: string | null };
+  currentUser: { id: number; username: string; profileImageUrl: string | null; kieApiKey: string | null; openaiApiKey: string | null; ffmpegApiKey: string | null; cleanvoiceApiKey: string | null };
   onLogout: () => void;
 }
 
@@ -1703,6 +1704,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             marginMs: 50,
             userApiKey: localCurrentUser.openaiApiKey || undefined,
             ffmpegApiKey: localCurrentUser.ffmpegApiKey || undefined,
+            cleanvoiceApiKey: localCurrentUser.cleanvoiceApiKey || undefined,
+            userId: localCurrentUser.id,
           });
           
           // Decrement active FFmpeg counter AFTER response
@@ -1745,6 +1748,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               audioUrl: result.audioUrl,
               waveformData: result.waveformJson,
               editingDebugInfo: result.editingDebugInfo,
+              cleanvoiceAudioUrl: result.cleanvoiceAudioUrl,
               noCutNeeded: false,
             }
           };
@@ -7724,6 +7728,65 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     </button>
                   </div>
                   
+                  {/* Buton CleanVoice Processing - Step 7 */}
+                  <div className="mt-4">
+                    <Button
+                      onClick={async () => {
+                        if (!currentUser.cleanvoiceApiKey) {
+                          toast.error('CleanVoice API Key lipsește! Adaugă-l în Settings.');
+                          return;
+                        }
+
+                        // Filter approved videos
+                        const approvedVideos = videoResults.filter(v => 
+                          v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl
+                        );
+
+                        if (approvedVideos.length === 0) {
+                          toast.error('Nu există videouri acceptate pentru procesare');
+                          return;
+                        }
+
+                        try {
+                          toast.info(`Procesare ${approvedVideos.length} videouri cu CleanVoice...`);
+
+                          const result = await trpc.videoEditing.processWithCleanVoice.mutate({
+                            videos: approvedVideos.map(v => ({
+                              videoUrl: v.videoUrl!,
+                              videoName: v.videoName,
+                              videoId: videoResults.indexOf(v),
+                            })),
+                            userId: currentUser.id,
+                            cleanvoiceApiKey: currentUser.cleanvoiceApiKey,
+                          });
+
+                          // Update videoResults with cleanvoiceAudioUrl
+                          const updatedVideoResults = [...videoResults];
+                          result.results.forEach((r: any) => {
+                            if (r.success) {
+                              updatedVideoResults[r.videoId].cleanvoiceAudioUrl = r.cleanvoiceAudioUrl;
+                            }
+                          });
+
+                          setVideoResults(updatedVideoResults);
+                          await upsertContextSessionMutation.mutateAsync({
+                            ...contextSession!,
+                            videoResults: updatedVideoResults,
+                          });
+
+                          const successCount = result.results.filter((r: any) => r.success).length;
+                          toast.success(`${successCount}/${approvedVideos.length} videouri procesate cu CleanVoice!`);
+                        } catch (error: any) {
+                          console.error('[CleanVoice] Error:', error);
+                          toast.error(`Eroare: ${error.message}`);
+                        }
+                      }}
+                      className="w-full bg-purple-600 hover:bg-purple-700 py-6 text-lg"
+                    >
+                      🎙️ Process with CleanVoice ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length})
+                    </Button>
+                  </div>
+
                   {/* Buton Video Editing - Step 8 */}
                   <div className="mt-4">
                     <Button

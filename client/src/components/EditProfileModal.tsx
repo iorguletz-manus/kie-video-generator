@@ -7,8 +7,8 @@ import { toast } from 'sonner';
 interface EditProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
-  currentUser: { id: number; username: string; profileImageUrl: string | null; kieApiKey: string | null; openaiApiKey: string | null; ffmpegApiKey: string | null };
-  onProfileUpdated: (user: { id: number; username: string; profileImageUrl: string | null; kieApiKey: string | null; openaiApiKey: string | null; ffmpegApiKey: string | null }) => void;
+  currentUser: { id: number; username: string; profileImageUrl: string | null; kieApiKey: string | null; openaiApiKey: string | null; ffmpegApiKey: string | null; cleanvoiceApiKey: string | null };
+  onProfileUpdated: (user: { id: number; username: string; profileImageUrl: string | null; kieApiKey: string | null; openaiApiKey: string | null; ffmpegApiKey: string | null; cleanvoiceApiKey: string | null }) => void;
 }
 
 export default function EditProfileModal({ isOpen, onClose, currentUser, onProfileUpdated }: EditProfileModalProps) {
@@ -19,6 +19,7 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
   const [kieApiKey, setKieApiKey] = useState(currentUser.kieApiKey || '');
   const [openaiApiKey, setOpenaiApiKey] = useState(currentUser.openaiApiKey || '');
   const [ffmpegApiKey, setFfmpegApiKey] = useState(currentUser.ffmpegApiKey || '');
+  const [cleanvoiceApiKey, setCleanvoiceApiKey] = useState(currentUser.cleanvoiceApiKey || '');
 
   const updateProfileMutation = trpc.appAuth.updateProfile.useMutation();
   const uploadImageMutation = trpc.video.uploadImage.useMutation();
@@ -70,6 +71,7 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
               kieApiKey: kieApiKey || undefined,
               openaiApiKey: openaiApiKey || undefined,
               ffmpegApiKey: ffmpegApiKey || undefined,
+              cleanvoiceApiKey: cleanvoiceApiKey || undefined,
             });
 
             if (updateResult.success && updateResult.user) {
@@ -91,6 +93,7 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
           kieApiKey: kieApiKey || undefined,
           openaiApiKey: openaiApiKey || undefined,
           ffmpegApiKey: ffmpegApiKey || undefined,
+          cleanvoiceApiKey: cleanvoiceApiKey || undefined,
         });
 
         if (updateResult.success && updateResult.user) {
@@ -211,6 +214,20 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
               onChange={(e) => setFfmpegApiKey(e.target.value)}
               className="w-full px-4 py-3 bg-white border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Introdu API key-ul tău de la FFMPEG API"
+            />
+          </div>
+
+          {/* CleanVoice API Key */}
+          <div>
+            <label className="block text-sm font-medium text-blue-900 mb-2">
+              CleanVoice API Key
+            </label>
+            <input
+              type="text"
+              value={cleanvoiceApiKey}
+              onChange={(e) => setCleanvoiceApiKey(e.target.value)}
+              className="w-full px-4 py-3 bg-white border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Introdu API key-ul tău de la CleanVoice"
             />
           </div>
 
