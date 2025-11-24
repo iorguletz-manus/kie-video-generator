@@ -7,20 +7,23 @@ interface ProcessingModalProps {
   open: boolean;
   ffmpegProgress: { current: number; total: number };
   whisperProgress: { current: number; total: number };
+  cleanvoiceProgress: { current: number; total: number };
   currentVideoName: string;
-  processingStep: 'download' | 'extract' | 'whisper' | 'detect' | 'save' | null;
+  processingStep: 'download' | 'extract' | 'whisper' | 'cleanvoice' | 'detect' | 'save' | null;
 }
 
 export function ProcessingModal({
   open,
   ffmpegProgress,
   whisperProgress,
+  cleanvoiceProgress,
   currentVideoName,
   processingStep
 }: ProcessingModalProps) {
   const ffmpegPercent = ffmpegProgress.total > 0 ? (ffmpegProgress.current / ffmpegProgress.total) * 100 : 0;
   const whisperPercent = whisperProgress.total > 0 ? (whisperProgress.current / whisperProgress.total) * 100 : 0;
-  const totalCompleted = Math.min(ffmpegProgress.current, whisperProgress.current);
+  const cleanvoicePercent = cleanvoiceProgress.total > 0 ? (cleanvoiceProgress.current / cleanvoiceProgress.total) * 100 : 0;
+  const totalCompleted = Math.min(ffmpegProgress.current, whisperProgress.current, cleanvoiceProgress.current);
   const totalVideos = ffmpegProgress.total;
   
   const estimatedMinutes = Math.ceil((totalVideos - totalCompleted) * 15 / 60); // ~15s per video
@@ -31,6 +34,8 @@ export function ProcessingModal({
         return '🎵 Step 1: Extracting Audio with FFmpeg API...';
       case 'whisper':
         return '🤖 Step 2: Extracting Timestamps with Whisper API...';
+      case 'cleanvoice':
+        return '🎙️ Step 3: Processing Audio with CleanVoice API...';
       case 'save':
         return '💾 Saving results...';
       default:
@@ -68,6 +73,15 @@ export function ProcessingModal({
               <p className="text-xs font-medium text-gray-700">{whisperProgress.current}/{whisperProgress.total}</p>
             </div>
             <Progress value={whisperPercent} className="h-2" />
+          </div>
+
+          {/* CleanVoice Progress Bar */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-gray-600">🎙️ CleanVoice (Audio Processing)</p>
+              <p className="text-xs font-medium text-gray-700">{cleanvoiceProgress.current}/{cleanvoiceProgress.total}</p>
+            </div>
+            <Progress value={cleanvoicePercent} className="h-2" />
           </div>
 
           {/* Overall Progress */}

@@ -107,20 +107,30 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, nextVide
 
   // Check if refs are ready after DOM renders
   useEffect(() => {
+    let retryCount = 0;
+    const maxRetries = 50; // Max 5 seconds (50 * 100ms)
+    
     const checkRefs = () => {
       if (zoomviewRef.current && audioRef.current) {
         console.log('[VideoEditorV2] All refs are ready!');
         setRefsReady(true);
+      } else if (retryCount < maxRetries) {
+        retryCount++;
+        // Only log every 10 retries to reduce console spam
+        if (retryCount % 10 === 0) {
+          console.log(`[VideoEditorV2] Waiting for refs (${retryCount}/${maxRetries})...`);
+        }
+        setTimeout(checkRefs, 100);
       } else {
-        console.log('[VideoEditorV2] Refs not ready yet, retrying...', {
+        console.error('[VideoEditorV2] Refs not ready after max retries!', {
           zoomview: !!zoomviewRef.current,
           audio: !!audioRef.current
         });
-        setTimeout(checkRefs, 100);
       }
     };
     
-    setTimeout(checkRefs, 0);
+    // Use requestAnimationFrame for better performance
+    requestAnimationFrame(() => setTimeout(checkRefs, 0));
   }, []);
 
   // Initialize Peaks.js when refs are ready
@@ -907,7 +917,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, nextVide
                   position: 'absolute',
                   left: `${timeToPixel(previewStart)}px`,
                   top: 0,
-                  transform: 'translateX(-1px)',
+                  transform: previewStart === 0 ? 'translateX(0)' : 'translateX(-1px)',
                   zIndex: 10,
                 }}
               >
@@ -949,7 +959,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, nextVide
                   position: 'absolute',
                   left: `${timeToPixel(previewEnd)}px`,
                   top: 0,
-                  transform: 'translateX(-1px)',
+                  transform: previewEnd >= audioDuration * 1000 - 10 ? 'translateX(-2px)' : 'translateX(-1px)',
                   zIndex: 10,
                 }}
               >

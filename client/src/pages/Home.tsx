@@ -192,9 +192,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [processingProgress, setProcessingProgress] = useState({ 
     ffmpeg: { current: 0, total: 0 },
     whisper: { current: 0, total: 0 },
+    cleanvoice: { current: 0, total: 0 },
     currentVideoName: '' 
   });
-  const [processingStep, setProcessingStep] = useState<'download' | 'extract' | 'whisper' | 'detect' | 'save' | null>(null);
+  const [processingStep, setProcessingStep] = useState<'download' | 'extract' | 'whisper' | 'cleanvoice' | 'detect' | 'save' | null>(null);
   
   // Step 4: Mapping
   const [combinations, setCombinations] = useState<Combination[]>([]);
@@ -1644,6 +1645,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     let failCount = 0;
     let ffmpegCompletedCount = 0;
     let whisperCompletedCount = 0;
+    let cleanvoiceCompletedCount = 0;
     let activeFfmpegRequests = 0;  // Track LIVE FFmpeg requests
     
     // Collect all results in a Map
@@ -1736,7 +1738,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             currentVideoName: video.videoName 
           }));
           
-          console.log(`[Batch Processing] 📊 Progress: FFmpeg ${ffmpegCompletedCount}/${videos.length}, Whisper ${whisperCompletedCount}/${videos.length}`);
+          // Update CleanVoice progress (audio processing complete)
+          cleanvoiceCompletedCount++;
+          setProcessingProgress(prev => ({ 
+            ...prev,
+            cleanvoice: { current: cleanvoiceCompletedCount, total: videos.length },
+            currentVideoName: video.videoName 
+          }));
+          
+          console.log(`[Batch Processing] 📊 Progress: FFmpeg ${ffmpegCompletedCount}/${videos.length}, Whisper ${whisperCompletedCount}/${videos.length}, CleanVoice ${cleanvoiceCompletedCount}/${videos.length}`);
           
           return {
             videoName: video.videoName,
@@ -1762,10 +1772,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           if (attempt === retries) {
             ffmpegCompletedCount++;
             whisperCompletedCount++;
+            cleanvoiceCompletedCount++;
             setProcessingProgress(prev => ({ 
               ...prev,
               ffmpeg: { current: ffmpegCompletedCount, total: videos.length },
               whisper: { current: whisperCompletedCount, total: videos.length },
+              cleanvoice: { current: cleanvoiceCompletedCount, total: videos.length },
               currentVideoName: video.videoName 
             }));
           }
@@ -1929,8 +1941,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           audioUrl: result.audioUrl,
           waveformData: result.waveformData,
           editingDebugInfo: result.editingDebugInfo,
+          cleanvoiceAudioUrl: result.cleanvoiceAudioUrl,
           editStatus: 'processed',
-          noCutNeeded: false
+          noCutNeeded: false,
+          // Set START and END locked by default
+          isStartLocked: true,
+          isEndLocked: true
         };
       }
       return v;
@@ -3365,6 +3381,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         open={showProcessingModal}
         ffmpegProgress={processingProgress.ffmpeg}
         whisperProgress={processingProgress.whisper}
+        cleanvoiceProgress={processingProgress.cleanvoice}
         currentVideoName={processingProgress.currentVideoName}
         processingStep={processingStep}
       />
@@ -7858,6 +7875,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         setProcessingProgress({ 
                           ffmpeg: { current: 0, total: videosToProcess.length },
                           whisper: { current: 0, total: videosToProcess.length },
+                          cleanvoice: { current: 0, total: videosToProcess.length },
                           currentVideoName: '' 
                         });
                         setProcessingStep(null);
@@ -8032,18 +8050,22 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       🎬 Sample Merge ALL Videos
                     </Button>
                   )}
-                  
-                  {/* Check videos with possible problems link */}
-                  <button
-                    onClick={() => {
-                      // Set filter to show videos with problems
-                      setStep8Filter('problems');
-                    }}
-                    className="text-sm text-blue-600 hover:text-blue-800 underline cursor-pointer mt-2"
-                  >
-                    Check videos with possible problems
-                  </button>
                 </div>
+                
+                {/* Check videos with possible problems link */}
+                {approvedVideos.length > 0 && (
+                  <div className="mt-2">
+                    <button
+                      onClick={() => {
+                        // Set filter to show videos with problems
+                        setStep8Filter('problems');
+                      }}
+                      className="text-sm text-blue-600 hover:text-blue-800 underline cursor-pointer"
+                    >
+                      Check videos with possible problems
+                    </button>
+                  </div>
+                )}
                 
                 {approvedVideos.length === 0 ? (
                   <div className="text-center py-8">
@@ -8232,6 +8254,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                               setProcessingProgress({ 
                                 ffmpeg: { current: 0, total: 1 },
                                 whisper: { current: 0, total: 1 },
+                                cleanvoice: { current: 0, total: 1 },
                                 currentVideoName: videoName 
                               });
                               setProcessingStep(null);
