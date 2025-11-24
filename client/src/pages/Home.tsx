@@ -864,10 +864,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     if (isRestoringSession) return; // Don't save during restore
     
     const timeoutId = setTimeout(() => {
-      // For STEP 1-5: Save only currentStep to preserve navigation state
-      // For STEP 6+: Save full workflow data
+      // For STEP 1-5: Save workflow data but preserve videoResults from database
+      // For STEP 6+: Save full workflow data including videoResults
       if (currentStep < 6) {
-        console.log('[Context Session] Saving workflow data for STEP', currentStep);
+        console.log('[Context Session] Saving workflow data for STEP', currentStep, '(preserving videoResults)');
         upsertContextSessionMutation.mutate({
           userId: localCurrentUser.id,
           coreBeliefId: selectedCoreBeliefId,
@@ -882,8 +882,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           images, // SAVE images
           combinations, // SAVE combinations
           deletedCombinations, // SAVE deleted combinations
-          videoResults: [], // Don't save video results until STEP 6+
-          reviewHistory: [],
+          videoResults, // PRESERVE existing videoResults (don't clear when navigating back)
+          reviewHistory,
         }, {
           onSuccess: () => {
             console.log('[Context Session] CurrentStep saved successfully');
