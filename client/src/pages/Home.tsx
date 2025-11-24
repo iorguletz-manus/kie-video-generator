@@ -374,7 +374,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [noteText, setNoteText] = useState<string>('');
   
   // Step 8: Filter
-  const [step8Filter, setStep8Filter] = useState<'all' | 'accepted' | 'recut' | 'unlocked'>('all');
+  const [step8Filter, setStep8Filter] = useState<'all' | 'accepted' | 'recut' | 'unlocked' | 'problems'>('all');
   
   // Step 9: Internal Notes
   const [editingStep9NoteVideoName, setEditingStep9NoteVideoName] = useState<string | null>(null);
@@ -7907,6 +7907,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             approvedVideos = approvedVideos.filter(v => v.recutStatus === 'recut');
           } else if (step8Filter === 'unlocked') {
             approvedVideos = approvedVideos.filter(v => !v.isStartLocked || !v.isEndLocked);
+          } else if (step8Filter === 'problems') {
+            // Filter videos with algorithm errors (logs containing "❌")
+            approvedVideos = approvedVideos.filter(v => 
+              v.editingDebugInfo?.algorithmLogs?.some((log: string) => log.includes('❌'))
+            );
           }
           return (
             <Card className="mb-8 border-2 border-purple-200">
@@ -7927,31 +7932,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       <label className="text-sm font-medium text-purple-900">Filtrează videouri:</label>
                       <select
                         value={step8Filter}
-                        onChange={(e) => setStep8Filter(e.target.value as 'all' | 'accepted' | 'recut' | 'unlocked')}
+                        onChange={(e) => setStep8Filter(e.target.value as 'all' | 'accepted' | 'recut' | 'unlocked' | 'problems')}
                         className="px-4 py-2 border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                       >
                         <option value="all">Toate ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length})</option>
                         <option value="accepted">Acceptate ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.recutStatus === 'accepted').length})</option>
                         <option value="recut">Necesită Retăiere ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.recutStatus === 'recut').length})</option>
                         <option value="unlocked">Fără Lock ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && (!v.isStartLocked || !v.isEndLocked)).length})</option>
+                        <option value="problems">Possible Problems ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.editingDebugInfo?.algorithmLogs?.some((log: string) => log.includes('❌'))).length})</option>
                       </select>
                     </div>
-                    
-                    {/* Global Toggle Logs Button */}
-                    <button
-                      onClick={() => {
-                        const allExpanded = approvedVideos.every(v => v.showLog === true);
-                        setVideoResults(prev => prev.map(v => {
-                          if (v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl) {
-                            return { ...v, showLog: !allExpanded };
-                          }
-                          return v;
-                        }));
-                      }}
-                      className="text-sm text-blue-600 hover:text-blue-800 underline cursor-pointer"
-                    >
-                      {approvedVideos.every(v => v.showLog === true) ? 'Hide Logs' : '+Open Logs'}
-                    </button>
                   </div>
                   
                   {/* Sample Merge ALL Videos button */}
@@ -8042,6 +8032,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       🎬 Sample Merge ALL Videos
                     </Button>
                   )}
+                  
+                  {/* Check videos with possible problems link */}
+                  <button
+                    onClick={() => {
+                      // Set filter to show videos with problems
+                      setStep8Filter('problems');
+                    }}
+                    className="text-sm text-blue-600 hover:text-blue-800 underline cursor-pointer mt-2"
+                  >
+                    Check videos with possible problems
+                  </button>
                 </div>
                 
                 {approvedVideos.length === 0 ? (
