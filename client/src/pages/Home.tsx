@@ -789,10 +789,21 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       // Don't reload if videoResults already exist - this prevents overwriting manual marker changes
       const loadedVideoResults = parseJsonField(contextSession.videoResults);
       if (videoResults.length === 0) {
-        console.log('[Context Session] Loading videoResults from database (first load)');
+        console.log('[Context Session] 📥 LOADING videoResults from DB (first load)', {
+          count: loadedVideoResults.length
+        });
+        // Log each video's cutPoints separately to avoid truncation
+        loadedVideoResults.forEach(v => {
+          if (v.cutPoints) {
+            console.log(`  ⬅️ ${v.videoName}: start=${v.cutPoints.startKeep} end=${v.cutPoints.endKeep}`);
+          }
+        });
         setVideoResults(loadedVideoResults);
       } else {
-        console.log('[Context Session] Skipping videoResults reload - already loaded');
+        console.log('[Context Session] ⏭️ SKIPPING videoResults reload - already loaded', {
+          currentCount: videoResults.length,
+          dbCount: loadedVideoResults.length
+        });
       }
       
       setReviewHistory(parseJsonField(contextSession.reviewHistory));
@@ -880,7 +891,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           },
         });
       } else {
-        console.log('[Context Session] Auto-saving full workflow data...');
+        console.log('[Context Session] 💾 AUTO-SAVING full workflow data...', {
+          videoResults_count: videoResults.length
+        });
+        // Log each video's cutPoints separately to avoid truncation
+        videoResults.forEach(v => {
+          if (v.cutPoints) {
+            console.log(`  ➡️ ${v.videoName}: start=${v.cutPoints.startKeep} end=${v.cutPoints.endKeep}`);
+          }
+        });
         upsertContextSessionMutation.mutate({
           userId: localCurrentUser.id,
           coreBeliefId: selectedCoreBeliefId,
@@ -899,7 +918,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           reviewHistory,
         }, {
           onSuccess: () => {
-            console.log('[Context Session] Auto-saved successfully');
+            console.log('[Context Session] ✅ AUTO-SAVE SUCCESS');
           },
           onError: (error) => {
             console.error('[Context Session] Auto-save failed:', error);
@@ -8195,51 +8214,77 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             onTrimChange={(videoId, cutPoints, isStartLocked, isEndLocked) => {
                             // Update local state when user adjusts trim markers or lock state
                             // videoId is actually videoName (unique identifier)
-                            console.log('[DEBUG onTrimChange]', {
+                            console.log('[DEBUG onTrimChange] 🔵 CALLED', {
                               videoId,
-                              cutPoints,
+                              cutPoints: {
+                                startKeep: cutPoints.startKeep,
+                                endKeep: cutPoints.endKeep
+                              },
                               isStartLocked,
                               isEndLocked,
                               matchingVideo: videoResults.find(v => v.videoName === videoId)?.videoName
                             });
                             
-                            const updatedVideoResults = videoResults.map(v =>
-                              v.videoName === videoId
-                                ? { 
-                                    ...v, 
-                                    cutPoints,
-                                    isStartLocked: isStartLocked,
-                                    isEndLocked: isEndLocked,
-                                  }
-                                : v
-                            );
-                            
-                            setVideoResults(updatedVideoResults);
-                            
-                            // Immediate save to database
-                            if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
-                              upsertContextSessionMutation.mutate({
-                                userId: currentUser.id,
-                                coreBeliefId: selectedCoreBeliefId,
-                                emotionalAngleId: selectedEmotionalAngleId,
-                                adId: selectedAdId,
-                                characterId: selectedCharacterId,
-                                currentStep,
-                                rawTextAd,
-                                processedTextAd,
-                                adLines,
-                                prompts,
-                                images,
-                                combinations,
-                                deletedCombinations,
-                                videoResults: updatedVideoResults,
-                                reviewHistory,
-                              }, {
-                                onSuccess: () => {
-                                  console.log('[VideoEditorV2] Lock state saved to DB immediately');
-                                },
-                              });
-                            }
+                            // Use functional update to get the LATEST state and prevent race conditions
+                            setVideoResults(prev => {
+                              const updatedVideoResults = prev.map(v =>
+                                v.videoName === videoId
+                                  ? { 
+                                      ...v, 
+                                      cutPoints,
+                                      isStartLocked: isStartLocked,
+                                      isEndLocked: isEndLocked,
+                                    }
+                                  : v
+                              );
+                              
+                              // Immediate save to database using the UPDATED state
+                              // This ensures we save the correct values even when changing markers rapidly
+                              if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
+                                const thisVideoCutPoints = updatedVideoResults.find(v => v.videoName === videoId)?.cutPoints;
+                                console.log('[VideoEditorV2] 🟢 SAVING TO DB', {
+                                  videoId,
+                                  cutPoints_param: `start=${cutPoints.startKeep} end=${cutPoints.endKeep}`,
+                                  cutPoints_inUpdatedArray: `start=${thisVideoCutPoints?.startKeep} end=${thisVideoCutPoints?.endKeep}`,
+                                  isStartLocked,
+                                  isEndLocked,
+                                  updatedVideoResults_length: updatedVideoResults.length
+                                });
+                                
+                                upsertContextSessionMutation.mutate({
+                                  userId: currentUser.id,
+                                  coreBeliefId: selectedCoreBeliefId,
+                                  emotionalAngleId: selectedEmotionalAngleId,
+                                  adId: selectedAdId,
+                                  characterId: selectedCharacterId,
+                                  currentStep,
+                                  rawTextAd,
+                                  processedTextAd,
+                                  adLines,
+                                  prompts,
+                                  images,
+                                  combinations,
+                                  deletedCombinations,
+                                  videoResults: updatedVideoResults,
+                                  reviewHistory,
+                                }, {
+                                  onSuccess: () => {
+                                    console.log('[VideoEditorV2] ✅ DB SAVE SUCCESS', {
+                                      videoId,
+                                      savedCutPoints: updatedVideoResults.find(v => v.videoName === videoId)?.cutPoints
+                                    });
+                                  },
+                                  onError: (error) => {
+                                    console.error('[VideoEditorV2] ❌ DB SAVE FAILED', {
+                                      videoId,
+                                      error: error.message
+                                    });
+                                  },
+                                });
+                              }
+                              
+                              return updatedVideoResults;
+                            });
                           }}
                           />
                         </div>
