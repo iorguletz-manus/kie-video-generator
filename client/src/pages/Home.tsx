@@ -8119,6 +8119,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                 return;
                               }
                               
+                              // Log BEFORE reprocesare
+                              console.log('[Reprocesare] BEFORE - cutPoints:', {
+                                startKeep: videoToReprocess.cutPoints?.startKeep,
+                                endKeep: videoToReprocess.cutPoints?.endKeep,
+                                redPosition: videoToReprocess.cutPoints?.redPosition,
+                                confidence: videoToReprocess.cutPoints?.confidence
+                              });
+                              
                               // Reset progress and open modal
                               setProcessingProgress({ 
                                 ffmpeg: { current: 0, total: 1 },
@@ -8136,6 +8144,25 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                 // Check if processing was successful
                                 const result = resultsMap.get(videoName);
                                 if (result) {
+                                  // Log AFTER reprocesare (from backend)
+                                  console.log('[Reprocesare] AFTER (from backend) - cutPoints:', {
+                                    startKeep: result.cutPoints?.startKeep,
+                                    endKeep: result.cutPoints?.endKeep,
+                                    redPosition: result.cutPoints?.redPosition,
+                                    confidence: result.cutPoints?.confidence
+                                  });
+                                  
+                                  // Log AFTER state update
+                                  setTimeout(() => {
+                                    const updatedVideo = videoResults.find(v => v.videoName === videoName);
+                                    console.log('[Reprocesare] AFTER (in state) - cutPoints:', {
+                                      startKeep: updatedVideo?.cutPoints?.startKeep,
+                                      endKeep: updatedVideo?.cutPoints?.endKeep,
+                                      redPosition: updatedVideo?.cutPoints?.redPosition,
+                                      confidence: updatedVideo?.cutPoints?.confidence
+                                    });
+                                  }, 100);
+                                  
                                   toast.success(`✅ ${videoName} reprocesed successfully!`);
                                 } else {
                                   toast.error(`❌ Failed to reprocess ${videoName}`);
