@@ -1881,12 +1881,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         }
         
         // Normal processing with FFMPEG/Whisper
+        // Add timestamp to force React to detect URL changes
+        const timestamp = Date.now();
+        const audioUrlWithTimestamp = result.audioUrl ? `${result.audioUrl}?t=${timestamp}` : result.audioUrl;
+        
         return {
           ...v,
           whisperTranscript: result.whisperTranscript,
           cutPoints: result.cutPoints,
           words: result.words,
-          audioUrl: result.audioUrl,
+          audioUrl: audioUrlWithTimestamp,
           waveformData: result.waveformData,
           editingDebugInfo: result.editingDebugInfo,
           editStatus: 'processed',

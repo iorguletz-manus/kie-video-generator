@@ -84,9 +84,10 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, nextVide
   // Update trimStart/trimEnd when video.cutPoints changes (e.g., after reprocesare)
   useEffect(() => {
     if (video.cutPoints) {
-      console.log('[VideoEditorV2] Updating trim markers from cutPoints:', {
+      console.log('[VideoEditorV2] useEffect triggered! Updating trim markers from cutPoints:', {
         startKeep: video.cutPoints.startKeep,
-        endKeep: video.cutPoints.endKeep
+        endKeep: video.cutPoints.endKeep,
+        videoName: video.videoName
       });
       
       setTrimStart(video.cutPoints.startKeep);
@@ -101,7 +102,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, nextVide
         });
       }
     }
-  }, [video.cutPoints?.startKeep, video.cutPoints?.endKeep]);
+  }, [video.cutPoints?.startKeep, video.cutPoints?.endKeep, video.audioUrl, video.peaksUrl]);
 
   // Check if refs are ready after DOM renders
   useEffect(() => {
