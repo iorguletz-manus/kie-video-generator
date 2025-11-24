@@ -4,13 +4,21 @@
 import { WhisperWord, CutPoints, EditingDebugInfo } from './videoEditing';
 
 /**
- * Normalize text for comparison (remove punctuation, lowercase, trim)
+ * Normalize text for comparison (remove punctuation, diacritics, hyphens, lowercase, trim)
  */
 function normalizeText(text: string): string {
   return text
+    // Remove hyphens (să-ți → să ți)
+    .replace(/-/g, ' ')
+    // Remove punctuation
     .replace(/[,\.:\;!?]/g, '')
+    // Remove diacritics (ă→a, î→i, ș→s, ț→t, â→a)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
-    .trim();
+    .trim()
+    // Normalize multiple spaces to single space
+    .replace(/\s+/g, ' ');
 }
 
 /**
@@ -66,24 +74,157 @@ export function calculateCutPointsNew(
   fullText: string,
   redText: string,
   words: WhisperWord[],
-  redTextPosition: 'START' | 'END',
+  redTextPosition: 'START' | 'END' | undefined,
   marginMs: number = 50
 ): { cutPoints: CutPoints | null; debugInfo: EditingDebugInfo } {
   const logs: string[] = [];
   const marginS = marginMs / 1000.0;
   
+  // Check if this is a white-text-only video (no red text)
+  const isWhiteTextOnly = !redText || redText.trim() === '';
+  
   // Derive white text
-  const whiteText = fullText.replace(redText, '').trim();
+  const whiteText = isWhiteTextOnly ? fullText.trim() : fullText.replace(redText, '').trim();
   const whiteWords = whiteText.split(/\s+/).filter(w => w.length > 0);
-  const redWords = redText.split(/\s+/).filter(w => w.length > 0);
+  const redWords = isWhiteTextOnly ? [] : redText.split(/\s+/).filter(w => w.length > 0);
   
   logs.push(`🔍 Starting search algorithm...`);
   logs.push(`📄 Full text: "${fullText}"`);
-  logs.push(`⚪ White text: "${whiteText}" (${whiteWords.length} words)`);
-  logs.push(`🔴 Red text: "${redText}" (${redWords.length} words, position: ${redTextPosition})`);
+  
+  if (isWhiteTextOnly) {
+    logs.push(`⚪ White text only: "${whiteText}" (${whiteWords.length} words)`);
+    logs.push(`🔴 No red text → searching for white text only`);
+  } else {
+    logs.push(`⚪ White text: "${whiteText}" (${whiteWords.length} words)`);
+    logs.push(`🔴 Red text: "${redText}" (${redWords.length} words, position: ${redTextPosition})`);
+  }
+  
   logs.push(`🎤 Whisper transcript: "${words.map(w => w.word).join(' ')}" (${words.length} words)`);
   logs.push(``);
   
+  // WHITE-TEXT-ONLY ALGORITHM
+  if (isWhiteTextOnly) {
+    // STEP 1: Search for entire white text
+    logs.push(`🔎 Step 1: Searching for entire white text...`);
+    const fullMatch = findSequence(words, whiteWords);
+    
+    if (fullMatch) {
+      logs.push(`✅ Found entire white text at indices ${fullMatch.startIdx}-${fullMatch.endIdx}`);
+      
+      const startWord = words[fullMatch.startIdx];
+      const endWord = words[fullMatch.endIdx];
+      const startKeep = Math.max(0, (startWord.start - marginS) * 1000);
+      const endKeep = (endWord.end + marginS) * 1000;
+      
+      logs.push(`✅ Placed START marker before "${startWord.word}" at ${startKeep.toFixed(0)}ms`);
+      logs.push(`✅ Placed END marker after "${endWord.word}" at ${endKeep.toFixed(0)}ms`);
+      logs.push(`🎯 Algorithm complete!`);
+      
+      return {
+        cutPoints: {
+          startKeep: Math.round(startKeep),
+          endKeep: Math.round(endKeep),
+          redPosition: undefined,
+          confidence: 0.95,
+        },
+        debugInfo: {
+          status: 'success',
+          message: `✅ Found entire white text (no red text)`,
+          whisperTranscript: words.map(w => w.word).join(' '),
+          whisperWordCount: words.length,
+          redTextDetected: {
+            found: false,
+            position: undefined,
+            fullText: '',
+          },
+          logs,
+        },
+      };
+    }
+    
+    logs.push(`❌ Entire white text NOT FOUND`);
+    
+    // STEP 2: Search for first 2-3 words
+    logs.push(`🔎 Step 2: Searching for first 2-3 words of white text...`);
+    let startKeep: number | null = null;
+    
+    for (let n = 3; n >= 2; n--) {
+      if (whiteWords.length < n) continue;
+      
+      const firstNWords = whiteWords.slice(0, n);
+      logs.push(`🔍 Searching for first ${n} words: "${firstNWords.join(' ')}"`);
+      
+      const match = findSequence(words, firstNWords);
+      if (match) {
+        logs.push(`✅ Found first ${n} words at indices ${match.startIdx}-${match.endIdx}`);
+        
+        const firstMatchWord = words[match.startIdx];
+        startKeep = Math.max(0, (firstMatchWord.start - marginS) * 1000);
+        
+        logs.push(`✅ Placed START marker BEFORE first word "${firstMatchWord.word}" at ${startKeep.toFixed(0)}ms`);
+        break;
+      }
+    }
+    
+    if (!startKeep) {
+      logs.push(`❌ First 2-3 words NOT FOUND`);
+      startKeep = 0;  // Default to beginning
+      logs.push(`⚠️ Using default START marker at 0ms`);
+    }
+    
+    // STEP 3: Search for last 2-3 words (ALWAYS, regardless of Step 2 result)
+    logs.push(`🔎 Step 3: Searching for last 2-3 words of white text...`);
+    let endKeep: number | null = null;
+    
+    for (let n = 3; n >= 2; n--) {
+      if (whiteWords.length < n) continue;
+      
+      const lastNWords = whiteWords.slice(-n);
+      logs.push(`🔍 Searching for last ${n} words: "${lastNWords.join(' ')}"`);
+      
+      const match = findSequence(words, lastNWords);
+      if (match) {
+        logs.push(`✅ Found last ${n} words at indices ${match.startIdx}-${match.endIdx}`);
+        
+        const lastMatchWord = words[match.endIdx];
+        endKeep = (lastMatchWord.end + marginS) * 1000;
+        
+        logs.push(`✅ Placed END marker AFTER last word "${lastMatchWord.word}" at ${endKeep.toFixed(0)}ms`);
+        break;
+      }
+    }
+    
+    if (!endKeep) {
+      logs.push(`❌ Last 2-3 words NOT FOUND`);
+      endKeep = (words[words.length - 1].end + marginS) * 1000;  // Default to end
+      logs.push(`⚠️ Using default END marker at ${endKeep.toFixed(0)}ms`);
+    }
+    
+    logs.push(`🎯 Algorithm complete!`);
+    
+    return {
+      cutPoints: {
+        startKeep: Math.round(startKeep),
+        endKeep: Math.round(endKeep),
+        redPosition: undefined,
+        confidence: 0.75,
+      },
+      debugInfo: {
+        status: 'success',
+        message: `✅ Placed markers using first/last 2-3 words (no red text)`,
+        whisperTranscript: words.map(w => w.word).join(' '),
+        whisperWordCount: words.length,
+        redTextDetected: {
+          found: false,
+          position: undefined,
+          fullText: '',
+        },
+        logs,
+      },
+    };
+  }
+  
+  // ORIGINAL ALGORITHM (with red text)
   // STEP 1: Search for entire white text
   logs.push(`🔎 Step 1: Searching for entire white text...`);
   const whiteMatch = findSequence(words, whiteWords);
@@ -133,10 +274,10 @@ export function calculateCutPointsNew(
   if (redMatch) {
     logs.push(`✅ Searched for entire red text: FOUND at indices ${redMatch.startIdx}-${redMatch.endIdx}`);
     
-    const redAtBeginning = isAtBeginning(redMatch.startIdx, words.length);
-    const redAtEnd = isAtEnd(redMatch.endIdx, words.length);
+    // Use redTextPosition from original text, not Whisper position!
+    // (Red text might appear multiple times in Whisper, we need to use the original position)
     
-    if (redAtEnd) {
+    if (redTextPosition === 'END') {
       // Red text at END → place END marker BEFORE first red word
       logs.push(`✅ Red text is at END of transcript → placing END marker BEFORE first red word`);
       
@@ -184,9 +325,9 @@ export function calculateCutPointsNew(
           algorithmLogs: logs,
         },
       };
-    } else if (redAtBeginning) {
+    } else if (redTextPosition === 'START') {
       // Red text at START → place START marker AFTER last red word
-      logs.push(`✅ Red text is at BEGINNING of transcript → placing START marker AFTER last red word`);
+      logs.push(`✅ Red text is at BEGINNING of original text → placing START marker AFTER last red word`);
       
       const lastRedWord = words[redMatch.endIdx];
       const startKeep = (lastRedWord.end + marginS) * 1000;

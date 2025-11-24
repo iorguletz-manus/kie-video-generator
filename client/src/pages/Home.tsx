@@ -1612,128 +1612,156 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     setImages(prev => prev.filter(img => img.id !== id));
   };
 
-  // Step 8: Batch process videos with Whisper + FFmpeg API
+  // Step 8: Batch process videos with Whisper + FFmpeg API (PARALLEL with max 10 concurrent)
   const batchProcessVideosWithWhisper = async (videos: VideoResult[]) => {
-    console.log('[Batch Processing] 🚀 Starting with', videos.length, 'videos');
+    console.log('[Batch Processing] 🚀 Starting PARALLEL processing with', videos.length, 'videos (max 10 concurrent)');
     
     let successCount = 0;
     let failCount = 0;
     
-    // Collect all results in a Map to avoid React state closure issues
+    // Collect all results in a Map
     const resultsMap = new Map<string, any>();
+    const MAX_CONCURRENT = 5;  // Reduced from 10 to avoid FFmpeg API rate limits
     
-    for (let i = 0; i < videos.length; i++) {
-      const video = videos[i];
-      
-      setProcessingProgress({ 
-        current: i, 
-        total: videos.length,
-        currentVideoName: video.videoName 
-      });
-      
-      try {
-        console.log(`[Batch Processing] 🎥 Processing video ${i + 1}/${videos.length}:`, video.videoName);
-        
-        // Extract red text from video
-        const hasRedText = video.redStart !== undefined && 
-                          video.redEnd !== undefined && 
-                          video.redStart >= 0 && 
-                          video.redEnd > video.redStart;
-        
-        const redText = hasRedText
-          ? video.text.substring(video.redStart, video.redEnd)
-          : '';
-        
-        // Calculate red text position from redStart/redEnd
-        const redTextPosition: 'START' | 'END' = (video.redStart === 0 || (video.redStart || 0) < 10)
-          ? 'START'
-          : 'END';
-        
-        console.log(`[Batch Processing] Red text position: ${redTextPosition} (redStart: ${video.redStart}, redEnd: ${video.redEnd}, textLength: ${video.text.length})`);
-        
-        if (!hasRedText || !redText) {
-          // Video without red text - set default markers (0 to duration) without FFMPEG processing
-          console.log(`[Batch Processing] 🟠 No red text for ${video.videoName} - setting default markers (0 to duration)`);
+    // Helper: Process single video with retry
+    const processVideoWithRetry = async (video: VideoResult, index: number, retries = 3): Promise<any> => {
+      for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+          console.log(`[Batch Processing] 🎬 ${video.videoName} - Attempt ${attempt}/${retries}`);
           
-          setProcessingStep('save');
-          await new Promise(resolve => setTimeout(resolve, 300));
-          
-          // Store default result without FFMPEG/Whisper processing
-          resultsMap.set(video.videoName, {
-            whisperTranscript: null,
-            cutPoints: null,
-            words: null,
-            audioUrl: null,
-            waveformData: null,
-            noCutNeeded: true, // Flag to indicate no cut needed
+          setProcessingProgress({ 
+            current: index, 
+            total: videos.length,
+            currentVideoName: video.videoName 
           });
           
-          console.log(`[Batch Processing] ✅ Default markers set for ${video.videoName}`);
-          successCount++;
-          continue;
+          // Extract red text from video
+          const hasRedText = video.redStart !== undefined && 
+                            video.redEnd !== undefined && 
+                            video.redStart >= 0 && 
+                            video.redEnd > video.redStart;
+          
+          const redText = hasRedText
+            ? video.text.substring(video.redStart, video.redEnd)
+            : '';
+          
+          // Calculate red text position from redStart/redEnd (undefined if no red text)
+          // Check if red text is at the END of the original text (not just redStart position)
+          const textLength = video.text.length;
+          const redTextPosition: 'START' | 'END' | undefined = hasRedText
+            ? ((video.redEnd || 0) >= textLength - 10 ? 'END' : 'START')  // If redEnd is near end of text, it's at END
+            : undefined;
+          
+          if (!hasRedText || !redText) {
+            console.log(`[Batch Processing] ⚪ ${video.videoName} - No red text, processing as white-text-only`);
+          }
+          
+          // Process with FFmpeg + Whisper
+          const result = await processVideoForEditingMutation.mutateAsync({
+            videoUrl: video.videoUrl!,
+            videoId: parseInt(video.id || '0'),
+            fullText: video.text,
+            redText: redText,
+            redTextPosition: redTextPosition,
+            marginMs: 50,
+            userApiKey: localCurrentUser.openaiApiKey || undefined,
+            ffmpegApiKey: localCurrentUser.ffmpegApiKey || undefined,
+          });
+          
+          console.log(`[Batch Processing] ✅ ${video.videoName} - Success!`);
+          return {
+            videoName: video.videoName,
+            success: true,
+            result: {
+              whisperTranscript: result.whisperTranscript,
+              cutPoints: result.cutPoints,
+              words: result.words,
+              audioUrl: result.audioUrl,
+              waveformData: result.waveformJson,
+              editingDebugInfo: result.editingDebugInfo,
+              noCutNeeded: false,
+            }
+          };
+        } catch (error: any) {
+          console.error(`[Batch Processing] ❌ ${video.videoName} - Attempt ${attempt} failed:`, error.message);
+          
+          if (attempt === retries) {
+            console.error(`[Batch Processing] 🚫 ${video.videoName} - All ${retries} attempts failed`);
+            return {
+              videoName: video.videoName,
+              success: false,
+              error: error.message
+            };
+          }
+          
+          // Wait before retry (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
         }
+      }
+    };
+    
+    // Helper: Process queue with max concurrency
+    const processQueue = async <T, R>(
+      items: T[],
+      processor: (item: T, index: number) => Promise<R>,
+      maxConcurrent: number
+    ): Promise<R[]> => {
+      const results: R[] = [];
+      let currentIndex = 0;
+      let activeCount = 0;
+      
+      return new Promise((resolve) => {
+        const processNext = async () => {
+          if (currentIndex >= items.length && activeCount === 0) {
+            resolve(results);
+            return;
+          }
+          
+          while (activeCount < maxConcurrent && currentIndex < items.length) {
+            const index = currentIndex++;
+            activeCount++;
+            
+            processor(items[index], index)
+              .then(result => {
+                results[index] = result;
+                activeCount--;
+                processNext();
+              })
+              .catch(error => {
+                console.error(`[Queue] Error processing item ${index}:`, error);
+                results[index] = null as any;
+                activeCount--;
+                processNext();
+              });
+          }
+        };
         
-        console.log(`[Batch Processing] Red text: "${redText.substring(0, 50)}..."`);
-        
-        // Step 1: Extract audio with FFmpeg API
-        console.log(`[Batch Processing] 🎵 Step 1/2: Extracting audio...`);
-        setProcessingStep('extract');
-        await new Promise(resolve => setTimeout(resolve, 800)); // Delay for UI visibility
-        
-        // Step 2: Whisper API transcription + Cut points calculation
-        console.log(`[Batch Processing] 🤖 Step 2/2: Whisper transcription...`);
-        setProcessingStep('whisper');
-        
-        const result = await processVideoForEditingMutation.mutateAsync({
-          videoUrl: video.videoUrl!,
-          videoId: parseInt(video.id || '0'),
-          fullText: video.text,
-          redText: redText,
-          redTextPosition: redTextPosition,
-          marginMs: 50,
-          userApiKey: localCurrentUser.openaiApiKey || undefined,
-          ffmpegApiKey: localCurrentUser.ffmpegApiKey || undefined,
-        });
-        
-        console.log(`[Batch Processing] 💾 Saving results for ${video.videoName}...`);
-        setProcessingStep('save');
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
-        // Store result in Map (will apply all at once at the end)
-        resultsMap.set(video.videoName, {
-          whisperTranscript: result.whisperTranscript,
-          cutPoints: result.cutPoints,
-          words: result.words,
-          audioUrl: result.audioUrl,
-          waveformData: result.waveformJson,
-          editingDebugInfo: result.editingDebugInfo,
-          noCutNeeded: false,
-        });
-        
-        console.log(`[Batch Processing] ✅ Stored result for ${video.videoName}:`, {
-          cutPoints: result.cutPoints,
-          editingDebugInfo: result.editingDebugInfo,
-          hasWhisperTranscript: !!result.whisperTranscript,
-          hasWaveformData: !!result.waveformData,
-        });
-        
+        processNext();
+      });
+    };
+    
+    // Process all videos in parallel (max 10 concurrent)
+    console.log('[Batch Processing] 🚀 Processing all videos in parallel...');
+    setProcessingStep('extract');
+    
+    const allResults = await processQueue(
+      videos,
+      processVideoWithRetry,
+      MAX_CONCURRENT
+    );
+    
+    console.log('[Batch Processing] 🎉 All videos processed!');
+    
+    // Count successes and failures
+    for (const result of allResults) {
+      if (result && result.success) {
         successCount++;
-        console.log(`[Batch Processing] ✅ Video ${i + 1}/${videos.length} SUCCESS!`, {
-          cutPoints: result.cutPoints,
-          wordsCount: result.words?.length || 0
-        });
-        
-      } catch (error: any) {
+        resultsMap.set(result.videoName, result.result);
+      } else {
         failCount++;
-        console.error(`[Batch Processing] ❌ Video ${i + 1}/${videos.length} FAILED:`, error);
-        console.error(`[Batch Processing] Error details:`, {
-          videoName: video.videoName,
-          videoUrl: video.videoUrl,
-          error: error.message,
-          stack: error.stack
-        });
-        toast.error(`❌ ${video.videoName}: ${error.message}`);
-        // Continue with next video even if one fails
+        if (result) {
+          toast.error(`❌ ${result.videoName}: ${result.error}`);
+        }
       }
     }
     
@@ -7592,19 +7620,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           return;
                         }
                         
-                        // VALIDATE: Check if videos have red text
-                        const videosWithRedText = approvedVideos.filter(v => 
-                          v.redStart !== undefined && 
-                          v.redEnd !== undefined && 
-                          v.redStart < v.redEnd
-                        );
+                        // Process ALL approved videos (with or without red text)
+                        const videosToProcess = approvedVideos;
                         
-                        if (videosWithRedText.length === 0) {
-                          toast.error('❌ Nu există videouri cu text roșu detectat! Verifică Step 7.');
+                        if (videosToProcess.length === 0) {
+                          toast.error('❌ Nu există videouri acceptate! Verifică Step 7.');
                           return;
                         }
                         
-                        console.log(`[Video Editing] Starting batch processing for ${videosWithRedText.length} videos with red text`);
+                        console.log(`[Video Editing] Starting batch processing for ${videosToProcess.length} videos (with and without red text)`);
                         
                         // CLEAR old Step 8 data (editStatus, whisperTranscript, cutPoints, etc.) before starting new batch
                         // This preserves videos in Step 7 while removing Step 8 processing data
@@ -7625,13 +7649,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             : v
                         ));
                         
-                        // Open ProcessingModal and start batch processing
-                        setShowProcessingModal(true);
-                        setProcessingProgress({ current: 0, total: videosWithRedText.length, currentVideoName: '' });
+                        // Reset progress BEFORE opening modal to avoid showing old value
+                        setProcessingProgress({ current: 0, total: videosToProcess.length, currentVideoName: '' });
                         setProcessingStep(null);
                         
+                        // Open ProcessingModal and start batch processing
+                        setShowProcessingModal(true);
+                        
                         try {
-                          await batchProcessVideosWithWhisper(videosWithRedText);
+                          await batchProcessVideosWithWhisper(videosToProcess);
                           
                           // Close modal and go to Step 8
                           setShowProcessingModal(false);
@@ -7687,18 +7713,36 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               <CardContent className="pt-6">
                 {/* Filter Dropdown */}
                 <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4">
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm font-medium text-purple-900">Filtrează videouri:</label>
-                    <select
-                      value={step8Filter}
-                      onChange={(e) => setStep8Filter(e.target.value as 'all' | 'accepted' | 'recut' | 'unlocked')}
-                      className="px-4 py-2 border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm font-medium text-purple-900">Filtrează videouri:</label>
+                      <select
+                        value={step8Filter}
+                        onChange={(e) => setStep8Filter(e.target.value as 'all' | 'accepted' | 'recut' | 'unlocked')}
+                        className="px-4 py-2 border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      >
+                        <option value="all">Toate ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length})</option>
+                        <option value="accepted">Acceptate ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.recutStatus === 'accepted').length})</option>
+                        <option value="recut">Necesită Retăiere ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.recutStatus === 'recut').length})</option>
+                        <option value="unlocked">Fără Lock ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && (!v.isStartLocked || !v.isEndLocked)).length})</option>
+                      </select>
+                    </div>
+                    
+                    {/* Global Toggle Logs Button */}
+                    <button
+                      onClick={() => {
+                        const allExpanded = approvedVideos.every(v => v.showLog === true);
+                        setVideoResults(prev => prev.map(v => {
+                          if (v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl) {
+                            return { ...v, showLog: !allExpanded };
+                          }
+                          return v;
+                        }));
+                      }}
+                      className="text-sm text-blue-600 hover:text-blue-800 underline cursor-pointer"
                     >
-                      <option value="all">Toate ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length})</option>
-                      <option value="accepted">Acceptate ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.recutStatus === 'accepted').length})</option>
-                      <option value="recut">Necesită Retăiere ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.recutStatus === 'recut').length})</option>
-                      <option value="unlocked">Fără Lock ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && (!v.isStartLocked || !v.isEndLocked)).length})</option>
-                    </select>
+                      {approvedVideos.every(v => v.showLog === true) ? 'Hide Logs' : '+Open Logs'}
+                    </button>
                   </div>
                   
                   {/* Sample Merge ALL Videos button */}
@@ -7813,7 +7857,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       
                       // Calculate duration from whisperTranscript (actual audio duration)
                       // DO NOT use cutPoints.endKeep as it changes when user adjusts markers!
-                      const duration = video.whisperTranscript?.duration || 10; // Use actual audio duration
+                      // Whisper returns duration in seconds, use directly
+                      const duration = video.whisperTranscript?.duration || 10; // Use actual audio duration in seconds
                       
                       return (
                         <div key={video.videoName} className="space-y-4">

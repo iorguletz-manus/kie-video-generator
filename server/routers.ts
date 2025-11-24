@@ -1557,8 +1557,8 @@ export const appRouter = router({
         videoUrl: z.string(),
         videoId: z.number(),
         fullText: z.string(),
-        redText: z.string(),
-        redTextPosition: z.enum(['START', 'END']),  // Position from database
+        redText: z.string().optional().default(''),  // Optional - can be empty for white-text-only videos
+        redTextPosition: z.enum(['START', 'END']).optional(),  // Optional - not used for white-text-only videos
         marginMs: z.number().optional().default(50),
         userApiKey: z.string().optional(),
         ffmpegApiKey: z.string().optional(),

@@ -772,7 +772,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, nextVide
             <span className="text-xs text-gray-600 whitespace-nowrap">
               Current: <span className="font-mono font-bold text-purple-600">{formatTime(currentTime)}</span>
               {' / '}
-              <span className="font-mono">{formatTime(video.duration)}</span>
+              <span className="font-mono">{formatTime(video.duration * 1000)}</span>
             </span>
           </div>
           
