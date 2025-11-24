@@ -1881,16 +1881,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         }
         
         // Normal processing with FFMPEG/Whisper
-        // Add timestamp to force React to detect URL changes
-        const timestamp = Date.now();
-        const audioUrlWithTimestamp = result.audioUrl ? `${result.audioUrl}?t=${timestamp}` : result.audioUrl;
-        
+        // Backend now adds timestamp to filename, so URL is unique
         return {
           ...v,
           whisperTranscript: result.whisperTranscript,
           cutPoints: result.cutPoints,
           words: result.words,
-          audioUrl: audioUrlWithTimestamp,
+          audioUrl: result.audioUrl,
           waveformData: result.waveformData,
           editingDebugInfo: result.editingDebugInfo,
           editStatus: 'processed',
@@ -7991,6 +7988,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           )}
                           
                           <VideoEditorV2
+                            key={`${video.videoName}-${video.audioUrl || 'no-audio'}`}
                             video={{
                             id: video.videoName, // Use videoName as unique identifier
                             videoName: video.videoName,

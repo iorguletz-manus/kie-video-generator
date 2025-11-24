@@ -629,11 +629,13 @@ export async function processVideoForEditing(
     }
     
     // 1. Upload video to FFmpeg API
-    const videoFileName = `video_${videoId}.mp4`;
+    const sanitizedVideoName = videoName.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const videoFileName = `video_${sanitizedVideoName}.mp4`;
     const videoFilePath = await uploadVideoToFFmpegAPI(videoUrl, videoFileName, ffmpegApiKey);
     
     // 2. Extract audio
-    const audioFileName = `audio_${videoId}.mp3`;
+    const timestamp = Date.now();
+    const audioFileName = `${sanitizedVideoName}_${timestamp}.mp3`;
     const audioDownloadUrl = await extractAudioWithFFmpegAPI(videoFilePath, audioFileName, ffmpegApiKey!);
     
     // 2.5. Download audio and upload to Bunny.net for permanent storage
