@@ -4544,20 +4544,22 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     </div>
                   )}
 
-                  <Button
-                    onClick={processText}
-                    disabled={!rawTextAd || rawTextAd.trim().length === 0 || processTextAdMutation.isPending}
-                    className="mt-4 bg-blue-600 hover:bg-blue-700 px-8 py-6 text-lg"
-                  >
-                    {processTextAdMutation.isPending ? 'Processing...' : (
-                      <>
-                        Next: Prepare Ad
-                        <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                      </>
-                    )}
-                  </Button>
+                  <div className="flex justify-end mt-4">
+                    <Button
+                      onClick={processText}
+                      disabled={!rawTextAd || rawTextAd.trim().length === 0 || processTextAdMutation.isPending}
+                      className="bg-blue-600 hover:bg-blue-700 px-8 py-8 text-lg"
+                    >
+                      {processTextAdMutation.isPending ? 'Processing...' : (
+                        <>
+                          Next: Prepare Ad
+                          <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </>
               )}
             </CardContent>
@@ -4899,7 +4901,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     </Button>
                     <Button
                       onClick={() => setCurrentStep(3)}
-                      className="bg-blue-600 hover:bg-blue-700 px-8 py-6 text-lg"
+                      className="bg-blue-600 hover:bg-blue-700 px-8 py-8 text-lg"
                     >
                       Next: Choose Prompts
                       <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -5062,7 +5064,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 </Button>
                 <Button
                   onClick={() => setCurrentStep(3)}
-                  className="bg-blue-600 hover:bg-blue-700 px-8 py-6 text-lg"
+                  className="bg-blue-600 hover:bg-blue-700 px-8 py-8 text-lg"
                 >
                   Next: Choose Prompts
                   <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -5184,7 +5186,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 </Button>
                 <Button
                   onClick={() => setCurrentStep(4)}
-                  className="bg-blue-600 hover:bg-blue-700 px-8 py-6 text-lg"
+                  className="bg-blue-600 hover:bg-blue-700 px-8 py-8 text-lg"
                 >
                   Next: Select Images
                   <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -5488,7 +5490,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 <Button
                   onClick={createMappings}
                   disabled={images.length === 0}
-                  className="bg-blue-600 hover:bg-blue-700 px-8 py-6 text-lg"
+                  className="bg-blue-600 hover:bg-blue-700 px-8 py-8 text-lg"
                 >
                   Next: Create Mappings
                   <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -5622,7 +5624,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 <Button
                   onClick={generateVideos}
                   disabled={generateBatchMutation.isPending}
-                  className="bg-blue-600 hover:bg-blue-700 px-8 py-6 text-lg"
+                  className="bg-blue-600 hover:bg-blue-700 px-8 py-8 text-lg"
                 >
                   {generateBatchMutation.isPending ? (
                     <>
@@ -5631,8 +5633,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     </>
                   ) : (
                     <>
-                      Next: Generate Videos ({combinations.length} videos)
-                      <Video className="w-5 h-5 ml-2" />
+                      <Video className="w-5 h-5 mr-2" />
+                      Next: Generate ({combinations.length} Videos)
                     </>
                   )}
                 </Button>
@@ -6927,9 +6929,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   </Button>
                   <Button
                     onClick={goToCheckVideos}
-                    className="bg-green-600 hover:bg-green-700 px-8 py-6 text-lg"
+                    className="bg-green-600 hover:bg-green-700 px-8 py-8 text-lg"
                   >
-                    Next: Check Videos (Review)
+                    Next: Check ({videoResults.filter(v => v.status === 'success').length} Videos)
                     <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
@@ -7662,18 +7664,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   </div>
                 </div>
                 
-                {/* Mesaj pentru videouri fără decizie */}
-                {videosWithoutDecision.length > 0 && (
-                  <div className="bg-orange-50 border-2 border-orange-400 rounded p-4 mb-4">
-                    <p className="text-orange-900 font-bold text-center">
-                      ⚠️ Te rog să iei o decizie (Accept sau Regenerate) pentru toate videouri înainte de a continua.
-                    </p>
-                    <p className="text-sm text-orange-700 text-center mt-2">
-                      {videosWithoutDecision.length} videouri fără decizie rămase
-                    </p>
-                  </div>
-                )}
-                
+
                 {/* Buton Regenerate Selected - afișează întotdeauna dacă există videouri marcate */}
                 {videoResults.some(v => v.reviewStatus === 'regenerate') && (
                   <Button
@@ -7692,11 +7683,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 
                 {/* Warning pentru videouri fără decizie */}
                 {videosWithoutDecision.length > 0 && (
-                  <div className="bg-yellow-50 border-2 border-yellow-300 rounded p-4 text-center">
-                    <p className="text-yellow-800 font-medium">
+                  <div className="bg-red-100 border-2 border-red-700 rounded p-4 text-center">
+                    <p className="text-red-900 font-medium">
                       ⚠️ {videosWithoutDecision.length} videouri fără decizie
                     </p>
-                    <p className="text-sm text-yellow-700 mt-1">
+                    <p className="text-sm text-red-800 mt-1">
                       Poți regenera videouri marcate chiar dacă nu ai luat decizie pentru toate.
                     </p>
                   </div>
@@ -7775,7 +7766,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       className="w-auto mx-auto block border-2 border-blue-600 bg-white hover:bg-blue-50 text-blue-600 px-4 py-2 text-sm"
                     >
                       <Download className="w-4 h-4 mr-2 inline" />
-                      Download
+                      Download Videos ({acceptedVideosWithUrl.length})
                     </Button>
                     
                     {/* Link pentru descărcare document Word cu liniile din Step 2 */}
@@ -7791,72 +7782,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 )}
               </div>
               
-              {/* Buton CleanVoice Processing - Step 7 */}
+              {/* Buton Video Editing - Step 8 */}
               {acceptedVideosWithUrl.length > 0 && (
-                <div className="mt-8 p-4 bg-green-50 border-2 border-green-300 rounded-lg">
-                  <p className="text-green-900 font-medium mb-3">
-                    {acceptedCount} videouri acceptate
-                  </p>
-                  <div className="mt-4">
-                    <Button
-                      onClick={async () => {
-                        if (!currentUser.cleanvoiceApiKey) {
-                          toast.error('CleanVoice API Key lipsește! Adaugă-l în Settings.');
-                          return;
-                        }
-
-                        // Filter approved videos
-                        const approvedVideos = videoResults.filter(v => 
-                          v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl
-                        );
-
-                        if (approvedVideos.length === 0) {
-                          toast.error('Nu există videouri acceptate pentru procesare');
-                          return;
-                        }
-
-                        try {
-                          toast.info(`Procesare ${approvedVideos.length} videouri cu CleanVoice...`);
-
-                          const result = await trpc.videoEditing.processWithCleanVoice.mutate({
-                            videos: approvedVideos.map(v => ({
-                              videoUrl: v.videoUrl!,
-                              videoName: v.videoName,
-                              videoId: videoResults.indexOf(v),
-                            })),
-                            userId: currentUser.id,
-                            cleanvoiceApiKey: currentUser.cleanvoiceApiKey,
-                          });
-
-                          // Update videoResults with cleanvoiceAudioUrl
-                          const updatedVideoResults = [...videoResults];
-                          result.results.forEach((r: any) => {
-                            if (r.success) {
-                              updatedVideoResults[r.videoId].cleanvoiceAudioUrl = r.cleanvoiceAudioUrl;
-                            }
-                          });
-
-                          setVideoResults(updatedVideoResults);
-                          await upsertContextSessionMutation.mutateAsync({
-                            ...contextSession!,
-                            videoResults: updatedVideoResults,
-                          });
-
-                          const successCount = result.results.filter((r: any) => r.success).length;
-                          toast.success(`${successCount}/${approvedVideos.length} videouri procesate cu CleanVoice!`);
-                        } catch (error: any) {
-                          console.error('[CleanVoice] Error:', error);
-                          toast.error(`Eroare: ${error.message}`);
-                        }
-                      }}
-                      className="w-full bg-purple-600 hover:bg-purple-700 py-6 text-lg"
-                    >
-                      🎙️ Process with CleanVoice ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length})
-                    </Button>
-                  </div>
-
-                  {/* Buton Video Editing - Step 8 */}
-                  <div className="mt-6 flex justify-between items-center">
+                <div className="mt-8 flex justify-between items-center">
                     <Button
                       variant="outline"
                       onClick={() => setCurrentStep(6)}
@@ -7955,15 +7883,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           toast.error(`Eroare la procesarea videouri: ${error.message}`);
                         }
                       }}
-                      className="bg-orange-600 hover:bg-orange-700 px-8 py-6 text-lg"
+                      className="bg-purple-600 hover:bg-purple-700 px-8 py-8 text-lg"
                       disabled={acceptedVideosWithUrl.length === 0}
                     >
-                      Next: Auto-Prepare for Cutting
+                      Next: Auto-Prepare for Cutting ({acceptedVideosWithUrl.length})
                       <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
                     </Button>
-                  </div>
                 </div>
               )}
             </CardContent>
@@ -8439,18 +8366,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
                         {/* Center buttons group */}
                         <div className="flex flex-row items-center gap-2 flex-nowrap">
-                          {/* Check videos with possible problems link */}
-                          {approvedVideos.length > 0 && (
-                            <button
-                              onClick={() => {
-                                setStep8Filter('problems');
-                              }}
-                              className="text-sm text-blue-600 hover:text-blue-800 underline cursor-pointer whitespace-nowrap"
-                            >
-                              Check videos with possible problems
-                            </button>
-                          )}
-                          
                           {/* Sample Merge Video button */}
                           {approvedVideos.length > 1 && (
                             <Button
@@ -8545,7 +8460,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             // Start trimming process
                             handleTrimAllVideos();
                           }}
-                          className="bg-red-600 hover:bg-red-700 px-8 py-6 text-lg"
+                          className="bg-red-600 hover:bg-red-700 px-8 py-8 text-lg"
                         >
                           {(() => {
                             const hasTrimmedVideos = videoResults.some(v => v.trimmedVideoUrl);
