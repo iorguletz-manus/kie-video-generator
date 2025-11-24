@@ -1566,7 +1566,17 @@ export const appRouter = router({
       }))
       .mutation(async ({ input }) => {
         try {
-          console.log(`[videoEditing.processVideoForEditing] Processing video ${input.videoId}...`);
+          console.log(`[videoEditing.processVideoForEditing] 📥 Received request for video ${input.videoId} (${input.videoName})`);
+          console.log(`[videoEditing.processVideoForEditing] 📋 Input:`, {
+            videoUrl: input.videoUrl?.substring(0, 50) + '...',
+            videoId: input.videoId,
+            videoName: input.videoName,
+            fullText: input.fullText?.substring(0, 50) + '...',
+            redText: input.redText,
+            redTextPosition: input.redTextPosition,
+            hasUserApiKey: !!input.userApiKey,
+            hasFFmpegApiKey: !!input.ffmpegApiKey
+          });
           
           const result = await processVideoForEditing(
             input.videoUrl,
@@ -1579,6 +1589,15 @@ export const appRouter = router({
             input.userApiKey,
             input.ffmpegApiKey
           );
+
+          console.log(`[videoEditing.processVideoForEditing] ✅ Processing complete for ${input.videoName}`);
+          console.log(`[videoEditing.processVideoForEditing] 📤 Returning result:`, {
+            audioUrl: result.audioUrl,
+            cutPoints: result.cutPoints,
+            whisperTranscript: typeof result.whisperTranscript === 'string'
+              ? result.whisperTranscript.substring(0, 50) + '...'
+              : JSON.stringify(result.whisperTranscript).substring(0, 50) + '...'
+          });
 
           return {
             success: true,

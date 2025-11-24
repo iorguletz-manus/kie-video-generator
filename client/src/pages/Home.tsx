@@ -1665,6 +1665,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           }
           
           // Process with FFmpeg + Whisper (this includes both FFmpeg audio extraction AND Whisper transcription)
+          console.log(`[Batch Processing] 📤 Sending API request for ${video.videoName}:`, {
+            videoUrl: video.videoUrl,
+            videoId: parseInt(video.id || '0'),
+            videoName: video.videoName,
+            fullText: video.text.substring(0, 50) + '...',
+            redText: redText,
+            redTextPosition: redTextPosition
+          });
+          
           const result = await processVideoForEditingMutation.mutateAsync({
             videoUrl: video.videoUrl!,
             videoId: parseInt(video.id || '0'),
@@ -1681,6 +1690,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           activeFfmpegRequests--;
           
           console.log(`[Batch Processing] ✅ ${video.videoName} - Success!`);
+          console.log(`[Batch Processing] 📥 Received result for ${video.videoName}:`, {
+            audioUrl: result.audioUrl,
+            cutPoints: result.cutPoints,
+            whisperTranscript: typeof result.whisperTranscript === 'string' 
+              ? result.whisperTranscript.substring(0, 50) + '...'
+              : JSON.stringify(result.whisperTranscript).substring(0, 50) + '...'
+          });
           
           // Update FFmpeg progress (audio extraction complete)
           ffmpegCompletedCount++;
