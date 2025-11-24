@@ -1556,6 +1556,7 @@ export const appRouter = router({
       .input(z.object({
         videoUrl: z.string(),
         videoId: z.number(),
+        videoName: z.string(),  // Video name for unique file naming
         fullText: z.string(),
         redText: z.string().optional().default(''),  // Optional - can be empty for white-text-only videos
         redTextPosition: z.enum(['START', 'END']).optional(),  // Optional - not used for white-text-only videos
@@ -1570,6 +1571,7 @@ export const appRouter = router({
           const result = await processVideoForEditing(
             input.videoUrl,
             input.videoId,
+            input.videoName,
             input.fullText,
             input.redText,
             input.redTextPosition,

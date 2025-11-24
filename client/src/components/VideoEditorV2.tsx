@@ -29,9 +29,10 @@ interface VideoEditorV2Props {
   } | null;
   onTrimChange?: (videoId: string, cutPoints: { startKeep: number; endKeep: number }, isStartLocked: boolean, isEndLocked: boolean) => void;
   onCutAndMerge?: (video1: any, video2: any) => Promise<void>;
+  onReprocess?: (videoName: string) => void;  // Callback to re-process single video
 }
 
-export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, nextVideo, onTrimChange, onCutAndMerge }: VideoEditorV2Props) {
+export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, nextVideo, onTrimChange, onCutAndMerge, onReprocess }: VideoEditorV2Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const zoomviewRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -729,6 +730,18 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, nextVide
               <span>⚠️</span>
               <span>NO CUT NEEDED</span>
             </div>
+          )}
+          
+          {/* Reprocesare Button - Far left */}
+          {onReprocess && (
+            <Button
+              onClick={() => onReprocess(video.videoName)}
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs px-2 border-blue-500 text-blue-700 hover:bg-blue-50"
+            >
+              🔄 Reprocesare
+            </Button>
           )}
           
           {/* Lock START Button - Left of center */}

@@ -188,7 +188,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   
   // Step 8: Video Editing Processing
   const [showProcessingModal, setShowProcessingModal] = useState(false);
-  const [processingProgress, setProcessingProgress] = useState({ current: 0, total: 0, currentVideoName: '' });
+  const [processingProgress, setProcessingProgress] = useState({ 
+    ffmpeg: { current: 0, total: 0 },
+    whisper: { current: 0, total: 0 },
+    currentVideoName: '' 
+  });
   const [processingStep, setProcessingStep] = useState<'download' | 'extract' | 'whisper' | 'detect' | 'save' | null>(null);
   
   // Step 4: Mapping
@@ -1612,28 +1616,32 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     setImages(prev => prev.filter(img => img.id !== id));
   };
 
-  // Step 8: Batch process videos with Whisper + FFmpeg API (PARALLEL with max 10 concurrent)
+  // Step 8: Batch process videos with Whisper + FFmpeg API (SMART rate limiting)
   const batchProcessVideosWithWhisper = async (videos: VideoResult[]) => {
-    console.log('[Batch Processing] 🚀 Starting PARALLEL processing with', videos.length, 'videos (max 10 concurrent)');
+    console.log('[Batch Processing] 🚀 Starting SMART processing with', videos.length, 'videos');
     
     let successCount = 0;
     let failCount = 0;
+    let ffmpegCompletedCount = 0;
+    let whisperCompletedCount = 0;
+    let activeFfmpegRequests = 0;  // Track LIVE FFmpeg requests
     
     // Collect all results in a Map
     const resultsMap = new Map<string, any>();
-    const MAX_CONCURRENT = 5;  // Reduced from 10 to avoid FFmpeg API rate limits
+    const MAX_FFMPEG_CONCURRENT = 5;  // Max 5 FFmpeg requests at once (API limit)
+    const BATCH_SIZE = 3;  // Wait for 3 to complete before sending more
+    const DELAY_AFTER_BATCH = 3000;  // 3 seconds delay after receiving batch
     
     // Helper: Process single video with retry
-    const processVideoWithRetry = async (video: VideoResult, index: number, retries = 3): Promise<any> => {
+    const processVideoWithRetry = async (video: VideoResult, retries = 3): Promise<any> => {
       for (let attempt = 1; attempt <= retries; attempt++) {
         try {
           console.log(`[Batch Processing] 🎬 ${video.videoName} - Attempt ${attempt}/${retries}`);
+          console.log(`[Batch Processing] 📊 Active FFmpeg requests: ${activeFfmpegRequests}/${MAX_FFMPEG_CONCURRENT} (API limit: 5)`);
           
-          setProcessingProgress({ 
-            current: index, 
-            total: videos.length,
-            currentVideoName: video.videoName 
-          });
+          // Increment active FFmpeg counter BEFORE request
+          activeFfmpegRequests++;
+          setProcessingStep('extract');
           
           // Extract red text from video
           const hasRedText = video.redStart !== undefined && 
@@ -1656,10 +1664,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             console.log(`[Batch Processing] ⚪ ${video.videoName} - No red text, processing as white-text-only`);
           }
           
-          // Process with FFmpeg + Whisper
+          // Process with FFmpeg + Whisper (this includes both FFmpeg audio extraction AND Whisper transcription)
           const result = await processVideoForEditingMutation.mutateAsync({
             videoUrl: video.videoUrl!,
             videoId: parseInt(video.id || '0'),
+            videoName: video.videoName,  // Pass video name for unique file naming
             fullText: video.text,
             redText: redText,
             redTextPosition: redTextPosition,
@@ -1668,7 +1677,29 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             ffmpegApiKey: localCurrentUser.ffmpegApiKey || undefined,
           });
           
+          // Decrement active FFmpeg counter AFTER response
+          activeFfmpegRequests--;
+          
           console.log(`[Batch Processing] ✅ ${video.videoName} - Success!`);
+          
+          // Update FFmpeg progress (audio extraction complete)
+          ffmpegCompletedCount++;
+          setProcessingProgress(prev => ({ 
+            ...prev,
+            ffmpeg: { current: ffmpegCompletedCount, total: videos.length },
+            currentVideoName: video.videoName 
+          }));
+          
+          // Update Whisper progress (transcription complete)
+          whisperCompletedCount++;
+          setProcessingProgress(prev => ({ 
+            ...prev,
+            whisper: { current: whisperCompletedCount, total: videos.length },
+            currentVideoName: video.videoName 
+          }));
+          
+          console.log(`[Batch Processing] 📊 Progress: FFmpeg ${ffmpegCompletedCount}/${videos.length}, Whisper ${whisperCompletedCount}/${videos.length}`);
+          
           return {
             videoName: video.videoName,
             success: true,
@@ -1683,7 +1714,22 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             }
           };
         } catch (error: any) {
+          // Decrement counter on error
+          activeFfmpegRequests--;
+          
           console.error(`[Batch Processing] ❌ ${video.videoName} - Attempt ${attempt} failed:`, error.message);
+          
+          // Update progress even on failure (last attempt)
+          if (attempt === retries) {
+            ffmpegCompletedCount++;
+            whisperCompletedCount++;
+            setProcessingProgress(prev => ({ 
+              ...prev,
+              ffmpeg: { current: ffmpegCompletedCount, total: videos.length },
+              whisper: { current: whisperCompletedCount, total: videos.length },
+              currentVideoName: video.videoName 
+            }));
+          }
           
           if (attempt === retries) {
             console.error(`[Batch Processing] 🚫 ${video.videoName} - All ${retries} attempts failed`);
@@ -1695,60 +1741,95 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           }
           
           // Wait before retry (exponential backoff)
-          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+          await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
         }
       }
     };
     
-    // Helper: Process queue with max concurrency
-    const processQueue = async <T, R>(
-      items: T[],
-      processor: (item: T, index: number) => Promise<R>,
-      maxConcurrent: number
-    ): Promise<R[]> => {
-      const results: R[] = [];
+    // SMART PROCESSING QUEUE with FFmpeg rate limiting
+    const processQueueSmart = async (): Promise<any[]> => {
+      const results: any[] = [];
       let currentIndex = 0;
-      let activeCount = 0;
+      const pendingPromises: Map<number, Promise<any>> = new Map();
       
-      return new Promise((resolve) => {
-        const processNext = async () => {
-          if (currentIndex >= items.length && activeCount === 0) {
-            resolve(results);
-            return;
-          }
-          
-          while (activeCount < maxConcurrent && currentIndex < items.length) {
-            const index = currentIndex++;
-            activeCount++;
-            
-            processor(items[index], index)
-              .then(result => {
-                results[index] = result;
-                activeCount--;
-                processNext();
-              })
-              .catch(error => {
-                console.error(`[Queue] Error processing item ${index}:`, error);
-                results[index] = null as any;
-                activeCount--;
-                processNext();
-              });
-          }
-        };
+      console.log('[Batch Processing] 🚀 Phase 1: Sending first 5 videos (API limit)...');
+      
+      // Phase 1: Send first 5 videos (or less if total < 5)
+      const initialBatch = Math.min(MAX_FFMPEG_CONCURRENT, videos.length);
+      for (let i = 0; i < initialBatch; i++) {
+        const video = videos[i];
+        const index = i;
+        const promise = processVideoWithRetry(video)
+          .then(result => {
+            results[index] = result;
+            pendingPromises.delete(index);
+            return result;
+          })
+          .catch(error => {
+            console.error(`[Batch Processing] Error processing ${video.videoName}:`, error);
+            results[index] = null;
+            pendingPromises.delete(index);
+            return null;
+          });
+        pendingPromises.set(index, promise);
+        currentIndex++;
+      }
+      
+      // Phase 2: Wait for batches and send more
+      while (currentIndex < videos.length) {
+        // Poll until activeFfmpegRequests <= (MAX_FFMPEG_CONCURRENT - BATCH_SIZE)
+        // This means BATCH_SIZE have completed, so we can send BATCH_SIZE more
+        // With MAX=5 and BATCH=3: wait until active <= 2, then send 3 more
+        const targetActive = MAX_FFMPEG_CONCURRENT - BATCH_SIZE;
         
-        processNext();
-      });
+        console.log(`[Batch Processing] ⏳ Waiting for active requests to drop to ${targetActive}...`);
+        
+        while (activeFfmpegRequests > targetActive) {
+          // Poll every 500ms
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        
+        console.log(`[Batch Processing] ✅ Active requests dropped to ${activeFfmpegRequests}!`);
+        console.log(`[Batch Processing] ⏱️  Waiting ${DELAY_AFTER_BATCH}ms before next batch...`);
+        
+        // Delay 3 seconds before sending next batch
+        await new Promise(resolve => setTimeout(resolve, DELAY_AFTER_BATCH));
+        
+        // Send next BATCH_SIZE videos
+        const nextBatchSize = Math.min(BATCH_SIZE, videos.length - currentIndex);
+        console.log(`[Batch Processing] 🚀 Sending next ${nextBatchSize} videos...`);
+        
+        for (let i = 0; i < nextBatchSize; i++) {
+          const video = videos[currentIndex];
+          const index = currentIndex;
+          const promise = processVideoWithRetry(video)
+            .then(result => {
+              results[index] = result;
+              pendingPromises.delete(index);
+              return result;
+            })
+            .catch(error => {
+              console.error(`[Batch Processing] Error processing ${video.videoName}:`, error);
+              results[index] = null;
+              pendingPromises.delete(index);
+              return null;
+            });
+          pendingPromises.set(index, promise);
+          currentIndex++;
+        }
+      }
+      
+      // Wait for all remaining promises to complete
+      console.log(`[Batch Processing] ⏳ Waiting for remaining ${pendingPromises.size} videos...`);
+      await Promise.all(Array.from(pendingPromises.values()));
+      
+      console.log('[Batch Processing] 🎉 All videos processed!');
+      return results;
     };
     
-    // Process all videos in parallel (max 10 concurrent)
-    console.log('[Batch Processing] 🚀 Processing all videos in parallel...');
+    // Start smart processing
     setProcessingStep('extract');
-    
-    const allResults = await processQueue(
-      videos,
-      processVideoWithRetry,
-      MAX_CONCURRENT
-    );
+    const allResults = await processQueueSmart();
     
     console.log('[Batch Processing] 🎉 All videos processed!');
     
@@ -1816,6 +1897,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }));
     
     console.log('[Batch Processing] ✅ All results applied to state!');
+    
+    // Return resultsMap for onReprocess callback
+    return resultsMap;
   };
 
   // Step 8 → Step 9: Trim all videos using FFMPEG API
@@ -3239,8 +3323,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       {/* Processing Modal for Step 8 batch processing */}
       <ProcessingModal
         open={showProcessingModal}
-        current={processingProgress.current}
-        total={processingProgress.total}
+        ffmpegProgress={processingProgress.ffmpeg}
+        whisperProgress={processingProgress.whisper}
         currentVideoName={processingProgress.currentVideoName}
         processingStep={processingStep}
       />
@@ -7608,12 +7692,27 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   <div className="mt-4">
                     <Button
                       onClick={async () => {
+                        console.log('[Video Editing] 🔍 Total videos in videoResults:', videoResults.length);
+                        console.log('[Video Editing] 🔍 All video names:', videoResults.map(v => v.videoName));
+                        
                         // Filter only approved videos with videoUrl
-                        const approvedVideos = videoResults.filter(v => 
-                          v.reviewStatus === 'accepted' && 
-                          v.status === 'success' && 
-                          v.videoUrl
-                        );
+                        const approvedVideos = videoResults.filter(v => {
+                          const isAccepted = v.reviewStatus === 'accepted';
+                          const isSuccess = v.status === 'success';
+                          const hasUrl = !!v.videoUrl;
+                          
+                          console.log(`[Video Editing] 🔍 ${v.videoName}:`, {
+                            reviewStatus: v.reviewStatus,
+                            isAccepted,
+                            status: v.status,
+                            isSuccess,
+                            hasUrl,
+                            videoUrl: v.videoUrl?.substring(0, 50) + '...',
+                            PASSES_FILTER: isAccepted && isSuccess && hasUrl
+                          });
+                          
+                          return isAccepted && isSuccess && hasUrl;
+                        });
                         
                         if (approvedVideos.length === 0) {
                           toast.error('Nu există videouri acceptate cu URL valid pentru editare');
@@ -7628,7 +7727,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           return;
                         }
                         
+                        console.log(`[Video Editing] ✅ Approved videos (${approvedVideos.length}):`, approvedVideos.map(v => v.videoName));
                         console.log(`[Video Editing] Starting batch processing for ${videosToProcess.length} videos (with and without red text)`);
+                        console.log(`[Video Editing] 📋 Videos to process:`, videosToProcess.map(v => ({
+                          name: v.videoName,
+                          hasRedText: v.redStart !== undefined && v.redEnd !== undefined,
+                          redStart: v.redStart,
+                          redEnd: v.redEnd
+                        })));
                         
                         // CLEAR old Step 8 data (editStatus, whisperTranscript, cutPoints, etc.) before starting new batch
                         // This preserves videos in Step 7 while removing Step 8 processing data
@@ -7650,7 +7756,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         ));
                         
                         // Reset progress BEFORE opening modal to avoid showing old value
-                        setProcessingProgress({ current: 0, total: videosToProcess.length, currentVideoName: '' });
+                        setProcessingProgress({ 
+                          ffmpeg: { current: 0, total: videosToProcess.length },
+                          whisper: { current: 0, total: videosToProcess.length },
+                          currentVideoName: '' 
+                        });
                         setProcessingStep(null);
                         
                         // Open ProcessingModal and start batch processing
@@ -7662,7 +7772,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           // Close modal and go to Step 8
                           setShowProcessingModal(false);
                           setCurrentStep(8);
-                          toast.success(`✅ ${videosWithRedText.length} videouri procesate cu succes!`);
+                          toast.success(`✅ ${videosToProcess.length} videouri procesate cu succes!`);
                         } catch (error: any) {
                           console.error('[Video Editing] Batch processing error:', error);
                           setShowProcessingModal(false);
@@ -7905,6 +8015,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                               setIsMergeModalOpen(true);
                               
                               // Smart cache: check if markers were modified
+                              // Skip if cutPoints is null (videos without red text)
+                              if (!video1.cutPoints || !video2.cutPoints) {
+                                toast.error('❌ Cannot merge videos without cut points');
+                                return;
+                              }
+                              
                               const currentHash = JSON.stringify({
                                 video1Name: video1.videoName,
                                 video1Start: Math.round(video1.cutPoints.startKeep),
@@ -7991,6 +8107,44 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                 console.error('[Cut & Merge] Error:', error);
                                 toast.error(`Merge failed: ${error.message}`);
                                 setIsMergeModalOpen(false);
+                              }
+                            }}
+                            onReprocess={async (videoName) => {
+                              console.log('[Reprocesare] Starting re-processing for:', videoName);
+                              
+                              // Find the video to re-process
+                              const videoToReprocess = videoResults.find(v => v.videoName === videoName);
+                              if (!videoToReprocess) {
+                                toast.error('Video not found!');
+                                return;
+                              }
+                              
+                              // Reset progress and open modal
+                              setProcessingProgress({ 
+                                ffmpeg: { current: 0, total: 1 },
+                                whisper: { current: 0, total: 1 },
+                                currentVideoName: videoName 
+                              });
+                              setProcessingStep(null);
+                              setShowProcessingModal(true);
+                              
+                              try {
+                                // Call batch processing with single video
+                                // batchProcessVideosWithWhisper already updates videoResults internally
+                                const resultsMap = await batchProcessVideosWithWhisper([videoToReprocess]);
+                                
+                                // Check if processing was successful
+                                const result = resultsMap.get(videoName);
+                                if (result) {
+                                  toast.success(`✅ ${videoName} reprocesed successfully!`);
+                                } else {
+                                  toast.error(`❌ Failed to reprocess ${videoName}`);
+                                }
+                              } catch (error: any) {
+                                console.error('[Reprocesare] Error:', error);
+                                toast.error(`Error: ${error.message}`);
+                              } finally {
+                                setShowProcessingModal(false);
                               }
                             }}
                             onTrimChange={(videoId, cutPoints, isStartLocked, isEndLocked) => {

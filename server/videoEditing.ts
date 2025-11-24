@@ -249,7 +249,8 @@ async function extractAudioWithFFmpegAPI(
  */
 async function generateWaveformData(
   audioDownloadUrl: string,
-  videoId: number
+  videoId: number,
+  videoName: string  // Video name for unique file naming
 ): Promise<string> {
   try {
     console.log(`[generateWaveformData] Generating waveform for video ${videoId}...`);
@@ -258,9 +259,11 @@ async function generateWaveformData(
     const tempDir = path.join('/tmp', 'waveforms');
     await fs.mkdir(tempDir, { recursive: true });
     
-    const audioPathMp3 = path.join(tempDir, `audio_${videoId}.mp3`);
-    const audioPathWav = path.join(tempDir, `audio_${videoId}.wav`);
-    const waveformPath = path.join(tempDir, `waveform_${videoId}.json`);
+    // Use videoName for unique file naming to avoid race conditions
+    const sanitizedName = videoName.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const audioPathMp3 = path.join(tempDir, `${sanitizedName}.mp3`);
+    const audioPathWav = path.join(tempDir, `${sanitizedName}.wav`);
+    const waveformPath = path.join(tempDir, `${sanitizedName}.json`);
     
     // Download audio file
     console.log(`[generateWaveformData] Downloading audio from ${audioDownloadUrl}...`);
@@ -610,9 +613,10 @@ export function calculateCutPoints(
 export async function processVideoForEditing(
   videoUrl: string,
   videoId: number,
+  videoName: string,  // Video name for unique file naming
   fullText: string,
   redText: string,
-  redTextPosition: 'START' | 'END',  // Position from database (redStart/redEnd)
+  redTextPosition: 'START' | 'END' | undefined,  // Position from database (redStart/redEnd), undefined for white-text-only
   marginMs: number = 50,
   userApiKey?: string,
   ffmpegApiKey?: string
@@ -649,7 +653,7 @@ export async function processVideoForEditing(
     console.log(`[processVideoForEditing] Audio uploaded to Bunny.net: ${bunnyAudioUrl}`);
     
     // 3. Generate waveform JSON (use Bunny URL)
-    const waveformJson = await generateWaveformData(bunnyAudioUrl, videoId);
+    const waveformJson = await generateWaveformData(bunnyAudioUrl, videoId, videoName);
     
     // 4. Transcribe with Whisper
     const { words, fullTranscript } = await transcribeWithWhisper(audioDownloadUrl, 'ro', userApiKey);
@@ -783,11 +787,15 @@ export async function cutVideoWithFFmpegAPI(
 import { WhisperWord, CutPoints, EditingDebugInfo } from './videoEditing';
 
 /**
- * Normalize text for comparison (remove punctuation, lowercase, trim)
+ * Normalize text for comparison (remove diacritics, punctuation, lowercase, trim)
  */
 function normalizeText(text: string): string {
   return text
-    .replace(/[,\.:\;!?]/g, '')
+    // Remove diacritics (Romanian: ă→a, â→a, î→i, ș→s, ț→t)
+    .normalize('NFD')  // Decompose characters with diacritics
+    .replace(/[\u0300-\u036f]/g, '')  // Remove diacritical marks
+    // Remove ALL punctuation (quotes, hyphens, parentheses, etc.)
+    .replace(/[^\w\s]/g, '')  // Keep only word characters and spaces
     .toLowerCase()
     .trim();
 }
@@ -798,26 +806,55 @@ function normalizeText(text: string): string {
  */
 function findSequence(
   words: WhisperWord[],
-  searchWords: string[]
+  searchWords: string[],
+  searchFromEnd: boolean = false  // If true, find LAST occurrence instead of first
 ): { startIdx: number; endIdx: number } | null {
+  // Return null if search words is empty
+  if (!searchWords || searchWords.length === 0) {
+    return null;
+  }
+  
   const normalizedSearch = searchWords.map(normalizeText);
 
-  for (let i = 0; i <= words.length - normalizedSearch.length; i++) {
-    let match = true;
-    
-    for (let j = 0; j < normalizedSearch.length; j++) {
-      const wordNormalized = normalizeText(words[i + j].word);
-      if (wordNormalized !== normalizedSearch[j]) {
-        match = false;
-        break;
+  // If searchFromEnd, iterate backwards to find LAST occurrence
+  if (searchFromEnd) {
+    for (let i = words.length - normalizedSearch.length; i >= 0; i--) {
+      let match = true;
+      
+      for (let j = 0; j < normalizedSearch.length; j++) {
+        const wordNormalized = normalizeText(words[i + j].word);
+        if (wordNormalized !== normalizedSearch[j]) {
+          match = false;
+          break;
+        }
+      }
+
+      if (match) {
+        return {
+          startIdx: i,
+          endIdx: i + normalizedSearch.length - 1,
+        };
       }
     }
+  } else {
+    // Default: search from beginning to find FIRST occurrence
+    for (let i = 0; i <= words.length - normalizedSearch.length; i++) {
+      let match = true;
+      
+      for (let j = 0; j < normalizedSearch.length; j++) {
+        const wordNormalized = normalizeText(words[i + j].word);
+        if (wordNormalized !== normalizedSearch[j]) {
+          match = false;
+          break;
+        }
+      }
 
-    if (match) {
-      return {
-        startIdx: i,
-        endIdx: i + normalizedSearch.length - 1,
-      };
+      if (match) {
+        return {
+          startIdx: i,
+          endIdx: i + normalizedSearch.length - 1,
+        };
+      }
     }
   }
 
@@ -845,7 +882,7 @@ export function calculateCutPointsNew(
   fullText: string,
   redText: string,
   words: WhisperWord[],
-  redTextPosition: 'START' | 'END',
+  redTextPosition: 'START' | 'END' | undefined,
   marginMs: number = 50
 ): { cutPoints: CutPoints | null; debugInfo: EditingDebugInfo } {
   const logs: string[] = [];
@@ -853,7 +890,11 @@ export function calculateCutPointsNew(
   
   // Derive white text based on red text position
   let whiteText: string;
-  if (redTextPosition === 'START') {
+  
+  // If no red text, white text is the entire full text
+  if (!redText || redText.trim().length === 0) {
+    whiteText = fullText.trim();
+  } else if (redTextPosition === 'START') {
     // Red at start → white text is everything AFTER red text
     whiteText = fullText.substring(redText.length).trim();
   } else {
@@ -892,7 +933,7 @@ export function calculateCutPointsNew(
       cutPoints: {
         startKeep: Math.round(startKeep),
         endKeep: Math.round(endKeep),
-        redPosition: redTextPosition,
+        redPosition: redTextPosition || 'START',  // Default to START if undefined
         confidence: 0.95,
       },
       debugInfo: {
@@ -901,7 +942,7 @@ export function calculateCutPointsNew(
         whisperTranscript: words.map(w => w.word).join(' '),
         whisperWordCount: words.length,
         redTextDetected: {
-          found: true,
+          found: !redText || redText.trim().length === 0 ? false : true,
           position: redTextPosition,
           fullText: redText,
         },
@@ -915,7 +956,9 @@ export function calculateCutPointsNew(
   
   // STEP 2: Search for entire red text
   logs.push(`🔎 Step 2: Searching for entire red text...`);
-  const redMatch = findSequence(words, redWords);
+  // If redTextPosition is END, search from end to find LAST occurrence
+  const searchFromEnd = redTextPosition === 'END';
+  const redMatch = findSequence(words, redWords, searchFromEnd);
   
   if (redMatch) {
     logs.push(`✅ Searched for entire red text: FOUND at indices ${redMatch.startIdx}-${redMatch.endIdx}`);
@@ -1219,15 +1262,24 @@ export function calculateCutPointsNew(
     }
   }
   
-  // FAILURE: No matches found
+  // FALLBACK: No matches found - return default cutPoints (0 to duration)
   logs.push(``);
-  logs.push(`❌ Algorithm failed: Could not find any matching text in transcript`);
+  logs.push(`⚠️ Algorithm could not find matching text in transcript`);
+  logs.push(`✅ Returning default cutPoints: 0 to ${words[words.length - 1].end.toFixed(0)}ms`);
+  
+  const startKeep = 0;
+  const endKeep = words[words.length - 1].end + marginS;
   
   return {
-    cutPoints: null,
+    cutPoints: {
+      startKeep: Math.round(startKeep),
+      endKeep: Math.round(endKeep),
+      redPosition: redTextPosition || 'START',
+      confidence: 0.50,  // Low confidence since we didn't find the text
+    },
     debugInfo: {
-      status: 'error',
-      message: `❌ Could not find any matching text`,
+      status: 'warning',
+      message: `⚠️ Could not find matching text - using default cutPoints (0 to duration)`,
       whisperTranscript: words.map(w => w.word).join(' '),
       whisperWordCount: words.length,
       algorithmLogs: logs,

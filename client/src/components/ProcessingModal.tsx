@@ -5,21 +5,25 @@ import { Loader2 } from 'lucide-react';
 
 interface ProcessingModalProps {
   open: boolean;
-  current: number;
-  total: number;
+  ffmpegProgress: { current: number; total: number };
+  whisperProgress: { current: number; total: number };
   currentVideoName: string;
   processingStep: 'download' | 'extract' | 'whisper' | 'detect' | 'save' | null;
 }
 
 export function ProcessingModal({
   open,
-  current,
-  total,
+  ffmpegProgress,
+  whisperProgress,
   currentVideoName,
   processingStep
 }: ProcessingModalProps) {
-  const progress = total > 0 ? (current / total) * 100 : 0;
-  const estimatedMinutes = Math.ceil((total - current) * 15 / 60); // ~15s per video
+  const ffmpegPercent = ffmpegProgress.total > 0 ? (ffmpegProgress.current / ffmpegProgress.total) * 100 : 0;
+  const whisperPercent = whisperProgress.total > 0 ? (whisperProgress.current / whisperProgress.total) * 100 : 0;
+  const totalCompleted = Math.min(ffmpegProgress.current, whisperProgress.current);
+  const totalVideos = ffmpegProgress.total;
+  
+  const estimatedMinutes = Math.ceil((totalVideos - totalCompleted) * 15 / 60); // ~15s per video
 
   const getStepLabel = () => {
     switch (processingStep) {
@@ -48,16 +52,33 @@ export function ProcessingModal({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* Progress Bar */}
+          {/* FFmpeg Progress Bar */}
           <div className="space-y-2">
-            <Progress value={progress} className="h-3" />
-            <p className="text-center text-sm font-medium text-gray-700">
-              {current}/{total} videouri procesate
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-gray-600">🎵 FFmpeg (Audio Extraction)</p>
+              <p className="text-xs font-medium text-gray-700">{ffmpegProgress.current}/{ffmpegProgress.total}</p>
+            </div>
+            <Progress value={ffmpegPercent} className="h-2" />
+          </div>
+
+          {/* Whisper Progress Bar */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-gray-600">🤖 Whisper (Transcription)</p>
+              <p className="text-xs font-medium text-gray-700">{whisperProgress.current}/{whisperProgress.total}</p>
+            </div>
+            <Progress value={whisperPercent} className="h-2" />
+          </div>
+
+          {/* Overall Progress */}
+          <div className="border-t pt-3">
+            <p className="text-center text-sm font-semibold text-gray-800">
+              📊 Total: {totalCompleted}/{totalVideos} videouri complete
             </p>
           </div>
 
           {/* Current Video */}
-          {current < total && (
+          {totalCompleted < totalVideos && (
             <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
               <p className="text-sm font-semibold text-purple-900 mb-1">
                 Video curent: {currentVideoName}
@@ -70,14 +91,14 @@ export function ProcessingModal({
           )}
 
           {/* Estimated Time */}
-          {current < total && estimatedMinutes > 0 && (
+          {totalCompleted < totalVideos && estimatedMinutes > 0 && (
             <p className="text-xs text-center text-gray-500">
               ⏱️ Timp estimat rămas: ~{estimatedMinutes} {estimatedMinutes === 1 ? 'minut' : 'minute'}
             </p>
           )}
 
           {/* Completion Message */}
-          {current === total && total > 0 && (
+          {totalCompleted === totalVideos && totalVideos > 0 && (
             <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
               <p className="text-sm font-semibold text-green-900">
                 ✅ Toate videouri procesate cu succes!
