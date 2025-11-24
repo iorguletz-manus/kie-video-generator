@@ -4547,9 +4547,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   <Button
                     onClick={processText}
                     disabled={!rawTextAd || rawTextAd.trim().length === 0 || processTextAdMutation.isPending}
-                    className="mt-4 bg-blue-600 hover:bg-blue-700"
+                    className="mt-4 bg-blue-600 hover:bg-blue-700 px-8 py-6 text-lg"
                   >
-                    {processTextAdMutation.isPending ? 'Processing...' : 'Process & Continue to STEP 2'}
+                    {processTextAdMutation.isPending ? 'Processing...' : (
+                      <>
+                        Next: Prepare Ad
+                        <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </>
+                    )}
                   </Button>
                 </>
               )}
@@ -4889,12 +4896,25 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       );
                     })}
                   </div>
-                  <Button
-                    onClick={() => setCurrentStep(3)}
-                    className="mt-4 bg-blue-600 hover:bg-blue-700 px-6"
-                  >
-                    Continuă la STEP 3
-                  </Button>
+                  <div className="mt-6 flex justify-between items-center">
+                    <Button
+                      variant="outline"
+                      onClick={() => setCurrentStep(1)}
+                      className="px-6 py-3"
+                    >
+                      <ChevronLeft className="w-4 h-4 mr-2" />
+                      Back
+                    </Button>
+                    <Button
+                      onClick={() => setCurrentStep(3)}
+                      className="bg-blue-600 hover:bg-blue-700 px-8 py-6 text-lg"
+                    >
+                      Next: Choose Prompts
+                      <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </Button>
+                  </div>
                 </div>
               )}
               
@@ -5039,12 +5059,25 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               )}
 
               {/* Buton continuare - întotdeauna vizibil */}
-              <Button
-                onClick={() => setCurrentStep(3)}
-                className="w-full bg-blue-600 hover:bg-blue-700"
-              >
-                Continuă la STEP 3
-              </Button>
+              <div className="mt-6 flex justify-between items-center">
+                <Button
+                  variant="outline"
+                  onClick={() => setCurrentStep(1)}
+                  className="px-6 py-3"
+                >
+                  <ChevronLeft className="w-4 h-4 mr-2" />
+                  Back
+                </Button>
+                <Button
+                  onClick={() => setCurrentStep(3)}
+                  className="bg-blue-600 hover:bg-blue-700 px-8 py-6 text-lg"
+                >
+                  Next: Choose Prompts
+                  <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </Button>
+              </div>
               </div>
               {/* END OLD CONTENT */}
             </CardContent>
@@ -5148,12 +5181,25 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               )}
 
               {/* Continue Button */}
-              <Button
-                onClick={() => setCurrentStep(4)}
-                className="mt-6 bg-blue-600 hover:bg-blue-700 w-full"
-              >
-                Continuă la STEP 4 - Images
-              </Button>
+              <div className="mt-6 flex justify-between items-center">
+                <Button
+                  variant="outline"
+                  onClick={() => setCurrentStep(2)}
+                  className="px-6 py-3"
+                >
+                  <ChevronLeft className="w-4 h-4 mr-2" />
+                  Back
+                </Button>
+                <Button
+                  onClick={() => setCurrentStep(4)}
+                  className="bg-blue-600 hover:bg-blue-700 px-8 py-6 text-lg"
+                >
+                  Next: Select Images
+                  <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </Button>
+              </div>
             </CardContent>
           </Card>
         )}
@@ -5572,23 +5618,33 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 </p>
               </div>
 
-              <Button
-                onClick={generateVideos}
-                disabled={generateBatchMutation.isPending}
-                className="bg-blue-600 hover:bg-blue-700 w-full py-6 text-lg"
-              >
-                {generateBatchMutation.isPending ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Se generează...
-                  </>
-                ) : (
-                  <>
-                    <Video className="w-5 h-5 mr-2" />
-                    Generează {combinations.length} Videouri
-                  </>
-                )}
-              </Button>
+              <div className="mt-6 flex justify-between items-center">
+                <Button
+                  variant="outline"
+                  onClick={() => setCurrentStep(4)}
+                  className="px-6 py-3"
+                >
+                  <ChevronLeft className="w-4 h-4 mr-2" />
+                  Back
+                </Button>
+                <Button
+                  onClick={generateVideos}
+                  disabled={generateBatchMutation.isPending}
+                  className="bg-blue-600 hover:bg-blue-700 px-8 py-6 text-lg"
+                >
+                  {generateBatchMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Se generează...
+                    </>
+                  ) : (
+                    <>
+                      Next: Generate Videos ({combinations.length} videos)
+                      <Video className="w-5 h-5 ml-2" />
+                    </>
+                  )}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         )}
@@ -6864,28 +6920,26 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 </div>
               )}
               
-              {/* Link Continue with Sample Videos (TEMP) - afișat întotdeauna */}
-              <div className="mt-6 text-center">
-                <button
-                  onClick={loadSampleVideos}
-                  className="text-sm text-gray-500 hover:text-gray-700 underline"
-                >
-                  Continue with Sample Videos (TEMP)
-                </button>
-                <p className="text-xs text-gray-400 mt-1">
-                  Încărcă 6 task ID-uri sample pentru testare
-                </p>
-              </div>
-              
+
               {/* Buton pentru a trece la STEP 7 */}
               {videoResults.some(v => v.status === 'success') && (
-                <div className="mt-6">
+                <div className="mt-6 flex justify-between items-center">
+                  <Button
+                    variant="outline"
+                    onClick={() => setCurrentStep(5)}
+                    className="px-6 py-3"
+                  >
+                    <ChevronLeft className="w-4 h-4 mr-2" />
+                    Back
+                  </Button>
                   <Button
                     onClick={goToCheckVideos}
-                    className="bg-green-600 hover:bg-green-700 w-full py-6 text-lg"
+                    className="bg-green-600 hover:bg-green-700 px-8 py-6 text-lg"
                   >
-                    <Check className="w-5 h-5 mr-2" />
-                    Check Videos (Review)
+                    Next: Check Videos (Review)
+                    <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
                   </Button>
                 </div>
               )}
@@ -7654,17 +7708,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     </p>
                   </div>
                 )}
-              </div>
-              
-              {/* Buton Download All Accepted Videos */}
-              {acceptedVideosWithUrl.length > 0 && (
-                <div className="mt-8 p-4 bg-green-50 border-2 border-green-300 rounded-lg">
-                  <p className="text-green-900 font-medium mb-3">
-                    {acceptedCount} videouri acceptate
-                  </p>
-                  <Button
-                    onClick={async () => {
-                      const acceptedVideos = acceptedVideosWithUrl;
+                
+                {/* Download buttons - moved inside Statistics container */}
+                {acceptedVideosWithUrl.length > 0 && (
+                  <div className="mt-4">
+                    <Button
+                      onClick={async () => {
+                        const acceptedVideos = acceptedVideosWithUrl;
                       
                       if (acceptedVideos.length === 0) {
                         toast.error('Nu există videouri acceptate pentru download');
@@ -7729,23 +7779,31 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         setDownloadZipProgress('');
                       }
                     }}
-                    className="w-full bg-green-600 hover:bg-green-700 py-6 text-lg"
-                  >
-                    <Download className="w-5 h-5 mr-2" />
-                    Download All Accepted Videos (ZIP - {acceptedVideosWithUrl.length})
-                  </Button>
-                  
-                  {/* Link pentru descărcare document Word cu liniile din Step 2 */}
-                  <div className="mt-3 text-center">
-                    <button
-                      onClick={generateWordDocument}
-                      className="text-blue-600 hover:text-blue-800 text-sm underline"
+                      className="w-auto mx-auto block border-2 border-blue-600 bg-white hover:bg-blue-50 text-blue-600 px-4 py-2 text-sm"
                     >
-                      Descarcă document Word cu toate liniile extrase
-                    </button>
+                      <Download className="w-4 h-4 mr-2 inline" />
+                      Download
+                    </Button>
+                    
+                    {/* Link pentru descărcare document Word cu liniile din Step 2 */}
+                    <div className="mt-3 text-center">
+                      <button
+                        onClick={generateWordDocument}
+                        className="text-blue-600 hover:text-blue-800 text-sm underline"
+                      >
+                        Descarcă document Word cu toate liniile extrase
+                      </button>
+                    </div>
                   </div>
-                  
-                  {/* Buton CleanVoice Processing - Step 7 */}
+                )}
+              </div>
+              
+              {/* Buton CleanVoice Processing - Step 7 */}
+              {acceptedVideosWithUrl.length > 0 && (
+                <div className="mt-8 p-4 bg-green-50 border-2 border-green-300 rounded-lg">
+                  <p className="text-green-900 font-medium mb-3">
+                    {acceptedCount} videouri acceptate
+                  </p>
                   <div className="mt-4">
                     <Button
                       onClick={async () => {
@@ -7805,7 +7863,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   </div>
 
                   {/* Buton Video Editing - Step 8 */}
-                  <div className="mt-4">
+                  <div className="mt-6 flex justify-between items-center">
+                    <Button
+                      variant="outline"
+                      onClick={() => setCurrentStep(6)}
+                      className="px-6 py-3"
+                    >
+                      <ChevronLeft className="w-4 h-4 mr-2" />
+                      Back
+                    </Button>
                     <Button
                       onClick={async () => {
                         console.log('[Video Editing] 🔍 Total videos in videoResults:', videoResults.length);
@@ -7896,11 +7962,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           toast.error(`Eroare la procesarea videouri: ${error.message}`);
                         }
                       }}
-                      className="w-full bg-purple-600 hover:bg-purple-700 py-6 text-lg"
+                      className="bg-orange-600 hover:bg-orange-700 px-8 py-6 text-lg"
                       disabled={acceptedVideosWithUrl.length === 0}
                     >
-                      <Video className="w-5 h-5 mr-2" />
-                      Video Editing ({acceptedVideosWithUrl.length} videouri)
+                      Next: Auto-Prepare for Cutting
+                      <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
                     </Button>
                   </div>
                 </div>
@@ -8052,21 +8120,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   )}
                 </div>
                 
-                {/* Check videos with possible problems link */}
-                {approvedVideos.length > 0 && (
-                  <div className="mt-2">
-                    <button
-                      onClick={() => {
-                        // Set filter to show videos with problems
-                        setStep8Filter('problems');
-                      }}
-                      className="text-sm text-blue-600 hover:text-blue-800 underline cursor-pointer"
-                    >
-                      Check videos with possible problems
-                    </button>
-                  </div>
-                )}
-                
+
                 {approvedVideos.length === 0 ? (
                   <div className="text-center py-8">
                     <p className="text-gray-600">Nu există videouri approved pentru editare.</p>
@@ -8380,53 +8434,34 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
                     {/* Navigation Buttons */}
                     <div className="flex flex-col gap-3">
-                      <div className="flex gap-4">
+                      <div className="flex justify-between items-center">
                         <Button
                           onClick={() => setCurrentStep(7)}
                           variant="outline"
-                          className="flex-1"
+                          className="px-6 py-3"
                         >
-                          Înapoi la Step 7
+                          <ChevronLeft className="w-4 h-4 mr-2" />
+                          Back
                         </Button>
 
-                        {/* Buton TRIM ALL VIDEOS - va trimite la FFmpeg API pentru cutting */}
-                        <Button
-                          onClick={() => {
-                            // Open trimming modal
-                            setIsTrimmingModalOpen(true);
-                            // Start trimming process
-                            handleTrimAllVideos();
-                          }}
-                          className="flex-1 bg-red-600 hover:bg-red-700"
-                        >
-                          {(() => {
-                            const hasTrimmedVideos = videoResults.some(v => v.trimmedVideoUrl);
-                            if (hasTrimmedVideos) {
-                              // Show recut count
-                              const recutCount = approvedVideos.filter(v => v.recutStatus === 'recut').length;
-                              return `✂️ TRIM ALL VIDEOS (${recutCount})`;
-                            } else {
-                              // Show all approved count
-                              return `✂️ TRIM ALL VIDEOS (${approvedVideos.length})`;
-                            }
-                          })()}
-                        </Button>
-                      </div>
-                      
-                      {/* Check Videos button - only show if we have trimmed videos */}
-                      {videoResults.some(v => v.trimmedVideoUrl) && (
-                        <Button
-                          onClick={() => setCurrentStep(9)}
-                          className="w-full bg-green-600 hover:bg-green-700 text-white"
-                        >
-                          👁️ Check Videos (Step 9)
-                        </Button>
-                      )}
-                      
-                      {/* Sample Merge Video button - merge all approved videos */}
-                      {approvedVideos.length > 1 && (
-                        <Button
-                          onClick={async () => {
+                        {/* Center buttons group */}
+                        <div className="flex items-center gap-2">
+                          {/* Check videos with possible problems link */}
+                          {approvedVideos.length > 0 && (
+                            <button
+                              onClick={() => {
+                                setStep8Filter('problems');
+                              }}
+                              className="text-sm text-blue-600 hover:text-blue-800 underline cursor-pointer whitespace-nowrap"
+                            >
+                              Check videos with possible problems
+                            </button>
+                          )}
+                          
+                          {/* Sample Merge Video button */}
+                          {approvedVideos.length > 1 && (
+                            <Button
+                              onClick={async () => {
                             console.log('[Sample Merge] Starting...');
                             
                             // Prepare video list with notes
@@ -8501,9 +8536,48 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                               toast.error(`Sample merge failed: ${error.message}`);
                             }
                           }}
-                          className="w-full bg-blue-600 hover:bg-blue-700 text-white mt-3"
+                              className="bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap"
+                              size="sm"
+                            >
+                              🎬 Sample Merge ALL Videos
+                            </Button>
+                          )}
+                        </div>
+
+                        {/* Buton TRIM ALL VIDEOS - va trimite la FFmpeg API pentru cutting */}
+                        <Button
+                          onClick={() => {
+                            // Open trimming modal
+                            setIsTrimmingModalOpen(true);
+                            // Start trimming process
+                            handleTrimAllVideos();
+                          }}
+                          className="bg-red-600 hover:bg-red-700 px-8 py-6 text-lg"
                         >
-                          🎬 Sample Merge ALL Videos
+                          {(() => {
+                            const hasTrimmedVideos = videoResults.some(v => v.trimmedVideoUrl);
+                            const count = hasTrimmedVideos 
+                              ? approvedVideos.filter(v => v.recutStatus === 'recut').length
+                              : approvedVideos.length;
+                            return (
+                              <>
+                                Next: Trim All Videos ({count})
+                                <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                              </>
+                            );
+                          })()}
+                        </Button>
+                      </div>
+                      
+                      {/* Check Videos button - only show if we have trimmed videos */}
+                      {videoResults.some(v => v.trimmedVideoUrl) && (
+                        <Button
+                          onClick={() => setCurrentStep(9)}
+                          className="w-full bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          👁️ Check Videos (Step 9)
                         </Button>
                       )}
                     </div>
