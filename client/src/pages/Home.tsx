@@ -4592,15 +4592,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   >
                     Inherited from STEP 1 {adLines.length > 0 && `(${adLines.filter(l => l.categoryNumber > 0).length} lines)`}
                   </Button>
-                  <Button
-                    onClick={() => {
-                      document.getElementById('ad-upload')?.click();
-                    }}
-                    variant={adDocument ? 'default' : 'outline'}
-                    className={adDocument ? 'bg-blue-600 hover:bg-blue-700' : ''}
-                  >
-                    Upload New Document
-                  </Button>
+
                 </div>
               </div>
 
@@ -5221,16 +5213,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               {/* TABS */}
               <div className="flex gap-2 mb-6 border-b-2 border-gray-200">
                 <button
-                  onClick={() => setStep4ActiveTab('upload')}
-                  className={`flex-1 py-3 px-6 font-semibold transition-all rounded-t-lg ${
-                    step4ActiveTab === 'upload'
-                      ? 'bg-blue-500 text-white border-b-4 border-blue-700'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  📤 Manual Upload
-                </button>
-                <button
                   onClick={() => setStep4ActiveTab('library')}
                   className={`flex-1 py-3 px-6 font-semibold transition-all rounded-t-lg ${
                     step4ActiveTab === 'library'
@@ -5239,6 +5221,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   }`}
                 >
                   📚 Select from Library ({libraryImages.length})
+                </button>
+                <button
+                  onClick={() => setStep4ActiveTab('upload')}
+                  className={`flex-1 py-3 px-6 font-semibold transition-all rounded-t-lg ${
+                    step4ActiveTab === 'upload'
+                      ? 'bg-blue-500 text-white border-b-4 border-blue-700'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  📤 Manual Upload
                 </button>
               </div>
               
@@ -6086,7 +6078,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                             ? 'Introdu promptul custom aici'
                                             : `Editează ${modifyPromptType} sau lasă gol pentru a folosi promptul hardcodat`
                                         }
-                                        className="text-sm min-h-[20px] resize-y"
+                                        rows={3}
+                                        className="text-sm min-h-[60px] max-h-[150px] resize-y overflow-y-auto"
                                       />
                                     </div>
                                     
@@ -8445,7 +8438,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         </Button>
 
                         {/* Center buttons group */}
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-row items-center gap-2 flex-nowrap">
                           {/* Check videos with possible problems link */}
                           {approvedVideos.length > 0 && (
                             <button
