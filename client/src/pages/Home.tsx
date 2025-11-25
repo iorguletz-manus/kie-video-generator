@@ -771,7 +771,23 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       console.log('[Context Session] Loading data from database:', contextSession);
       
       // Load all workflow data from context session (database)
-      if (contextSession.currentStep) setCurrentStep(contextSession.currentStep);
+      // Smart step detection: determine step based on available data
+      const loadedVideoResults = parseJsonField(contextSession.videoResults);
+      const hasTrimmedVideos = loadedVideoResults.some(v => v.trimmedVideoUrl);
+      const hasEditedVideos = loadedVideoResults.some(v => v.cutPoints && v.audioUrl);
+      
+      let smartStep = contextSession.currentStep || 1;
+      if (hasTrimmedVideos) {
+        smartStep = 9;  // Has trimmed videos → Step 9
+        console.log('[Context Session] 💡 Smart step detection: Step 9 (has trimmed videos)');
+      } else if (hasEditedVideos) {
+        smartStep = 8;  // Has edited videos → Step 8
+        console.log('[Context Session] 💡 Smart step detection: Step 8 (has edited videos)');
+      } else {
+        console.log('[Context Session] 💡 Using stored step:', smartStep);
+      }
+      
+      setCurrentStep(smartStep);
       if (contextSession.rawTextAd) setRawTextAd(contextSession.rawTextAd);
       if (contextSession.processedTextAd) setProcessedTextAd(contextSession.processedTextAd);
       // Parse all JSON fields - ensure they're always arrays
@@ -789,7 +805,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       
       // Only load videoResults if they are empty (first load)
       // Don't reload if videoResults already exist - this prevents overwriting manual marker changes
-      const loadedVideoResults = parseJsonField(contextSession.videoResults);
+      // Note: loadedVideoResults already parsed above for smart step detection
       if (videoResults.length === 0) {
         console.log('[Context Session] 📥 LOADING videoResults from DB (first load)', {
           count: loadedVideoResults.length
@@ -9000,19 +9016,27 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       <Button
                         onClick={() => setCurrentStep(8)}
                         variant="outline"
-                        className="flex-1"
+                        className="px-8 py-6 text-base"
                       >
-                        Înapoi la Step 8
+                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                        Back
                       </Button>
                       
                       <Button
                         onClick={() => {
                           toast.success('🎉 Workflow complet! Toate videoclipurile sunt gata.');
                         }}
-                        className="flex-1 bg-green-600 hover:bg-green-700"
+                        className="bg-purple-600 hover:bg-purple-700 px-8 py-6 text-base"
                       >
-                        <Check className="w-4 h-4 mr-2" />
-                        Finalizare
+                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        Next: Merge Videos
+                        <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
                       </Button>
                     </div>
                   </div>

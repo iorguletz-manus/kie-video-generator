@@ -49,7 +49,7 @@ export function ProcessingModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Loader2 className="w-5 h-5 animate-spin text-purple-600" />
-            🎬 Procesare Videouri cu Whisper AI
+            🎬 Procesare Videouri
           </DialogTitle>
           <DialogDescription>
             Analizăm fiecare video pentru a detecta textul roșu și a calcula timestamps...
