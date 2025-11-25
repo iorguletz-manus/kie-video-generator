@@ -4052,55 +4052,92 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           </div>
         )}
 
-        {/* Breadcrumbs */}
+        {/* Breadcrumbs - Professional & Consistent */}
         {selectedTamId && selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId && (
-        <div className="hidden md:flex justify-between items-center mb-8 px-4">
-          {[
-            { num: 1, label: "Prepare Ad", icon: FileText },
-            { num: 2, label: "Extracted Lines", icon: FileText },
-            { num: 3, label: "Prompts", icon: FileText },
-            { num: 4, label: "Images", icon: ImageIcon },
-            { num: 5, label: "Mapping", icon: MapIcon },
-            { num: 6, label: "Generate", icon: Play },
-            { num: 7, label: "Check Videos", icon: Video },
-            { num: 8, label: "Prepare for Cut", icon: Video },
-            { num: 9, label: "Trimmed Videos", icon: Download },
-          ].map((step, index) => (
-            <div key={step.num} className="flex items-center flex-1">
-              <div className="flex flex-col items-center flex-1">
-                <button
-                  onClick={() => goToStep(step.num)}
-                  className={`w-12 h-12 rounded-full flex items-center justify-center font-bold transition-all ${
-                    currentStep >= step.num
-                      ? "bg-blue-600 text-white cursor-pointer hover:bg-blue-700"
-                      : "bg-gray-300 text-gray-600 cursor-pointer hover:bg-gray-400"
-                  }`}
-                >
-                  {currentStep > step.num ? (
-                    <Check className="w-6 h-6" />
-                  ) : (
-                    <step.icon className="w-6 h-6" />
-                  )}
-                </button>
-                <span className={`text-sm mt-2 font-medium text-center ${
-                  currentStep >= step.num ? "text-blue-900" : "text-gray-500"
-                }`}>
-                  STEP {step.num}
-                </span>
-                <span className={`text-xs text-center ${
-                  currentStep >= step.num ? "text-blue-700" : "text-gray-400"
-                }`}>
-                  {step.label}
-                </span>
-              </div>
-              {index < 8 && (
-                <div
-                  className={`h-1 flex-1 mx-2 transition-all ${
-                    currentStep > step.num ? "bg-blue-600" : "bg-gray-200"
-                  }`}
-                />
-              )}
-            </div>          ))}
+        <div className="w-full overflow-x-auto mb-8 scrollbar-thin scrollbar-thumb-blue-300">
+          <div className="min-w-[900px] flex items-center justify-between px-6 py-6 bg-white rounded-lg shadow-sm border border-gray-200">
+            {[
+              { num: 1, label: "Prepare", fullLabel: "Prepare Ad" },
+              { num: 2, label: "Extract", fullLabel: "Extracted Lines" },
+              { num: 3, label: "Prompts", fullLabel: "Prompts" },
+              { num: 4, label: "Images", fullLabel: "Images" },
+              { num: 5, label: "Mapping", fullLabel: "Mapping" },
+              { num: 6, label: "Generate", fullLabel: "Generate" },
+              { num: 7, label: "Check", fullLabel: "Check Videos" },
+              { num: 8, label: "Cut Prep", fullLabel: "Prepare for Cut" },
+              { num: 9, label: "Trimmed", fullLabel: "Trimmed Videos" },
+            ].map((step, index, array) => (
+              <React.Fragment key={step.num}>
+                {/* Step Container */}
+                <div className="flex flex-col items-center gap-2 relative group">
+                  {/* Badge */}
+                  <button
+                    onClick={() => goToStep(step.num)}
+                    title={step.fullLabel}
+                    className={`
+                      w-14 h-14 rounded-full 
+                      flex items-center justify-center 
+                      font-bold text-lg
+                      transition-all duration-200
+                      relative z-10
+                      ${
+                        currentStep === step.num
+                          ? "bg-blue-600 text-white shadow-lg ring-4 ring-blue-200"
+                          : currentStep > step.num
+                          ? "bg-green-500 text-white shadow-md hover:bg-green-600 hover:scale-105"
+                          : "bg-gray-200 text-gray-500 hover:bg-gray-300"
+                      }
+                    `}
+                  >
+                    {currentStep > step.num ? (
+                      <Check className="w-7 h-7" />
+                    ) : (
+                      step.num
+                    )}
+                  </button>
+                  
+                  {/* Label */}
+                  <span className={`
+                    text-xs font-semibold text-center
+                    whitespace-nowrap
+                    transition-colors duration-200
+                    ${
+                      currentStep === step.num
+                        ? "text-blue-900 font-bold"
+                        : currentStep > step.num
+                        ? "text-green-700"
+                        : "text-gray-500"
+                    }
+                  `}>
+                    {step.label}
+                  </span>
+                  
+                  {/* Tooltip on Hover */}
+                  <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-20">
+                    <div className="bg-gray-900 text-white text-xs py-1 px-3 rounded shadow-lg whitespace-nowrap">
+                      {step.fullLabel}
+                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                        <div className="border-4 border-transparent border-t-gray-900"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Connector Line */}
+                {index < array.length - 1 && (
+                  <div className="flex-1 flex items-center px-2">
+                    <div className={`
+                      h-1 w-full rounded-full
+                      transition-all duration-300
+                      ${
+                        currentStep > step.num ? "bg-green-500" : "bg-gray-200"
+                      }
+                    `} />
+                  </div>
+                )}
+              </React.Fragment>
+            ))}
+          </div>
         </div>
         )}
 
