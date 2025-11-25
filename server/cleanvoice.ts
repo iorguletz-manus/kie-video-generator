@@ -108,6 +108,7 @@ export async function pollCleanVoiceStatus(
     console.log(`[CleanVoice] Edit ${editId} status: ${status.status} (attempt ${i + 1}/${maxAttempts})`);
 
     if (status.status === 'SUCCESS' || status.status === 'FAILURE') {
+      console.log(`[CleanVoice] FULL RESPONSE:`, JSON.stringify(status, null, 2));
       return status;
     }
 

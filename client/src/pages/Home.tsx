@@ -3883,7 +3883,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 <p className="text-xs text-center text-gray-500">
                   This may take a few minutes...
                 </p>
-              <>
+              </>
             ) : (
               <div className="text-center space-y-3">
                 <div className="flex justify-center">
