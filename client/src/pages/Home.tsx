@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { Upload, X, Check, Loader2, Video, FileText, Image as ImageIcon, Map as MapIcon, Play, Download, Undo2, ChevronLeft, RefreshCw, Clock, Search } from "lucide-react";
+import { Upload, X, Check, Loader2, Video, FileText, Image as ImageIcon, Map as MapIcon, Play, Download, Undo2, ChevronLeft, RefreshCw, Clock, Search, FileEdit, MessageSquare, Images, Grid3x3, Scissors, CheckCircle2 } from "lucide-react";
 
 type PromptType = 'PROMPT_NEUTRAL' | 'PROMPT_SMILING' | 'PROMPT_CTA' | 'PROMPT_CUSTOM';
 type SectionType = 'HOOKS' | 'MIRROR' | 'DCS' | 'TRANZITION' | 'NEW_CAUSE' | 'MECHANISM' | 'EMOTIONAL_PROOF' | 'TRANSFORMATION' | 'CTA' | 'OTHER';
@@ -3043,17 +3043,19 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       toast.error(`Eroare la regenerare: ${error.message}`);
     }
   };
-
-  // Auto-check status din 10 în 10 secunde de la început
+  // Auto-check video status pentru videouri pending (polling)
   useEffect(() => {
     if (videoResults.length === 0) return;
 
-    const pendingVideos = videoResults.filter(v => v.status === 'pending');
+    // Only poll if we're in Step 6 (generation step)
+    if (currentStep !== 6) return;
+
+    const pendingVideos = videoResults.filter(v => v.status === 'pending' && v.taskId);
     if (pendingVideos.length === 0) return;
 
     // Check-uri din 5 în 5 secunde de la început
     const interval = setInterval(() => {
-      const stillPending = videoResults.filter(v => v.status === 'pending');
+      const stillPending = videoResults.filter(v => v.status === 'pending' && v.taskId);
       if (stillPending.length === 0) {
         clearInterval(interval);
         return;
@@ -3070,30 +3072,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     return () => {
       clearInterval(interval);
     };
-  }, [videoResults]);
-
-  // Auto-check toate videouri pending când intri în STEP 6
-  useEffect(() => {
-    if (currentStep === 6 && videoResults.length > 0) {
-      const pendingVideos = videoResults.filter(v => v.status === 'pending' && v.taskId);
-      if (pendingVideos.length > 0) {
-        console.log(`STEP 6: Auto-checking ${pendingVideos.length} pending videos...`);
-        console.log('Pending video task IDs:', pendingVideos.map(v => v.taskId));
-        
-        pendingVideos.forEach((video, idx) => {
-          const videoIndex = videoResults.findIndex(v => v.taskId === video.taskId);
-          if (videoIndex !== -1 && video.taskId) {
-            // Delay each check by 3s to give API time to respond
-            setTimeout(() => {
-              console.log(`STEP 6: Checking video #${idx + 1}/${pendingVideos.length} - Task ID: ${video.taskId}`);
-              checkVideoStatus(video.taskId!, videoIndex);
-            }, idx * 3000); // ← Changed from 1000ms to 3000ms
-          }
-        });
-      }
-    }
-  }, [currentStep]);
-
+  }, [videoResults, currentStep])  // DISABLED: Auto-check când intri în STEP 6 - cauzează false "în curs de regenerare" la refresh
+  // Polling-ul de mai sus (line 3047) este suficient pentru videouri pending reale
   // ========== WORD DOCUMENT GENERATION ==========
   const generateWordDocument = useCallback(() => {
     // Group adLines by section
@@ -3999,14 +3979,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         <div className="hidden md:flex justify-between items-center mb-8 px-4">
           {[
             { num: 1, label: "Prepare Ad", icon: FileText },
-            { num: 2, label: "Text Ad", icon: FileText },
+            { num: 2, label: "Extracted Lines", icon: FileText },
             { num: 3, label: "Prompts", icon: FileText },
             { num: 4, label: "Images", icon: ImageIcon },
             { num: 5, label: "Mapping", icon: MapIcon },
             { num: 6, label: "Generate", icon: Play },
-            { num: 7, label: "Check Videos", icon: Video },
-            { num: 8, label: "Video Editing", icon: Video },
-            { num: 9, label: "Cut Videos", icon: Download },
+            { num: 7, label: "Check Videos", icon: Video },
+            { num: 8, label: "Prepare for Cut", icon: Video },
+            { num: 9, label: "Trimmed Videos", icon: Download },
           ].map((step, index) => (
             <div key={step.num} className="flex items-center flex-1">
               <div className="flex flex-col items-center flex-1">
@@ -4509,6 +4489,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     >
                       {processTextAdMutation.isPending ? 'Processing...' : (
                         <>
+                          <FileEdit className="w-5 h-5 mr-2" />
                           Next: Prepare Ad
                           <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -4588,11 +4569,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
               {adLines.length > 0 && (
                 <div className="mt-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="font-medium text-blue-900">
-                      {adLines.filter(l => l.categoryNumber > 0).length} linii extrase:
-                    </p>
-                    {deletedLinesHistory.length > 0 && (
+                  {deletedLinesHistory.length > 0 && (
+                    <div className="mb-4">
                       <Button
                         onClick={() => {
                           const lastDeleted = deletedLinesHistory[0];
@@ -4602,14 +4580,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         }}
                         variant="outline"
                         size="sm"
-                        className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                        className="gap-2"
                       >
-                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                        </svg>
-                        UNDO ({deletedLinesHistory.length})
+                        <Undo2 className="w-4 h-4" />
+                        UNDO - Restaurează ultima linie ștearsă
                       </Button>
-                    )}
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="font-medium text-blue-900">
+                      {adLines.filter(l => l.categoryNumber > 0).length} linii extrase:
+                    </p>
                   </div>
                   <div className="space-y-2">
                     {adLines.map((line) => {
@@ -4874,6 +4855,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       }}
                       className="bg-blue-600 hover:bg-blue-700 px-8 py-8 text-lg"
                     >
+                      <MessageSquare className="w-5 h-5 mr-2" />
                       Next: Choose Prompts
                       <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -5192,6 +5174,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   }}
                   className="bg-blue-600 hover:bg-blue-700 px-8 py-8 text-lg"
                 >
+                  <Images className="w-5 h-5 mr-2" />
                   Next: Select Images
                   <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -5496,6 +5479,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   disabled={images.length === 0}
                   className="bg-blue-600 hover:bg-blue-700 px-8 py-8 text-lg"
                 >
+                  <Grid3x3 className="w-5 h-5 mr-2" />
                   Next: Create Mappings ({adLines.filter(l => l.categoryNumber > 0).length})
                   <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -6935,6 +6919,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     onClick={goToCheckVideos}
                     className="bg-green-600 hover:bg-green-700 px-8 py-8 text-lg"
                   >
+                    <CheckCircle2 className="w-5 h-5 mr-2" />
                     Next: Check ({videoResults.filter(v => v.status === 'success').length})
                     <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
