@@ -770,6 +770,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     if (contextSession) {
       console.log('[Context Session] Loading data from database:', contextSession);
       
+      // Parse all JSON fields - ensure they're always arrays
+      const parseJsonField = (field: any) => {
+        if (!field) return [];
+        const parsed = typeof field === 'string' ? JSON.parse(field) : field;
+        return Array.isArray(parsed) ? parsed : [];
+      };
+      
       // Load all workflow data from context session (database)
       // Smart step detection: determine step based on available data
       const loadedVideoResults = parseJsonField(contextSession.videoResults);
@@ -790,12 +797,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       setCurrentStep(smartStep);
       if (contextSession.rawTextAd) setRawTextAd(contextSession.rawTextAd);
       if (contextSession.processedTextAd) setProcessedTextAd(contextSession.processedTextAd);
-      // Parse all JSON fields - ensure they're always arrays
-      const parseJsonField = (field: any) => {
-        if (!field) return [];
-        const parsed = typeof field === 'string' ? JSON.parse(field) : field;
-        return Array.isArray(parsed) ? parsed : [];
-      };
       
       setAdLines(parseJsonField(contextSession.adLines));
       setPrompts(parseJsonField(contextSession.prompts));
