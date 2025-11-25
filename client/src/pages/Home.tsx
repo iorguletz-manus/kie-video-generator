@@ -854,97 +854,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     isRestoringSession,
   ]);
   
-  // Auto-save to context session when data changes (debounced)
-  // ONLY save to database after video generation (STEP 6+)
-  useEffect(() => {
-    if (!selectedTamId || !selectedCoreBeliefId || !selectedEmotionalAngleId || !selectedAdId || !selectedCharacterId) {
-      return; // Don't save if context not complete
-    }
-    
-    if (isRestoringSession) return; // Don't save during restore
-    
-    const timeoutId = setTimeout(() => {
-      // For STEP 1-5: Save workflow data but preserve videoResults from database
-      // For STEP 6+: Save full workflow data including videoResults
-      if (currentStep < 6) {
-        console.log('[Context Session] Saving workflow data for STEP', currentStep, '(preserving videoResults)');
-        upsertContextSessionMutation.mutate({
-          userId: localCurrentUser.id,
-          coreBeliefId: selectedCoreBeliefId,
-          emotionalAngleId: selectedEmotionalAngleId,
-          adId: selectedAdId,
-          characterId: selectedCharacterId,
-          currentStep,
-          rawTextAd, // SAVE Ad document data
-          processedTextAd, // SAVE Ad document data
-          adLines, // SAVE Ad lines
-          prompts, // SAVE prompts
-          images, // SAVE images
-          combinations, // SAVE combinations
-          deletedCombinations, // SAVE deleted combinations
-          videoResults, // PRESERVE existing videoResults (don't clear when navigating back)
-          reviewHistory,
-        }, {
-          onSuccess: () => {
-            console.log('[Context Session] CurrentStep saved successfully');
-          },
-          onError: (error) => {
-            console.error('[Context Session] CurrentStep save failed:', error);
-          },
-        });
-      } else {
-        console.log('[Context Session] 💾 AUTO-SAVING full workflow data...', {
-          videoResults_count: videoResults.length
-        });
-        // Log each video's cutPoints separately to avoid truncation
-        videoResults.forEach(v => {
-          if (v.cutPoints) {
-            console.log(`  ➡️ ${v.videoName}: start=${v.cutPoints.startKeep} end=${v.cutPoints.endKeep}`);
-          }
-        });
-        upsertContextSessionMutation.mutate({
-          userId: localCurrentUser.id,
-          coreBeliefId: selectedCoreBeliefId,
-          emotionalAngleId: selectedEmotionalAngleId,
-          adId: selectedAdId,
-          characterId: selectedCharacterId,
-          currentStep,
-          rawTextAd,
-          processedTextAd,
-          adLines,
-          prompts,
-          images,
-          combinations,
-          deletedCombinations,
-          videoResults,
-          reviewHistory,
-        }, {
-          onSuccess: () => {
-            console.log('[Context Session] ✅ AUTO-SAVE SUCCESS');
-          },
-          onError: (error) => {
-            console.error('[Context Session] Auto-save failed:', error);
-          },
-        });
-      }
-    }, 2000); // Debounce 2 seconds
-    
-    return () => clearTimeout(timeoutId);
-  }, [
-    // DO NOT include selectedAdId or selectedCharacterId in dependencies
-    // to prevent auto-save when switching context
-    currentStep,
-    rawTextAd,
-    processedTextAd,
-    adLines,
-    prompts,
-    images,
-    combinations,
-    deletedCombinations,
-    videoResults,
-    reviewHistory,
-    isRestoringSession,
-  ]);
+  // AUTO-SAVE REMOVED: Explicit saves added to Next buttons and major actions
+  // This eliminates race conditions when loading data from database
   
   // Auto-select first TAM when TAMs are loaded
   useEffect(() => {
@@ -2265,16 +2176,62 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
     setCombinations(newCombinations);
     setDeletedCombinations([]);
-    setCurrentStep(5); // Go to STEP 5 - Mapping
     
     console.log('[Create Mappings] Created', newCombinations.length, 'combinations from', textLines.length, 'text lines');
     console.log('[Create Mappings] First 3 texts:', textLines.slice(0, 3).map(l => l.text.substring(0, 50)));
     
-    if (ctaImage && firstCTAIndex !== -1) {
-      const ctaLinesCount = textLines.length - firstCTAIndex;
-      toast.success(`${newCombinations.length} combinații create. Poza CTA mapata pe secțiunea CTA și toate liniile următoare (${ctaLinesCount} linii)`);
+    // Save to database before moving to Step 5
+    if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
+      upsertContextSessionMutation.mutate({
+        userId: localCurrentUser.id,
+        coreBeliefId: selectedCoreBeliefId,
+        emotionalAngleId: selectedEmotionalAngleId,
+        adId: selectedAdId,
+        characterId: selectedCharacterId,
+        currentStep: 4,
+        rawTextAd,
+        processedTextAd,
+        adLines,
+        prompts,
+        images,
+        combinations: newCombinations,
+        deletedCombinations: [],
+        videoResults,
+        reviewHistory,
+      }, {
+        onSuccess: () => {
+          console.log('[Step 4] Saved before moving to Step 5');
+          setCurrentStep(5); // Go to STEP 5 - Mapping
+          
+          if (ctaImage && firstCTAIndex !== -1) {
+            const ctaLinesCount = textLines.length - firstCTAIndex;
+            toast.success(`${newCombinations.length} combinații create. Poza CTA mapata pe secțiunea CTA și toate liniile următoare (${ctaLinesCount} linii)`);
+          } else {
+            toast.success(`${newCombinations.length} combinații create cu mapare automată`);
+          }
+        },
+        onError: (error) => {
+          console.error('[Step 4] Save failed:', error);
+          // Still move to next step (don't block user)
+          setCurrentStep(5);
+          
+          if (ctaImage && firstCTAIndex !== -1) {
+            const ctaLinesCount = textLines.length - firstCTAIndex;
+            toast.success(`${newCombinations.length} combinații create. Poza CTA mapata pe secțiunea CTA și toate liniile următoare (${ctaLinesCount} linii)`);
+          } else {
+            toast.success(`${newCombinations.length} combinații create cu mapare automată`);
+          }
+        },
+      });
     } else {
-      toast.success(`${newCombinations.length} combinații create cu mapare automată`);
+      setCurrentStep(5);
+      
+      if (ctaImage && firstCTAIndex !== -1) {
+        const ctaLinesCount = textLines.length - firstCTAIndex;
+        toast.success(`${newCombinations.length} combinații create. Poza CTA mapata pe secțiunea CTA și toate liniile următoare (${ctaLinesCount} linii)`);
+      } else {
+        toast.success(`${newCombinations.length} combinații create cu mapare automată`);
+      }
     }
   };
 
@@ -4900,7 +4857,40 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       Back
                     </Button>
                     <Button
-                      onClick={() => setCurrentStep(3)}
+                      onClick={() => {
+                        // Save to database before moving to next step
+                        if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
+                          upsertContextSessionMutation.mutate({
+                            userId: localCurrentUser.id,
+                            coreBeliefId: selectedCoreBeliefId,
+                            emotionalAngleId: selectedEmotionalAngleId,
+                            adId: selectedAdId,
+                            characterId: selectedCharacterId,
+                            currentStep: 2,
+                            rawTextAd,
+                            processedTextAd,
+                            adLines,
+                            prompts,
+                            images,
+                            combinations,
+                            deletedCombinations,
+                            videoResults,
+                            reviewHistory,
+                          }, {
+                            onSuccess: () => {
+                              console.log('[Step 2] Saved before moving to Step 3');
+                              setCurrentStep(3);
+                            },
+                            onError: (error) => {
+                              console.error('[Step 2] Save failed:', error);
+                              // Still move to next step (don't block user)
+                              setCurrentStep(3);
+                            },
+                          });
+                        } else {
+                          setCurrentStep(3);
+                        }
+                      }}
                       className="bg-blue-600 hover:bg-blue-700 px-8 py-8 text-lg"
                     >
                       Next: Choose Prompts
@@ -5185,7 +5175,40 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   Back
                 </Button>
                 <Button
-                  onClick={() => setCurrentStep(4)}
+                  onClick={() => {
+                    // Save to database before moving to next step
+                    if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
+                      upsertContextSessionMutation.mutate({
+                        userId: localCurrentUser.id,
+                        coreBeliefId: selectedCoreBeliefId,
+                        emotionalAngleId: selectedEmotionalAngleId,
+                        adId: selectedAdId,
+                        characterId: selectedCharacterId,
+                        currentStep: 3,
+                        rawTextAd,
+                        processedTextAd,
+                        adLines,
+                        prompts,
+                        images,
+                        combinations,
+                        deletedCombinations,
+                        videoResults,
+                        reviewHistory,
+                      }, {
+                        onSuccess: () => {
+                          console.log('[Step 3] Saved before moving to Step 4');
+                          setCurrentStep(4);
+                        },
+                        onError: (error) => {
+                          console.error('[Step 3] Save failed:', error);
+                          // Still move to next step (don't block user)
+                          setCurrentStep(4);
+                        },
+                      });
+                    } else {
+                      setCurrentStep(4);
+                    }
+                  }}
                   className="bg-blue-600 hover:bg-blue-700 px-8 py-8 text-lg"
                 >
                   Next: Select Images
