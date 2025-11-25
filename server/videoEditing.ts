@@ -679,8 +679,28 @@ export async function processVideoForEditing(
     // Extract results from Promise.allSettled
     const cleanvoiceAudioUrl = cleanvoiceResult.status === 'fulfilled' ? cleanvoiceResult.value : null;
     if (cleanvoiceResult.status === 'rejected') {
-      console.error(`[processVideoForEditing] CleanVoice failed:`, cleanvoiceResult.reason);
+      console.error(`[processVideoForEditing] ❌ CleanVoice FAILED for ${videoName}:`, cleanvoiceResult.reason);
       console.error(`[processVideoForEditing] CleanVoice error details:`, JSON.stringify(cleanvoiceResult.reason?.response?.data || cleanvoiceResult.reason, null, 2));
+      
+      // Write error to file for debugging
+      const fs = await import('fs');
+      const errorLog = {
+        timestamp: new Date().toISOString(),
+        videoName,
+        videoUrl,
+        error: cleanvoiceResult.reason?.message || String(cleanvoiceResult.reason),
+        stack: cleanvoiceResult.reason?.stack,
+        response: cleanvoiceResult.reason?.response?.data
+      };
+      await fs.promises.appendFile(
+        '/tmp/cleanvoice_errors.log',
+        JSON.stringify(errorLog, null, 2) + '\n---\n',
+        'utf-8'
+      );
+    } else if (cleanvoiceAudioUrl) {
+      console.log(`[processVideoForEditing] ✅ CleanVoice SUCCESS for ${videoName}: ${cleanvoiceAudioUrl}`);
+    } else {
+      console.warn(`[processVideoForEditing] ⚠️ CleanVoice returned NULL for ${videoName} (API key missing or not configured)`);
     }
     
     if (whisperResult.status === 'rejected') {
