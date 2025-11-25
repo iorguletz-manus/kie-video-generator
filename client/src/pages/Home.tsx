@@ -4536,30 +4536,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-4 md:pt-6 px-3 md:px-6">
-              {/* Document Source Selector */}
-              <div className="mb-6">
-                <Label className="text-blue-900 font-medium mb-3 block">Document Source:</Label>
-                <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
-                  <Button
-                    onClick={() => {
-                      // Keep lines from STEP 1 - already in adLines
-                      toast.success('Using lines inherited from STEP 1');
-                    }}
-                    variant={adDocument ? 'outline' : 'default'}
-                    className={adDocument ? '' : 'bg-blue-600 hover:bg-blue-700'}
-                    disabled={adLines.length === 0}
-                  >
-                    Inherited from STEP 1 {adLines.length > 0 && `(${adLines.filter(l => l.categoryNumber > 0).length} lines)`}
-                  </Button>
-
-                </div>
-              </div>
-
-              {/* Document Upload (only shown when Upload New Document is active) */}
-              {!adDocument && adLines.length === 0 && (
+              {/* Document Upload (only shown when no lines available) */}
+              {adLines.length === 0 && (
                 <div className="mb-6 p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <p className="text-yellow-900 text-sm">
-                    ⚠️ No lines available from STEP 1. Please upload a document or go back to STEP 1 to process text.
+                    ⚠️ No lines available from STEP 1. Please go back to STEP 1 to process text.
                   </p>
                 </div>
               )}
@@ -5515,7 +5496,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   disabled={images.length === 0}
                   className="bg-blue-600 hover:bg-blue-700 px-8 py-8 text-lg"
                 >
-                  Next: Create Mappings
+                  Next: Create Mappings ({adLines.filter(l => l.categoryNumber > 0).length})
                   <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
@@ -5657,7 +5638,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   ) : (
                     <>
                       <Video className="w-5 h-5 mr-2" />
-                      Next: Generate ({combinations.length} Videos)
+                      Next: Generate ({combinations.length})
                     </>
                   )}
                 </Button>
@@ -6954,7 +6935,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     onClick={goToCheckVideos}
                     className="bg-green-600 hover:bg-green-700 px-8 py-8 text-lg"
                   >
-                    Next: Check ({videoResults.filter(v => v.status === 'success').length} Videos)
+                    Next: Check ({videoResults.filter(v => v.status === 'success').length})
                     <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
