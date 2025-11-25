@@ -2545,6 +2545,37 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         
         if (isNewSuccess) {
           toast.success(`Video #${index + 1} generat cu succes!`);
+          
+          // Save to DB immediately after success
+          const updatedVideoResults = videoResults.map((v, i) =>
+            i === index
+              ? {
+                  ...v,
+                  status: status,
+                  videoUrl: videoUrl,
+                  error: errorMessage,
+                }
+              : v
+          );
+          
+          await upsertContextSessionMutation.mutateAsync({
+            userId: localCurrentUser.id,
+            tamId: selectedTamId,
+            coreBeliefId: selectedCoreBeliefId!,
+            emotionalAngleId: selectedEmotionalAngleId!,
+            adId: selectedAdId!,
+            characterId: selectedCharacterId!,
+            currentStep,
+            rawTextAd,
+            processedTextAd,
+            adLines,
+            prompts,
+            images,
+            combinations,
+            deletedCombinations,
+            videoResults: updatedVideoResults,
+            reviewHistory,
+          });
         } else if (isNewFailure) {
           toast.error(`Video #${index + 1} a eșuat: ${errorMessage}`);
         }
@@ -3223,14 +3254,54 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     toast.success(`Acțiune anulată pentru ${lastAction.videoName}`);
   }, [reviewHistory]);
 
-  const goToCheckVideos = () => {
+  const goToCheckVideos = async () => {
     setCurrentStep(7); // Go to STEP 7 - Check Videos
+    
+    // Save currentStep to DB
+    await upsertContextSessionMutation.mutateAsync({
+      userId: localCurrentUser.id,
+      tamId: selectedTamId,
+      coreBeliefId: selectedCoreBeliefId!,
+      emotionalAngleId: selectedEmotionalAngleId!,
+      adId: selectedAdId!,
+      characterId: selectedCharacterId!,
+      currentStep: 7,
+      rawTextAd,
+      processedTextAd,
+      adLines,
+      prompts,
+      images,
+      combinations,
+      deletedCombinations,
+      videoResults,
+      reviewHistory,
+    });
   };
 
   // Navigation
-  const goToStep = (step: number) => {
+  const goToStep = async (step: number) => {
     // Allow free navigation in both directions
     setCurrentStep(step);
+    
+    // Save currentStep to DB
+    await upsertContextSessionMutation.mutateAsync({
+      userId: localCurrentUser.id,
+      tamId: selectedTamId,
+      coreBeliefId: selectedCoreBeliefId!,
+      emotionalAngleId: selectedEmotionalAngleId!,
+      adId: selectedAdId!,
+      characterId: selectedCharacterId!,
+      currentStep: step,
+      rawTextAd,
+      processedTextAd,
+      adLines,
+      prompts,
+      images,
+      combinations,
+      deletedCombinations,
+      videoResults,
+      reviewHistory,
+    });
   };
 
   const goBack = () => {
