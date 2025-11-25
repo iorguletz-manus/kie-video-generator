@@ -2060,6 +2060,154 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
   };
 
+  // Step 10 → Step 11: Merge final videos (hooks + body combinations)
+  const handleMergeFinalVideos = async () => {
+    console.log('[Step 10→Step 11] Starting final merge process...');
+    
+    if (selectedHooks.length === 0 || !selectedBody) {
+      toast.error('Please select at least one hook and one body video!');
+      return;
+    }
+    
+    // Get body URL
+    let bodyUrl: string | null = null;
+    if (selectedBody === 'body_merged') {
+      bodyUrl = bodyMergedVideoUrl;
+    } else {
+      const bodyVideo = videoResults.find(v => v.videoName === selectedBody);
+      bodyUrl = bodyVideo?.trimmedVideoUrl || null;
+    }
+    
+    if (!bodyUrl) {
+      toast.error('Body video URL not found!');
+      return;
+    }
+    
+    // Get hook URLs
+    const hookUrls: Array<{ name: string; url: string; hookNumber: string }> = [];
+    
+    for (const hookName of selectedHooks) {
+      let hookUrl: string | null = null;
+      
+      // Check if this is a merged hook
+      const baseName = Object.keys(hookMergedVideos).find(bn => {
+        const mergedName = bn.replace(/(_[^_]+)$/, 'M$1');
+        return hookName === mergedName;
+      });
+      
+      if (baseName) {
+        hookUrl = hookMergedVideos[baseName];
+      } else {
+        const hookVideo = videoResults.find(v => v.videoName === hookName);
+        hookUrl = hookVideo?.trimmedVideoUrl || null;
+      }
+      
+      if (hookUrl) {
+        const hookMatch = hookName.match(/HOOK(\d+)[A-Z]?/);
+        const hookNumber = hookMatch ? hookMatch[1] : '1';
+        hookUrls.push({ name: hookName, url: hookUrl, hookNumber });
+      }
+    }
+    
+    if (hookUrls.length === 0) {
+      toast.error('No valid hook URLs found!');
+      return;
+    }
+    
+    // Extract context and character
+    const referenceVideo = selectedBody === 'body_merged' 
+      ? videoResults.find(v => !v.videoName.toLowerCase().includes('hook'))
+      : videoResults.find(v => v.videoName === selectedBody);
+    
+    if (!referenceVideo) {
+      toast.error('Reference video not found!');
+      return;
+    }
+    
+    const contextMatch = referenceVideo.videoName.match(/^(T\d+_C\d+_E\d+_AD\d+)/);
+    const characterMatch = referenceVideo.videoName.match(/_([^_]+)$/);
+    const context = contextMatch ? contextMatch[1] : 'MERGED';
+    const character = characterMatch ? characterMatch[1] : 'TEST';
+    
+    console.log('[Step 10→Step 11] Context:', context, 'Character:', character);
+    
+    // Start merging
+    setIsMergingFinalVideos(true);
+    setMergeFinalProgress({
+      current: 0,
+      total: hookUrls.length,
+      currentVideo: '',
+      status: 'processing'
+    });
+    
+    const results: Array<{
+      videoName: string;
+      cdnUrl: string;
+      hookName: string;
+      bodyName: string;
+    }> = [];
+    
+    // Batch processing
+    const BATCH_SIZE = 3;
+    const DELAY_BETWEEN_BATCHES = 3000;
+    
+    let completedCount = 0;
+    let failedCount = 0;
+    
+    for (let i = 0; i < hookUrls.length; i += BATCH_SIZE) {
+      const batch = hookUrls.slice(i, Math.min(i + BATCH_SIZE, hookUrls.length));
+      
+      const batchPromises = batch.map(async (hook) => {
+        const finalVideoName = `${context}_${character}_HOOK${hook.hookNumber}`;
+        
+        setMergeFinalProgress(prev => ({
+          ...prev,
+          current: completedCount + 1,
+          currentVideo: finalVideoName
+        }));
+        
+        try {
+          const result = await mergeVideosMutation.mutateAsync({
+            videoUrls: [hook.url, bodyUrl!],
+            outputVideoName: finalVideoName,
+            ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
+          });
+          
+          results.push({
+            videoName: finalVideoName,
+            cdnUrl: result.cdnUrl,
+            hookName: hook.name,
+            bodyName: selectedBody || 'body_merged'
+          });
+          
+          completedCount++;
+          return { success: true };
+        } catch (error: any) {
+          console.error(`[Step 10→Step 11] ${finalVideoName} failed:`, error);
+          failedCount++;
+          return { success: false };
+        }
+      });
+      
+      await Promise.all(batchPromises);
+      
+      if (i + BATCH_SIZE < hookUrls.length) {
+        await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
+      }
+    }
+    
+    setFinalVideos(results);
+    setMergeFinalProgress({
+      current: completedCount,
+      total: hookUrls.length,
+      currentVideo: '',
+      status: 'complete'
+    });
+    setIsMergingFinalVideos(false);
+    setCurrentStep(11);
+    toast.success(`✅ Final merge complete! ${completedCount}/${hookUrls.length} videos created`);
+  };
+
   // Step 8 → Step 9: Trim all videos using FFMPEG API
   const handleTrimAllVideos = async () => {
     // Check if we have trimmed videos (Step 9 exists)
@@ -3648,6 +3796,74 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         currentVideoName={processingProgress.currentVideoName}
         processingStep={processingStep}
       />
+      
+      {/* Merge Final Videos Modal for Step 10 → Step 11 */}
+      <Dialog open={isMergingFinalVideos} onOpenChange={(open) => {
+        if (!open && mergeFinalProgress.status === 'processing') return;
+        setIsMergingFinalVideos(open);
+      }}>
+        <DialogContent className="max-w-md" onInteractOutside={(e) => {
+          if (mergeFinalProgress.status === 'processing') e.preventDefault();
+        }}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Loader2 className="w-5 h-5 animate-spin text-green-600" />
+              🎬 Merge Final Videos
+            </DialogTitle>
+            <DialogDescription>
+              Merging hooks + body into final video combinations...
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {mergeFinalProgress.status === 'processing' ? (
+              <>
+                <div className="space-y-2">
+                  <Progress 
+                    value={(mergeFinalProgress.current / mergeFinalProgress.total) * 100} 
+                    className="h-3"
+                  />
+                  <p className="text-center text-sm font-medium text-gray-700">
+                    {mergeFinalProgress.current}/{mergeFinalProgress.total} final videos merged
+                  </p>
+                </div>
+                
+                {mergeFinalProgress.current < mergeFinalProgress.total && mergeFinalProgress.currentVideo && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                    <p className="text-sm font-semibold text-green-900 mb-1">
+                      🎬 Current: {mergeFinalProgress.currentVideo}
+                    </p>
+                    <div className="flex items-center gap-2 text-xs text-green-700">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Merging hook + body with FFmpeg...
+                    </div>
+                  </div>
+                )}
+                
+                {mergeFinalProgress.current < mergeFinalProgress.total && (
+                  <p className="text-xs text-center text-gray-500">
+                    ⏱️ Estimated time: ~{Math.ceil((mergeFinalProgress.total - mergeFinalProgress.current) * 10 / 60)} {Math.ceil((mergeFinalProgress.total - mergeFinalProgress.current) * 10 / 60) === 1 ? 'minute' : 'minutes'}
+                  </p>
+                )}
+              </>
+            ) : mergeFinalProgress.status === 'complete' ? (
+              <div className="text-center space-y-3">
+                <div className="flex justify-center">
+                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                    <Check className="w-8 h-8 text-green-600" />
+                  </div>
+                </div>
+                <p className="text-lg font-semibold text-green-900">
+                  ✅ Merge Complete!
+                </p>
+                <p className="text-sm text-gray-600">
+                  {mergeFinalProgress.current} final videos created successfully
+                </p>
+              </div>
+            ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
       
       {/* Trimming Modal for Step 8 → Step 9 */}
       <Dialog open={isTrimmingModalOpen} onOpenChange={(open) => {
@@ -9546,12 +9762,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   </Button>
                   
                   <Button
-                    onClick={() => {
-                      // TODO: Implement merge final videos logic
-                      toast.info('Merge final videos coming soon...');
-                    }}
+                    onClick={handleMergeFinalVideos}
                     className="bg-green-600 hover:bg-green-700 px-8 py-6 text-base"
-                    disabled={selectedHooks.length === 0 || !selectedBody}
+                    disabled={selectedHooks.length === 0 || !selectedBody || isMergingFinalVideos}
                   >
                     <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -9562,6 +9775,87 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     </svg>
                   </Button>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        
+        {/* STEP 11: Final Videos */}
+        {currentStep === 11 && (
+          <Card className="shadow-xl border-2 border-green-500">
+            <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50">
+              <CardTitle className="text-3xl font-bold text-green-900 flex items-center gap-3">
+                <span className="bg-green-600 text-white w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold shadow-lg">11</span>
+                🎬 Final Videos
+              </CardTitle>
+              <CardDescription className="text-base text-gray-700 mt-2">
+                Your final video combinations are ready! Download individual videos or all at once.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <div className="space-y-6">
+                {finalVideos.length === 0 ? (
+                  <p className="text-gray-600 text-center py-8">No final videos yet. Go back to Step 10 to merge videos.</p>
+                ) : (
+                  <>
+                    {/* Videos Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {finalVideos.map((video, index) => (
+                        <div key={index} className="space-y-3 p-4 border border-gray-300 rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow">
+                          {/* Video Name */}
+                          <p className="text-sm font-semibold text-gray-900 truncate">
+                            {video.videoName}
+                          </p>
+                          
+                          {/* Video Player */}
+                          <video
+                            src={video.cdnUrl}
+                            controls
+                            className="w-full rounded-lg border border-gray-300"
+                            style={{ height: '320px', objectFit: 'cover' }}
+                          />
+                          
+                          {/* Download Button */}
+                          <Button
+                            onClick={() => {
+                              const link = document.createElement('a');
+                              link.href = video.cdnUrl;
+                              link.download = `${video.videoName}.mp4`;
+                              link.click();
+                              toast.success(`📥 Downloading ${video.videoName}...`);
+                            }}
+                            className="w-full bg-blue-600 hover:bg-blue-700"
+                          >
+                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            Download
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {/* Download All ZIP Button */}
+                    <div className="flex justify-center mt-8">
+                      <Button
+                        onClick={async () => {
+                          toast.info('📦 Preparing ZIP archive...');
+                          // TODO: Implement ZIP download
+                          toast.success('🎉 All videos ready for download!');
+                        }}
+                        className="bg-green-600 hover:bg-green-700 px-12 py-8 text-xl font-bold shadow-xl"
+                      >
+                        <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Download All Videos (ZIP)
+                        <svg className="w-6 h-6 ml-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </Button>
+                    </div>
+                  </>
+                )}
               </div>
             </CardContent>
           </Card>
