@@ -840,9 +840,13 @@ export const appRouter = router({
           const buffer = Buffer.from(base64Data, 'base64');
           console.log('[imageLibrary.upload] Buffer size:', buffer.length);
           
-          const randomSuffix = Math.random().toString(36).substring(2, 15);
-          const timestamp = Date.now();
-          const fileName = `user-${input.userId}/library/${normalizedCharacterName}/${input.imageName}-${timestamp}-${randomSuffix}.png`;
+          // Use new hierarchical path structure
+          const { generateImageLibraryPath } = await import('./storageHelpers');
+          const fileName = generateImageLibraryPath(
+            input.userId,
+            normalizedCharacterName,
+            input.imageName
+          );
           
           // BunnyCDN configuration
           const BUNNYCDN_STORAGE_PASSWORD = '4c9257d6-aede-4ff1-bb0f9fc95279-997e-412b';
