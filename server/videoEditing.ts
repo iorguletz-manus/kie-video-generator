@@ -1482,7 +1482,8 @@ export async function mergeVideosWithFFmpegAPI(
     if (!processRes.ok) {
       const errorText = await processRes.text();
       console.error('[FFmpeg API] Error response:', errorText.substring(0, 500));
-      throw new Error(`FFmpeg API merge failed: ${processRes.statusText}`);
+      console.error('[FFmpeg API] Task sent:', JSON.stringify(task, null, 2));
+      throw new Error(`FFmpeg API merge failed: ${processRes.statusText} - ${errorText.substring(0, 200)}`);
     }
     
     const responseText = await processRes.text();

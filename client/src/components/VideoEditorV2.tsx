@@ -917,7 +917,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, nextVide
                   position: 'absolute',
                   left: `${timeToPixel(previewStart)}px`,
                   top: 0,
-                  transform: previewStart === 0 ? 'translateX(0)' : 'translateX(-1px)',
+                  transform: 'translateX(-1px)',
                   zIndex: 10,
                 }}
               >
@@ -933,12 +933,12 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, nextVide
                     pointerEvents: 'none',
                   }}
                 />
-                {/* Draggable handle */}
+                {/* Draggable handle - adjust left when at 0ms to keep visible */}
                 <div
                   onMouseDown={(e) => handleMarkerMouseDown(e, 'start')}
                   style={{
                     position: 'absolute',
-                    left: '-5px',
+                    left: previewStart === 0 ? '0px' : '-5px',
                     top: 0,
                     width: '12px',
                     height: '12px',
@@ -959,7 +959,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, nextVide
                   position: 'absolute',
                   left: `${timeToPixel(previewEnd)}px`,
                   top: 0,
-                  transform: previewEnd >= audioDuration * 1000 - 10 ? 'translateX(-2px)' : 'translateX(-1px)',
+                  transform: 'translateX(-1px)',
                   zIndex: 10,
                 }}
               >
@@ -975,12 +975,12 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, nextVide
                     pointerEvents: 'none',
                   }}
                 />
-                {/* Draggable handle */}
+                {/* Draggable handle - adjust left when at end to keep visible */}
                 <div
                   onMouseDown={(e) => handleMarkerMouseDown(e, 'end')}
                   style={{
                     position: 'absolute',
-                    left: '-5px',
+                    left: previewEnd >= audioDuration * 1000 - 10 ? '-12px' : '-5px',
                     top: 0,
                     width: '12px',
                     height: '12px',

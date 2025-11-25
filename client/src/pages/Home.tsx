@@ -3837,10 +3837,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Loader2 className="w-5 h-5 animate-spin text-purple-600" />
-              🔥 Merge Body + Hook Videos
+              🔥 Merge Videos
             </DialogTitle>
             <DialogDescription>
-              Merging body videos and hook variations with FFmpeg API...
+              Merging trimmed videos with FFmpeg API...
             </DialogDescription>
           </DialogHeader>
           
@@ -3855,6 +3855,18 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     <Loader2 className="w-3 h-3 animate-spin" />
                     {mergeStep10Progress || 'Merging videos with FFmpeg...'}
                   </div>
+                </div>
+                
+                {/* List videos being merged */}
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 max-h-48 overflow-y-auto">
+                  <p className="text-xs font-semibold text-gray-900 mb-2">Videos being merged:</p>
+                  <ul className="text-xs text-gray-700 space-y-1">
+                    {videoResults
+                      .filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.trimmedVideoUrl)
+                      .map(v => (
+                        <li key={v.videoName} className="truncate">• {v.videoName}</li>
+                      ))}
+                  </ul>
                 </div>
                 
                 <p className="text-xs text-center text-gray-500">
@@ -8584,6 +8596,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         <option value="problems">Possible Problems ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.editingDebugInfo?.algorithmLogs?.some((log: string) => log.includes('❌'))).length})</option>
                       </select>
                     </div>
+                    
+                    {/* Check Video with Problems link */}
+                    {videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.editingDebugInfo?.algorithmLogs?.some((log: string) => log.includes('❌'))).length > 0 && (
+                      <button
+                        onClick={() => setStep8Filter('problems')}
+                        className="text-sm text-red-600 hover:text-red-700 underline font-medium"
+                      >
+                        Check Video with Problems
+                      </button>
+                    )}
                   </div>
                   
                   {/* Sample Merge ALL Videos button */}
@@ -9450,8 +9472,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             </div>
                           )}
                           
-                          {/* Download Button */}
-                          <Button
+                          {/* Download Link */}
+                          <button
                             onClick={async () => {
                               try {
                                 // Fetch video as blob to force download
@@ -9474,18 +9496,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                 toast.error(`Download failed: ${error.message}`);
                               }
                             }}
-                            className="w-full bg-blue-600 hover:bg-blue-700"
-                            size="sm"
+                            className="text-sm text-blue-600 hover:text-blue-700 underline font-medium flex items-center justify-center gap-1"
                           >
-                            <Download className="w-4 h-4 mr-2" />
+                            <Download className="w-3 h-3" />
                             Download
-                          </Button>
+                          </button>
                         </div>
                       ))}
                     </div>
                     
                     {/* Navigation Buttons */}
-                    <div className="flex gap-4 mt-6">
+                    <div className="flex justify-between gap-4 mt-6">
                       <Button
                         onClick={() => setCurrentStep(8)}
                         variant="outline"
@@ -9510,7 +9531,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         ) : (
                           <>
                             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                             </svg>
                             Next: Merge Videos
                           </>
