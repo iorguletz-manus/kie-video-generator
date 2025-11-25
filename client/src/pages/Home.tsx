@@ -356,6 +356,26 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [bodyMergedVideoUrl, setBodyMergedVideoUrl] = useState<string | null>(null);
   const [hookMergedVideos, setHookMergedVideos] = useState<Record<string, string>>({});
   
+  // Step 11: Final Videos
+  const [isMergingFinalVideos, setIsMergingFinalVideos] = useState(false);
+  const [mergeFinalProgress, setMergeFinalProgress] = useState<{
+    current: number;
+    total: number;
+    currentVideo: string;
+    status: 'idle' | 'processing' | 'complete';
+  }>({
+    current: 0,
+    total: 0,
+    currentVideo: '',
+    status: 'idle'
+  });
+  const [finalVideos, setFinalVideos] = useState<Array<{
+    videoName: string;
+    cdnUrl: string;
+    hookName: string;
+    bodyName: string;
+  }>>([]);
+  
   // Persist cache to localStorage whenever it changes
   useEffect(() => {
     if (sampleMergedVideoUrl) {
@@ -9441,6 +9461,77 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   })()}
                 </div>
                 
+                {/* Final Videos (combinations) Preview */}
+                <div className="space-y-4 mt-8">
+                  <h3 className="text-lg font-semibold text-indigo-900">Final Videos (combinations)</h3>
+                  
+                  {(() => {
+                    // Calculate combinations based on selected hooks and body
+                    const combinations: string[] = [];
+                    
+                    if (selectedHooks.length > 0 && selectedBody) {
+                      // Extract context and character from body or first hook
+                      const referenceVideo = selectedBody === 'body_merged' 
+                        ? videoResults.find(v => !v.videoName.toLowerCase().includes('hook'))
+                        : videoResults.find(v => v.videoName === selectedBody);
+                      
+                      if (!referenceVideo && selectedHooks.length > 0) {
+                        // Fallback to first hook
+                        const firstHookName = selectedHooks[0];
+                        const hookVideo = videoResults.find(v => v.videoName === firstHookName);
+                        if (hookVideo) {
+                          const contextMatch = hookVideo.videoName.match(/^(T\d+_C\d+_E\d+_AD\d+)/);
+                          const characterMatch = hookVideo.videoName.match(/_([^_]+)$/);
+                          const context = contextMatch ? contextMatch[1] : 'MERGED';
+                          const character = characterMatch ? characterMatch[1] : 'TEST';
+                          
+                          selectedHooks.forEach((hookName, index) => {
+                            // Extract hook number from name (e.g., HOOK3M_TEST → HOOK3)
+                            const hookMatch = hookName.match(/HOOK(\d+)[A-Z]?/);
+                            const hookNumber = hookMatch ? hookMatch[1] : (index + 1);
+                            const finalName = `${context}_${character}_HOOK${hookNumber}`;
+                            combinations.push(finalName);
+                          });
+                        }
+                      } else if (referenceVideo) {
+                        const contextMatch = referenceVideo.videoName.match(/^(T\d+_C\d+_E\d+_AD\d+)/);
+                        const characterMatch = referenceVideo.videoName.match(/_([^_]+)$/);
+                        const context = contextMatch ? contextMatch[1] : 'MERGED';
+                        const character = characterMatch ? characterMatch[1] : 'TEST';
+                        
+                        selectedHooks.forEach((hookName, index) => {
+                          // Extract hook number from name
+                          const hookMatch = hookName.match(/HOOK(\d+)[A-Z]?/);
+                          const hookNumber = hookMatch ? hookMatch[1] : (index + 1);
+                          const finalName = `${context}_${character}_HOOK${hookNumber}`;
+                          combinations.push(finalName);
+                        });
+                      }
+                    }
+                    
+                    if (combinations.length === 0) {
+                      return (
+                        <p className="text-gray-600 text-sm">Select hooks and body to preview final video combinations</p>
+                      );
+                    }
+                    
+                    return (
+                      <div className="bg-gray-50 p-4 rounded-lg border border-gray-300">
+                        <p className="text-xs text-gray-600 mb-2">
+                          {combinations.length} final video{combinations.length > 1 ? 's' : ''} will be created:
+                        </p>
+                        <div className="space-y-1">
+                          {combinations.map((name, index) => (
+                            <p key={index} className="text-xs font-mono text-gray-800">
+                              {name}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+                
                 {/* Navigation Buttons */}
                 <div className="flex gap-4 mt-6">
                   <Button
@@ -9456,12 +9547,19 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   
                   <Button
                     onClick={() => {
-                      toast.success('🎉 Workflow complet! Toate videoclipurile sunt gata.');
+                      // TODO: Implement merge final videos logic
+                      toast.info('Merge final videos coming soon...');
                     }}
                     className="bg-green-600 hover:bg-green-700 px-8 py-6 text-base"
+                    disabled={selectedHooks.length === 0 || !selectedBody}
                   >
-                    <Check className="w-4 h-4 mr-2" />
-                    Finalizare
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    Next: Merge Final Videos
+                    <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
                   </Button>
                 </div>
               </div>
