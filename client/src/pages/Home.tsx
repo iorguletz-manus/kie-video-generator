@@ -1002,6 +1002,31 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     [videoResults]
   );
   
+  // Step 10: Pre-select all hooks and body when entering Step 10
+  useEffect(() => {
+    if (currentStep === 10) {
+      // Pre-select all hooks
+      const hookVideos = videoResults.filter(v => 
+        v.trimmedVideoUrl && 
+        v.videoName.toLowerCase().includes('hook')
+      );
+      setSelectedHooks(hookVideos.map(v => v.videoName));
+      
+      // Pre-select body (first body video or merged body)
+      if (bodyMergedVideoUrl) {
+        setSelectedBody('body_merged');
+      } else {
+        const bodyVideos = videoResults.filter(v => 
+          v.trimmedVideoUrl && 
+          !v.videoName.toLowerCase().includes('hook')
+        );
+        if (bodyVideos.length > 0) {
+          setSelectedBody(bodyVideos[0].videoName);
+        }
+      }
+    }
+  }, [currentStep, videoResults, bodyMergedVideoUrl]);
+  
   const regenerateVideos = useMemo(
     () => videoResults.filter(v => 
       // Include toate video cardurile cu probleme (toate în afară de Generated)
@@ -1898,6 +1923,121 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     // Return resultsMap for onReprocess callback
     return resultsMap;
+  };
+
+  // Step 9 → Step 10: Merge videos (body + hook variations)
+  const handleMergeVideos = async () => {
+    console.log('[Step 9→Step 10] Starting merge process...');
+    
+    const trimmedVideos = videoResults.filter(v => 
+      v.reviewStatus === 'accepted' && 
+      v.status === 'success' && 
+      v.trimmedVideoUrl
+    );
+    
+    // 1. Merge body videos (exclude hooks)
+    const bodyVideos = trimmedVideos.filter(v => !v.videoName.toLowerCase().includes('hook'));
+    
+    // 2. Group hook variations (A, B, C, D)
+    const hookVideos = trimmedVideos.filter(v => v.videoName.toLowerCase().includes('hook'));
+    
+    if (bodyVideos.length === 0 && hookVideos.length === 0) {
+      toast.error('No videos to merge!');
+      return;
+    }
+    
+    setIsMergingStep10(true);
+    setMergeStep10Progress('Starting merge process...');
+    
+    try {
+      // Merge body videos
+      if (bodyVideos.length > 0) {
+        setMergeStep10Progress(`Merging ${bodyVideos.length} body videos...`);
+        
+        const bodyVideoUrls = bodyVideos.map(v => v.trimmedVideoUrl!).filter(Boolean);
+        
+        // Extract context from first video name (e.g., T1_C1_E1_AD2)
+        const firstVideoName = bodyVideos[0].videoName;
+        const contextMatch = firstVideoName.match(/^(T\d+_C\d+_E\d+_AD\d+)/);
+        const context = contextMatch ? contextMatch[1] : 'MERGED';
+        
+        // Extract character name (last part after underscore)
+        const characterMatch = firstVideoName.match(/_([^_]+)$/);
+        const characterName = characterMatch ? characterMatch[1] : 'TEST';
+        
+        // NEW NAMING: T1_C1_E1_AD2_BODY_TEST
+        const outputName = `${context}_BODY_${characterName}`;
+        
+        console.log('[Step 9→Step 10] Body merge output name:', outputName);
+        
+        const bodyResult = await mergeVideosMutation.mutateAsync({
+          videoUrls: bodyVideoUrls,
+          outputVideoName: outputName,
+          ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
+        });
+        
+        setBodyMergedVideoUrl(bodyResult.cdnUrl);
+        console.log('[Step 9→Step 10] Body merge complete:', bodyResult.cdnUrl);
+      }
+      
+      // Merge hook variations (group by base name)
+      if (hookVideos.length > 0) {
+        setMergeStep10Progress('Merging hook variations...');
+        
+        // Group hooks by base name
+        const hookGroups: Record<string, typeof hookVideos> = {};
+        
+        hookVideos.forEach(video => {
+          const match = video.videoName.match(/(.*HOOK\d+)[A-Z]?(.*)/);
+          if (match) {
+            const baseName = match[1] + match[2];
+            if (!hookGroups[baseName]) {
+              hookGroups[baseName] = [];
+            }
+            hookGroups[baseName].push(video);
+          }
+        });
+        
+        console.log('[Step 9→Step 10] Hook groups:', Object.keys(hookGroups));
+        
+        // Merge each group
+        const mergedHooks: Record<string, string> = {};
+        
+        for (const [baseName, videos] of Object.entries(hookGroups)) {
+          if (videos.length > 1) {
+            setMergeStep10Progress(`Merging ${baseName} (${videos.length} variations)...`);
+            
+            const sortedVideos = videos.sort((a, b) => a.videoName.localeCompare(b.videoName));
+            const hookVideoUrls = sortedVideos.map(v => v.trimmedVideoUrl!).filter(Boolean);
+            
+            const outputName = baseName.replace(/(_[^_]+)$/, 'M$1');
+            
+            console.log(`[Step 9→Step 10] Merging ${baseName} → ${outputName}`);
+            
+            const hookResult = await mergeVideosMutation.mutateAsync({
+              videoUrls: hookVideoUrls,
+              outputVideoName: outputName,
+              ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
+            });
+            
+            mergedHooks[baseName] = hookResult.cdnUrl;
+            console.log(`[Step 9→Step 10] ${baseName} merge complete:`, hookResult.cdnUrl);
+          }
+        }
+        
+        setHookMergedVideos(mergedHooks);
+      }
+      
+      setMergeStep10Progress('');
+      setIsMergingStep10(false);
+      setCurrentStep(10);
+      toast.success('✅ Merge complete! Go to Step 10.');
+    } catch (error: any) {
+      console.error('[Step 9→Step 10] Merge error:', error);
+      setMergeStep10Progress(`Error: ${error.message}`);
+      setIsMergingStep10(false);
+      toast.error(`Merge failed: ${error.message}`);
+    }
   };
 
   // Step 8 → Step 9: Trim all videos using FFMPEG API
@@ -9037,16 +9177,23 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       </Button>
                       
                       <Button
-                        onClick={() => {
-                          // Go to Step 10 (merge videos UI)
-                          setCurrentStep(10);
-                        }}
+                        onClick={handleMergeVideos}
                         className="bg-purple-600 hover:bg-purple-700 px-8 py-6 text-base"
+                        disabled={isMergingStep10}
                       >
-                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        Next: Merge Videos
+                        {isMergingStep10 ? (
+                          <>
+                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                            {mergeStep10Progress || 'Merging...'}
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            Next: Merge Videos
+                          </>
+                        )}
                         <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>
@@ -9077,15 +9224,60 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               <div className="space-y-8">
                 {/* STEP 1 - Choose Hooks */}
                 <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-indigo-900">STEP 1 - Choose Hooks</h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-indigo-900">STEP 1 - Choose Hooks</h3>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const hookVideos = videoResults.filter(v => 
+                            v.trimmedVideoUrl && 
+                            v.videoName.toLowerCase().includes('hook')
+                          );
+                          setSelectedHooks(hookVideos.map(v => v.videoName));
+                        }}
+                      >
+                        Select All
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setSelectedHooks([])}
+                      >
+                        Deselect All
+                      </Button>
+                    </div>
+                  </div>
                   
                   {(() => {
-                    const hookVideos = videoResults.filter(v => 
+                    let hookVideos = videoResults.filter(v => 
                       v.trimmedVideoUrl && 
                       v.videoName.toLowerCase().includes('hook')
                     );
                     
-                    if (hookVideos.length === 0) {
+                    // Filter out individual variations if merged version exists
+                    const displayHooks = hookVideos.filter(v => {
+                      // If this is a variation (A, B, C, D), check if merged version exists
+                      const match = v.videoName.match(/(.*HOOK\d+)[A-Z](.*)/);
+                      if (match) {
+                        const baseName = match[1] + match[2];
+                        // Hide variation if merged version exists
+                        return !hookMergedVideos[baseName];
+                      }
+                      return true;
+                    });
+                    
+                    // Add merged hooks to display
+                    const mergedHooksList = Object.entries(hookMergedVideos).map(([baseName, cdnUrl]) => ({
+                      videoName: baseName.replace(/(_[^_]+)$/, 'M$1'),
+                      trimmedVideoUrl: cdnUrl,
+                      text: 'Merged hook variation',
+                    }));
+                    
+                    const allHooks = [...displayHooks, ...mergedHooksList];
+                    
+                    if (allHooks.length === 0) {
                       return (
                         <p className="text-gray-600 text-sm">No hook videos available</p>
                       );
@@ -9095,7 +9287,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       <div className="relative">
                         <div className="overflow-x-auto pb-4">
                           <div className="flex gap-4" style={{ minWidth: 'min-content' }}>
-                            {hookVideos.map(video => (
+                            {allHooks.map(video => (
                               <div key={video.videoName} className="flex-shrink-0" style={{ width: '270px' }}>
                                 <div className="space-y-2">
                                   {/* Checkbox */}
@@ -9146,6 +9338,52 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   <h3 className="text-lg font-semibold text-indigo-900">STEP 2 - Choose Body</h3>
                   
                   {(() => {
+                    // Check if we have merged body video
+                    if (bodyMergedVideoUrl) {
+                      return (
+                        <div className="flex justify-start">
+                          <div className="flex-shrink-0" style={{ width: '270px' }}>
+                            <div className="space-y-2">
+                              {/* Checkbox */}
+                              <div className="flex items-center justify-center">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedBody === 'body_merged'}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedBody('body_merged');
+                                    } else {
+                                      setSelectedBody(null);
+                                    }
+                                  }}
+                                  className="w-5 h-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                                />
+                              </div>
+                              
+                              {/* Video Name */}
+                              <p className="text-xs font-semibold text-gray-900 text-center truncate">
+                                Body (Merged)
+                              </p>
+                              
+                              {/* Video Player */}
+                              <video
+                                src={bodyMergedVideoUrl}
+                                controls
+                                className="w-full rounded-lg border border-gray-300"
+                                style={{ height: '240px', objectFit: 'cover' }}
+                              />
+                              
+                              {/* Info */}
+                              <p className="text-xs text-gray-600 text-center line-clamp-2">
+                                All body videos merged
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    
+                    // Fallback: Show first body video
                     const bodyVideos = videoResults.filter(v => 
                       v.trimmedVideoUrl && 
                       !v.videoName.toLowerCase().includes('hook')
@@ -9153,11 +9391,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     
                     if (bodyVideos.length === 0) {
                       return (
-                        <p className="text-gray-600 text-sm">No body videos available. Click "Merge Body Videos" in Step 9 first.</p>
+                        <p className="text-gray-600 text-sm">No body videos available. Click "Next: Merge Videos" in Step 9 first.</p>
                       );
                     }
                     
-                    // For now, show first body video (will be replaced with merged body video)
                     const bodyVideo = bodyVideos[0];
                     
                     return (
