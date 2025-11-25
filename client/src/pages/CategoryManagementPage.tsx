@@ -31,6 +31,25 @@ export default function CategoryManagementPage({ currentUser }: CategoryManageme
   const { data: emotionalAngles = [], refetch: refetchEmotionalAngles } = trpc.emotionalAngles.list.useQuery({ userId: currentUser.id });
   const { data: ads = [], refetch: refetchAds } = trpc.ads.list.useQuery({ userId: currentUser.id });
 
+  // Expand all by default
+  useEffect(() => {
+    if (tams.length > 0) {
+      setExpandedTams(new Set(tams.map(t => t.id)));
+    }
+  }, [tams]);
+
+  useEffect(() => {
+    if (coreBeliefs.length > 0) {
+      setExpandedCoreBeliefs(new Set(coreBeliefs.map(cb => cb.id)));
+    }
+  }, [coreBeliefs]);
+
+  useEffect(() => {
+    if (emotionalAngles.length > 0) {
+      setExpandedEmotionalAngles(new Set(emotionalAngles.map(ea => ea.id)));
+    }
+  }, [emotionalAngles]);
+
   // Mutations
   const updateTamMutation = trpc.tams.update.useMutation();
   const deleteTamMutation = trpc.tams.delete.useMutation();
@@ -184,38 +203,34 @@ export default function CategoryManagementPage({ currentUser }: CategoryManageme
       />
       
       {/* Header */}
-      <div className="bg-white border-b border-purple-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                onClick={() => setLocation("/")}
-                className="hover:bg-purple-100"
-              >
-                <ChevronLeft className="w-5 h-5 mr-1" />
-                Back to Home
-              </Button>
-              <h1 className="text-2xl font-bold text-purple-900">Category Management</h1>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <Input
-                  type="text"
-                  placeholder="Search categories..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 w-64"
-                />
-              </div>
-            </div>
+      <div className="max-w-6xl mx-auto px-4 py-6">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              onClick={() => setLocation("/")}
+              className="text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+            >
+              <ChevronLeft className="w-5 h-5 mr-1" />
+              Back to Home
+            </Button>
+            <h1 className="text-3xl font-bold text-purple-900">Category Management</h1>
+          </div>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-purple-400" />
+            <Input
+              type="text"
+              placeholder="Search categories..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 w-64 border-purple-300 focus:border-purple-500"
+            />
           </div>
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="max-w-6xl mx-auto px-4 py-6">
         <div className="grid grid-cols-4 gap-4 mb-6">
           <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white">
             <CardContent className="p-4">

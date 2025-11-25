@@ -665,7 +665,7 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
             {!isSelectionMode && (
             <div className="flex flex-wrap gap-3">
               {/* Search Bar */}
-              <div className="relative flex-1 min-w-[200px]">
+              <div className="relative flex-1 min-w-[200px] max-w-md">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-purple-400" />
                 <Input
                   placeholder="Search images..."
