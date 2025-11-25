@@ -1958,10 +1958,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       return;
     }
     
-    console.log('[Trimming] Starting BATCH trim process for', videosToTrim.length, 'videos (max 10 parallel)');
+    console.log('[Trimming] Starting SMART BATCH trim process for', videosToTrim.length, 'videos (max 5 parallel, batch size 3)');
     
-    // Batch processing with max 10 parallel and retry logic
-    const MAX_PARALLEL = 10;
+    // Batch processing with SMART rate limiting (same as Step 7→8)
+    const MAX_PARALLEL = 5;  // Max 5 FFmpeg requests at once (API limit)
+    const BATCH_SIZE = 3;  // Wait for 3 to complete before sending more
+    const DELAY_AFTER_BATCH = 3000;  // 3 seconds delay after receiving batch
     const MAX_RETRIES = 3;
     
     interface TrimJob {
@@ -2048,19 +2050,53 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       }
     };
     
-    // Process queue with max parallelism
-    while (true) {
-      const pendingJobs = jobs.filter(j => j.status === 'pending');
+    // SMART PROCESSING QUEUE with FFmpeg rate limiting (same as Step 7→8)
+    console.log('[Trimming] 🚀 Phase 1: Sending first', Math.min(MAX_PARALLEL, videosToTrim.length), 'videos (API limit)...');
+    
+    // Phase 1: Send first MAX_PARALLEL videos (or less if total < MAX_PARALLEL)
+    const initialBatch = Math.min(MAX_PARALLEL, videosToTrim.length);
+    for (let i = 0; i < initialBatch; i++) {
+      processJob(jobs[i]);
+    }
+    
+    let currentIndex = initialBatch;
+    
+    // Phase 2: Wait for batches and send more
+    while (currentIndex < videosToTrim.length) {
+      // Poll until activeJobs <= (MAX_PARALLEL - BATCH_SIZE)
+      // This means BATCH_SIZE have completed, so we can send BATCH_SIZE more
+      const targetActive = MAX_PARALLEL - BATCH_SIZE;
       
-      if (pendingJobs.length === 0 && activeJobs === 0) break;
+      console.log(`[Trimming] ⏳ Waiting for active jobs to drop to ${targetActive}...`);
       
-      while (pendingJobs.length > 0 && activeJobs < MAX_PARALLEL) {
-        const job = pendingJobs.shift()!;
-        processJob(job);
+      while (activeJobs > targetActive) {
+        // Poll every 500ms
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
       
-      await new Promise(resolve => setTimeout(resolve, 100));
+      console.log(`[Trimming] ✅ Active jobs dropped to ${activeJobs}, sending next ${BATCH_SIZE} videos...`);
+      
+      // Send next BATCH_SIZE videos
+      const batchEnd = Math.min(currentIndex + BATCH_SIZE, videosToTrim.length);
+      for (let i = currentIndex; i < batchEnd; i++) {
+        processJob(jobs[i]);
+      }
+      currentIndex = batchEnd;
+      
+      // Delay after sending batch
+      if (currentIndex < videosToTrim.length) {
+        console.log(`[Trimming] ⏸️ Waiting ${DELAY_AFTER_BATCH/1000}s before next batch...`);
+        await new Promise(resolve => setTimeout(resolve, DELAY_AFTER_BATCH));
+      }
     }
+    
+    // Wait for all remaining jobs to complete
+    console.log('[Trimming] ⏳ Waiting for remaining', activeJobs, 'jobs...');
+    while (activeJobs > 0) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    
+    console.log('[Trimming] 🎉 All jobs completed!');
     
     // Complete
     setTrimmingProgress({
@@ -3434,10 +3470,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Loader2 className="w-5 h-5 animate-spin text-red-600" />
-              ✂️ Tăiere Videouri cu FFmpeg API
+              ✂️ Procesare Videouri (FFmpeg + CleanVoice)
             </DialogTitle>
             <DialogDescription>
-              Tăiem fiecare video la timestamps-urile detectate...
+              Tăiem fiecare video la timestamps-urile detectate și înlocuim audio cu versiunea procesată de CleanVoice...
             </DialogDescription>
           </DialogHeader>
           
@@ -3463,7 +3499,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     </p>
                     <div className="flex items-center gap-2 text-xs text-red-700">
                       <Loader2 className="w-3 h-3 animate-spin" />
-                      ✂️ Tăiere cu FFmpeg API...
+                      ✂️ Tăiere cu FFmpeg + înlocuire audio CleanVoice...
                     </div>
                   </div>
                 )}
@@ -8742,7 +8778,19 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           {/* Trim Info */}
                           <div className="text-xs text-gray-600 mb-3 text-center">
                             <p>✂️ Trimmed: {((video.cutPoints?.startKeep || 0) / 1000).toFixed(3)}s → {((video.cutPoints?.endKeep || 0) / 1000).toFixed(3)}s</p>
-                            <p>Duration: {(((video.cutPoints?.endKeep || 0) - (video.cutPoints?.startKeep || 0)) / 1000).toFixed(3)}s</p>
+                            <p>Duration: {(() => {
+                              const durationMs = (video.cutPoints?.endKeep || 0) - (video.cutPoints?.startKeep || 0);
+                              const durationS = durationMs / 1000;
+                              // Debug logging
+                              console.log(`[Step 9 Duration] ${video.videoName}:`, {
+                                startKeep: video.cutPoints?.startKeep,
+                                endKeep: video.cutPoints?.endKeep,
+                                durationMs,
+                                durationS,
+                                displayed: durationS.toFixed(3)
+                              });
+                              return durationS.toFixed(3);
+                            })()}s</p>
                           </div>
                           
                           {/* Step 9 Note Display */}
