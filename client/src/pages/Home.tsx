@@ -4067,7 +4067,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               { num: 8, label: "Cut Prep", fullLabel: "Prepare for Cut" },
               { num: 9, label: "Trimmed", fullLabel: "Trimmed Videos" },
             ].map((step, index, array) => (
-              <React.Fragment key={step.num}>
+              <div key={step.num} className="contents">
                 {/* Step Container */}
                 <div className="flex flex-col items-center gap-2 relative group">
                   {/* Badge */}
@@ -4135,7 +4135,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     `} />
                   </div>
                 )}
-              </React.Fragment>
+              </div>
             ))}
           </div>
         </div>
