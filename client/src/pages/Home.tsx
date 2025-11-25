@@ -809,23 +809,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       };
       
       // Load all workflow data from context session (database)
-      // Smart step detection: determine step based on available data
+      // ONE SOURCE OF TRUTH: Use currentStep from database (no auto-detection)
       const loadedVideoResults = parseJsonField(contextSession.videoResults);
-      const hasTrimmedVideos = loadedVideoResults.some(v => v.trimmedVideoUrl);
-      const hasEditedVideos = loadedVideoResults.some(v => v.cutPoints && v.audioUrl);
       
-      let smartStep = contextSession.currentStep || 1;
-      if (hasTrimmedVideos) {
-        smartStep = 9;  // Has trimmed videos → Step 9
-        console.log('[Context Session] 💡 Smart step detection: Step 9 (has trimmed videos)');
-      } else if (hasEditedVideos) {
-        smartStep = 8;  // Has edited videos → Step 8
-        console.log('[Context Session] 💡 Smart step detection: Step 8 (has edited videos)');
-      } else {
-        console.log('[Context Session] 💡 Using stored step:', smartStep);
-      }
+      const restoredStep = contextSession.currentStep || 1;
+      console.log('[Context Session] 📦 Restoring step from database:', restoredStep);
       
-      setCurrentStep(smartStep);
+      setCurrentStep(restoredStep);
       if (contextSession.rawTextAd) setRawTextAd(contextSession.rawTextAd);
       if (contextSession.processedTextAd) setProcessedTextAd(contextSession.processedTextAd);
       
@@ -1046,6 +1036,45 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       }
     }
   }, [currentStep, videoResults, bodyMergedVideoUrl]);
+  
+  // Auto-save currentStep to database whenever it changes
+  useEffect(() => {
+    // Skip if no context selected or user not loaded
+    if (!selectedTamId || !selectedCoreBeliefId || !selectedEmotionalAngleId || !selectedAdId || !selectedCharacterId) {
+      return;
+    }
+    if (!localCurrentUser?.id) return;
+    
+    // Debounce save to avoid too many DB writes
+    const saveTimeout = setTimeout(async () => {
+      try {
+        console.log('[Auto-save] Saving currentStep to database:', currentStep);
+        await upsertContextSessionMutation.mutateAsync({
+          userId: localCurrentUser.id,
+          tamId: selectedTamId,
+          coreBeliefId: selectedCoreBeliefId,
+          emotionalAngleId: selectedEmotionalAngleId,
+          adId: selectedAdId,
+          characterId: selectedCharacterId,
+          currentStep,
+          rawTextAd,
+          processedTextAd,
+          adLines,
+          prompts,
+          images,
+          combinations,
+          deletedCombinations,
+          videoResults,
+          reviewHistory,
+        });
+        console.log('[Auto-save] ✅ currentStep saved successfully');
+      } catch (error) {
+        console.error('[Auto-save] ❌ Failed to save currentStep:', error);
+      }
+    }, 500); // 500ms debounce
+    
+    return () => clearTimeout(saveTimeout);
+  }, [currentStep, selectedTamId, selectedCoreBeliefId, selectedEmotionalAngleId, selectedAdId, selectedCharacterId, localCurrentUser]);
   
   const regenerateVideos = useMemo(
     () => videoResults.filter(v => 
