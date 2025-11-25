@@ -59,8 +59,8 @@ export async function submitToCleanVoice(
     {
       input: {
         files: [videoUrl],
+        config,  // Config must be inside input object
       },
-      config,
     },
     {
       headers: {
