@@ -39,16 +39,10 @@ export async function submitToCleanVoice(
 ): Promise<string> {
   const config: CleanVoiceConfig = {
     video: true,
-    send_email: false,
-    long_silences: true,    // Remove long silences
-    stutters: true,         // Remove stutters
-    fillers: true,          // Remove filler sounds (um, uh, etc.)
-    mouth_sounds: true,     // Remove mouth sounds (clicks, pops)
-    hesitations: true,      // Remove hesitations
-    remove_noise: true,     // Remove background noise
-    breath: true,           // Fully mute breaths (was 'mute' - invalid)
+    breath: 'mute',         // Mute breaths
     normalize: true,        // Normalize audio levels
-    studio_sound: 'nightly', // Apply studio processing (recommended)
+    remove_noise: true,     // Remove background noise
+    studio_sound: 'nightly', // Apply studio processing
   };
 
   console.log(`[CleanVoice] Submitting video: ${videoUrl}`);

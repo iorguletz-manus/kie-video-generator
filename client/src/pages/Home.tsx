@@ -3866,11 +3866,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   </p>
                   <div className="flex items-center gap-2 text-xs text-purple-700 mb-3">
                     <Loader2 className="w-3 h-3 animate-spin" />
-                    {mergeStep10Progress || 'Merging videos with FFmpeg...'}
+                    Merging {videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.trimmedVideoUrl).length} videos...
                   </div>
                   
                   {/* List videos being merged */}
-                  <p className="text-xs font-semibold text-purple-900 mb-2">Videos being merged:</p>
                   <ul className="text-xs text-purple-700 space-y-1">
                     {videoResults
                       .filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.trimmedVideoUrl)
@@ -9121,26 +9120,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           )}
                         </div>
 
-                        {/* Check Videos button - only show if we have trimmed videos */}
-                        {videoResults.some(v => v.trimmedVideoUrl) && (
-                          <Button
-                            onClick={() => setCurrentStep(9)}
-                            className="bg-green-600 hover:bg-green-700 px-8 py-8 text-lg"
-                          >
-                            {(() => {
-                              const count = approvedVideos.filter(v => v.trimmedVideoUrl).length;
-                              return (
-                                <>
-                                  Next: Check Videos ({count})
-                                  <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                  </svg>
-                                </>
-                              );
-                            })()}
-                          </Button>
-                        )}
-
                         {/* Buton TRIM ALL VIDEOS - va trimite la FFmpeg API pentru cutting */}
                         <Button
                           onClick={() => {
@@ -9166,6 +9145,26 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             );
                           })()}
                         </Button>
+
+                        {/* Check Videos button - only show if we have trimmed videos */}
+                        {videoResults.some(v => v.trimmedVideoUrl) && (
+                          <Button
+                            onClick={() => setCurrentStep(9)}
+                            className="bg-green-600 hover:bg-green-700 px-8 py-8 text-lg"
+                          >
+                            {(() => {
+                              const count = approvedVideos.filter(v => v.trimmedVideoUrl).length;
+                              return (
+                                <>
+                                  Next: Check Videos ({count})
+                                  <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                  </svg>
+                                </>
+                              );
+                            })()}
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
