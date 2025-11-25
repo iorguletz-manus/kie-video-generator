@@ -3797,6 +3797,60 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         processingStep={processingStep}
       />
       
+      {/* Merge Videos Modal for Step 9 → Step 10 */}
+      <Dialog open={isMergingStep10} onOpenChange={(open) => {
+        if (!open && isMergingStep10) return;
+        setIsMergingStep10(open);
+      }}>
+        <DialogContent className="max-w-md" onInteractOutside={(e) => {
+          if (isMergingStep10) e.preventDefault();
+        }}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Loader2 className="w-5 h-5 animate-spin text-purple-600" />
+              🔥 Merge Body + Hook Videos
+            </DialogTitle>
+            <DialogDescription>
+              Merging body videos and hook variations with FFmpeg API...
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {isMergingStep10 ? (
+              <>
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                  <p className="text-sm font-semibold text-purple-900 mb-1">
+                    🔥 Processing...
+                  </p>
+                  <div className="flex items-center gap-2 text-xs text-purple-700">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    {mergeStep10Progress || 'Merging videos with FFmpeg...'}
+                  </div>
+                </div>
+                
+                <p className="text-xs text-center text-gray-500">
+                  This may take a few minutes...
+                </p>
+              </>
+            ) : (
+              <div className="text-center space-y-3">
+                <div className="flex justify-center">
+                  <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center">
+                    <Check className="w-8 h-8 text-purple-600" />
+                  </div>
+                </div>
+                <p className="text-lg font-semibold text-purple-900">
+                  ✅ Merge Complete!
+                </p>
+                <p className="text-sm text-gray-600">
+                  Navigating to Step 10...
+                </p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+      
       {/* Merge Final Videos Modal for Step 10 → Step 11 */}
       <Dialog open={isMergingFinalVideos} onOpenChange={(open) => {
         if (!open && mergeFinalProgress.status === 'processing') return;
@@ -4510,6 +4564,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               { num: 7, label: "Check", fullLabel: "Check Videos" },
               { num: 8, label: "Cut Prep", fullLabel: "Prepare for Cut" },
               { num: 9, label: "Trimmed", fullLabel: "Trimmed Videos" },
+              { num: 10, label: "Merge", fullLabel: "Merge Videos" },
+              { num: 11, label: "Final", fullLabel: "Final Videos" },
             ].map((step, index, array) => (
               <div key={step.num} className="contents">
                 {/* Step Container */}
@@ -9749,7 +9805,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 </div>
                 
                 {/* Navigation Buttons */}
-                <div className="flex gap-4 mt-6">
+                <div className="flex justify-between items-center gap-4 mt-6">
                   <Button
                     onClick={() => setCurrentStep(9)}
                     variant="outline"
