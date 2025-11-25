@@ -22,7 +22,7 @@ export default function AppHeader({ currentUser, onLogout, onOpenSettings }: App
 
   return (
     <div className="bg-gradient-to-r from-blue-600 to-blue-700 shadow-lg">
-      <div className="container max-w-7xl mx-auto px-4">
+      <div className="container max-w-6xl mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           {/* Logo + Brand */}
           <button

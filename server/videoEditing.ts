@@ -1428,9 +1428,12 @@ export async function mergeVideosWithFFmpegAPI(
     console.log(`[mergeVideosWithFFmpegAPI] Uploading ${videoUrls.length} videos...`);
     const uploadedFilePaths: string[] = [];
     
+    // Use same timestamp for all uploads so they're in the same directory
+    const batchTimestamp = Date.now();
+    
     for (let i = 0; i < videoUrls.length; i++) {
       const videoUrl = videoUrls[i];
-      const fileName = `merge_input_${i}_${Date.now()}.mp4`;
+      const fileName = `merge_input_${i}_${batchTimestamp}.mp4`;
       const filePath = await uploadVideoToFFmpegAPI(videoUrl, fileName, ffmpegApiKey);
       uploadedFilePaths.push(filePath);
       console.log(`[mergeVideosWithFFmpegAPI] Uploaded ${i + 1}/${videoUrls.length}: ${filePath}`);

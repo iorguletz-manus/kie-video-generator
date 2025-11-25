@@ -580,7 +580,7 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
         onLogout={() => setLocation("/login")}
       />
       
-      <div className="max-w-7xl mx-auto p-3 md:p-8">
+      <div className="max-w-6xl mx-auto p-3 md:p-8">
         {/* Header */}
         <div className="mb-8">
           <Button

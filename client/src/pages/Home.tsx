@@ -263,10 +263,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   
   // Current step
   const [currentStep, setCurrentStep] = useState(1);
+  const [isRestoringSession, setIsRestoringSession] = useState(true);
   
   // Session management
   const [currentSessionId, setCurrentSessionId] = useState<string>('default');
-  const [isRestoringSession, setIsRestoringSession] = useState(true);
   
   // Edit Profile modal
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
@@ -816,6 +816,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       console.log('[Context Session] 📦 Restoring step from database:', restoredStep);
       
       setCurrentStep(restoredStep);
+      setIsRestoringSession(false);
       if (contextSession.rawTextAd) setRawTextAd(contextSession.rawTextAd);
       if (contextSession.processedTextAd) setProcessedTextAd(contextSession.processedTextAd);
       
@@ -2392,7 +2393,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             ? { 
                 ...v, 
                 trimmedVideoUrl: result.downloadUrl,
-                recutStatus: null  // Reset status after regeneration
+                recutStatus: 'accepted'  // Default to accepted
               }
             : v
         ));
@@ -3723,11 +3724,23 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
   };
 
+  // Show loading screen while restoring session
+  if (isRestoringSession) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" />
+          <p className="text-gray-600">Loading session...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100">
       {/* Header Navigation Bar */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 shadow-lg">
-        <div className="container max-w-7xl mx-auto px-4">
+        <div className="container max-w-6xl mx-auto px-4">
           <div className="flex items-center justify-between h-16">
             {/* Logo + Brand */}
             <div className="flex items-center gap-3">
@@ -3847,20 +3860,18 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           <div className="space-y-4 py-4">
             {isMergingStep10 ? (
               <>
-                <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
-                  <p className="text-sm font-semibold text-purple-900 mb-1">
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 max-h-64 overflow-y-auto">
+                  <p className="text-sm font-semibold text-purple-900 mb-2">
                     🔥 Processing...
                   </p>
-                  <div className="flex items-center gap-2 text-xs text-purple-700">
+                  <div className="flex items-center gap-2 text-xs text-purple-700 mb-3">
                     <Loader2 className="w-3 h-3 animate-spin" />
                     {mergeStep10Progress || 'Merging videos with FFmpeg...'}
                   </div>
-                </div>
-                
-                {/* List videos being merged */}
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 max-h-48 overflow-y-auto">
-                  <p className="text-xs font-semibold text-gray-900 mb-2">Videos being merged:</p>
-                  <ul className="text-xs text-gray-700 space-y-1">
+                  
+                  {/* List videos being merged */}
+                  <p className="text-xs font-semibold text-purple-900 mb-2">Videos being merged:</p>
+                  <ul className="text-xs text-purple-700 space-y-1">
                     {videoResults
                       .filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.trimmedVideoUrl)
                       .map(v => (
@@ -3872,7 +3883,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 <p className="text-xs text-center text-gray-500">
                   This may take a few minutes...
                 </p>
-              </>
+              <>
             ) : (
               <div className="text-center space-y-3">
                 <div className="flex justify-center">
@@ -9024,8 +9035,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
                         {/* Center buttons group */}
                         <div className="flex flex-row items-center gap-2 flex-nowrap">
-                          {/* Sample Merge Video button */}
-                          {approvedVideos.length > 1 && (
+                          {/* Sample Merge Video button - always show if we have approved videos (ignore filter) */}
+                          {videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length > 1 && (
                             <Button
                               onClick={async () => {
                             console.log('[Sample Merge] Starting...');
@@ -9110,6 +9121,26 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           )}
                         </div>
 
+                        {/* Check Videos button - only show if we have trimmed videos */}
+                        {videoResults.some(v => v.trimmedVideoUrl) && (
+                          <Button
+                            onClick={() => setCurrentStep(9)}
+                            className="bg-green-600 hover:bg-green-700 px-8 py-8 text-lg"
+                          >
+                            {(() => {
+                              const count = approvedVideos.filter(v => v.trimmedVideoUrl).length;
+                              return (
+                                <>
+                                  Next: Check Videos ({count})
+                                  <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                  </svg>
+                                </>
+                              );
+                            })()}
+                          </Button>
+                        )}
+
                         {/* Buton TRIM ALL VIDEOS - va trimite la FFmpeg API pentru cutting */}
                         <Button
                           onClick={() => {
@@ -9136,16 +9167,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           })()}
                         </Button>
                       </div>
-                      
-                      {/* Check Videos button - only show if we have trimmed videos */}
-                      {videoResults.some(v => v.trimmedVideoUrl) && (
-                        <Button
-                          onClick={() => setCurrentStep(9)}
-                          className="w-full bg-green-600 hover:bg-green-700 text-white"
-                        >
-                          👁️ Check Videos (Step 9)
-                        </Button>
-                      )}
                     </div>
                   </div>
                 )}
@@ -9496,7 +9517,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                 toast.error(`Download failed: ${error.message}`);
                               }
                             }}
-                            className="text-sm text-blue-600 hover:text-blue-700 underline font-medium flex items-center justify-center gap-1"
+                            className="text-sm text-blue-600 hover:text-blue-700 underline flex items-center justify-center gap-1"
                           >
                             <Download className="w-3 h-3" />
                             Download
