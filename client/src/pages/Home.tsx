@@ -1659,6 +1659,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           
           console.log(`[Batch Processing] 📊 Progress: FFmpeg ${ffmpegCompletedCount}/${videos.length}, Whisper ${whisperCompletedCount}/${videos.length}, CleanVoice ${cleanvoiceCompletedCount}/${videos.length}`);
           
+          // Log CleanVoice result
+          console.log(`[Batch Processing] 🎵 ${video.videoName} - CleanVoice URL:`, result.cleanvoiceAudioUrl || 'NULL (CleanVoice failed or not configured)');
+          
           return {
             videoName: video.videoName,
             success: true,
@@ -2004,6 +2007,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         const trimEnd = job.video.cutPoints?.endKeep || 0;
         
         console.log(`[Trimming] Processing ${job.video.videoName} (${completedCount + 1}/${videosToTrim.length})`);
+        console.log(`[Trimming] 🎵 CleanVoice URL for ${job.video.videoName}:`, job.video.cleanvoiceAudioUrl || 'NULL (will use original audio)');
         
         const result = await cutVideoMutation.mutateAsync({
           videoUrl: job.video.videoUrl!,
