@@ -2009,7 +2009,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           startTimeMs: trimStart,
           endTimeMs: trimEnd,
           ffmpegApiKey: localCurrentUser.ffmpegApiKey || undefined,
-          cleanVoiceAudioUrl: job.video.cleanvoiceAudioUrl  // Pass CleanVoice audio URL
+          cleanVoiceAudioUrl: job.video.cleanvoiceAudioUrl || undefined  // Pass CleanVoice audio URL (undefined if null)
         });
         
         if (!result.success || !result.downloadUrl) {
@@ -4054,8 +4054,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
         {/* Breadcrumbs - Professional & Consistent */}
         {selectedTamId && selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId && (
-        <div className="w-full overflow-x-auto mb-8 scrollbar-thin scrollbar-thumb-blue-300">
-          <div className="min-w-[900px] flex items-center justify-between px-6 py-6 bg-white rounded-lg shadow-sm border border-gray-200">
+        <div className="w-full mb-8">
+          <div className="flex items-center justify-between px-6 py-6 bg-white rounded-lg shadow-sm border border-gray-200">
             {[
               { num: 1, label: "Prepare", fullLabel: "Prepare Ad" },
               { num: 2, label: "Extract", fullLabel: "Extracted Lines" },

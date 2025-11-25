@@ -4,10 +4,19 @@ const CLEANVOICE_API_BASE = 'https://api.cleanvoice.ai/v2';
 
 interface CleanVoiceConfig {
   video: boolean;
-  remove_noise: boolean;
-  breath: string;
-  normalize: boolean;
-  studio_sound: string;
+  send_email?: boolean;
+  long_silences?: boolean;
+  stutters?: boolean;
+  fillers?: boolean;
+  mouth_sounds?: boolean;
+  hesitations?: boolean;
+  muted?: boolean;
+  remove_noise?: boolean;
+  keep_music?: boolean;
+  breath?: boolean | 'natural' | 'legacy';
+  normalize?: boolean;
+  studio_sound?: 'false' | 'true' | 'nightly';
+  export_format?: 'auto' | 'mp3' | 'wav' | 'flac' | 'm4a';
 }
 
 interface CleanVoiceEditResponse {
@@ -30,13 +39,20 @@ export async function submitToCleanVoice(
 ): Promise<string> {
   const config: CleanVoiceConfig = {
     video: true,
-    remove_noise: true,
-    breath: 'mute',
-    normalize: true,
-    studio_sound: 'nightly',
+    send_email: false,
+    long_silences: true,    // Remove long silences
+    stutters: true,         // Remove stutters
+    fillers: true,          // Remove filler sounds (um, uh, etc.)
+    mouth_sounds: true,     // Remove mouth sounds (clicks, pops)
+    hesitations: true,      // Remove hesitations
+    remove_noise: true,     // Remove background noise
+    breath: true,           // Fully mute breaths (was 'mute' - invalid)
+    normalize: true,        // Normalize audio levels
+    studio_sound: 'nightly', // Apply studio processing (recommended)
   };
 
   console.log(`[CleanVoice] Submitting video: ${videoUrl}`);
+  console.log(`[CleanVoice] Config:`, JSON.stringify(config, null, 2));
 
   const response = await axios.post<CleanVoiceEditResponse>(
     `${CLEANVOICE_API_BASE}/edits`,

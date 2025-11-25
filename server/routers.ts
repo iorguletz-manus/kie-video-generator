@@ -1639,7 +1639,7 @@ export const appRouter = router({
         startTimeMs: z.number(),  // milliseconds
         endTimeMs: z.number(),    // milliseconds
         ffmpegApiKey: z.string().optional(),
-        cleanVoiceAudioUrl: z.string().optional(),  // CleanVoice audio URL
+        cleanVoiceAudioUrl: z.string().nullable().optional(),  // CleanVoice audio URL (can be null or undefined)
       }))
       .mutation(async ({ input }) => {
         try {

@@ -680,6 +680,7 @@ export async function processVideoForEditing(
     const cleanvoiceAudioUrl = cleanvoiceResult.status === 'fulfilled' ? cleanvoiceResult.value : null;
     if (cleanvoiceResult.status === 'rejected') {
       console.error(`[processVideoForEditing] CleanVoice failed:`, cleanvoiceResult.reason);
+      console.error(`[processVideoForEditing] CleanVoice error details:`, JSON.stringify(cleanvoiceResult.reason?.response?.data || cleanvoiceResult.reason, null, 2));
     }
     
     if (whisperResult.status === 'rejected') {
