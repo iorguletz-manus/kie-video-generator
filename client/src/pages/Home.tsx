@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { Upload, X, Check, Loader2, Video, FileText, Image as ImageIcon, Map as MapIcon, Play, Download, Undo2, ChevronLeft, RefreshCw, Clock, Search, FileEdit, MessageSquare, Images, Grid3x3, Scissors, CheckCircle2 } from "lucide-react";
+import { Upload, X, Check, Loader2, Video, FileText, Image as ImageIcon, Map as MapIcon, Play, Download, Undo2, ChevronLeft, RefreshCw, Clock, Search, FileEdit, MessageSquare, Images, Grid3x3, Scissors, CheckCircle2, Folder, Settings as SettingsIcon, LogOut, Sparkles } from "lucide-react";
 
 type PromptType = 'PROMPT_NEUTRAL' | 'PROMPT_SMILING' | 'PROMPT_CTA' | 'PROMPT_CUSTOM';
 type SectionType = 'HOOKS' | 'MIRROR' | 'DCS' | 'TRANZITION' | 'NEW_CAUSE' | 'MECHANISM' | 'EMOTIONAL_PROOF' | 'TRANSFORMATION' | 'CTA' | 'OTHER';
@@ -2538,9 +2538,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           error: errorMessage,
         });
 
-        if (status === 'success') {
+        // Only show toast for NEW status changes (not for videos already loaded from DB)
+        const previousVideo = videoResults[index];
+        const isNewSuccess = status === 'success' && !previousVideo.videoUrl;
+        const isNewFailure = status === 'failed' && previousVideo.status !== 'failed';
+        
+        if (isNewSuccess) {
           toast.success(`Video #${index + 1} generat cu succes!`);
-        } else if (status === 'failed') {
+        } else if (isNewFailure) {
           toast.error(`Video #${index + 1} a eșuat: ${errorMessage}`);
         }
         // Nu mai afișăm toast pentru pending - doar UI update
@@ -3050,17 +3055,22 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     // Only poll if we're in Step 6 (generation step)
     if (currentStep !== 6) return;
 
-    const pendingVideos = videoResults.filter(v => v.status === 'pending' && v.taskId);
+    // Only poll videos that are truly pending (no videoUrl yet)
+    const pendingVideos = videoResults.filter(v => v.status === 'pending' && v.taskId && !v.videoUrl);
     if (pendingVideos.length === 0) return;
+
+    console.log(`[Polling] Starting polling for ${pendingVideos.length} truly pending videos`);
 
     // Check-uri din 5 în 5 secunde de la început
     const interval = setInterval(() => {
-      const stillPending = videoResults.filter(v => v.status === 'pending' && v.taskId);
+      const stillPending = videoResults.filter(v => v.status === 'pending' && v.taskId && !v.videoUrl);
       if (stillPending.length === 0) {
+        console.log('[Polling] All videos completed, stopping polling');
         clearInterval(interval);
         return;
       }
 
+      console.log(`[Polling] Checking ${stillPending.length} pending videos...`);
       stillPending.forEach((video) => {
         const actualIndex = videoResults.findIndex(v => v.taskId === video.taskId);
         if (actualIndex !== -1 && video.taskId) {
@@ -3237,69 +3247,85 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 py-4 md:py-8 px-2 md:px-4">
-      <div className="container max-w-6xl mx-auto">
-        {/* User Dropdown - Top Right */}
-        <div className="fixed top-2 right-2 md:top-4 md:right-4 z-50">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-1 md:gap-2 px-2 md:px-3 py-1.5 md:py-2 rounded-lg hover:bg-gray-100 transition-colors bg-white shadow-md">
-                {localCurrentUser.profileImageUrl && (
-                  <img
-                    src={localCurrentUser.profileImageUrl}
-                    alt="Profile"
-                    className="w-6 h-6 md:w-8 md:h-8 rounded-full border border-gray-300 object-cover"
-                  />
-                )}
-                {!localCurrentUser.profileImageUrl && (
-                  <div className="w-6 h-6 md:w-8 md:h-8 rounded-full border border-gray-300 bg-gray-100 flex items-center justify-center">
-                    <span className="text-gray-700 font-medium text-sm">
-                      {localCurrentUser.username.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                )}
-                <span className="hidden md:inline text-sm font-medium text-gray-700">{localCurrentUser.username}</span>
-                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={() => setLocation("/images-library")} className="cursor-pointer">
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100">
+      {/* Header Navigation Bar */}
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 shadow-lg">
+        <div className="container max-w-7xl mx-auto px-4">
+          <div className="flex items-center justify-between h-16">
+            {/* Logo + Brand */}
+            <div className="flex items-center gap-3">
+              <Sparkles className="w-6 h-6 text-yellow-300" />
+              <span className="text-white font-bold text-lg">A.I Ads Engine</span>
+            </div>
+            
+            {/* Navigation Links */}
+            <div className="hidden md:flex items-center gap-6">
+              <button
+                onClick={() => setLocation("/images-library")}
+                className="flex items-center gap-2 text-white hover:text-yellow-300 transition-colors text-sm font-medium"
+              >
+                <Images className="w-4 h-4" />
                 Images Library
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setLocation("/prompts-library")} className="cursor-pointer">
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
+              </button>
+              <button
+                onClick={() => setLocation("/prompts-library")}
+                className="flex items-center gap-2 text-white hover:text-yellow-300 transition-colors text-sm font-medium"
+              >
+                <MessageSquare className="w-4 h-4" />
                 Prompts Library
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setLocation("/category-management")} className="cursor-pointer">
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                </svg>
-                Category Management
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setIsEditProfileOpen(true)} className="cursor-pointer">
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
+              </button>
+              <button
+                onClick={() => setLocation("/category-management")}
+                className="flex items-center gap-2 text-white hover:text-yellow-300 transition-colors text-sm font-medium"
+              >
+                <Folder className="w-4 h-4" />
+                Ads Management
+              </button>
+              <button
+                onClick={() => setIsEditProfileOpen(true)}
+                className="flex items-center gap-2 text-white hover:text-yellow-300 transition-colors text-sm font-medium"
+              >
+                <SettingsIcon className="w-4 h-4" />
                 Settings
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={onLogout} className="cursor-pointer text-red-600">
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-                Logout
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              </button>
+            </div>
+            
+            {/* User Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-800 transition-colors">
+                  {localCurrentUser.profileImageUrl && (
+                    <img
+                      src={localCurrentUser.profileImageUrl}
+                      alt="Profile"
+                      className="w-8 h-8 rounded-full border-2 border-white object-cover"
+                    />
+                  )}
+                  {!localCurrentUser.profileImageUrl && (
+                    <div className="w-8 h-8 rounded-full border-2 border-white bg-blue-800 flex items-center justify-center">
+                      <span className="text-white font-medium text-sm">
+                        {localCurrentUser.username.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                  <span className="text-white text-sm font-medium">{localCurrentUser.username}</span>
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={onLogout} className="cursor-pointer text-red-600">
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Logout
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
+      </div>
+      
+      <div className="container max-w-6xl mx-auto py-4 md:py-8 px-2 md:px-4">
       
       {/* Edit Profile Modal */}
       <EditProfileModal
@@ -3668,16 +3694,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         </DialogContent>
       </Dialog>
 
-        <div className="text-center mb-6 md:mb-12">
-          <h1 className="text-2xl md:text-4xl font-bold text-blue-900 mb-2">A.I Ads Engine</h1>
-          <p className="text-sm md:text-base text-blue-700">Generează videouri AI în masă cu Veo 3.1</p>
-        </div>
+
 
         {/* Context Selector */}
-        <div className="mb-6 md:mb-8 p-3 md:p-6 bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-300 rounded-xl shadow-lg">
-          <div className="mb-4">
-            <h2 className="text-lg md:text-2xl font-bold text-blue-900 mb-2 flex items-center gap-2">
-              <span className="text-2xl md:text-3xl">🎯</span>
+        <div className="mb-4 p-3 bg-white border border-blue-200 rounded-lg shadow-sm">
+          <div className="mb-3">
+            <h2 className="text-sm font-semibold text-blue-900 mb-1 flex items-center gap-2">
+              <span className="text-lg">🎯</span>
               Select Your Working Context
             </h2>
             <p className="text-sm text-gray-600">Choose all 5 categories to start working. This context will apply to all steps.</p>
@@ -3943,24 +3966,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             </div>
           </div>
           
-          {/* Context Status */}
-          {selectedTamId && selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId && (
-            <div className="mt-4 p-4 bg-green-50 border border-green-300 rounded-lg">
-              <p className="text-green-900 font-medium flex items-center gap-2">
-                <span className="text-xl">✅</span>
-                Context complete! You can now access all steps.
-              </p>
-            </div>
-          )}
-          
-          {(!selectedTamId || !selectedCoreBeliefId || !selectedEmotionalAngleId || !selectedAdId || !selectedCharacterId) && (
-            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-300 rounded-lg">
-              <p className="text-yellow-900 font-medium flex items-center gap-2">
-                <span className="text-xl">⚠️</span>
-                Please select all 5 categories to continue.
-              </p>
-            </div>
-          )}
+
         </div>
 
         {/* Context Required Warning */}
@@ -5623,6 +5629,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     <>
                       <Video className="w-5 h-5 mr-2" />
                       Next: Generate ({combinations.length})
+                      <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
                     </>
                   )}
                 </Button>
