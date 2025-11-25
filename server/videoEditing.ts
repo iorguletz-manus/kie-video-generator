@@ -1394,3 +1394,158 @@ export function calculateCutPointsNew(
     },
   };
 }
+
+// ============================================================================
+// 8. VIDEO MERGING FUNCTION (STEP 10)
+// ============================================================================
+
+/**
+ * Merge multiple videos using FFmpeg API concat filter
+ * Returns download URL for the merged video
+ */
+export async function mergeVideosWithFFmpegAPI(
+  videoUrls: string[],
+  outputVideoName: string,
+  ffmpegApiKey: string
+): Promise<string> {
+  try {
+    console.log(`[mergeVideosWithFFmpegAPI] Merging ${videoUrls.length} videos into ${outputVideoName}`);
+    
+    if (!ffmpegApiKey) {
+      throw new Error('FFMPEG API Key not configured. Please set it in Settings.');
+    }
+    
+    if (videoUrls.length === 0) {
+      throw new Error('No videos provided for merging');
+    }
+    
+    if (videoUrls.length === 1) {
+      console.log(`[mergeVideosWithFFmpegAPI] Only 1 video, returning original URL`);
+      return videoUrls[0];
+    }
+    
+    // 1. Upload all videos to FFmpeg API
+    console.log(`[mergeVideosWithFFmpegAPI] Uploading ${videoUrls.length} videos...`);
+    const uploadedFilePaths: string[] = [];
+    
+    for (let i = 0; i < videoUrls.length; i++) {
+      const videoUrl = videoUrls[i];
+      const fileName = `merge_input_${i}_${Date.now()}.mp4`;
+      const filePath = await uploadVideoToFFmpegAPI(videoUrl, fileName, ffmpegApiKey);
+      uploadedFilePaths.push(filePath);
+      console.log(`[mergeVideosWithFFmpegAPI] Uploaded ${i + 1}/${videoUrls.length}: ${filePath}`);
+    }
+    
+    // 2. Prepare concat filter
+    // FFmpeg concat filter: -filter_complex "[0:v][0:a][1:v][1:a][2:v][2:a]concat=n=3:v=1:a=1[outv][outa]"
+    const videoInputs = uploadedFilePaths.map((_, i) => `[${i}:v][${i}:a]`).join('');
+    const concatFilter = `${videoInputs}concat=n=${uploadedFilePaths.length}:v=1:a=1[outv][outa]`;
+    
+    console.log(`[mergeVideosWithFFmpegAPI] Concat filter: ${concatFilter}`);
+    
+    // 3. Prepare task
+    const outputFileName = `${outputVideoName}_${Date.now()}.mp4`;
+    
+    const task: any = {
+      inputs: uploadedFilePaths.map(filePath => ({
+        file_path: filePath
+      })),
+      outputs: [
+        {
+          file: outputFileName,
+          options: [
+            '-filter_complex', concatFilter,
+            '-map', '[outv]',
+            '-map', '[outa]',
+            '-c:v', 'libx264',
+            '-crf', '23',
+            '-preset', 'medium',
+            '-c:a', 'aac',
+            '-b:a', '192k',
+            '-ar', '48000'
+          ]
+        }
+      ]
+    };
+    
+    // 4. Send to FFmpeg API
+    console.log(`[mergeVideosWithFFmpegAPI] Sending merge task to FFmpeg API...`);
+    const processRes = await fetch(`${FFMPEG_API_BASE}/ffmpeg/process`, {
+      method: 'POST',
+      headers: {
+        'Authorization': ffmpegApiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ task }),
+    });
+    
+    if (!processRes.ok) {
+      const errorText = await processRes.text();
+      console.error('[FFmpeg API] Error response:', errorText.substring(0, 500));
+      throw new Error(`FFmpeg API merge failed: ${processRes.statusText}`);
+    }
+    
+    const responseText = await processRes.text();
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch (e) {
+      console.error('[FFmpeg API] Invalid JSON response:', responseText.substring(0, 500));
+      throw new Error(`FFmpeg API returned invalid JSON`);
+    }
+    
+    if (!result.success || !result.data?.file_path) {
+      console.error('[FFmpeg API] Merge failed:', result);
+      throw new Error(`FFmpeg API merge failed: ${result.message || 'Unknown error'}`);
+    }
+    
+    const mergedFilePath = result.data.file_path;
+    console.log(`[mergeVideosWithFFmpegAPI] Merge successful: ${mergedFilePath}`);
+    
+    // 5. Download merged video
+    console.log(`[mergeVideosWithFFmpegAPI] Downloading merged video...`);
+    const downloadRes = await fetch(`${FFMPEG_API_BASE}/ffmpeg/download/${mergedFilePath}`, {
+      headers: {
+        'Authorization': ffmpegApiKey,
+      },
+    });
+    
+    if (!downloadRes.ok) {
+      throw new Error(`Failed to download merged video: ${downloadRes.statusText}`);
+    }
+    
+    const videoBuffer = Buffer.from(await downloadRes.arrayBuffer());
+    console.log(`[mergeVideosWithFFmpegAPI] Downloaded ${videoBuffer.length} bytes`);
+    
+    // 6. Upload to Bunny CDN
+    const BUNNYCDN_STORAGE_PASSWORD = '4c9257d6-aede-4ff1-bb0f-9fc95279-997e-412b';
+    const BUNNYCDN_STORAGE_ZONE = 'manus-storage';
+    const BUNNYCDN_PULL_ZONE_URL = 'https://manus.b-cdn.net';
+    
+    const bunnyFileName = `${outputVideoName}.mp4`;
+    const storageUrl = `https://storage.bunnycdn.com/${BUNNYCDN_STORAGE_ZONE}/merged-videos/${bunnyFileName}`;
+    
+    console.log(`[mergeVideosWithFFmpegAPI] Uploading to Bunny CDN: merged-videos/${bunnyFileName}`);
+    
+    const uploadResponse = await axios.put(storageUrl, videoBuffer, {
+      headers: {
+        'AccessKey': BUNNYCDN_STORAGE_PASSWORD,
+        'Content-Type': 'video/mp4',
+      },
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity,
+    });
+    
+    if (uploadResponse.status !== 201) {
+      throw new Error(`Failed to upload to Bunny CDN: ${uploadResponse.status}`);
+    }
+    
+    const cdnUrl = `${BUNNYCDN_PULL_ZONE_URL}/merged-videos/${bunnyFileName}`;
+    console.log(`[mergeVideosWithFFmpegAPI] ✅ Merge complete: ${cdnUrl}`);
+    
+    return cdnUrl;
+  } catch (error) {
+    console.error(`[mergeVideosWithFFmpegAPI] Error:`, error);
+    throw error;
+  }
+}

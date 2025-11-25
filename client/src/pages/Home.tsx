@@ -348,6 +348,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
   });
   
+  // Step 10: Merge Videos
+  const [selectedHooks, setSelectedHooks] = useState<string[]>([]);
+  const [selectedBody, setSelectedBody] = useState<string | null>(null);
+  const [isMergingStep10, setIsMergingStep10] = useState(false);
+  const [mergeStep10Progress, setMergeStep10Progress] = useState<string>('');
+  const [bodyMergedVideoUrl, setBodyMergedVideoUrl] = useState<string | null>(null);
+  const [hookMergedVideos, setHookMergedVideos] = useState<Record<string, string>>({});
+  
   // Persist cache to localStorage whenever it changes
   useEffect(() => {
     if (sampleMergedVideoUrl) {
@@ -401,6 +409,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const cutAndMergeMutation = trpc.videoEditing.cutAndMergeVideos.useMutation();
   const cutAndMergeAllMutation = trpc.videoEditing.cutAndMergeAllVideos.useMutation();
   const saveVideoEditing = trpc.videoEditing.save.useMutation();
+  
+  // Step 10: Merge Videos mutation
+  const mergeVideosMutation = trpc.videoEditing.mergeVideos.useMutation();
   
   // Prompt Library query - load all prompts from database
   const { data: promptLibrary = [] } = trpc.promptLibrary.list.useQuery({

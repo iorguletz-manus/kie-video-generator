@@ -2142,6 +2142,37 @@ export const appRouter = router({
           });
         }
       }),
+
+    // Merge videos (Step 10) - merge only, no cutting
+    mergeVideos: publicProcedure
+      .input(z.object({
+        videoUrls: z.array(z.string()),
+        outputVideoName: z.string(),
+        ffmpegApiKey: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          console.log(`[mergeVideos] Merging ${input.videoUrls.length} videos into ${input.outputVideoName}`);
+          
+          const { mergeVideosWithFFmpegAPI } = await import('./videoEditing.js');
+          const cdnUrl = await mergeVideosWithFFmpegAPI(
+            input.videoUrls,
+            input.outputVideoName,
+            input.ffmpegApiKey
+          );
+          
+          return {
+            success: true,
+            cdnUrl,
+          };
+        } catch (error: any) {
+          console.error('[mergeVideos] Error:', error);
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Failed to merge videos: ${error.message}`,
+          });
+        }
+      }),
   }),
 });
 
