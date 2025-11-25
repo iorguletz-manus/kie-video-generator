@@ -732,7 +732,8 @@ export async function cutVideoWithFFmpegAPI(
   videoName: string,
   startTimeSeconds: number,
   endTimeSeconds: number,
-  ffmpegApiKey: string
+  ffmpegApiKey: string,
+  cleanVoiceAudioUrl?: string  // Optional CleanVoice audio URL
 ): Promise<string> {
   try {
     console.log(`[cutVideoWithFFmpegAPI] Cutting video ${videoName}: ${startTimeSeconds}s → ${endTimeSeconds}s`);
@@ -747,27 +748,68 @@ export async function cutVideoWithFFmpegAPI(
     const videoFileName = `${videoName}_original.mp4`;
     const videoFilePath = await uploadVideoToFFmpegAPI(videoUrl, videoFileName, ffmpegApiKey);
     
-    // 2. Trim video
+    // 2. Upload CleanVoice audio if provided
+    let audioFilePath: string | undefined;
+    if (cleanVoiceAudioUrl) {
+      console.log(`[cutVideoWithFFmpegAPI] Uploading CleanVoice audio...`);
+      const audioFileName = `${videoName}_cleanvoice.mp3`;
+      audioFilePath = await uploadVideoToFFmpegAPI(cleanVoiceAudioUrl, audioFileName, ffmpegApiKey);
+      console.log(`[cutVideoWithFFmpegAPI] CleanVoice audio uploaded: ${audioFilePath}`);
+    }
+    
+    // 3. Prepare task: Trim video + Replace audio (if CleanVoice provided)
     const outputFileName = `${videoName}_trimmed_${Date.now()}.mp4`;
     
+    const task: any = {
+      inputs: [
+        {
+          file_path: videoFilePath,
+          options: ['-ss', startTimeSeconds.toString(), '-t', duration.toString()]
+        }
+      ],
+      outputs: [
+        {
+          file: outputFileName,
+          options: [] as string[]
+        }
+      ]
+    };
+    
+    // If CleanVoice audio provided, add it as second input and configure audio replacement
+    if (audioFilePath) {
+      task.inputs.push({
+        file_path: audioFilePath
+      });
+      
+      // Output options: Copy video (no re-encoding), replace audio with CleanVoice
+      task.outputs[0].options = [
+        '-c:v', 'copy',        // Copy video codec (FAST, no re-encoding)
+        '-c:a', 'aac',         // AAC audio codec
+        '-b:a', '192k',        // 192 kbps audio bitrate
+        '-ar', '48000',        // 48 kHz sample rate
+        '-map', '0:v:0',       // Map video from input 0 (original video)
+        '-map', '1:a:0',       // Map audio from input 1 (CleanVoice audio)
+        '-shortest'            // Trim to shortest stream
+      ];
+      console.log(`[cutVideoWithFFmpegAPI] Task configured: Trim + Replace audio with CleanVoice`);
+    } else {
+      // No CleanVoice audio, just trim with original audio
+      task.outputs[0].options = [
+        '-c:v', 'libx264',     // Re-encode video
+        '-crf', '23',          // Good quality
+        '-c:a', 'aac'          // AAC audio codec
+      ];
+      console.log(`[cutVideoWithFFmpegAPI] Task configured: Trim only (no audio replacement)`);
+    }
+    
+    // 4. Send to FFmpeg API
     const processRes = await fetch(`${FFMPEG_API_BASE}/ffmpeg/process`, {
       method: 'POST',
       headers: {
         'Authorization': ffmpegApiKey,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        task: {
-          inputs: [{
-            file_path: videoFilePath,
-            options: ['-ss', startTimeSeconds.toString(), '-t', duration.toString()]
-          }],
-          outputs: [{
-            file: outputFileName,
-            options: ['-c:v', 'libx264', '-crf', '23', '-c:a', 'aac']
-          }]
-        }
-      }),
+      body: JSON.stringify({ task }),
     });
     
     if (!processRes.ok) {

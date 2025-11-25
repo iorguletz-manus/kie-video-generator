@@ -1639,6 +1639,7 @@ export const appRouter = router({
         startTimeMs: z.number(),  // milliseconds
         endTimeMs: z.number(),    // milliseconds
         ffmpegApiKey: z.string().optional(),
+        cleanVoiceAudioUrl: z.string().optional(),  // CleanVoice audio URL
       }))
       .mutation(async ({ input }) => {
         try {
@@ -1648,13 +1649,14 @@ export const appRouter = router({
           
           console.log(`[videoEditing.cutVideo] Cutting video ${input.videoName}: ${startTimeSeconds}s → ${endTimeSeconds}s (from ${input.startTimeMs}ms → ${input.endTimeMs}ms)`);
           
-          // Cut video using FFmpeg API
+          // Cut video using FFmpeg API (with CleanVoice audio if provided)
           const downloadUrl = await cutVideoWithFFmpegAPI(
             input.videoUrl,
             input.videoName,
             parseFloat(startTimeSeconds),
             parseFloat(endTimeSeconds),
-            input.ffmpegApiKey!
+            input.ffmpegApiKey!,
+            input.cleanVoiceAudioUrl  // Pass CleanVoice audio URL
           );
 
           // Download trimmed video from FFmpeg API

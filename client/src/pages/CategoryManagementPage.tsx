@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, ChevronDown, Edit2, Trash2, Search, Plus, Folder, FolderOpen } from "lucide-react";
+import AppHeader from "@/components/AppHeader";
 
 interface CategoryManagementPageProps {
   currentUser: {
@@ -176,6 +177,12 @@ export default function CategoryManagementPage({ currentUser }: CategoryManageme
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50">
+      {/* App Header */}
+      <AppHeader
+        currentUser={currentUser}
+        onLogout={() => setLocation("/login")}
+      />
+      
       {/* Header */}
       <div className="bg-white border-b border-purple-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-4">

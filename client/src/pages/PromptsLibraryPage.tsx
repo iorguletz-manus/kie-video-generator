@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { ChevronLeft, Plus, Edit2, Copy, Trash2, FileText } from "lucide-react";
+import AppHeader from "@/components/AppHeader";
 
 interface PromptsLibraryPageProps {
   currentUser: {
@@ -154,8 +155,14 @@ export default function PromptsLibraryPage({ currentUser }: PromptsLibraryPagePr
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-3 md:p-8">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      {/* App Header */}
+      <AppHeader
+        currentUser={currentUser}
+        onLogout={() => setLocation("/login")}
+      />
+      
+      <div className="max-w-6xl mx-auto p-3 md:p-8">
         {/* Header */}
         <div className="mb-8">
           <Button

@@ -2008,7 +2008,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           videoName: job.video.videoName,
           startTimeMs: trimStart,
           endTimeMs: trimEnd,
-          ffmpegApiKey: localCurrentUser.ffmpegApiKey || undefined
+          ffmpegApiKey: localCurrentUser.ffmpegApiKey || undefined,
+          cleanVoiceAudioUrl: job.video.cleanvoiceAudioUrl  // Pass CleanVoice audio URL
         });
         
         if (!result.success || !result.downloadUrl) {
@@ -4081,12 +4082,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     <step.icon className="w-6 h-6" />
                   )}
                 </button>
-                <span className={`text-sm mt-2 font-medium ${
+                <span className={`text-sm mt-2 font-medium text-center ${
                   currentStep >= step.num ? "text-blue-900" : "text-gray-500"
                 }`}>
                   STEP {step.num}
                 </span>
-                <span className={`text-xs ${
+                <span className={`text-xs text-center ${
                   currentStep >= step.num ? "text-blue-700" : "text-gray-400"
                 }`}>
                   {step.label}
