@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { Upload, X, Check, Loader2, Video, FileText, Image as ImageIcon, Map as MapIcon, Play, Download, Undo2, ChevronLeft, RefreshCw, Clock, Search } from "lucide-react";
+import { Upload, X, Check, Loader2, Video, FileText, Image as ImageIcon, Map as MapIcon, Play, Download, Undo2, ChevronLeft, RefreshCw, Clock, Search, FileEdit, MessageSquare, Images, Grid3x3, Scissors, CheckCircle2, Folder, Settings as SettingsIcon, LogOut, Sparkles } from "lucide-react";
 
 type PromptType = 'PROMPT_NEUTRAL' | 'PROMPT_SMILING' | 'PROMPT_CTA' | 'PROMPT_CUSTOM';
 type SectionType = 'HOOKS' | 'MIRROR' | 'DCS' | 'TRANZITION' | 'NEW_CAUSE' | 'MECHANISM' | 'EMOTIONAL_PROOF' | 'TRANSFORMATION' | 'CTA' | 'OTHER';
@@ -854,97 +854,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     isRestoringSession,
   ]);
   
-  // Auto-save to context session when data changes (debounced)
-  // ONLY save to database after video generation (STEP 6+)
-  useEffect(() => {
-    if (!selectedTamId || !selectedCoreBeliefId || !selectedEmotionalAngleId || !selectedAdId || !selectedCharacterId) {
-      return; // Don't save if context not complete
-    }
-    
-    if (isRestoringSession) return; // Don't save during restore
-    
-    const timeoutId = setTimeout(() => {
-      // For STEP 1-5: Save workflow data but preserve videoResults from database
-      // For STEP 6+: Save full workflow data including videoResults
-      if (currentStep < 6) {
-        console.log('[Context Session] Saving workflow data for STEP', currentStep, '(preserving videoResults)');
-        upsertContextSessionMutation.mutate({
-          userId: localCurrentUser.id,
-          coreBeliefId: selectedCoreBeliefId,
-          emotionalAngleId: selectedEmotionalAngleId,
-          adId: selectedAdId,
-          characterId: selectedCharacterId,
-          currentStep,
-          rawTextAd, // SAVE Ad document data
-          processedTextAd, // SAVE Ad document data
-          adLines, // SAVE Ad lines
-          prompts, // SAVE prompts
-          images, // SAVE images
-          combinations, // SAVE combinations
-          deletedCombinations, // SAVE deleted combinations
-          videoResults, // PRESERVE existing videoResults (don't clear when navigating back)
-          reviewHistory,
-        }, {
-          onSuccess: () => {
-            console.log('[Context Session] CurrentStep saved successfully');
-          },
-          onError: (error) => {
-            console.error('[Context Session] CurrentStep save failed:', error);
-          },
-        });
-      } else {
-        console.log('[Context Session] 💾 AUTO-SAVING full workflow data...', {
-          videoResults_count: videoResults.length
-        });
-        // Log each video's cutPoints separately to avoid truncation
-        videoResults.forEach(v => {
-          if (v.cutPoints) {
-            console.log(`  ➡️ ${v.videoName}: start=${v.cutPoints.startKeep} end=${v.cutPoints.endKeep}`);
-          }
-        });
-        upsertContextSessionMutation.mutate({
-          userId: localCurrentUser.id,
-          coreBeliefId: selectedCoreBeliefId,
-          emotionalAngleId: selectedEmotionalAngleId,
-          adId: selectedAdId,
-          characterId: selectedCharacterId,
-          currentStep,
-          rawTextAd,
-          processedTextAd,
-          adLines,
-          prompts,
-          images,
-          combinations,
-          deletedCombinations,
-          videoResults,
-          reviewHistory,
-        }, {
-          onSuccess: () => {
-            console.log('[Context Session] ✅ AUTO-SAVE SUCCESS');
-          },
-          onError: (error) => {
-            console.error('[Context Session] Auto-save failed:', error);
-          },
-        });
-      }
-    }, 2000); // Debounce 2 seconds
-    
-    return () => clearTimeout(timeoutId);
-  }, [
-    // DO NOT include selectedAdId or selectedCharacterId in dependencies
-    // to prevent auto-save when switching context
-    currentStep,
-    rawTextAd,
-    processedTextAd,
-    adLines,
-    prompts,
-    images,
-    combinations,
-    deletedCombinations,
-    videoResults,
-    reviewHistory,
-    isRestoringSession,
-  ]);
+  // AUTO-SAVE REMOVED: Explicit saves added to Next buttons and major actions
+  // This eliminates race conditions when loading data from database
   
   // Auto-select first TAM when TAMs are loaded
   useEffect(() => {
@@ -2265,16 +2176,62 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
     setCombinations(newCombinations);
     setDeletedCombinations([]);
-    setCurrentStep(5); // Go to STEP 5 - Mapping
     
     console.log('[Create Mappings] Created', newCombinations.length, 'combinations from', textLines.length, 'text lines');
     console.log('[Create Mappings] First 3 texts:', textLines.slice(0, 3).map(l => l.text.substring(0, 50)));
     
-    if (ctaImage && firstCTAIndex !== -1) {
-      const ctaLinesCount = textLines.length - firstCTAIndex;
-      toast.success(`${newCombinations.length} combinații create. Poza CTA mapata pe secțiunea CTA și toate liniile următoare (${ctaLinesCount} linii)`);
+    // Save to database before moving to Step 5
+    if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
+      upsertContextSessionMutation.mutate({
+        userId: localCurrentUser.id,
+        coreBeliefId: selectedCoreBeliefId,
+        emotionalAngleId: selectedEmotionalAngleId,
+        adId: selectedAdId,
+        characterId: selectedCharacterId,
+        currentStep: 4,
+        rawTextAd,
+        processedTextAd,
+        adLines,
+        prompts,
+        images,
+        combinations: newCombinations,
+        deletedCombinations: [],
+        videoResults,
+        reviewHistory,
+      }, {
+        onSuccess: () => {
+          console.log('[Step 4] Saved before moving to Step 5');
+          setCurrentStep(5); // Go to STEP 5 - Mapping
+          
+          if (ctaImage && firstCTAIndex !== -1) {
+            const ctaLinesCount = textLines.length - firstCTAIndex;
+            toast.success(`${newCombinations.length} combinații create. Poza CTA mapata pe secțiunea CTA și toate liniile următoare (${ctaLinesCount} linii)`);
+          } else {
+            toast.success(`${newCombinations.length} combinații create cu mapare automată`);
+          }
+        },
+        onError: (error) => {
+          console.error('[Step 4] Save failed:', error);
+          // Still move to next step (don't block user)
+          setCurrentStep(5);
+          
+          if (ctaImage && firstCTAIndex !== -1) {
+            const ctaLinesCount = textLines.length - firstCTAIndex;
+            toast.success(`${newCombinations.length} combinații create. Poza CTA mapata pe secțiunea CTA și toate liniile următoare (${ctaLinesCount} linii)`);
+          } else {
+            toast.success(`${newCombinations.length} combinații create cu mapare automată`);
+          }
+        },
+      });
     } else {
-      toast.success(`${newCombinations.length} combinații create cu mapare automată`);
+      setCurrentStep(5);
+      
+      if (ctaImage && firstCTAIndex !== -1) {
+        const ctaLinesCount = textLines.length - firstCTAIndex;
+        toast.success(`${newCombinations.length} combinații create. Poza CTA mapata pe secțiunea CTA și toate liniile următoare (${ctaLinesCount} linii)`);
+      } else {
+        toast.success(`${newCombinations.length} combinații create cu mapare automată`);
+      }
     }
   };
 
@@ -2581,9 +2538,45 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           error: errorMessage,
         });
 
-        if (status === 'success') {
+        // Only show toast for NEW status changes (not for videos already loaded from DB)
+        const previousVideo = videoResults[index];
+        const isNewSuccess = status === 'success' && !previousVideo.videoUrl;
+        const isNewFailure = status === 'failed' && previousVideo.status !== 'failed';
+        
+        if (isNewSuccess) {
           toast.success(`Video #${index + 1} generat cu succes!`);
-        } else if (status === 'failed') {
+          
+          // Save to DB immediately after success
+          const updatedVideoResults = videoResults.map((v, i) =>
+            i === index
+              ? {
+                  ...v,
+                  status: status,
+                  videoUrl: videoUrl,
+                  error: errorMessage,
+                }
+              : v
+          );
+          
+          await upsertContextSessionMutation.mutateAsync({
+            userId: localCurrentUser.id,
+            tamId: selectedTamId,
+            coreBeliefId: selectedCoreBeliefId!,
+            emotionalAngleId: selectedEmotionalAngleId!,
+            adId: selectedAdId!,
+            characterId: selectedCharacterId!,
+            currentStep,
+            rawTextAd,
+            processedTextAd,
+            adLines,
+            prompts,
+            images,
+            combinations,
+            deletedCombinations,
+            videoResults: updatedVideoResults,
+            reviewHistory,
+          });
+        } else if (isNewFailure) {
           toast.error(`Video #${index + 1} a eșuat: ${errorMessage}`);
         }
         // Nu mai afișăm toast pentru pending - doar UI update
@@ -3086,22 +3079,29 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       toast.error(`Eroare la regenerare: ${error.message}`);
     }
   };
-
-  // Auto-check status din 10 în 10 secunde de la început
+  // Auto-check video status pentru videouri pending (polling)
   useEffect(() => {
     if (videoResults.length === 0) return;
 
-    const pendingVideos = videoResults.filter(v => v.status === 'pending');
+    // Only poll if we're in Step 6 (generation step)
+    if (currentStep !== 6) return;
+
+    // Only poll videos that are truly pending (no videoUrl yet)
+    const pendingVideos = videoResults.filter(v => v.status === 'pending' && v.taskId && !v.videoUrl);
     if (pendingVideos.length === 0) return;
+
+    console.log(`[Polling] Starting polling for ${pendingVideos.length} truly pending videos`);
 
     // Check-uri din 5 în 5 secunde de la început
     const interval = setInterval(() => {
-      const stillPending = videoResults.filter(v => v.status === 'pending');
+      const stillPending = videoResults.filter(v => v.status === 'pending' && v.taskId && !v.videoUrl);
       if (stillPending.length === 0) {
+        console.log('[Polling] All videos completed, stopping polling');
         clearInterval(interval);
         return;
       }
 
+      console.log(`[Polling] Checking ${stillPending.length} pending videos...`);
       stillPending.forEach((video) => {
         const actualIndex = videoResults.findIndex(v => v.taskId === video.taskId);
         if (actualIndex !== -1 && video.taskId) {
@@ -3113,30 +3113,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     return () => {
       clearInterval(interval);
     };
-  }, [videoResults]);
-
-  // Auto-check toate videouri pending când intri în STEP 6
-  useEffect(() => {
-    if (currentStep === 6 && videoResults.length > 0) {
-      const pendingVideos = videoResults.filter(v => v.status === 'pending' && v.taskId);
-      if (pendingVideos.length > 0) {
-        console.log(`STEP 6: Auto-checking ${pendingVideos.length} pending videos...`);
-        console.log('Pending video task IDs:', pendingVideos.map(v => v.taskId));
-        
-        pendingVideos.forEach((video, idx) => {
-          const videoIndex = videoResults.findIndex(v => v.taskId === video.taskId);
-          if (videoIndex !== -1 && video.taskId) {
-            // Delay each check by 3s to give API time to respond
-            setTimeout(() => {
-              console.log(`STEP 6: Checking video #${idx + 1}/${pendingVideos.length} - Task ID: ${video.taskId}`);
-              checkVideoStatus(video.taskId!, videoIndex);
-            }, idx * 3000); // ← Changed from 1000ms to 3000ms
-          }
-        });
-      }
-    }
-  }, [currentStep]);
-
+  }, [videoResults, currentStep])  // DISABLED: Auto-check când intri în STEP 6 - cauzează false "în curs de regenerare" la refresh
+  // Polling-ul de mai sus (line 3047) este suficient pentru videouri pending reale
   // ========== WORD DOCUMENT GENERATION ==========
   const generateWordDocument = useCallback(() => {
     // Group adLines by section
@@ -3276,14 +3254,54 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     toast.success(`Acțiune anulată pentru ${lastAction.videoName}`);
   }, [reviewHistory]);
 
-  const goToCheckVideos = () => {
+  const goToCheckVideos = async () => {
     setCurrentStep(7); // Go to STEP 7 - Check Videos
+    
+    // Save currentStep to DB
+    await upsertContextSessionMutation.mutateAsync({
+      userId: localCurrentUser.id,
+      tamId: selectedTamId,
+      coreBeliefId: selectedCoreBeliefId!,
+      emotionalAngleId: selectedEmotionalAngleId!,
+      adId: selectedAdId!,
+      characterId: selectedCharacterId!,
+      currentStep: 7,
+      rawTextAd,
+      processedTextAd,
+      adLines,
+      prompts,
+      images,
+      combinations,
+      deletedCombinations,
+      videoResults,
+      reviewHistory,
+    });
   };
 
   // Navigation
-  const goToStep = (step: number) => {
+  const goToStep = async (step: number) => {
     // Allow free navigation in both directions
     setCurrentStep(step);
+    
+    // Save currentStep to DB
+    await upsertContextSessionMutation.mutateAsync({
+      userId: localCurrentUser.id,
+      tamId: selectedTamId,
+      coreBeliefId: selectedCoreBeliefId!,
+      emotionalAngleId: selectedEmotionalAngleId!,
+      adId: selectedAdId!,
+      characterId: selectedCharacterId!,
+      currentStep: step,
+      rawTextAd,
+      processedTextAd,
+      adLines,
+      prompts,
+      images,
+      combinations,
+      deletedCombinations,
+      videoResults,
+      reviewHistory,
+    });
   };
 
   const goBack = () => {
@@ -3300,69 +3318,85 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 py-4 md:py-8 px-2 md:px-4">
-      <div className="container max-w-6xl mx-auto">
-        {/* User Dropdown - Top Right */}
-        <div className="fixed top-2 right-2 md:top-4 md:right-4 z-50">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-1 md:gap-2 px-2 md:px-3 py-1.5 md:py-2 rounded-lg hover:bg-gray-100 transition-colors bg-white shadow-md">
-                {localCurrentUser.profileImageUrl && (
-                  <img
-                    src={localCurrentUser.profileImageUrl}
-                    alt="Profile"
-                    className="w-6 h-6 md:w-8 md:h-8 rounded-full border border-gray-300 object-cover"
-                  />
-                )}
-                {!localCurrentUser.profileImageUrl && (
-                  <div className="w-6 h-6 md:w-8 md:h-8 rounded-full border border-gray-300 bg-gray-100 flex items-center justify-center">
-                    <span className="text-gray-700 font-medium text-sm">
-                      {localCurrentUser.username.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                )}
-                <span className="hidden md:inline text-sm font-medium text-gray-700">{localCurrentUser.username}</span>
-                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={() => setLocation("/images-library")} className="cursor-pointer">
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100">
+      {/* Header Navigation Bar */}
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 shadow-lg">
+        <div className="container max-w-7xl mx-auto px-4">
+          <div className="flex items-center justify-between h-16">
+            {/* Logo + Brand */}
+            <div className="flex items-center gap-3">
+              <Sparkles className="w-6 h-6 text-yellow-300" />
+              <span className="text-white font-bold text-lg">A.I Ads Engine</span>
+            </div>
+            
+            {/* Navigation Links */}
+            <div className="hidden md:flex items-center gap-6">
+              <button
+                onClick={() => setLocation("/images-library")}
+                className="flex items-center gap-2 text-white hover:text-yellow-300 transition-colors text-sm font-medium"
+              >
+                <Images className="w-4 h-4" />
                 Images Library
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setLocation("/prompts-library")} className="cursor-pointer">
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
+              </button>
+              <button
+                onClick={() => setLocation("/prompts-library")}
+                className="flex items-center gap-2 text-white hover:text-yellow-300 transition-colors text-sm font-medium"
+              >
+                <MessageSquare className="w-4 h-4" />
                 Prompts Library
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setLocation("/category-management")} className="cursor-pointer">
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                </svg>
-                Category Management
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setIsEditProfileOpen(true)} className="cursor-pointer">
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
+              </button>
+              <button
+                onClick={() => setLocation("/category-management")}
+                className="flex items-center gap-2 text-white hover:text-yellow-300 transition-colors text-sm font-medium"
+              >
+                <Folder className="w-4 h-4" />
+                Ads Management
+              </button>
+              <button
+                onClick={() => setIsEditProfileOpen(true)}
+                className="flex items-center gap-2 text-white hover:text-yellow-300 transition-colors text-sm font-medium"
+              >
+                <SettingsIcon className="w-4 h-4" />
                 Settings
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={onLogout} className="cursor-pointer text-red-600">
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-                Logout
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              </button>
+            </div>
+            
+            {/* User Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-800 transition-colors">
+                  {localCurrentUser.profileImageUrl && (
+                    <img
+                      src={localCurrentUser.profileImageUrl}
+                      alt="Profile"
+                      className="w-8 h-8 rounded-full border-2 border-white object-cover"
+                    />
+                  )}
+                  {!localCurrentUser.profileImageUrl && (
+                    <div className="w-8 h-8 rounded-full border-2 border-white bg-blue-800 flex items-center justify-center">
+                      <span className="text-white font-medium text-sm">
+                        {localCurrentUser.username.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                  <span className="text-white text-sm font-medium">{localCurrentUser.username}</span>
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={onLogout} className="cursor-pointer text-red-600">
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Logout
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
+      </div>
+      
+      <div className="container max-w-6xl mx-auto py-4 md:py-8 px-2 md:px-4">
       
       {/* Edit Profile Modal */}
       <EditProfileModal
@@ -3731,16 +3765,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         </DialogContent>
       </Dialog>
 
-        <div className="text-center mb-6 md:mb-12">
-          <h1 className="text-2xl md:text-4xl font-bold text-blue-900 mb-2">A.I Ads Engine</h1>
-          <p className="text-sm md:text-base text-blue-700">Generează videouri AI în masă cu Veo 3.1</p>
-        </div>
+
 
         {/* Context Selector */}
-        <div className="mb-6 md:mb-8 p-3 md:p-6 bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-300 rounded-xl shadow-lg">
-          <div className="mb-4">
-            <h2 className="text-lg md:text-2xl font-bold text-blue-900 mb-2 flex items-center gap-2">
-              <span className="text-2xl md:text-3xl">🎯</span>
+        <div className="mb-4 p-3 bg-white border border-blue-200 rounded-lg shadow-sm">
+          <div className="mb-3">
+            <h2 className="text-sm font-semibold text-blue-900 mb-1 flex items-center gap-2">
+              <span className="text-lg">🎯</span>
               Select Your Working Context
             </h2>
             <p className="text-sm text-gray-600">Choose all 5 categories to start working. This context will apply to all steps.</p>
@@ -4006,24 +4037,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             </div>
           </div>
           
-          {/* Context Status */}
-          {selectedTamId && selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId && (
-            <div className="mt-4 p-4 bg-green-50 border border-green-300 rounded-lg">
-              <p className="text-green-900 font-medium flex items-center gap-2">
-                <span className="text-xl">✅</span>
-                Context complete! You can now access all steps.
-              </p>
-            </div>
-          )}
-          
-          {(!selectedTamId || !selectedCoreBeliefId || !selectedEmotionalAngleId || !selectedAdId || !selectedCharacterId) && (
-            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-300 rounded-lg">
-              <p className="text-yellow-900 font-medium flex items-center gap-2">
-                <span className="text-xl">⚠️</span>
-                Please select all 5 categories to continue.
-              </p>
-            </div>
-          )}
+
         </div>
 
         {/* Context Required Warning */}
@@ -4042,14 +4056,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         <div className="hidden md:flex justify-between items-center mb-8 px-4">
           {[
             { num: 1, label: "Prepare Ad", icon: FileText },
-            { num: 2, label: "Text Ad", icon: FileText },
+            { num: 2, label: "Extracted Lines", icon: FileText },
             { num: 3, label: "Prompts", icon: FileText },
             { num: 4, label: "Images", icon: ImageIcon },
             { num: 5, label: "Mapping", icon: MapIcon },
             { num: 6, label: "Generate", icon: Play },
-            { num: 7, label: "Check Videos", icon: Video },
-            { num: 8, label: "Video Editing", icon: Video },
-            { num: 9, label: "Cut Videos", icon: Download },
+            { num: 7, label: "Check Videos", icon: Video },
+            { num: 8, label: "Prepare for Cut", icon: Video },
+            { num: 9, label: "Trimmed Videos", icon: Download },
           ].map((step, index) => (
             <div key={step.num} className="flex items-center flex-1">
               <div className="flex flex-col items-center flex-1">
@@ -4552,6 +4566,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     >
                       {processTextAdMutation.isPending ? 'Processing...' : (
                         <>
+                          <FileEdit className="w-5 h-5 mr-2" />
                           Next: Prepare Ad
                           <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -4579,30 +4594,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-4 md:pt-6 px-3 md:px-6">
-              {/* Document Source Selector */}
-              <div className="mb-6">
-                <Label className="text-blue-900 font-medium mb-3 block">Document Source:</Label>
-                <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
-                  <Button
-                    onClick={() => {
-                      // Keep lines from STEP 1 - already in adLines
-                      toast.success('Using lines inherited from STEP 1');
-                    }}
-                    variant={adDocument ? 'outline' : 'default'}
-                    className={adDocument ? '' : 'bg-blue-600 hover:bg-blue-700'}
-                    disabled={adLines.length === 0}
-                  >
-                    Inherited from STEP 1 {adLines.length > 0 && `(${adLines.filter(l => l.categoryNumber > 0).length} lines)`}
-                  </Button>
-
-                </div>
-              </div>
-
-              {/* Document Upload (only shown when Upload New Document is active) */}
-              {!adDocument && adLines.length === 0 && (
+              {/* Document Upload (only shown when no lines available) */}
+              {adLines.length === 0 && (
                 <div className="mb-6 p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <p className="text-yellow-900 text-sm">
-                    ⚠️ No lines available from STEP 1. Please upload a document or go back to STEP 1 to process text.
+                    ⚠️ No lines available from STEP 1. Please go back to STEP 1 to process text.
                   </p>
                 </div>
               )}
@@ -4650,11 +4646,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
               {adLines.length > 0 && (
                 <div className="mt-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="font-medium text-blue-900">
-                      {adLines.filter(l => l.categoryNumber > 0).length} linii extrase:
-                    </p>
-                    {deletedLinesHistory.length > 0 && (
+                  {deletedLinesHistory.length > 0 && (
+                    <div className="mb-4">
                       <Button
                         onClick={() => {
                           const lastDeleted = deletedLinesHistory[0];
@@ -4664,14 +4657,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         }}
                         variant="outline"
                         size="sm"
-                        className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                        className="gap-2"
                       >
-                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                        </svg>
-                        UNDO ({deletedLinesHistory.length})
+                        <Undo2 className="w-4 h-4" />
+                        UNDO - Restaurează ultima linie ștearsă
                       </Button>
-                    )}
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="font-medium text-blue-900">
+                      {adLines.filter(l => l.categoryNumber > 0).length} linii extrase:
+                    </p>
                   </div>
                   <div className="space-y-2">
                     {adLines.map((line) => {
@@ -4900,9 +4896,43 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       Back
                     </Button>
                     <Button
-                      onClick={() => setCurrentStep(3)}
+                      onClick={() => {
+                        // Save to database before moving to next step
+                        if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
+                          upsertContextSessionMutation.mutate({
+                            userId: localCurrentUser.id,
+                            coreBeliefId: selectedCoreBeliefId,
+                            emotionalAngleId: selectedEmotionalAngleId,
+                            adId: selectedAdId,
+                            characterId: selectedCharacterId,
+                            currentStep: 2,
+                            rawTextAd,
+                            processedTextAd,
+                            adLines,
+                            prompts,
+                            images,
+                            combinations,
+                            deletedCombinations,
+                            videoResults,
+                            reviewHistory,
+                          }, {
+                            onSuccess: () => {
+                              console.log('[Step 2] Saved before moving to Step 3');
+                              setCurrentStep(3);
+                            },
+                            onError: (error) => {
+                              console.error('[Step 2] Save failed:', error);
+                              // Still move to next step (don't block user)
+                              setCurrentStep(3);
+                            },
+                          });
+                        } else {
+                          setCurrentStep(3);
+                        }
+                      }}
                       className="bg-blue-600 hover:bg-blue-700 px-8 py-8 text-lg"
                     >
+                      <MessageSquare className="w-5 h-5 mr-2" />
                       Next: Choose Prompts
                       <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -5185,9 +5215,43 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   Back
                 </Button>
                 <Button
-                  onClick={() => setCurrentStep(4)}
+                  onClick={() => {
+                    // Save to database before moving to next step
+                    if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
+                      upsertContextSessionMutation.mutate({
+                        userId: localCurrentUser.id,
+                        coreBeliefId: selectedCoreBeliefId,
+                        emotionalAngleId: selectedEmotionalAngleId,
+                        adId: selectedAdId,
+                        characterId: selectedCharacterId,
+                        currentStep: 3,
+                        rawTextAd,
+                        processedTextAd,
+                        adLines,
+                        prompts,
+                        images,
+                        combinations,
+                        deletedCombinations,
+                        videoResults,
+                        reviewHistory,
+                      }, {
+                        onSuccess: () => {
+                          console.log('[Step 3] Saved before moving to Step 4');
+                          setCurrentStep(4);
+                        },
+                        onError: (error) => {
+                          console.error('[Step 3] Save failed:', error);
+                          // Still move to next step (don't block user)
+                          setCurrentStep(4);
+                        },
+                      });
+                    } else {
+                      setCurrentStep(4);
+                    }
+                  }}
                   className="bg-blue-600 hover:bg-blue-700 px-8 py-8 text-lg"
                 >
+                  <Images className="w-5 h-5 mr-2" />
                   Next: Select Images
                   <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -5492,7 +5556,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   disabled={images.length === 0}
                   className="bg-blue-600 hover:bg-blue-700 px-8 py-8 text-lg"
                 >
-                  Next: Create Mappings
+                  <Grid3x3 className="w-5 h-5 mr-2" />
+                  Next: Create Mappings ({adLines.filter(l => l.categoryNumber > 0).length})
                   <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
@@ -5634,7 +5699,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   ) : (
                     <>
                       <Video className="w-5 h-5 mr-2" />
-                      Next: Generate ({combinations.length} Videos)
+                      Next: Generate ({combinations.length})
+                      <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
                     </>
                   )}
                 </Button>
@@ -6931,7 +6999,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     onClick={goToCheckVideos}
                     className="bg-green-600 hover:bg-green-700 px-8 py-8 text-lg"
                   >
-                    Next: Check ({videoResults.filter(v => v.status === 'success').length} Videos)
+                    <CheckCircle2 className="w-5 h-5 mr-2" />
+                    Next: Check ({videoResults.filter(v => v.status === 'success').length})
                     <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
