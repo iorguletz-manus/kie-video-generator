@@ -2619,6 +2619,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       
       console.log(`[Trimming] ✅ Batch ${batchNumber} complete!`)
       
+      // Check if ALL jobs are complete (success or failed)
+      const allJobsComplete = jobs.every(j => j.status === 'success' || j.status === 'failed');
+      if (allJobsComplete) {
+        console.log('[Trimming] 🎉 All jobs complete! Exiting batch loop early.');
+        break;
+      }
+      
       currentIndex = batchEnd;
       batchNumber++;
     }
