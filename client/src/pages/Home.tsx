@@ -190,9 +190,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // Step 8: Video Editing Processing
   const [showProcessingModal, setShowProcessingModal] = useState(false);
   const [processingProgress, setProcessingProgress] = useState({ 
-    ffmpeg: { current: 0, total: 0, status: 'idle' as 'idle' | 'processing' | 'complete', currentVideo: '' },
-    whisper: { current: 0, total: 0, status: 'idle' as 'idle' | 'processing' | 'complete', currentVideo: '' },
-    cleanvoice: { current: 0, total: 0, status: 'idle' as 'idle' | 'processing' | 'complete', currentVideo: '' },
+    ffmpeg: { current: 0, total: 0, status: 'idle' as 'idle' | 'processing' | 'complete', activeVideos: [] as string[] },
+    whisper: { current: 0, total: 0, status: 'idle' as 'idle' | 'processing' | 'complete', activeVideos: [] as string[] },
+    cleanvoice: { current: 0, total: 0, status: 'idle' as 'idle' | 'processing' | 'complete', activeVideos: [] as string[] },
     currentVideoName: '' 
   });
   const [processingStep, setProcessingStep] = useState<'download' | 'extract' | 'whisper' | 'cleanvoice' | 'detect' | 'save' | null>(null);
@@ -1660,9 +1660,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     // Initialize progress bars
     setProcessingProgress({
-      ffmpeg: { current: 0, total: videos.length, status: 'idle', currentVideo: '' },
-      whisper: { current: 0, total: videos.length, status: 'idle', currentVideo: '' },
-      cleanvoice: { current: 0, total: videos.length, status: 'idle', currentVideo: '' },
+      ffmpeg: { current: 0, total: videos.length, status: 'idle', activeVideos: [] },
+      whisper: { current: 0, total: videos.length, status: 'idle', activeVideos: [] },
+      cleanvoice: { current: 0, total: videos.length, status: 'idle', activeVideos: [] },
       currentVideoName: ''
     });
     
@@ -1692,10 +1692,24 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           activeFfmpegRequests++;
           setProcessingStep('extract');
           
-          // Set FFmpeg status to processing
+          // Add video to ALL 3 services' active lists (they run in parallel in backend)
           setProcessingProgress(prev => ({
             ...prev,
-            ffmpeg: { ...prev.ffmpeg, status: 'processing', currentVideo: video.videoName }
+            ffmpeg: { 
+              ...prev.ffmpeg, 
+              status: 'processing', 
+              activeVideos: [...prev.ffmpeg.activeVideos, video.videoName]
+            },
+            whisper: {
+              ...prev.whisper,
+              status: 'processing',
+              activeVideos: [...prev.whisper.activeVideos, video.videoName]
+            },
+            cleanvoice: {
+              ...prev.cleanvoice,
+              status: 'processing',
+              activeVideos: [...prev.cleanvoice.activeVideos, video.videoName]
+            }
           }));
           
           // Extract red text from video
@@ -1756,7 +1770,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               : JSON.stringify(result.whisperTranscript).substring(0, 50) + '...'
           });
           
-          // Update FFmpeg progress (audio extraction complete)
+          // Update FFmpeg progress (audio extraction complete) - remove from active list
           ffmpegCompletedCount++;
           setProcessingProgress(prev => ({ 
             ...prev,
@@ -1764,12 +1778,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               current: ffmpegCompletedCount, 
               total: videos.length,
               status: ffmpegCompletedCount === videos.length ? 'complete' : 'processing',
-              currentVideo: ffmpegCompletedCount === videos.length ? '' : video.videoName
+              activeVideos: prev.ffmpeg.activeVideos.filter(v => v !== video.videoName)
             },
             currentVideoName: video.videoName 
           }));
           
-          // Update Whisper progress (transcription complete)
+          // Update Whisper progress (transcription complete) - remove from active list
           whisperCompletedCount++;
           setProcessingProgress(prev => ({ 
             ...prev,
@@ -1777,12 +1791,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               current: whisperCompletedCount, 
               total: videos.length,
               status: whisperCompletedCount === videos.length ? 'complete' : 'processing',
-              currentVideo: whisperCompletedCount === videos.length ? '' : video.videoName
+              activeVideos: prev.whisper.activeVideos.filter(v => v !== video.videoName)
             },
             currentVideoName: video.videoName 
           }));
           
-          // Update CleanVoice progress (audio processing complete)
+          // Update CleanVoice progress (audio processing complete) - remove from active list
           cleanvoiceCompletedCount++;
           setProcessingProgress(prev => ({ 
             ...prev,
@@ -1790,7 +1804,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               current: cleanvoiceCompletedCount, 
               total: videos.length,
               status: cleanvoiceCompletedCount === videos.length ? 'complete' : 'processing',
-              currentVideo: cleanvoiceCompletedCount === videos.length ? '' : video.videoName
+              activeVideos: prev.cleanvoice.activeVideos.filter(v => v !== video.videoName)
             },
             currentVideoName: video.videoName 
           }));
@@ -1820,7 +1834,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           
           console.error(`[Batch Processing] ❌ ${video.videoName} - Attempt ${attempt} failed:`, error.message);
           
-          // Update progress even on failure (last attempt)
+          // Update progress even on failure (last attempt) - remove from all active lists
           if (attempt === retries) {
             ffmpegCompletedCount++;
             whisperCompletedCount++;
@@ -1831,19 +1845,19 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 current: ffmpegCompletedCount, 
                 total: videos.length,
                 status: ffmpegCompletedCount === videos.length ? 'complete' : 'processing',
-                currentVideo: ffmpegCompletedCount === videos.length ? '' : video.videoName
+                activeVideos: prev.ffmpeg.activeVideos.filter(v => v !== video.videoName)
               },
               whisper: { 
                 current: whisperCompletedCount, 
                 total: videos.length,
                 status: whisperCompletedCount === videos.length ? 'complete' : 'processing',
-                currentVideo: whisperCompletedCount === videos.length ? '' : video.videoName
+                activeVideos: prev.whisper.activeVideos.filter(v => v !== video.videoName)
               },
               cleanvoice: { 
                 current: cleanvoiceCompletedCount, 
                 total: videos.length,
                 status: cleanvoiceCompletedCount === videos.length ? 'complete' : 'processing',
-                currentVideo: cleanvoiceCompletedCount === videos.length ? '' : video.videoName
+                activeVideos: prev.cleanvoice.activeVideos.filter(v => v !== video.videoName)
               },
               currentVideoName: video.videoName 
             }));
@@ -8681,13 +8695,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         <option value="accepted">Acceptate ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.recutStatus === 'accepted').length})</option>
                         <option value="recut">Necesită Retăiere ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.recutStatus === 'recut').length})</option>
                         <option value="unlocked">Fără Lock ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && (!v.isStartLocked || !v.isEndLocked)).length})</option>
-                        <option value="problems">Possible Problems ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.editingDebugInfo?.algorithmLogs?.some((log: string) => log.includes('❌') && !log.includes('✅'))).length})</option>
+                        <option value="problems">Possible Problems ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.editingDebugInfo?.status && v.editingDebugInfo.status !== 'success').length})</option>
                         <option value="with_notes">With Notes ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.step9Note).length})</option>
                       </select>
                     </div>
                     
                     {/* Check Video with Problems link */}
-                    {videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.editingDebugInfo?.algorithmLogs?.some((log: string) => log.includes('❌') && !log.includes('✅'))).length > 0 && (
+                    {videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.editingDebugInfo?.status && v.editingDebugInfo.status !== 'success').length > 0 && (
                       <button
                         onClick={() => setStep8Filter('problems')}
                         className="text-sm text-red-600 hover:text-red-700 underline font-medium"

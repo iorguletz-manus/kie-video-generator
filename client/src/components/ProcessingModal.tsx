@@ -5,9 +5,9 @@ import { Loader2 } from 'lucide-react';
 
 interface ProcessingModalProps {
   open: boolean;
-  ffmpegProgress: { current: number; total: number; status: 'idle' | 'processing' | 'complete'; currentVideo: string };
-  whisperProgress: { current: number; total: number; status: 'idle' | 'processing' | 'complete'; currentVideo: string };
-  cleanvoiceProgress: { current: number; total: number; status: 'idle' | 'processing' | 'complete'; currentVideo: string };
+  ffmpegProgress: { current: number; total: number; status: 'idle' | 'processing' | 'complete'; activeVideos: string[] };
+  whisperProgress: { current: number; total: number; status: 'idle' | 'processing' | 'complete'; activeVideos: string[] };
+  cleanvoiceProgress: { current: number; total: number; status: 'idle' | 'processing' | 'complete'; activeVideos: string[] };
   currentVideoName: string;
   processingStep: 'download' | 'extract' | 'whisper' | 'cleanvoice' | 'detect' | 'save' | null;
 }
@@ -66,7 +66,9 @@ export function ProcessingModal({
             <Progress value={ffmpegPercent} className="h-2" />
             <p className="text-xs text-gray-500">
               {ffmpegProgress.status === 'idle' && '⏸️ Waiting...'}
-              {ffmpegProgress.status === 'processing' && `⏳ Processing: ${ffmpegProgress.currentVideo}`}
+              {ffmpegProgress.status === 'processing' && ffmpegProgress.activeVideos.length > 0 && (
+                <span>⏳ Processing {ffmpegProgress.activeVideos.length} video(s): {ffmpegProgress.activeVideos.slice(0, 2).join(', ')}{ffmpegProgress.activeVideos.length > 2 && ` +${ffmpegProgress.activeVideos.length - 2} more`}</span>
+              )}
               {ffmpegProgress.status === 'complete' && '✅ Complete!'}
             </p>
           </div>
@@ -80,7 +82,9 @@ export function ProcessingModal({
             <Progress value={whisperPercent} className="h-2" />
             <p className="text-xs text-gray-500">
               {whisperProgress.status === 'idle' && '⏸️ Waiting...'}
-              {whisperProgress.status === 'processing' && `⏳ Processing: ${whisperProgress.currentVideo}`}
+              {whisperProgress.status === 'processing' && whisperProgress.activeVideos.length > 0 && (
+                <span>⏳ Processing {whisperProgress.activeVideos.length} video(s): {whisperProgress.activeVideos.slice(0, 2).join(', ')}{whisperProgress.activeVideos.length > 2 && ` +${whisperProgress.activeVideos.length - 2} more`}</span>
+              )}
               {whisperProgress.status === 'complete' && '✅ Complete!'}
             </p>
           </div>
@@ -94,7 +98,9 @@ export function ProcessingModal({
             <Progress value={cleanvoicePercent} className="h-2" />
             <p className="text-xs text-gray-500">
               {cleanvoiceProgress.status === 'idle' && '⏸️ Waiting...'}
-              {cleanvoiceProgress.status === 'processing' && `⏳ Processing: ${cleanvoiceProgress.currentVideo}`}
+              {cleanvoiceProgress.status === 'processing' && cleanvoiceProgress.activeVideos.length > 0 && (
+                <span>⏳ Processing {cleanvoiceProgress.activeVideos.length} video(s): {cleanvoiceProgress.activeVideos.slice(0, 2).join(', ')}{cleanvoiceProgress.activeVideos.length > 2 && ` +${cleanvoiceProgress.activeVideos.length - 2} more`}</span>
+              )}
               {cleanvoiceProgress.status === 'complete' && '✅ Complete!'}
             </p>
           </div>
