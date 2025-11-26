@@ -18,7 +18,7 @@ export function sanitizePathSegment(str: string): string {
 
 /**
  * Generate path for user library images
- * Pattern: users/{userId}/library/images/{characterName}/{imageName}-{timestamp}.png
+ * Pattern: user-{userId}/images/{characterName}/{imageName}-{timestamp}.png
  */
 export function generateImageLibraryPath(
   userId: number,
@@ -30,7 +30,7 @@ export function generateImageLibraryPath(
   const sanitizedImageName = sanitizePathSegment(imageName);
   const randomSuffix = Math.random().toString(36).substring(2, 15);
   
-  return `users/${userId}/library/images/${sanitizedCharacter}/${sanitizedImageName}-${timestamp}-${randomSuffix}.png`;
+  return `user-${userId}/images/${sanitizedCharacter}/${sanitizedImageName}-${timestamp}-${randomSuffix}.png`;
 }
 
 /**
@@ -58,6 +58,36 @@ export function generateCampaignFilePath(
   const randomSuffix = Math.random().toString(36).substring(2, 15);
   
   return `users/${userId}/campaigns/${sanitizedTam}/${sanitizedCoreBelief}/${sanitizedEmotionalAngle}/${sanitizedAd}/${sanitizedCharacter}/${fileType}/${sanitizedFileName}-${timestamp}-${randomSuffix}.${extension}`;
+}
+
+/**
+ * Generate path for audio files
+ * Pattern: user-{userId}/audio/{fileName}-{timestamp}.mp3
+ */
+export function generateAudioPath(
+  userId: number,
+  fileName: string,
+  timestamp: number = Date.now()
+): string {
+  const sanitizedFileName = sanitizePathSegment(fileName);
+  const randomSuffix = Math.random().toString(36).substring(2, 15);
+  
+  return `user-${userId}/audio/${sanitizedFileName}-${timestamp}-${randomSuffix}.mp3`;
+}
+
+/**
+ * Generate path for trimmed videos
+ * Pattern: user-{userId}/trimmed-videos/{videoName}-{timestamp}.mp4
+ */
+export function generateTrimmedVideoPath(
+  userId: number,
+  videoName: string,
+  timestamp: number = Date.now()
+): string {
+  const sanitizedVideoName = sanitizePathSegment(videoName);
+  const randomSuffix = Math.random().toString(36).substring(2, 15);
+  
+  return `user-${userId}/trimmed-videos/${sanitizedVideoName}-${timestamp}-${randomSuffix}.mp4`;
 }
 
 /**

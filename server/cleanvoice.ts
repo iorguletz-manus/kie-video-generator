@@ -129,16 +129,19 @@ export async function downloadAndUploadCleanVoiceAudio(
   });
 
   const audioBuffer = Buffer.from(response.data);
-  const fileName = `${videoName}.mp3`;
+  
+  // Use new path structure: user-{userId}/audio/{fileName}
+  const { generateAudioPath } = await import('./storageHelpers');
+  const fileName = generateAudioPath(userId, videoName);
 
-  console.log(`[CleanVoice] Uploading to Bunny CDN: cleanvoice/${fileName}`);
+  console.log(`[CleanVoice] Uploading to Bunny CDN: ${fileName}`);
 
-  // Upload to Bunny CDN in cleanvoice folder
+  // Upload to Bunny CDN
   const BUNNYCDN_STORAGE_PASSWORD = '4c9257d6-aede-4ff1-bb0f9fc95279-997e-412b';
   const BUNNYCDN_STORAGE_ZONE = 'manus-storage';
   const BUNNYCDN_PULL_ZONE_URL = 'https://manus.b-cdn.net';
 
-  const storageUrl = `https://storage.bunnycdn.com/${BUNNYCDN_STORAGE_ZONE}/cleanvoice/${fileName}`;
+  const storageUrl = `https://storage.bunnycdn.com/${BUNNYCDN_STORAGE_ZONE}/${fileName}`;
 
   const uploadResponse = await axios.put(storageUrl, audioBuffer, {
     headers: {
@@ -151,7 +154,7 @@ export async function downloadAndUploadCleanVoiceAudio(
     throw new Error(`Failed to upload to Bunny CDN: ${uploadResponse.status}`);
   }
 
-  const cdnUrl = `${BUNNYCDN_PULL_ZONE_URL}/cleanvoice/${fileName}`;
+  const cdnUrl = `${BUNNYCDN_PULL_ZONE_URL}/${fileName}`;
 
   console.log(`[CleanVoice] Audio uploaded successfully: ${cdnUrl}`);
   return cdnUrl;

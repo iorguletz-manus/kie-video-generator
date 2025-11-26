@@ -1634,6 +1634,7 @@ export const appRouter = router({
     // Cut video with timestamps (Step 10)
     cutVideo: publicProcedure
       .input(z.object({
+        userId: z.number(),
         videoUrl: z.string(),
         videoName: z.string(),
         startTimeMs: z.number(),  // milliseconds
@@ -1667,10 +1668,12 @@ export const appRouter = router({
           }
           const videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
           
-          // Upload to Bunny CDN
-          const timestamp = Date.now();
-          const randomSuffix = Math.random().toString(36).substring(2, 8);
-          const fileName = `trimmed-videos/video-${input.videoId}-${timestamp}-${randomSuffix}.mp4`;
+          // Upload to Bunny CDN using new path structure
+          const { generateTrimmedVideoPath } = await import('./storageHelpers');
+          const fileName = generateTrimmedVideoPath(
+            input.userId,
+            input.videoName
+          );
           
           const BUNNYCDN_STORAGE_PASSWORD = '4c9257d6-aede-4ff1-bb0f9fc95279-997e-412b';
           const BUNNYCDN_STORAGE_ZONE = 'manus-storage';

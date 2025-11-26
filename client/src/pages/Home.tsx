@@ -2376,6 +2376,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         console.log(`[Trimming] 🎵 CleanVoice URL for ${job.video.videoName}:`, job.video.cleanvoiceAudioUrl || 'NULL (will use original audio)');
         
         const result = await cutVideoMutation.mutateAsync({
+          userId: localCurrentUser.id,
           videoUrl: job.video.videoUrl!,
           videoName: job.video.videoName,
           startTimeMs: trimStart,
