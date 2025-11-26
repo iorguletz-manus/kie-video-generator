@@ -1449,18 +1449,29 @@ export async function mergeVideosWithFFmpegAPI(
       return videoUrls[0];
     }
     
-    // 1. Upload all videos to FFmpeg API
+    // 1. Upload all videos to FFmpeg API in the SAME directory
     console.log(`[mergeVideosWithFFmpegAPI] Uploading ${videoUrls.length} videos...`);
     const uploadedFilePaths: string[] = [];
+    let sharedDirId: string | undefined = undefined;
     
-    // Use same timestamp for all uploads so they're in the same directory
+    // Use same timestamp for all uploads
     const batchTimestamp = Date.now();
     
     for (let i = 0; i < videoUrls.length; i++) {
       const videoUrl = videoUrls[i];
       const fileName = `merge_input_${i}_${batchTimestamp}.mp4`;
-      const filePath = await uploadVideoToFFmpegAPI(videoUrl, fileName, ffmpegApiKey);
+      
+      // First upload creates directory, subsequent uploads use same dirId
+      const filePath = await uploadVideoToFFmpegAPI(videoUrl, fileName, ffmpegApiKey, sharedDirId);
       uploadedFilePaths.push(filePath);
+      
+      // Extract dirId from first upload for subsequent uploads
+      if (i === 0 && filePath.includes('/')) {
+        // file_path format: "dir_abc123/merge_input_0_1234567890.mp4"
+        sharedDirId = filePath.split('/')[0];
+        console.log(`[mergeVideosWithFFmpegAPI] Using shared directory: ${sharedDirId}`);
+      }
+      
       console.log(`[mergeVideosWithFFmpegAPI] Uploaded ${i + 1}/${videoUrls.length}: ${filePath}`);
     }
     

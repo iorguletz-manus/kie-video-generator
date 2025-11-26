@@ -1692,18 +1692,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           activeFfmpegRequests++;
           setProcessingStep('extract');
           
-          // Add video to ALL 3 services' active lists (they run in parallel in backend)
+          // Add video to FFmpeg and CleanVoice (they start together with video URL)
+          // Whisper will be added later after FFmpeg extracts audio
           setProcessingProgress(prev => ({
             ...prev,
             ffmpeg: { 
               ...prev.ffmpeg, 
               status: 'processing', 
               activeVideos: [...prev.ffmpeg.activeVideos, video.videoName]
-            },
-            whisper: {
-              ...prev.whisper,
-              status: 'processing',
-              activeVideos: [...prev.whisper.activeVideos, video.videoName]
             },
             cleanvoice: {
               ...prev.cleanvoice,
@@ -1759,6 +1755,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           
           // Decrement active FFmpeg counter AFTER response
           activeFfmpegRequests--;
+          
+          // Add to Whisper active list NOW (FFmpeg extracted audio, Whisper starts transcription)
+          setProcessingProgress(prev => ({
+            ...prev,
+            whisper: {
+              ...prev.whisper,
+              status: 'processing',
+              activeVideos: [...prev.whisper.activeVideos, video.videoName]
+            }
+          }));
           
           const videoDuration = Date.now() - videoStartTime;
           console.log(`[Batch Processing] ✅ ${video.videoName} - Success in ${videoDuration}ms (${(videoDuration/1000).toFixed(2)}s)!`);
@@ -4108,15 +4114,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   </p>
                 </div>
                 
-                {/* Current Video */}
-                {trimmingProgress.current < trimmingProgress.total && trimmingProgress.currentVideo && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                    <div className="flex items-center gap-2 text-sm text-red-700">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      ✂️ Tăiere cu FFmpeg + înlocuire audio CleanVoice...
-                    </div>
-                  </div>
-                )}
+                {/* Removed: Current Video popup - replaced by progress bars */}
                 
                 {/* Estimated Time */}
                 {trimmingProgress.current < trimmingProgress.total && (
@@ -9631,9 +9629,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         ) : (
                           <>
                             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                             </svg>
-                            Next: Merge Videos
+                            Next: Merge Videos ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.trimmedVideoUrl).length})
                           </>
                         )}
                         <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
