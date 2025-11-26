@@ -2442,12 +2442,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       return;
     }
     
-    console.log('[Trimming] Starting FFmpeg RATE-LIMITED trim process for', videosToTrim.length, 'videos (max 10 per 65 seconds)');
+    console.log('[Trimming] Starting FFmpeg RATE-LIMITED trim process for', videosToTrim.length, 'videos (max 7 per 65 seconds)');
     
     // FFmpeg API Rate Limit: 10 requests per minute
     // We use 65 seconds to be safe (60s + 5s buffer)
-    const MAX_PARALLEL = 10;  // Max 10 FFmpeg requests per batch
-    const BATCH_SIZE = 10;  // Process all 10 at once
+    // REDUCED to 7 to avoid server overload (502 errors)
+    const MAX_PARALLEL = 7;  // Max 7 FFmpeg requests per batch
+    const BATCH_SIZE = 7;  // Process all 7 at once
     const DELAY_AFTER_BATCH = 65000;  // 65 seconds delay between batches
     const MAX_RETRIES = 3;
     
@@ -2519,6 +2520,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         
         job.status = 'success';
         successCount++;
+        activeJobs--;  // Decrement on success
         console.log(`[Trimming] ✅ ${job.video.videoName} SUCCESS (${successCount}/${videosToTrim.length})`);
         
         // Add to success list
@@ -2535,6 +2537,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           job.retries++;
           job.status = 'pending';
           console.log(`[Trimming] 🔄 Retrying ${job.video.videoName} (${job.retries}/${MAX_RETRIES})...`);
+          // DON'T decrement activeJobs - will be decremented when retry completes
         } else {
           job.status = 'failed';
           job.error = error.message;
@@ -2552,14 +2555,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           }));
           
           toast.error(`❌ ${job.video.videoName}: ${error.message} (failed after ${MAX_RETRIES} retries)`);
+          activeJobs--;  // Only decrement when truly failed
         }
       } finally {
-        activeJobs--;
+        // activeJobs decrement moved to specific branches above
       }
     };
     
-    // SAFE BATCH PROCESSING: Send 10 in parallel → Wait 65s → Send next 10 in parallel
-    console.log('[Trimming] 🚀 Starting batch processing with', videosToTrim.length, 'videos (max 10 per batch)');
+    // SAFE BATCH PROCESSING: Send 7 in parallel → Wait 65s → Send next 7 in parallel
+    console.log('[Trimming] 🚀 Starting batch processing with', videosToTrim.length, 'videos (max 7 per batch)');
     
     let currentIndex = 0;
     let batchNumber = 1;
@@ -2571,7 +2575,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       // FFmpeg rate limit: Wait 65s FIXED between batches (SAFE strategy)
       if (batchNumber > 1) {
         console.log(`[Trimming] ⏳ FFmpeg rate limit: Waiting 65 seconds before batch ${batchNumber}...`);
-        await new Promise(resolve => setTimeout(resolve, DELAY_AFTER_BATCH));
+        
+        // Countdown timer: 65s → 64s → 63s → ... → 1s
+        for (let countdown = 65; countdown > 0; countdown--) {
+          setTrimmingProgress(prev => ({
+            ...prev,
+            message: `⏳ Waiting ${countdown}s before next batch (FFmpeg rate limit)...`,
+            status: 'processing'
+          }));
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
       }
       
       console.log(`[Trimming] 📦 Batch ${batchNumber}: Sending ${batchSize} videos in parallel (${currentIndex + 1}-${batchEnd})...`);
@@ -4140,7 +4153,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Loader2 className="w-5 h-5 animate-spin text-red-600" />
+              {trimmingProgress.status === 'processing' && (
+                <Loader2 className="w-5 h-5 animate-spin text-red-600" />
+              )}
               ✂️ Procesare Videouri (FFmpeg + CleanVoice)
             </DialogTitle>
             <DialogDescription>
