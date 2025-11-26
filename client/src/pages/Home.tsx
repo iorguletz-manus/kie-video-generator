@@ -2563,11 +2563,23 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     let currentIndex = 0;
     let batchNumber = 1;
+    let lastBatchStartTime = 0;
     
     while (currentIndex < videosToTrim.length) {
       const batchSize = Math.min(MAX_PARALLEL, videosToTrim.length - currentIndex);
       const batchEnd = currentIndex + batchSize;
       
+      // FFmpeg rate limit: Wait 65s from FIRST request of previous batch
+      if (batchNumber > 1) {
+        const elapsedSinceLastBatch = Date.now() - lastBatchStartTime;
+        const waitTime = 65000 - elapsedSinceLastBatch;
+        if (waitTime > 0) {
+          console.log(`[Trimming] ⏳ FFmpeg rate limit: Waiting ${Math.ceil(waitTime/1000)}s before next batch...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
+      }
+      
+      lastBatchStartTime = Date.now();
       console.log(`[Trimming] 📦 Batch ${batchNumber}: Sending ${batchSize} videos (${currentIndex + 1}-${batchEnd})...`);
       
       // Send entire batch at once
@@ -2581,15 +2593,19 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         await new Promise(resolve => setTimeout(resolve, 500));
       }
       
-      console.log(`[Trimming] ✅ Batch ${batchNumber} complete!`);
+      // Re-process any jobs that need retry
+      const pendingJobs = jobs.filter(j => j.status === 'pending');
+      if (pendingJobs.length > 0) {
+        console.log(`[Trimming] 🔄 Re-processing ${pendingJobs.length} pending jobs (retries)...`);
+        for (const job of pendingJobs) {
+          await processJob(job);
+        }
+      }
+      
+      console.log(`[Trimming] ✅ Batch ${batchNumber} complete!`)
       
       currentIndex = batchEnd;
       batchNumber++;
-      
-      // Send next batch IMMEDIATELY (no 65s delay needed if batch completed)
-      if (currentIndex < videosToTrim.length) {
-        console.log(`[Trimming] 🚀 Sending next batch immediately...`);
-      }
     }
     
     console.log('[Trimming] 🎉 All batches processed!')
@@ -2620,7 +2636,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     if (successCount > 0) {
       console.log('[Trimming] 💾 Saving trimmedVideoUrl to database...');
       try {
-        await contextSessionMutation.mutateAsync({
+        await upsertContextSessionMutation.mutateAsync({
           userId: localCurrentUser.id,
           coreBeliefId: selectedCoreBelief!,
           emotionalAngleId: selectedEmotionalAngle!,
