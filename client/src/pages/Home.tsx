@@ -9690,7 +9690,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                     src={video.trimmedVideoUrl}
                                     controls
                                     className="w-full rounded-lg border border-gray-300"
-                                    style={{ height: '240px', objectFit: 'cover' }}
+                                    style={{ height: '480px', objectFit: 'contain' }}
                                   />
                                   
                                   {/* Video Text (without red text) */}
@@ -9744,7 +9744,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                 src={bodyMergedVideoUrl}
                                 controls
                                 className="w-full rounded-lg border border-gray-300"
-                                style={{ height: '240px', objectFit: 'cover' }}
+                                style={{ height: '480px', objectFit: 'contain' }}
                               />
                               
                               {/* Info */}
@@ -9801,7 +9801,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                               src={bodyVideo.trimmedVideoUrl}
                               controls
                               className="w-full rounded-lg border border-gray-300"
-                              style={{ height: '240px', objectFit: 'cover' }}
+                              style={{ height: '480px', objectFit: 'contain' }}
                             />
                             
                             {/* Video Text */}
