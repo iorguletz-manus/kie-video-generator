@@ -2361,12 +2361,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     let videosToTrim;
     
     if (hasTrimmedVideos) {
-      // Scenario 2: We've been to Step 9, only trim videos with "recut" status
+      // Scenario 2: We've been to Step 9, trim videos with "recut" status OR failed videos (trimmedVideoUrl === null)
       videosToTrim = videoResults.filter(v => 
         v.reviewStatus === 'accepted' && 
         v.status === 'success' && 
         v.videoUrl &&
-        v.recutStatus === 'recut' // Only recut videos
+        (!v.trimmedVideoUrl || v.recutStatus === 'recut') // Failed videos OR recut videos
       );
     } else {
       // Scenario 1: First time, trim all approved videos
@@ -2558,53 +2558,41 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       }
     };
     
-    // SMART PROCESSING QUEUE with FFmpeg rate limiting (same as Step 7→8)
-    console.log('[Trimming] 🚀 Phase 1: Sending first', Math.min(MAX_PARALLEL, videosToTrim.length), 'videos (API limit)...');
+    // OPTIMIZED BATCH PROCESSING: Send 10 → Wait for ALL to complete → Send next 10 IMMEDIATELY
+    console.log('[Trimming] 🚀 Starting batch processing with', videosToTrim.length, 'videos (max 10 per batch)');
     
-    // Phase 1: Send first MAX_PARALLEL videos (or less if total < MAX_PARALLEL)
-    const initialBatch = Math.min(MAX_PARALLEL, videosToTrim.length);
-    for (let i = 0; i < initialBatch; i++) {
-      processJob(jobs[i]);
-    }
+    let currentIndex = 0;
+    let batchNumber = 1;
     
-    let currentIndex = initialBatch;
-    
-    // Phase 2: Wait for batches and send more
     while (currentIndex < videosToTrim.length) {
-      // Poll until activeJobs <= (MAX_PARALLEL - BATCH_SIZE)
-      // This means BATCH_SIZE have completed, so we can send BATCH_SIZE more
-      const targetActive = MAX_PARALLEL - BATCH_SIZE;
+      const batchSize = Math.min(MAX_PARALLEL, videosToTrim.length - currentIndex);
+      const batchEnd = currentIndex + batchSize;
       
-      console.log(`[Trimming] ⏳ Waiting for active jobs to drop to ${targetActive}...`);
+      console.log(`[Trimming] 📦 Batch ${batchNumber}: Sending ${batchSize} videos (${currentIndex + 1}-${batchEnd})...`);
       
-      while (activeJobs > targetActive) {
-        // Poll every 500ms
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-      
-      console.log(`[Trimming] ✅ Active jobs dropped to ${activeJobs}, sending next ${BATCH_SIZE} videos...`);
-      
-      // Send next BATCH_SIZE videos
-      const batchEnd = Math.min(currentIndex + BATCH_SIZE, videosToTrim.length);
+      // Send entire batch at once
       for (let i = currentIndex; i < batchEnd; i++) {
         processJob(jobs[i]);
       }
-      currentIndex = batchEnd;
       
-      // Delay after sending batch
+      // Wait for ALL videos in this batch to complete (activeJobs = 0)
+      console.log(`[Trimming] ⏳ Waiting for batch ${batchNumber} to complete (${batchSize} videos)...`);
+      while (activeJobs > 0) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      console.log(`[Trimming] ✅ Batch ${batchNumber} complete!`);
+      
+      currentIndex = batchEnd;
+      batchNumber++;
+      
+      // Send next batch IMMEDIATELY (no 65s delay needed if batch completed)
       if (currentIndex < videosToTrim.length) {
-        console.log(`[Trimming] ⏸️ Waiting ${DELAY_AFTER_BATCH/1000}s before next batch...`);
-        await new Promise(resolve => setTimeout(resolve, DELAY_AFTER_BATCH));
+        console.log(`[Trimming] 🚀 Sending next batch immediately...`);
       }
     }
     
-    // Wait for all remaining jobs to complete
-    console.log('[Trimming] ⏳ Waiting for remaining', activeJobs, 'jobs...');
-    while (activeJobs > 0) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-    }
-    
-    console.log('[Trimming] 🎉 All jobs completed!');
+    console.log('[Trimming] 🎉 All batches processed!')
     
     // Complete
       // Complete - set status based on results
