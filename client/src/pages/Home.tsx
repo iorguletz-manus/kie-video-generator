@@ -2608,11 +2608,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         await new Promise(resolve => setTimeout(resolve, 500));
       }
       
-      // Re-process any jobs that need retry
-      const pendingJobs = jobs.filter(j => j.status === 'pending');
-      if (pendingJobs.length > 0) {
-        console.log(`[Trimming] 🔄 Re-processing ${pendingJobs.length} pending jobs (retries)...`);
-        for (const job of pendingJobs) {
+      // Re-process any jobs FROM THIS BATCH that need retry
+      const pendingJobsInBatch = jobsToProcess.filter(j => j.status === 'pending');
+      if (pendingJobsInBatch.length > 0) {
+        console.log(`[Trimming] 🔄 Re-processing ${pendingJobsInBatch.length} pending jobs from batch ${batchNumber} (retries)...`);
+        for (const job of pendingJobsInBatch) {
           await processJob(job);
         }
       }
