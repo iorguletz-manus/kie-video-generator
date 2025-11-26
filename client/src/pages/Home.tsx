@@ -2558,29 +2558,23 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       }
     };
     
-    // OPTIMIZED BATCH PROCESSING: Send 10 → Wait for ALL to complete → Send next 10 IMMEDIATELY
+    // SAFE BATCH PROCESSING: Send 10 in parallel → Wait 65s → Send next 10 in parallel
     console.log('[Trimming] 🚀 Starting batch processing with', videosToTrim.length, 'videos (max 10 per batch)');
     
     let currentIndex = 0;
     let batchNumber = 1;
-    let lastBatchStartTime = 0;
     
     while (currentIndex < videosToTrim.length) {
       const batchSize = Math.min(MAX_PARALLEL, videosToTrim.length - currentIndex);
       const batchEnd = currentIndex + batchSize;
       
-      // FFmpeg rate limit: Wait 65s from FIRST request of previous batch
+      // FFmpeg rate limit: Wait 65s FIXED between batches (SAFE strategy)
       if (batchNumber > 1) {
-        const elapsedSinceLastBatch = Date.now() - lastBatchStartTime;
-        const waitTime = 65000 - elapsedSinceLastBatch;
-        if (waitTime > 0) {
-          console.log(`[Trimming] ⏳ FFmpeg rate limit: Waiting ${Math.ceil(waitTime/1000)}s before next batch...`);
-          await new Promise(resolve => setTimeout(resolve, waitTime));
-        }
+        console.log(`[Trimming] ⏳ FFmpeg rate limit: Waiting 65 seconds before batch ${batchNumber}...`);
+        await new Promise(resolve => setTimeout(resolve, DELAY_AFTER_BATCH));
       }
       
-      lastBatchStartTime = Date.now();
-      console.log(`[Trimming] 📦 Batch ${batchNumber}: Sending ${batchSize} videos (${currentIndex + 1}-${batchEnd})...`);
+      console.log(`[Trimming] 📦 Batch ${batchNumber}: Sending ${batchSize} videos in parallel (${currentIndex + 1}-${batchEnd})...`);
       
       // Send entire batch at once
       for (let i = currentIndex; i < batchEnd; i++) {
