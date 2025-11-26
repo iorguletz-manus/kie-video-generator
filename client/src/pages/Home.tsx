@@ -1653,7 +1653,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
   // Step 8: Batch process videos with Whisper + FFmpeg API (SMART rate limiting)
   const batchProcessVideosWithWhisper = async (videos: VideoResult[]) => {
+    const batchStartTime = Date.now();
+    console.log('[Batch Processing] ⏱️ BATCH START at', new Date().toISOString());
     console.log('[Batch Processing] 🚀 Starting SMART processing with', videos.length, 'videos');
+    console.log('[Batch Processing] 📋 Video list:', videos.map(v => v.videoName).join(', '));
     
     let successCount = 0;
     let failCount = 0;
@@ -1670,8 +1673,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     // Helper: Process single video with retry
     const processVideoWithRetry = async (video: VideoResult, retries = 3): Promise<any> => {
+      const videoStartTime = Date.now();
       for (let attempt = 1; attempt <= retries; attempt++) {
         try {
+          console.log(`[Batch Processing] ⏱️ ${video.videoName} - START at ${new Date().toISOString()}`);
           console.log(`[Batch Processing] 🎬 ${video.videoName} - Attempt ${attempt}/${retries}`);
           console.log(`[Batch Processing] 📊 Active FFmpeg requests: ${activeFfmpegRequests}/${MAX_FFMPEG_CONCURRENT} (API limit: 5)`);
           
@@ -1727,8 +1732,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           // Decrement active FFmpeg counter AFTER response
           activeFfmpegRequests--;
           
-          console.log(`[Batch Processing] ✅ ${video.videoName} - Success!`);
-          console.log(`[Batch Processing] 📥 Received result for ${video.videoName}:`, {
+          const videoDuration = Date.now() - videoStartTime;
+          console.log(`[Batch Processing] ✅ ${video.videoName} - Success in ${videoDuration}ms (${(videoDuration/1000).toFixed(2)}s)!`);
+          console.log(`[Batch Processing] 📥 Received result for ${video.videoName} (took ${videoDuration}ms):`, {
             audioUrl: result.audioUrl,
             cutPoints: result.cutPoints,
             whisperTranscript: typeof result.whisperTranscript === 'string' 
@@ -1969,7 +1975,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       return v;
     }));
     
+    const batchTotalDuration = Date.now() - batchStartTime;
     console.log('[Batch Processing] ✅ All results applied to state!');
+    console.log(`[Batch Processing] ⏱️ BATCH COMPLETE in ${batchTotalDuration}ms (${(batchTotalDuration/1000).toFixed(2)}s)`);
+    console.log(`[Batch Processing] 📈 SUMMARY: ${successCount} success, ${failCount} failed out of ${videos.length} total`);
+    console.log(`[Batch Processing] ⏱️ Average time per video: ${(batchTotalDuration/videos.length/1000).toFixed(2)}s`);
     
     // Return resultsMap for onReprocess callback
     return resultsMap;

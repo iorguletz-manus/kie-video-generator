@@ -625,6 +625,8 @@ export async function processVideoForEditing(
   userId?: number
 ): Promise<ProcessingResult> {
   try {
+    const startTime = Date.now();
+    console.log(`[processVideoForEditing] ⏱️ START ${videoName} at ${new Date().toISOString()}`);
     console.log(`[processVideoForEditing] Starting for video ${videoId}...`);
     
     if (!ffmpegApiKey) {
@@ -632,33 +634,48 @@ export async function processVideoForEditing(
     }
     
     // 1. Upload video to FFmpeg API
+    const uploadStartTime = Date.now();
+    console.log(`[processVideoForEditing] 📤 FFMPEG UPLOAD START for ${videoName}`);
     const sanitizedVideoName = videoName.replace(/[^a-zA-Z0-9_-]/g, '_');
     const videoFileName = `video_${sanitizedVideoName}.mp4`;
     const videoFilePath = await uploadVideoToFFmpegAPI(videoUrl, videoFileName, ffmpegApiKey);
+    const uploadDuration = Date.now() - uploadStartTime;
+    console.log(`[processVideoForEditing] ✅ FFMPEG UPLOAD DONE for ${videoName} in ${uploadDuration}ms (${(uploadDuration/1000).toFixed(2)}s)`);
     
     // 2. Extract audio
+    const extractStartTime = Date.now();
+    console.log(`[processVideoForEditing] 🎵 AUDIO EXTRACT START for ${videoName}`);
     const timestamp = Date.now();
     const audioFileName = `${sanitizedVideoName}_${timestamp}.mp3`;
     const audioDownloadUrl = await extractAudioWithFFmpegAPI(videoFilePath, audioFileName, ffmpegApiKey!);
+    const extractDuration = Date.now() - extractStartTime;
+    console.log(`[processVideoForEditing] ✅ AUDIO EXTRACT DONE for ${videoName} in ${extractDuration}ms (${(extractDuration/1000).toFixed(2)}s)`);
     
     // 2.5. Download audio and upload to Bunny.net for permanent storage
-    console.log(`[processVideoForEditing] Downloading audio from FFMPEG...`);
+    const downloadStartTime = Date.now();
+    console.log(`[processVideoForEditing] ⬇️ AUDIO DOWNLOAD START for ${videoName}`);
     const audioResponse = await fetch(audioDownloadUrl);
     if (!audioResponse.ok) {
       throw new Error(`Failed to download audio: ${audioResponse.statusText}`);
     }
     const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
+    const downloadDuration = Date.now() - downloadStartTime;
+    console.log(`[processVideoForEditing] ✅ AUDIO DOWNLOAD DONE for ${videoName} in ${downloadDuration}ms (${(downloadDuration/1000).toFixed(2)}s)`);
     
-    console.log(`[processVideoForEditing] Uploading audio to Bunny.net...`);
+    const bunnyUploadStartTime = Date.now();
+    console.log(`[processVideoForEditing] ☁️ BUNNY UPLOAD START for ${videoName}`);
     const bunnyAudioUrl = await uploadToBunnyCDN(
       audioBuffer,
       `audio-files/${audioFileName}`,
       'audio/mpeg'
     );
+    const bunnyUploadDuration = Date.now() - bunnyUploadStartTime;
+    console.log(`[processVideoForEditing] ✅ BUNNY UPLOAD DONE for ${videoName} in ${bunnyUploadDuration}ms (${(bunnyUploadDuration/1000).toFixed(2)}s)`);
     console.log(`[processVideoForEditing] Audio uploaded to Bunny.net: ${bunnyAudioUrl}`);
     
     // 3. Run CleanVoice, Whisper, and Waveform generation in PARALLEL
-    console.log(`[processVideoForEditing] Starting parallel processing: CleanVoice + Whisper + Waveform...`);
+    const parallelStartTime = Date.now();
+    console.log(`[processVideoForEditing] 🚀 PARALLEL START (CleanVoice + Whisper + Waveform) for ${videoName}`);
     
     const [cleanvoiceResult, whisperResult, waveformJson] = await Promise.allSettled([
       // CleanVoice: Process video (only if API key provided)
@@ -675,6 +692,8 @@ export async function processVideoForEditing(
       // Waveform: Generate waveform data
       generateWaveformData(bunnyAudioUrl, videoId, videoName),
     ]);
+    const parallelDuration = Date.now() - parallelStartTime;
+    console.log(`[processVideoForEditing] ✅ PARALLEL DONE for ${videoName} in ${parallelDuration}ms (${(parallelDuration/1000).toFixed(2)}s)`);
     
     // Extract results from Promise.allSettled
     const cleanvoiceAudioUrl = cleanvoiceResult.status === 'fulfilled' ? cleanvoiceResult.value : null;
@@ -714,8 +733,14 @@ export async function processVideoForEditing(
     const waveformData = waveformJson.value;
     
     // 5. Calculate cut points using NEW ALGORITHM
+    const cutPointsStartTime = Date.now();
     const { cutPoints, debugInfo } = calculateCutPointsNew(fullText, redText, words, redTextPosition, marginMs);
+    const cutPointsDuration = Date.now() - cutPointsStartTime;
+    console.log(`[processVideoForEditing] ✂️ CUT POINTS calculated in ${cutPointsDuration}ms`);
     
+    const totalDuration = Date.now() - startTime;
+    console.log(`[processVideoForEditing] ✅ TOTAL COMPLETE for ${videoName} in ${totalDuration}ms (${(totalDuration/1000).toFixed(2)}s)`);
+    console.log(`[processVideoForEditing] 📈 BREAKDOWN: Upload=${uploadDuration}ms, Extract=${extractDuration}ms, Download=${downloadDuration}ms, Bunny=${bunnyUploadDuration}ms, Parallel=${parallelDuration}ms, CutPoints=${cutPointsDuration}ms`);
     console.log(`[processVideoForEditing] Processing complete for video ${videoId}`);
     console.log(`[processVideoForEditing] Debug info:`, debugInfo.message);
     
