@@ -91,18 +91,7 @@ export function ProcessingModal({
             </p>
           </div>
 
-          {/* Current Video */}
-          {totalCompleted < totalVideos && (
-            <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
-              <p className="text-sm font-semibold text-purple-900 mb-1">
-                Video curent: {currentVideoName}
-              </p>
-              <div className="flex items-center gap-2 text-xs text-purple-700">
-                <Loader2 className="w-3 h-3 animate-spin" />
-                {getStepLabel()}
-              </div>
-            </div>
-          )}
+          {/* Removed: Current Video and Step labels - batch processing makes this confusing */}
 
           {/* Estimated Time */}
           {totalCompleted < totalVideos && estimatedMinutes > 0 && (

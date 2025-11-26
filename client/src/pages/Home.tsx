@@ -403,7 +403,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [noteText, setNoteText] = useState<string>('');
   
   // Step 8: Filter
-  const [step8Filter, setStep8Filter] = useState<'all' | 'accepted' | 'recut' | 'unlocked' | 'problems'>('all');
+  const [step8Filter, setStep8Filter] = useState<'all' | 'accepted' | 'recut' | 'unlocked' | 'problems' | 'with_notes'>('all');
   
   // Step 9: Internal Notes
   const [editingStep9NoteVideoName, setEditingStep9NoteVideoName] = useState<string | null>(null);
@@ -4007,11 +4007,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 {/* Current Video */}
                 {trimmingProgress.current < trimmingProgress.total && trimmingProgress.currentVideo && (
                   <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                    <p className="text-sm font-semibold text-red-900 mb-1">
-                      🎥 Video curent: {trimmingProgress.currentVideo}
-                    </p>
-                    <div className="flex items-center gap-2 text-xs text-red-700">
-                      <Loader2 className="w-3 h-3 animate-spin" />
+                    <div className="flex items-center gap-2 text-sm text-red-700">
+                      <Loader2 className="w-4 h-4 animate-spin" />
                       ✂️ Tăiere cu FFmpeg + înlocuire audio CleanVoice...
                     </div>
                   </div>
@@ -4199,56 +4196,43 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                               <div className="flex gap-2">
                                 <Button
                                   size="sm"
-                                  onClick={async () => {
-                                    try {
-                                      // Save note
-                                      const updatedVideos = sampleMergeVideos.map(v =>
-                                        v.name === video.name ? { ...v, note: editingNoteText } : v
-                                      );
-                                      setSampleMergeVideos(updatedVideos);
-                                      
-                                      // Update in videoResults
-                                      const updatedVideoResults = videoResults.map(v =>
-                                        v.videoName === video.name ? { ...v, step9Note: editingNoteText } : v
-                                      );
-                                      setVideoResults(updatedVideoResults);
-                                      
-                                      // Save to database
-                                      if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
-                                        await new Promise((resolve, reject) => {
-                                          upsertContextSessionMutation.mutate({
-                                            userId: currentUser.id,
-                                            coreBeliefId: selectedCoreBeliefId,
-                                            emotionalAngleId: selectedEmotionalAngleId,
-                                            adId: selectedAdId,
-                                            characterId: selectedCharacterId,
-                                            currentStep,
-                                            rawTextAd,
-                                            processedTextAd,
-                                            adLines,
-                                            prompts,
-                                            images,
-                                            combinations,
-                                            deletedCombinations,
-                                            videoResults: updatedVideoResults,
-                                            reviewHistory,
-                                          }, {
-                                            onSuccess: () => {
-                                              console.log('[Sample Merge] Note saved to DB');
-                                              resolve(true);
-                                            },
-                                            onError: (error: any) => {
-                                              reject(error);
-                                            },
-                                          });
-                                        });
-                                      }
-                                      
-                                      setEditingNoteId(null);
-                                      setEditingNoteText('');
-                                      toast.success('Note saved!');
-                                    } catch (error: any) {
-                                      toast.error(`Failed to save note: ${error.message}`);
+                                  onClick={() => {
+                                    // 1. Update sampleMergeVideos INSTANTLY
+                                    const updatedVideos = sampleMergeVideos.map(v =>
+                                      v.name === video.name ? { ...v, note: editingNoteText } : v
+                                    );
+                                    setSampleMergeVideos(updatedVideos);
+                                    
+                                    // 2. Update videoResults INSTANTLY
+                                    const updatedVideoResults = videoResults.map(v =>
+                                      v.videoName === video.name ? { ...v, step9Note: editingNoteText } : v
+                                    );
+                                    setVideoResults(updatedVideoResults);
+                                    
+                                    // 3. Close editing mode INSTANTLY
+                                    setEditingNoteId(null);
+                                    setEditingNoteText('');
+                                    toast.success('Note saved!');
+                                    
+                                    // 4. Save to database in BACKGROUND (no await)
+                                    if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
+                                      upsertContextSessionMutation.mutate({
+                                        userId: currentUser.id,
+                                        coreBeliefId: selectedCoreBeliefId,
+                                        emotionalAngleId: selectedEmotionalAngleId,
+                                        adId: selectedAdId,
+                                        characterId: selectedCharacterId,
+                                        currentStep,
+                                        rawTextAd,
+                                        processedTextAd,
+                                        adLines,
+                                        prompts,
+                                        images,
+                                        combinations,
+                                        deletedCombinations,
+                                        videoResults: updatedVideoResults,
+                                        reviewHistory,
+                                      });
                                     }
                                   }}
                                   className="bg-green-600 hover:bg-green-700"
@@ -8572,10 +8556,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           } else if (step8Filter === 'unlocked') {
             approvedVideos = approvedVideos.filter(v => !v.isStartLocked || !v.isEndLocked);
           } else if (step8Filter === 'problems') {
-            // Filter videos with algorithm errors (logs containing "❌")
+            // Filter videos with problems (status is NOT 'success')
+            // This checks the final badge status (green/yellow/red) from VideoEditorV2
             approvedVideos = approvedVideos.filter(v => 
-              v.editingDebugInfo?.algorithmLogs?.some((log: string) => log.includes('❌'))
+              v.editingDebugInfo?.status && v.editingDebugInfo.status !== 'success'
             );
+          } else if (step8Filter === 'with_notes') {
+            // Filter videos with step9Note
+            approvedVideos = approvedVideos.filter(v => v.step9Note);
           }
           return (
             <Card className="mb-8 border-2 border-purple-200">
@@ -8596,19 +8584,20 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       <label className="text-sm font-medium text-purple-900">Filtrează videouri:</label>
                       <select
                         value={step8Filter}
-                        onChange={(e) => setStep8Filter(e.target.value as 'all' | 'accepted' | 'recut' | 'unlocked' | 'problems')}
+                        onChange={(e) => setStep8Filter(e.target.value as 'all' | 'accepted' | 'recut' | 'unlocked' | 'problems' | 'with_notes')}
                         className="px-4 py-2 border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                       >
                         <option value="all">Toate ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length})</option>
                         <option value="accepted">Acceptate ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.recutStatus === 'accepted').length})</option>
                         <option value="recut">Necesită Retăiere ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.recutStatus === 'recut').length})</option>
                         <option value="unlocked">Fără Lock ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && (!v.isStartLocked || !v.isEndLocked)).length})</option>
-                        <option value="problems">Possible Problems ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.editingDebugInfo?.algorithmLogs?.some((log: string) => log.includes('❌'))).length})</option>
+                        <option value="problems">Possible Problems ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.editingDebugInfo?.algorithmLogs?.some((log: string) => log.includes('❌') && !log.includes('✅'))).length})</option>
+                        <option value="with_notes">With Notes ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.step9Note).length})</option>
                       </select>
                     </div>
                     
                     {/* Check Video with Problems link */}
-                    {videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.editingDebugInfo?.algorithmLogs?.some((log: string) => log.includes('❌'))).length > 0 && (
+                    {videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.editingDebugInfo?.algorithmLogs?.some((log: string) => log.includes('❌') && !log.includes('✅'))).length > 0 && (
                       <button
                         onClick={() => setStep8Filter('problems')}
                         className="text-sm text-red-600 hover:text-red-700 underline font-medium"
@@ -8619,13 +8608,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   </div>
                   
                   {/* Sample Merge ALL Videos button */}
-                  {approvedVideos.length > 1 && (
+                  {videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length > 1 && (
                     <Button
                       onClick={async () => {
                         console.log('[Sample Merge] Starting from Step 8 button...');
                         
+                        // Get ALL accepted videos (not filtered)
+                        const allAcceptedVideos = videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl);
+                        
                         // Prepare video list with notes
-                        const videoList = approvedVideos.map(v => ({
+                        const videoList = allAcceptedVideos.map(v => ({
                           name: v.videoName,
                           note: v.step9Note || ''
                         }));
@@ -8634,7 +8626,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         setIsSampleMergeModalOpen(true);
                         
                         // Smart cache: check if markers were modified
-                        const currentHash = JSON.stringify(approvedVideos.map(v => ({
+                        const currentHash = JSON.stringify(allAcceptedVideos.map(v => ({
                           name: v.videoName,
                           startMs: Math.round(v.cutPoints?.startKeep || 0),
                           endMs: Math.round(v.cutPoints?.endKeep || 0),
@@ -8675,7 +8667,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             return url;
                           };
                           
-                          const videos = approvedVideos.map(v => ({
+                          const videos = allAcceptedVideos.map(v => ({
                             url: extractOriginalUrl(v.videoUrl),
                             name: v.videoName,
                             startMs: v.cutPoints?.startKeep || 0,
@@ -8751,7 +8743,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           )}
                           
                           <VideoEditorV2
-                            key={`${video.videoName}-${video.audioUrl || 'no-audio'}`}
+                            key={`${video.videoName}-${video.audioUrl || 'no-audio'}-${video.step9Note || 'no-note'}`}
                             video={{
                             id: video.videoName, // Use videoName as unique identifier
                             videoName: video.videoName,
@@ -9133,8 +9125,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           {(() => {
                             const hasTrimmedVideos = videoResults.some(v => v.trimmedVideoUrl);
                             const count = hasTrimmedVideos 
-                              ? approvedVideos.filter(v => v.recutStatus === 'recut').length
-                              : approvedVideos.length;
+                              ? videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.recutStatus === 'recut').length
+                              : videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length;
                             return (
                               <>
                                 Next: Trim All Videos ({count})
