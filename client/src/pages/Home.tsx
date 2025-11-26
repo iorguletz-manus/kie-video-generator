@@ -277,14 +277,20 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     current: number;
     total: number;
     currentVideo: string;
-    status: 'idle' | 'processing' | 'complete';
+    status: 'idle' | 'processing' | 'complete' | 'partial';
     message: string;
+    successVideos: Array<{name: string}>;
+    failedVideos: Array<{name: string; error: string; retries: number}>;
+    inProgressVideos: Array<{name: string}>;
   }>({
     current: 0,
     total: 0,
     currentVideo: '',
     status: 'idle',
-    message: ''
+    message: '',
+    successVideos: [],
+    failedVideos: [],
+    inProgressVideos: []
   });
   
   // Cut & Merge modal with localStorage persistence
@@ -2436,12 +2442,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       return;
     }
     
-    console.log('[Trimming] Starting SMART BATCH trim process for', videosToTrim.length, 'videos (max 5 parallel, batch size 3)');
+    console.log('[Trimming] Starting FFmpeg RATE-LIMITED trim process for', videosToTrim.length, 'videos (max 10 per 65 seconds)');
     
-    // Batch processing with SMART rate limiting (same as Step 7→8)
-    const MAX_PARALLEL = 5;  // Max 5 FFmpeg requests at once (API limit)
-    const BATCH_SIZE = 3;  // Wait for 3 to complete before sending more
-    const DELAY_AFTER_BATCH = 3000;  // 3 seconds delay after receiving batch
+    // FFmpeg API Rate Limit: 10 requests per minute
+    // We use 65 seconds to be safe (60s + 5s buffer)
+    const MAX_PARALLEL = 10;  // Max 10 FFmpeg requests per batch
+    const BATCH_SIZE = 10;  // Process all 10 at once
+    const DELAY_AFTER_BATCH = 65000;  // 65 seconds delay between batches
     const MAX_RETRIES = 3;
     
     interface TrimJob {
@@ -2469,13 +2476,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       
       // Update progress
       const completedCount = successCount + failCount;
-      setTrimmingProgress({
+      setTrimmingProgress(prev => ({
+        ...prev,
         current: completedCount,
         total: videosToTrim.length,
         currentVideo: job.video.videoName,
         status: 'processing',
-        message: `Trimming ${completedCount + 1}/${videosToTrim.length}...`
-      });
+        message: `Trimming ${completedCount + 1}/${videosToTrim.length}...`,
+        inProgressVideos: [{name: job.video.videoName}]
+      }));
       
       try {
         const trimStart = job.video.cutPoints?.startKeep || 0;
@@ -2512,6 +2521,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         successCount++;
         console.log(`[Trimming] ✅ ${job.video.videoName} SUCCESS (${successCount}/${videosToTrim.length})`);
         
+        // Add to success list
+        setTrimmingProgress(prev => ({
+          ...prev,
+          successVideos: [...prev.successVideos, {name: job.video.videoName}],
+          inProgressVideos: prev.inProgressVideos.filter(v => v.name !== job.video.videoName)
+        }));
+        
       } catch (error: any) {
         console.error(`[Trimming] ❌ ${job.video.videoName} FAILED (attempt ${job.retries + 1}):`, error);
         
@@ -2523,6 +2539,18 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           job.status = 'failed';
           job.error = error.message;
           failCount++;
+          
+          // Add to failed list
+          setTrimmingProgress(prev => ({
+            ...prev,
+            failedVideos: [...prev.failedVideos, {
+              name: job.video.videoName,
+              error: error.message || 'Unknown error',
+              retries: MAX_RETRIES
+            }],
+            inProgressVideos: prev.inProgressVideos.filter(v => v.name !== job.video.videoName)
+          }));
+          
           toast.error(`❌ ${job.video.videoName}: ${error.message} (failed after ${MAX_RETRIES} retries)`);
         }
       } finally {
@@ -2579,42 +2607,47 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     console.log('[Trimming] 🎉 All jobs completed!');
     
     // Complete
-    setTrimmingProgress({
+      // Complete - set status based on results
+    const finalStatus = failCount > 0 ? 'partial' : 'complete';
+    setTrimmingProgress(prev => ({
+      ...prev,
       current: videosToTrim.length,
       total: videosToTrim.length,
       currentVideo: '',
-      status: 'complete',
-      message: `✅ Complete! Success: ${successCount}, Failed: ${failCount}`
-    });
+      status: finalStatus,
+      message: failCount > 0 
+        ? `⚠️ Partial success: ${successCount} succeeded, ${failCount} failed`
+        : `✅ Complete! All ${successCount} videos trimmed successfully`
+    }));
     
     console.log(`[Trimming] 🎉 COMPLETE! Success: ${successCount}, Failed: ${failCount}`);
-    toast.success(`✂️ Trimming complete! ${successCount}/${videosToTrim.length} videos trimmed`);
     
-    // Save updated videoResults to database
-    console.log('[Trimming] 💾 Saving trimmedVideoUrl to database...');
-    try {
-      await contextSessionMutation.mutateAsync({
-        userId: localCurrentUser.id,
-        coreBeliefId: selectedCoreBelief!,
-        emotionalAngleId: selectedEmotionalAngle!,
-        adId: selectedAd!,
-        characterId: selectedCharacter!,
-        videoResults: videoResults,
-      });
-      console.log('[Trimming] ✅ Database save successful!');
-    } catch (error) {
-      console.error('[Trimming] ❌ Database save failed:', error);
-      toast.error('Failed to save trimmed videos to database');
+    if (failCount > 0) {
+      toast.warning(`⚠️ Trimming completed with errors: ${successCount} succeeded, ${failCount} failed`, { duration: 5000 });
+    } else {
+      toast.success(`✂️ All ${successCount} videos trimmed successfully!`, { duration: 3000 });
     }
     
-    // Navigate to Step 9 after 2 seconds
-    console.log('[Trimming] Setting timeout for redirect to Step 9...');
-    setTimeout(() => {
-      console.log('[Trimming] Timeout fired! Redirecting to Step 9...');
-      setIsTrimmingModalOpen(false);
-      setCurrentStep(9);
-      console.log('[Trimming] Redirect complete!');
-    }, 2000);
+    // Save updated videoResults to database (only successful ones)
+    if (successCount > 0) {
+      console.log('[Trimming] 💾 Saving trimmedVideoUrl to database...');
+      try {
+        await contextSessionMutation.mutateAsync({
+          userId: localCurrentUser.id,
+          coreBeliefId: selectedCoreBelief!,
+          emotionalAngleId: selectedEmotionalAngle!,
+          adId: selectedAd!,
+          characterId: selectedCharacter!,
+          videoResults: videoResults,
+        });
+        console.log('[Trimming] ✅ Database save successful!');
+      } catch (error) {
+        console.error('[Trimming] ❌ Database save failed:', error);
+        toast.error('Failed to save trimmed videos to database');
+      }
+    }
+    
+    // DO NOT auto-redirect - user must click button in modal
   };
 
   // Step 4: Create mappings
@@ -4140,16 +4173,81 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   </p>
                 )}
               </>
-            ) : trimmingProgress.status === 'complete' ? (
+            ) : trimmingProgress.status === 'complete' || trimmingProgress.status === 'partial' ? (
               <>
-                {/* Success Message */}
-                <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
-                  <p className="text-sm font-semibold text-green-900">
-                    ✅ Toate videouri tăiate cu succes!
+                {/* Results Summary */}
+                <div className={`${trimmingProgress.status === 'complete' ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'} border rounded-lg p-4`}>
+                  <p className="text-sm font-semibold mb-3">
+                    {trimmingProgress.status === 'complete' ? '✅ All videos trimmed successfully!' : '⚠️ Trimming completed with errors'}
                   </p>
-                  <p className="text-xs text-green-700 mt-1">
-                    Deschidere Step 9...
-                  </p>
+                  
+                  {/* Success List */}
+                  {trimmingProgress.successVideos.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-xs font-medium text-green-700 mb-1">✅ Success ({trimmingProgress.successVideos.length}):</p>
+                      <div className="max-h-32 overflow-y-auto bg-white rounded p-2 text-xs">
+                        {trimmingProgress.successVideos.map((v, i) => (
+                          <div key={i} className="text-green-600">• {v.name}</div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Failed List */}
+                  {trimmingProgress.failedVideos.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-xs font-medium text-red-700 mb-1">❌ Failed ({trimmingProgress.failedVideos.length}):</p>
+                      <div className="max-h-32 overflow-y-auto bg-white rounded p-2 text-xs">
+                        {trimmingProgress.failedVideos.map((v, i) => (
+                          <div key={i} className="text-red-600">
+                            • {v.name}<br />
+                            <span className="text-gray-500 ml-3">{v.error} (Retry {v.retries}/3)</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Warning for rate limit */}
+                  {trimmingProgress.failedVideos.length > 0 && (
+                    <div className="bg-orange-50 border border-orange-200 rounded p-2 mt-2">
+                      <p className="text-xs text-orange-700">
+                        ⚠️ WARNING: FFmpeg API has max 10 requests per minute limit
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* Action Buttons */}
+                  <div className="flex gap-2 mt-4">
+                    {trimmingProgress.successVideos.length > 0 && (
+                      <button
+                        onClick={() => {
+                          setIsTrimmingModalOpen(false);
+                          setCurrentStep(9);
+                        }}
+                        className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+                      >
+                        ✅ Continue to Step 9
+                      </button>
+                    )}
+                    {trimmingProgress.failedVideos.length > 0 && (
+                      <button
+                        onClick={() => {
+                          // TODO: Implement retry logic
+                          toast.info('Retry functionality coming soon!');
+                        }}
+                        className="flex-1 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+                      >
+                        🔄 Retry Failed ({trimmingProgress.failedVideos.length})
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setIsTrimmingModalOpen(false)}
+                      className="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium"
+                    >
+                      ❌ Close
+                    </button>
+                  </div>
                 </div>
               </>
             ) : trimmingProgress.status === 'error' ? (
