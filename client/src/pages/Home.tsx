@@ -8669,7 +8669,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           
           // Apply Step 8 filter
           if (step8Filter === 'accepted') {
-            approvedVideos = approvedVideos.filter(v => v.recutStatus === 'accepted');
+            // Show videos that are accepted OR don't have recutStatus set yet (null/undefined)
+            approvedVideos = approvedVideos.filter(v => v.recutStatus === 'accepted' || !v.recutStatus);
           } else if (step8Filter === 'recut') {
             approvedVideos = approvedVideos.filter(v => v.recutStatus === 'recut');
           } else if (step8Filter === 'unlocked') {
@@ -8707,7 +8708,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         className="px-4 py-2 border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                       >
                         <option value="all">Toate ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length})</option>
-                        <option value="accepted">Acceptate ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.recutStatus === 'accepted').length})</option>
+                        <option value="accepted">Acceptate ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && (v.recutStatus === 'accepted' || !v.recutStatus)).length})</option>
                         <option value="recut">Necesită Retăiere ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.recutStatus === 'recut').length})</option>
                         <option value="unlocked">Fără Lock ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && (!v.isStartLocked || !v.isEndLocked)).length})</option>
                         <option value="problems">Possible Problems ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.editingDebugInfo?.status && v.editingDebugInfo.status !== 'success').length})</option>
