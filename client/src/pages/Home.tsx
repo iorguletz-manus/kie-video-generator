@@ -2587,11 +2587,19 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         }
       }
       
-      console.log(`[Trimming] 📦 Batch ${batchNumber}: Sending ${batchSize} videos in parallel (${currentIndex + 1}-${batchEnd})...`);
-      
-      // Send entire batch at once
+      // Filter jobs that need processing (not already successful)
+      const jobsToProcess = [];
       for (let i = currentIndex; i < batchEnd; i++) {
-        processJob(jobs[i]);
+        if (jobs[i].status !== 'success') {
+          jobsToProcess.push(jobs[i]);
+        }
+      }
+      
+      console.log(`[Trimming] 📦 Batch ${batchNumber}: Sending ${jobsToProcess.length} videos in parallel (${currentIndex + 1}-${batchEnd}, ${batchSize - jobsToProcess.length} already done)...`);
+      
+      // Send only jobs that need processing
+      for (const job of jobsToProcess) {
+        processJob(job);
       }
       
       // Wait for ALL videos in this batch to complete (activeJobs = 0)
