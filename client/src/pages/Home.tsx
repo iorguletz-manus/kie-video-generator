@@ -9331,7 +9331,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           {(() => {
                             const hasTrimmedVideos = videoResults.some(v => v.trimmedVideoUrl);
                             const count = hasTrimmedVideos 
-                              ? videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.recutStatus === 'recut').length
+                              ? videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && (!v.trimmedVideoUrl || v.recutStatus === 'recut')).length
                               : videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length;
                             return (
                               <>
