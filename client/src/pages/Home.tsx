@@ -2590,6 +2590,23 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     console.log(`[Trimming] 🎉 COMPLETE! Success: ${successCount}, Failed: ${failCount}`);
     toast.success(`✂️ Trimming complete! ${successCount}/${videosToTrim.length} videos trimmed`);
     
+    // Save updated videoResults to database
+    console.log('[Trimming] 💾 Saving trimmedVideoUrl to database...');
+    try {
+      await contextSessionMutation.mutateAsync({
+        userId: localCurrentUser.id,
+        coreBeliefId: selectedCoreBelief!,
+        emotionalAngleId: selectedEmotionalAngle!,
+        adId: selectedAd!,
+        characterId: selectedCharacter!,
+        videoResults: videoResults,
+      });
+      console.log('[Trimming] ✅ Database save successful!');
+    } catch (error) {
+      console.error('[Trimming] ❌ Database save failed:', error);
+      toast.error('Failed to save trimmed videos to database');
+    }
+    
     // Navigate to Step 9 after 2 seconds
     console.log('[Trimming] Setting timeout for redirect to Step 9...');
     setTimeout(() => {
