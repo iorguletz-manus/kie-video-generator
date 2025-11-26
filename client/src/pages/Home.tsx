@@ -190,9 +190,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // Step 8: Video Editing Processing
   const [showProcessingModal, setShowProcessingModal] = useState(false);
   const [processingProgress, setProcessingProgress] = useState({ 
-    ffmpeg: { current: 0, total: 0 },
-    whisper: { current: 0, total: 0 },
-    cleanvoice: { current: 0, total: 0 },
+    ffmpeg: { current: 0, total: 0, status: 'idle' as 'idle' | 'processing' | 'complete', currentVideo: '' },
+    whisper: { current: 0, total: 0, status: 'idle' as 'idle' | 'processing' | 'complete', currentVideo: '' },
+    cleanvoice: { current: 0, total: 0, status: 'idle' as 'idle' | 'processing' | 'complete', currentVideo: '' },
     currentVideoName: '' 
   });
   const [processingStep, setProcessingStep] = useState<'download' | 'extract' | 'whisper' | 'cleanvoice' | 'detect' | 'save' | null>(null);
@@ -1658,6 +1658,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     console.log('[Batch Processing] 🚀 Starting SMART processing with', videos.length, 'videos');
     console.log('[Batch Processing] 📋 Video list:', videos.map(v => v.videoName).join(', '));
     
+    // Initialize progress bars
+    setProcessingProgress({
+      ffmpeg: { current: 0, total: videos.length, status: 'idle', currentVideo: '' },
+      whisper: { current: 0, total: videos.length, status: 'idle', currentVideo: '' },
+      cleanvoice: { current: 0, total: videos.length, status: 'idle', currentVideo: '' },
+      currentVideoName: ''
+    });
+    
     let successCount = 0;
     let failCount = 0;
     let ffmpegCompletedCount = 0;
@@ -1683,6 +1691,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           // Increment active FFmpeg counter BEFORE request
           activeFfmpegRequests++;
           setProcessingStep('extract');
+          
+          // Set FFmpeg status to processing
+          setProcessingProgress(prev => ({
+            ...prev,
+            ffmpeg: { ...prev.ffmpeg, status: 'processing', currentVideo: video.videoName }
+          }));
           
           // Extract red text from video
           const hasRedText = video.redStart !== undefined && 
@@ -1746,7 +1760,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           ffmpegCompletedCount++;
           setProcessingProgress(prev => ({ 
             ...prev,
-            ffmpeg: { current: ffmpegCompletedCount, total: videos.length },
+            ffmpeg: { 
+              current: ffmpegCompletedCount, 
+              total: videos.length,
+              status: ffmpegCompletedCount === videos.length ? 'complete' : 'processing',
+              currentVideo: ffmpegCompletedCount === videos.length ? '' : video.videoName
+            },
             currentVideoName: video.videoName 
           }));
           
@@ -1754,7 +1773,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           whisperCompletedCount++;
           setProcessingProgress(prev => ({ 
             ...prev,
-            whisper: { current: whisperCompletedCount, total: videos.length },
+            whisper: { 
+              current: whisperCompletedCount, 
+              total: videos.length,
+              status: whisperCompletedCount === videos.length ? 'complete' : 'processing',
+              currentVideo: whisperCompletedCount === videos.length ? '' : video.videoName
+            },
             currentVideoName: video.videoName 
           }));
           
@@ -1762,7 +1786,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           cleanvoiceCompletedCount++;
           setProcessingProgress(prev => ({ 
             ...prev,
-            cleanvoice: { current: cleanvoiceCompletedCount, total: videos.length },
+            cleanvoice: { 
+              current: cleanvoiceCompletedCount, 
+              total: videos.length,
+              status: cleanvoiceCompletedCount === videos.length ? 'complete' : 'processing',
+              currentVideo: cleanvoiceCompletedCount === videos.length ? '' : video.videoName
+            },
             currentVideoName: video.videoName 
           }));
           
@@ -1798,9 +1827,24 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             cleanvoiceCompletedCount++;
             setProcessingProgress(prev => ({ 
               ...prev,
-              ffmpeg: { current: ffmpegCompletedCount, total: videos.length },
-              whisper: { current: whisperCompletedCount, total: videos.length },
-              cleanvoice: { current: cleanvoiceCompletedCount, total: videos.length },
+              ffmpeg: { 
+                current: ffmpegCompletedCount, 
+                total: videos.length,
+                status: ffmpegCompletedCount === videos.length ? 'complete' : 'processing',
+                currentVideo: ffmpegCompletedCount === videos.length ? '' : video.videoName
+              },
+              whisper: { 
+                current: whisperCompletedCount, 
+                total: videos.length,
+                status: whisperCompletedCount === videos.length ? 'complete' : 'processing',
+                currentVideo: whisperCompletedCount === videos.length ? '' : video.videoName
+              },
+              cleanvoice: { 
+                current: cleanvoiceCompletedCount, 
+                total: videos.length,
+                status: cleanvoiceCompletedCount === videos.length ? 'complete' : 'processing',
+                currentVideo: cleanvoiceCompletedCount === videos.length ? '' : video.videoName
+              },
               currentVideoName: video.videoName 
             }));
           }

@@ -5,9 +5,9 @@ import { Loader2 } from 'lucide-react';
 
 interface ProcessingModalProps {
   open: boolean;
-  ffmpegProgress: { current: number; total: number };
-  whisperProgress: { current: number; total: number };
-  cleanvoiceProgress: { current: number; total: number };
+  ffmpegProgress: { current: number; total: number; status: 'idle' | 'processing' | 'complete'; currentVideo: string };
+  whisperProgress: { current: number; total: number; status: 'idle' | 'processing' | 'complete'; currentVideo: string };
+  cleanvoiceProgress: { current: number; total: number; status: 'idle' | 'processing' | 'complete'; currentVideo: string };
   currentVideoName: string;
   processingStep: 'download' | 'extract' | 'whisper' | 'cleanvoice' | 'detect' | 'save' | null;
 }
@@ -60,28 +60,43 @@ export function ProcessingModal({
           {/* FFmpeg Progress Bar */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-gray-600">🎵 FFmpeg (Audio Extraction)</p>
+              <p className="text-xs font-medium text-gray-600">📤 FFmpeg (Upload + Extract Audio)</p>
               <p className="text-xs font-medium text-gray-700">{ffmpegProgress.current}/{ffmpegProgress.total}</p>
             </div>
             <Progress value={ffmpegPercent} className="h-2" />
+            <p className="text-xs text-gray-500">
+              {ffmpegProgress.status === 'idle' && '⏸️ Waiting...'}
+              {ffmpegProgress.status === 'processing' && `⏳ Processing: ${ffmpegProgress.currentVideo}`}
+              {ffmpegProgress.status === 'complete' && '✅ Complete!'}
+            </p>
           </div>
 
           {/* Whisper Progress Bar */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-gray-600">🤖 Whisper (Transcription)</p>
+              <p className="text-xs font-medium text-gray-600">🎤 Whisper (Transcription)</p>
               <p className="text-xs font-medium text-gray-700">{whisperProgress.current}/{whisperProgress.total}</p>
             </div>
             <Progress value={whisperPercent} className="h-2" />
+            <p className="text-xs text-gray-500">
+              {whisperProgress.status === 'idle' && '⏸️ Waiting...'}
+              {whisperProgress.status === 'processing' && `⏳ Processing: ${whisperProgress.currentVideo}`}
+              {whisperProgress.status === 'complete' && '✅ Complete!'}
+            </p>
           </div>
 
           {/* CleanVoice Progress Bar */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-gray-600">🎙️ CleanVoice (Audio Processing)</p>
+              <p className="text-xs font-medium text-gray-600">🎵 CleanVoice (Audio Enhancement)</p>
               <p className="text-xs font-medium text-gray-700">{cleanvoiceProgress.current}/{cleanvoiceProgress.total}</p>
             </div>
             <Progress value={cleanvoicePercent} className="h-2" />
+            <p className="text-xs text-gray-500">
+              {cleanvoiceProgress.status === 'idle' && '⏸️ Waiting...'}
+              {cleanvoiceProgress.status === 'processing' && `⏳ Processing: ${cleanvoiceProgress.currentVideo}`}
+              {cleanvoiceProgress.status === 'complete' && '✅ Complete!'}
+            </p>
           </div>
 
           {/* Overall Progress */}
