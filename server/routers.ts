@@ -2155,21 +2155,29 @@ export const appRouter = router({
       }))
       .mutation(async ({ input }) => {
         try {
-          console.log(`[mergeVideos] Merging ${input.videoUrls.length} videos into ${input.outputVideoName}`);
+          console.log(`[mergeVideos] 🚀 Starting merge...`);
+          console.log(`[mergeVideos] 📺 Videos to merge: ${input.videoUrls.length}`);
+          console.log(`[mergeVideos] 🎯 Output name: ${input.outputVideoName}`);
+          console.log(`[mergeVideos] 🔗 Video URLs:`, input.videoUrls);
           
           const { mergeVideosWithFFmpegAPI } = await import('./videoEditing.js');
+          console.log(`[mergeVideos] 📤 Calling mergeVideosWithFFmpegAPI...`);
+          
           const cdnUrl = await mergeVideosWithFFmpegAPI(
             input.videoUrls,
             input.outputVideoName,
             input.ffmpegApiKey
           );
           
+          console.log(`[mergeVideos] ✅ Merge complete! CDN URL: ${cdnUrl}`);
+          
           return {
             success: true,
             cdnUrl,
           };
         } catch (error: any) {
-          console.error('[mergeVideos] Error:', error);
+          console.error('[mergeVideos] ❌ Error:', error);
+          console.error('[mergeVideos] ❌ Error stack:', error.stack);
           throw new TRPCError({
             code: 'INTERNAL_SERVER_ERROR',
             message: `Failed to merge videos: ${error.message}`,

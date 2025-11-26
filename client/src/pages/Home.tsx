@@ -1977,7 +1977,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
   // Step 9 → Step 10: Merge videos (body + hook variations)
   const handleMergeVideos = async () => {
-    console.log('[Step 9→Step 10] Starting merge process...');
+    console.log('[Step 9→Step 10] 🚀 Starting merge process...');
+    console.log('[Step 9→Step 10] 📊 Total videoResults:', videoResults.length);
     
     const trimmedVideos = videoResults.filter(v => 
       v.reviewStatus === 'accepted' && 
@@ -1985,26 +1986,37 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       v.trimmedVideoUrl
     );
     
+    console.log('[Step 9→Step 10] ✅ Trimmed videos found:', trimmedVideos.length);
+    console.log('[Step 9→Step 10] 📋 Trimmed videos:', trimmedVideos.map(v => v.videoName));
+    
     // 1. Merge body videos (exclude hooks)
     const bodyVideos = trimmedVideos.filter(v => !v.videoName.toLowerCase().includes('hook'));
+    console.log('[Step 9→Step 10] 📺 Body videos (non-hook):', bodyVideos.length);
+    console.log('[Step 9→Step 10] 📺 Body video names:', bodyVideos.map(v => v.videoName));
     
     // 2. Group hook variations (A, B, C, D)
     const hookVideos = trimmedVideos.filter(v => v.videoName.toLowerCase().includes('hook'));
+    console.log('[Step 9→Step 10] 🎣 Hook videos:', hookVideos.length);
+    console.log('[Step 9→Step 10] 🎣 Hook video names:', hookVideos.map(v => v.videoName));
     
     if (bodyVideos.length === 0 && hookVideos.length === 0) {
+      console.error('[Step 9→Step 10] ❌ No videos to merge!');
       toast.error('No videos to merge!');
       return;
     }
     
+    console.log('[Step 9→Step 10] 🔄 Setting merge state...');
     setIsMergingStep10(true);
     setMergeStep10Progress('Starting merge process...');
     
     try {
       // Merge body videos
       if (bodyVideos.length > 0) {
+        console.log('[Step 9→Step 10] 📺 Starting BODY merge...');
         setMergeStep10Progress(`Merging ${bodyVideos.length} body videos...`);
         
         const bodyVideoUrls = bodyVideos.map(v => v.trimmedVideoUrl!).filter(Boolean);
+        console.log('[Step 9→Step 10] 🔗 Body video URLs:', bodyVideoUrls);
         
         // Extract context from first video name (e.g., T1_C1_E1_AD2)
         const firstVideoName = bodyVideos[0].videoName;
@@ -2018,7 +2030,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         // NEW NAMING: T1_C1_E1_AD2_BODY_TEST
         const outputName = `${context}_BODY_${characterName}`;
         
-        console.log('[Step 9→Step 10] Body merge output name:', outputName);
+        console.log('[Step 9→Step 10] 🎯 Body merge output name:', outputName);
+        console.log('[Step 9→Step 10] 📤 Calling mergeVideosMutation...');
         
         const bodyResult = await mergeVideosMutation.mutateAsync({
           videoUrls: bodyVideoUrls,
@@ -2026,12 +2039,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
         });
         
+        console.log('[Step 9→Step 10] ✅ Body merge result:', bodyResult);
         setBodyMergedVideoUrl(bodyResult.cdnUrl);
-        console.log('[Step 9→Step 10] Body merge complete:', bodyResult.cdnUrl);
+        console.log('[Step 9→Step 10] ✅ Body merge complete:', bodyResult.cdnUrl);
       }
       
       // Merge hook variations (group by base name)
       if (hookVideos.length > 0) {
+        console.log('[Step 9→Step 10] 🎣 Starting HOOK merge...');
         setMergeStep10Progress('Merging hook variations...');
         
         // Group hooks by base name
@@ -2048,7 +2063,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           }
         });
         
-        console.log('[Step 9→Step 10] Hook groups:', Object.keys(hookGroups));
+        console.log('[Step 9→Step 10] 📋 Hook groups:', hookGroups);
+        console.log('[Step 9→Step 10] 📋 Hook group count:', Object.keys(hookGroups).length);
         
         // Merge each group
         const mergedHooks: Record<string, string> = {};
@@ -2078,12 +2094,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         setHookMergedVideos(mergedHooks);
       }
       
+      console.log('[Step 9→Step 10] 🎉 All merges complete!');
       setMergeStep10Progress('');
       setIsMergingStep10(false);
+      
+      console.log('[Step 9→Step 10] ➡️ Moving to Step 10...');
       setCurrentStep(10);
       toast.success('✅ Merge complete! Go to Step 10.');
     } catch (error: any) {
-      console.error('[Step 9→Step 10] Merge error:', error);
+      console.error('[Step 9→Step 10] ❌ Merge error:', error);
+      console.error('[Step 9→Step 10] ❌ Error stack:', error.stack);
       setMergeStep10Progress(`Error: ${error.message}`);
       setIsMergingStep10(false);
       toast.error(`Merge failed: ${error.message}`);
@@ -2188,7 +2208,22 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       const batch = hookUrls.slice(i, Math.min(i + BATCH_SIZE, hookUrls.length));
       
       const batchPromises = batch.map(async (hook) => {
-        const finalVideoName = `${context}_${character}_HOOK${hook.hookNumber}`;
+        // Find the hook video to get imageUrl
+        const hookVideo = videoResults.find(v => v.videoName === hook.name);
+        
+        // Extract image name from imageUrl
+        let imageName = '';
+        if (hookVideo && hookVideo.imageUrl) {
+          // Extract filename from URL: .../Alina_1-1763565542441-8ex9ipx3ruv.png → Alina_1
+          const urlParts = hookVideo.imageUrl.split('/');
+          const filename = urlParts[urlParts.length - 1];
+          const nameMatch = filename.match(/^(.+?)-\d+/);
+          imageName = nameMatch ? nameMatch[1] : '';
+        }
+        
+        const finalVideoName = imageName 
+          ? `${context}_${character}_${imageName}_HOOK${hook.hookNumber}`
+          : `${context}_${character}_HOOK${hook.hookNumber}`;
         
         setMergeFinalProgress(prev => ({
           ...prev,
@@ -9303,23 +9338,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             </p>
                           )}
                           
-                          {/* Trim Info */}
-                          <div className="text-xs text-gray-600 mb-3 text-center">
-                            <p>✂️ Trimmed: {((video.cutPoints?.startKeep || 0) / 1000).toFixed(3)}s → {((video.cutPoints?.endKeep || 0) / 1000).toFixed(3)}s</p>
-                            <p>Duration: {(() => {
-                              const durationMs = (video.cutPoints?.endKeep || 0) - (video.cutPoints?.startKeep || 0);
-                              const durationS = durationMs / 1000;
-                              // Debug logging
-                              console.log(`[Step 9 Duration] ${video.videoName}:`, {
-                                startKeep: video.cutPoints?.startKeep,
-                                endKeep: video.cutPoints?.endKeep,
-                                durationMs,
-                                durationS,
-                                displayed: durationS.toFixed(3)
-                              });
-                              return durationS.toFixed(3);
-                            })()}s</p>
-                          </div>
+
                           
                           {/* Step 9 Note Display */}
                           {video.step9Note && (
@@ -9820,13 +9839,26 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           const context = contextMatch ? contextMatch[1] : 'MERGED';
                           const character = characterMatch ? characterMatch[1] : 'TEST';
                           
-                          selectedHooks.forEach((hookName, index) => {
-                            // Extract hook number from name (e.g., HOOK3M_TEST → HOOK3)
-                            const hookMatch = hookName.match(/HOOK(\d+)[A-Z]?/);
-                            const hookNumber = hookMatch ? hookMatch[1] : (index + 1);
-                            const finalName = `${context}_${character}_HOOK${hookNumber}`;
-                            combinations.push(finalName);
-                          });
+                        selectedHooks.forEach((hookName, index) => {
+                          // Extract hook number from name (e.g., HOOK3M_TEST → HOOK3)
+                          const hookMatch = hookName.match(/HOOK(\d+)[A-Z]?/);
+                          const hookNumber = hookMatch ? hookMatch[1] : (index + 1);
+                          
+                          // Extract image name from imageUrl
+                          let imageName = '';
+                          if (hookVideo && hookVideo.imageUrl) {
+                            // Extract filename from URL: .../Alina_1-1763565542441-8ex9ipx3ruv.png → Alina_1
+                            const urlParts = hookVideo.imageUrl.split('/');
+                            const filename = urlParts[urlParts.length - 1];
+                            const nameMatch = filename.match(/^(.+?)-\d+/);
+                            imageName = nameMatch ? nameMatch[1] : '';
+                          }
+                          
+                          const finalName = imageName 
+                            ? `${context}_${character}_${imageName}_HOOK${hookNumber}`
+                            : `${context}_${character}_HOOK${hookNumber}`;
+                          combinations.push(finalName);
+                        });
                         }
                       } else if (referenceVideo) {
                         const contextMatch = referenceVideo.videoName.match(/^(T\d+_C\d+_E\d+_AD\d+)/);
@@ -9838,7 +9870,23 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           // Extract hook number from name
                           const hookMatch = hookName.match(/HOOK(\d+)[A-Z]?/);
                           const hookNumber = hookMatch ? hookMatch[1] : (index + 1);
-                          const finalName = `${context}_${character}_HOOK${hookNumber}`;
+                          
+                          // Find the hook video to get imageUrl
+                          const hookVideo = videoResults.find(v => v.videoName === hookName);
+                          
+                          // Extract image name from imageUrl
+                          let imageName = '';
+                          if (hookVideo && hookVideo.imageUrl) {
+                            // Extract filename from URL: .../Alina_1-1763565542441-8ex9ipx3ruv.png → Alina_1
+                            const urlParts = hookVideo.imageUrl.split('/');
+                            const filename = urlParts[urlParts.length - 1];
+                            const nameMatch = filename.match(/^(.+?)-\d+/);
+                            imageName = nameMatch ? nameMatch[1] : '';
+                          }
+                          
+                          const finalName = imageName 
+                            ? `${context}_${character}_${imageName}_HOOK${hookNumber}`
+                            : `${context}_${character}_HOOK${hookNumber}`;
                           combinations.push(finalName);
                         });
                       }
