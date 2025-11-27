@@ -1179,8 +1179,8 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, nextVide
         </div>
       </div>
 
-      {/* WaveSurfer.js Full Implementation */}
-      {video.audioUrl && (
+      {/* WaveSurfer.js Full Implementation - COMMENTED OUT */}
+      {/* {video.audioUrl && (
         <WaveSurferEditor
           audioUrl={video.audioUrl}
           videoRef={videoRef}
@@ -1215,7 +1215,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, nextVide
             }
           }}
         />
-      )}
+      )} */}
 
       {/* Error State */}
       {previewStart >= previewEnd && (
