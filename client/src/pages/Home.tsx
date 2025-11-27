@@ -10833,7 +10833,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           const finalName = hookName.replace(/(HOOK\d+)M/, '$1');
                           combinations.push(finalName);
                         });
-                        });
                       }
                     }
                     
