@@ -3267,13 +3267,25 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         console.log(`  - ❌ Using default image: ${selectedImage.fileName}`);
       }
       
+      // Extract image name from fileName (e.g., "Alina_1_CTA.png" → "ALINA_1")
+      let imageName = '';
+      if (selectedImage.fileName) {
+        // Remove extension
+        const nameWithoutExt = selectedImage.fileName.replace(/\.[^.]+$/, '');
+        // Remove "_CTA" or "CTA" suffix (case insensitive)
+        imageName = nameWithoutExt.replace(/_?CTA$/i, '').toUpperCase();
+      }
+      
+      // Update videoName to include image name
+      const updatedVideoName = imageName ? `${line.videoName}_${imageName}` : line.videoName;
+      
       return {
         id: `combo-${index}`,
         text: line.text,
         imageUrl: selectedImage.url,
         imageId: selectedImage.id,
         promptType: line.promptType, // Mapare automată inteligentă
-        videoName: line.videoName,
+        videoName: updatedVideoName,
         section: line.section,
         categoryNumber: line.categoryNumber,
         redStart: line.redStart,  // Copiază pozițiile red text din AdLine
@@ -10020,43 +10032,26 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           )}
                         </div>
 
-                        {/* Buton TRIM ALL VIDEOS - va trimite la FFmpeg API pentru cutting */}
-                        <Button
-                          onClick={() => {
-                            // Open trimming modal
-                            setIsTrimmingModalOpen(true);
-                            // Start trimming process
-                            handleTrimAllVideos();
-                          }}
-                          className="bg-red-600 hover:bg-red-700 px-8 py-8 text-lg"
-                        >
-                          {(() => {
-                            const hasTrimmedVideos = videoResults.some(v => v.trimmedVideoUrl);
-                            const count = hasTrimmedVideos 
-                              ? videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && (!v.trimmedVideoUrl || v.recutStatus === 'recut')).length
-                              : videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length;
-                            return (
-                              <>
-                                Next: Trim All Videos ({count})
-                                <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                </svg>
-                              </>
-                            );
-                          })()}
-                        </Button>
-
-                        {/* Check Videos button - only show if we have trimmed videos */}
-                        {videoResults.some(v => v.trimmedVideoUrl) && (
+                        {/* Action buttons - stacked vertically */}
+                        <div className="flex flex-col gap-4 items-center mt-4">
+                          {/* Buton TRIM ALL VIDEOS - va trimite la FFmpeg API pentru cutting */}
                           <Button
-                            onClick={() => setCurrentStep(9)}
-                            className="bg-green-600 hover:bg-green-700 px-8 py-8 text-lg"
+                            onClick={() => {
+                              // Open trimming modal
+                              setIsTrimmingModalOpen(true);
+                              // Start trimming process
+                              handleTrimAllVideos();
+                            }}
+                            className="bg-red-600 hover:bg-red-700 px-8 py-8 text-lg w-full max-w-md"
                           >
                             {(() => {
-                              const count = approvedVideos.filter(v => v.trimmedVideoUrl).length;
+                              const hasTrimmedVideos = videoResults.some(v => v.trimmedVideoUrl);
+                              const count = hasTrimmedVideos 
+                                ? videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && (!v.trimmedVideoUrl || v.recutStatus === 'recut')).length
+                                : videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length;
                               return (
                                 <>
-                                  Next: Check Videos ({count})
+                                  Next: Trim All Videos ({count})
                                   <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                   </svg>
@@ -10064,7 +10059,27 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                               );
                             })()}
                           </Button>
-                        )}
+
+                          {/* Check Videos button - only show if we have trimmed videos */}
+                          {videoResults.some(v => v.trimmedVideoUrl) && (
+                            <Button
+                              onClick={() => setCurrentStep(9)}
+                              className="bg-green-600 hover:bg-green-700 px-8 py-8 text-lg w-full max-w-md"
+                            >
+                              {(() => {
+                                const count = approvedVideos.filter(v => v.trimmedVideoUrl).length;
+                                return (
+                                  <>
+                                    Next: Check Videos ({count})
+                                    <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                  </>
+                                );
+                              })()}
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
