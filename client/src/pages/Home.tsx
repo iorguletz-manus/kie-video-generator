@@ -343,6 +343,22 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingNoteText, setEditingNoteText] = useState<string>('');
   
+  // Last sample video URL (for "Open Last Sample" link)
+  const [lastSampleVideoUrl, setLastSampleVideoUrl] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('lastSampleVideoUrl') || null;
+    } catch {
+      return null;
+    }
+  });
+  
+  // Persist lastSampleVideoUrl to localStorage
+  useEffect(() => {
+    if (lastSampleVideoUrl) {
+      localStorage.setItem('lastSampleVideoUrl', lastSampleVideoUrl);
+    }
+  }, [lastSampleVideoUrl]);
+  
   // Download ZIP progress
   const [isDownloadZipModalOpen, setIsDownloadZipModalOpen] = useState(false);
   const [downloadZipProgress, setDownloadZipProgress] = useState<string>('');
@@ -9532,6 +9548,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           
                           console.log('[Sample Merge] Success!', result);
                           setSampleMergedVideoUrl(result.downloadUrl);
+                          setLastSampleVideoUrl(result.downloadUrl); // Save for "Open Last Sample" link
                           setLastMergedVideosHash(currentHash);
                           setSampleMergeProgress('');
                         } catch (error: any) {
@@ -9545,6 +9562,27 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     >
                       🎬 Sample Merge ALL Videos
                     </Button>
+                  )}
+                  
+                  {/* Open Last Sample link */}
+                  {lastSampleVideoUrl && (
+                    <button
+                      onClick={() => {
+                        // Reopen modal with last sample video
+                        const allAcceptedVideos = videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl);
+                        const videoList = allAcceptedVideos.map(v => ({
+                          name: v.videoName,
+                          note: v.step9Note || ''
+                        }));
+                        setSampleMergeVideos(videoList);
+                        setSampleMergedVideoUrl(lastSampleVideoUrl);
+                        setIsSampleMergeModalOpen(true);
+                        setSampleMergeProgress('');
+                      }}
+                      className="text-blue-600 hover:text-blue-800 underline text-sm ml-2"
+                    >
+                      Open Last Sample
+                    </button>
                   )}
                 </div>
                 
@@ -9944,6 +9982,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                               
                               console.log('[Sample Merge] Success!', result);
                               setSampleMergedVideoUrl(result.downloadUrl);
+                              setLastSampleVideoUrl(result.downloadUrl); // Save for "Open Last Sample" link
                               setLastMergedVideosHash(currentHash);
                               setSampleMergeProgress('');
                             } catch (error) {
@@ -9957,6 +9996,26 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             >
                               🎬 Sample Merge ALL Videos
                             </Button>
+                          )}
+                          
+                          {/* Open Last Sample link */}
+                          {lastSampleVideoUrl && (
+                            <button
+                              onClick={() => {
+                                // Reopen modal with last sample video
+                                const videoList = approvedVideos.map(v => ({
+                                  name: v.videoName,
+                                  note: v.step9Note || ''
+                                }));
+                                setSampleMergeVideos(videoList);
+                                setSampleMergedVideoUrl(lastSampleVideoUrl);
+                                setIsSampleMergeModalOpen(true);
+                                setSampleMergeProgress('');
+                              }}
+                              className="text-blue-600 hover:text-blue-800 underline text-sm ml-2"
+                            >
+                              Open Last Sample
+                            </button>
                           )}
                         </div>
 
