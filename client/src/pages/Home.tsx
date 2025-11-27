@@ -2402,11 +2402,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           const firstVideoName = bodyVideos[0].videoName;
           const contextMatch = firstVideoName.match(/^(T\d+_C\d+_E\d+_AD\d+)/);
           const contextName = contextMatch ? contextMatch[1] : 'MERGED';
-          const characterMatch = firstVideoName.match(/_(\w+)$/);
-          const characterName = characterMatch ? characterMatch[1] : 'TEST';
+          
+          // Extract character and imageName: T1_C1_E1_AD1_TRANSFORMATION1_TEST_ALINA_1 → TEST_ALINA_1
+          const nameMatch = firstVideoName.match(/_([A-Z]+)_([A-Z]+_\d+)$/);
+          const character = nameMatch ? nameMatch[1] : 'TEST';
+          const imageName = nameMatch ? nameMatch[2] : 'ALINA_1';
           const episodeName = contextName; // Use context as episode for now
           
-          const outputName = `${contextName}_BODY_${characterName}`;
+          const outputName = `${contextName}_BODY_${character}_${imageName}`;
           
           const result = await mergeVideosMutation.mutateAsync({
             videoUrls: bodyVideoUrls,

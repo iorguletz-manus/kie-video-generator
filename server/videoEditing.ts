@@ -1580,7 +1580,7 @@ export async function mergeVideosWithFFmpegAPI(
     const BUNNYCDN_PULL_ZONE_URL = 'https://manus.b-cdn.net';
     
     const bunnyFileName = `${outputVideoName}.mp4`;
-    const mergedPath = userId ? `user-${userId}/videos/merged/${bunnyFileName}` : `videos/merged/${bunnyFileName}`;
+    const mergedPath = userId ? `user-${userId}/videos/prepare-for-merge/${bunnyFileName}` : `videos/prepare-for-merge/${bunnyFileName}`;
     const storageUrl = `https://storage.bunnycdn.com/${BUNNYCDN_STORAGE_ZONE}/${mergedPath}`;
     
     console.log(`[mergeVideosWithFFmpegAPI] Uploading to Bunny CDN: merged-videos/${bunnyFileName}`);
