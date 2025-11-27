@@ -689,8 +689,9 @@ export async function processVideoForEditing(
     // console.log(`[processVideoForEditing] Audio uploaded to Bunny.net: ${bunnyAudioUrl}`);
     // ============================================================================
     
-    // 1. Run CleanVoice, Whisper, and Waveform in PARALLEL
-    console.log(`[processVideoForEditing] 🚀 PARALLEL START (CleanVoice + Whisper + Waveform) for ${videoName}`);
+    // 1. CleanVoice first, then Whisper + Waveform in parallel
+    console.log(`[processVideoForEditing] 🎤 CleanVoice START for ${videoName}`);
+    console.log(`[processVideoForEditing] 🚀 Then Whisper + Waveform will run in parallel using CleanVoice audio`);
     const parallelStartTime = Date.now();
     
     if (!cleanvoiceApiKey || !userId) {
@@ -699,12 +700,19 @@ export async function processVideoForEditing(
     
     const { processVideoWithCleanVoice } = await import('./cleanvoice.js');
     
-    const [cleanvoiceResult, whisperResult, waveformJson] = await Promise.allSettled([
-      // CleanVoice: Extract WAV audio from video
-      processVideoWithCleanVoice(videoUrl, videoName, userId, cleanvoiceApiKey),
-      
-      // Whisper: Transcribe ORIGINAL video directly
-      transcribeWithWhisper(videoUrl, 'ro', userApiKey),
+    // First: Wait for CleanVoice to extract audio
+    const cleanvoiceResult = await processVideoWithCleanVoice(videoUrl, videoName, userId, cleanvoiceApiKey);
+    
+    if (!cleanvoiceResult) {
+      throw new Error('CleanVoice failed to process video');
+    }
+    
+    console.log(`[processVideoForEditing] ✅ CleanVoice audio ready: ${cleanvoiceResult}`);
+    
+    // Then: Run Whisper and Waveform in parallel using CleanVoice audio
+    const [whisperResult, waveformJson] = await Promise.allSettled([
+      // Whisper: Transcribe CleanVoice audio
+      transcribeWithWhisper(cleanvoiceResult, 'ro', userApiKey),
       
       // Waveform: Will use CleanVoice audio later (placeholder for now)
       Promise.resolve(null),
@@ -712,16 +720,8 @@ export async function processVideoForEditing(
     const parallelDuration = Date.now() - parallelStartTime;
     console.log(`[processVideoForEditing] ✅ PARALLEL DONE for ${videoName} in ${parallelDuration}ms (${(parallelDuration/1000).toFixed(2)}s)`);
     
-    // Extract results from Promise.allSettled (CleanVoice + Whisper + Waveform)
-    
-    if (cleanvoiceResult.status === 'rejected') {
-      throw new Error(`CleanVoice processing failed: ${cleanvoiceResult.reason}`);
-    }
-    const cleanvoiceAudioUrl = cleanvoiceResult.value;
-    
-    if (!cleanvoiceAudioUrl) {
-      throw new Error('CleanVoice failed to process video');
-    }
+    // Extract results from Promise.allSettled (Whisper + Waveform)
+    const cleanvoiceAudioUrl = cleanvoiceResult;
     
     if (whisperResult.status === 'rejected') {
       throw new Error(`Whisper transcription failed: ${whisperResult.reason}`);
@@ -743,7 +743,8 @@ export async function processVideoForEditing(
     
     const totalDuration = Date.now() - startTime;
     console.log(`[processVideoForEditing] ✅ TOTAL COMPLETE for ${videoName} in ${totalDuration}ms (${(totalDuration/1000).toFixed(2)}s)`);
-    console.log(`[processVideoForEditing] 📊 BREAKDOWN: Parallel=${parallelDuration}ms, Waveform=${waveformDuration}ms, CutPoints=${cutPointsDuration}ms`);
+    console.log(`[processVideoForEditing] 📊 BREAKDOWN: CleanVoice+Whisper=${parallelDuration}ms, Waveform=${waveformDuration}ms, CutPoints=${cutPointsDuration}ms`);
+    console.log(`[processVideoForEditing] 🎤 Whisper used CleanVoice audio (WAV)`);
     console.log(`[processVideoForEditing] Processing complete for video ${videoId}`);
     console.log(`[processVideoForEditing] Debug info:`, debugInfo.message);
     
