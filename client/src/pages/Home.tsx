@@ -882,6 +882,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         console.log('[Context Session] 📥 Loaded bodyMergedVideoUrl:', contextSession.bodyMergedVideoUrl);
       }
       
+      if (contextSession.finalVideos) {
+        const parsedFinalVideos = typeof contextSession.finalVideos === 'string' 
+          ? JSON.parse(contextSession.finalVideos) 
+          : contextSession.finalVideos;
+        setFinalVideos(parsedFinalVideos || []);
+        console.log('[Context Session] 📥 Loaded finalVideos:', parsedFinalVideos);
+      }
+      
       // Update previousCharacterIdRef to track initial character
       if (selectedCharacterId) {
         previousCharacterIdRef.current = selectedCharacterId;
@@ -1144,6 +1152,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           reviewHistory,
           hookMergedVideos,
           bodyMergedVideoUrl,
+          finalVideos,
         });
         console.log('[Auto-save] ✅ currentStep saved successfully');
       } catch (error) {
@@ -1152,7 +1161,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }, 500); // 500ms debounce
     
     return () => clearTimeout(saveTimeout);
-  }, [currentStep, selectedTamId, selectedCoreBeliefId, selectedEmotionalAngleId, selectedAdId, selectedCharacterId, localCurrentUser]);
+  }, [currentStep, selectedTamId, selectedCoreBeliefId, selectedEmotionalAngleId, selectedAdId, selectedCharacterId, localCurrentUser, videoResults, hookMergedVideos, bodyMergedVideoUrl, finalVideos]);
   
   const regenerateVideos = useMemo(
     () => videoResults.filter(v => 
@@ -10424,11 +10433,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                               }`}
                             >
                               <div className="space-y-3">
-                                {/* Selection Indicator */}
-                                <div className="flex items-center justify-between">
-                                  <p className="text-sm font-semibold text-gray-900 truncate flex-1">
-                                    {video.videoName}
-                                  </p>
+                              {/* Selection Indicator */}
+                              <div className="flex items-center justify-between">
+                                <p className="text-sm font-semibold text-gray-900 text-center flex-1">
+                                  {video.videoName}
+                                </p>
                                   <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
                                     isSelected ? 'bg-blue-500' : 'bg-gray-300'
                                   }`}>
@@ -10451,8 +10460,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                   />
                                 </div>
                                 
-                                {/* Video Text (white text only) */}
-                                <p className="text-xs text-gray-600 text-center line-clamp-3">
+                              {/* Video Text (white text only) */}
+                              <p className="text-xs text-gray-600 text-center">
                                   {(() => {
                                     const text = video.text || '';
                                     // Remove red text parts
@@ -10522,7 +10531,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             <div className="space-y-3">
                               {/* Selection Indicator */}
                               <div className="flex items-center justify-between">
-                                <p className="text-sm font-semibold text-gray-900 truncate flex-1">
+                                <p className="text-sm font-semibold text-gray-900 text-center flex-1">
                                   {mergedBodyName}
                                 </p>
                                 <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
@@ -10585,7 +10594,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           <div className="space-y-3">
                             {/* Selection Indicator */}
                             <div className="flex items-center justify-between">
-                              <p className="text-sm font-semibold text-gray-900 truncate flex-1">
+                              <p className="text-sm font-semibold text-gray-900 text-center flex-1">
                                 {bodyVideo.videoName}
                               </p>
                               <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
@@ -10611,7 +10620,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             </div>
                             
                             {/* Video Text */}
-                            <p className="text-xs text-gray-600 text-center line-clamp-3">
+                            <p className="text-xs text-gray-600 text-center">
                               {bodyVideo.text}
                             </p>
                           </div>
@@ -10664,8 +10673,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           }
                           
                           const finalName = imageName 
-                            ? `${context}_${character}_${imageName}_HOOK${hookNumber}`
-                            : `${context}_${character}_HOOK${hookNumber}`;
+                            ? `${context}_HOOK${hookNumber}_${character}_${imageName}`
+                            : `${context}_HOOK${hookNumber}_${character}`;
                           combinations.push(finalName);
                         });
                         }
@@ -10694,8 +10703,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           }
                           
                           const finalName = imageName 
-                            ? `${context}_${character}_${imageName}_HOOK${hookNumber}`
-                            : `${context}_${character}_HOOK${hookNumber}`;
+                            ? `${context}_HOOK${hookNumber}_${character}_${imageName}`
+                            : `${context}_HOOK${hookNumber}_${character}`;
                           combinations.push(finalName);
                         });
                       }
@@ -10818,22 +10827,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             />
                           </div>
                           
-                          {/* Download Button */}
-                          <Button
+                          {/* Download Link */}
+                          <a
+                            href={video.cdnUrl}
+                            download={`${video.videoName}.mp4`}
                             onClick={() => {
-                              const link = document.createElement('a');
-                              link.href = video.cdnUrl;
-                              link.download = `${video.videoName}.mp4`;
-                              link.click();
                               toast.success(`📥 Downloading ${video.videoName}...`);
                             }}
-                            className="w-full bg-blue-600 hover:bg-blue-700"
+                            className="text-blue-600 hover:text-blue-800 underline text-sm text-center block"
                           >
-                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                            </svg>
                             Download
-                          </Button>
+                          </a>
                         </div>
                       ))}
                     </div>
@@ -10842,9 +10846,37 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     <div className="flex justify-center mt-8">
                       <Button
                         onClick={async () => {
-                          toast.info('📦 Preparing ZIP archive...');
-                          // TODO: Implement ZIP download
-                          toast.success('🎉 All videos ready for download!');
+                          try {
+                            toast.info('📦 Preparing ZIP archive...');
+                            
+                            // Dynamically import JSZip
+                            const JSZip = (await import('jszip')).default;
+                            const zip = new JSZip();
+                            
+                            // Download all videos and add to ZIP
+                            for (const video of finalVideos) {
+                              try {
+                                const response = await fetch(video.cdnUrl);
+                                const blob = await response.blob();
+                                zip.file(`${video.videoName}.mp4`, blob);
+                              } catch (error) {
+                                console.error(`Failed to download ${video.videoName}:`, error);
+                                toast.error(`Failed to download ${video.videoName}`);
+                              }
+                            }
+                            
+                            // Generate ZIP and download
+                            const zipBlob = await zip.generateAsync({ type: 'blob' });
+                            const link = document.createElement('a');
+                            link.href = URL.createObjectURL(zipBlob);
+                            link.download = 'final-videos.zip';
+                            link.click();
+                            
+                            toast.success('🎉 All videos downloaded!');
+                          } catch (error) {
+                            console.error('ZIP download failed:', error);
+                            toast.error('Failed to create ZIP archive');
+                          }
                         }}
                         className="bg-green-600 hover:bg-green-700 px-12 py-8 text-xl font-bold shadow-xl"
                       >
