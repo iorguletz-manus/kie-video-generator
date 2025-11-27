@@ -1509,6 +1509,10 @@ export async function mergeVideosWithFFmpegAPI(
     
     // 4. Send to FFmpeg API
     console.log(`[mergeVideosWithFFmpegAPI] Sending merge task to FFmpeg API...`);
+    console.log(`[mergeVideosWithFFmpegAPI] 📋 Task details:`, JSON.stringify(task, null, 2));
+    console.log(`[mergeVideosWithFFmpegAPI] 📊 Inputs count: ${task.inputs.length}`);
+    console.log(`[mergeVideosWithFFmpegAPI] 🎯 Output file: ${outputFileName}`);
+    
     const processRes = await fetch(`${FFMPEG_API_BASE}/ffmpeg/process`, {
       method: 'POST',
       headers: {
@@ -1520,8 +1524,11 @@ export async function mergeVideosWithFFmpegAPI(
     
     if (!processRes.ok) {
       const errorText = await processRes.text();
-      console.error('[FFmpeg API] Error response:', errorText.substring(0, 500));
-      console.error('[FFmpeg API] Task sent:', JSON.stringify(task, null, 2));
+      console.error('[FFmpeg API] ❌ HTTP Status:', processRes.status, processRes.statusText);
+      console.error('[FFmpeg API] ❌ Error response:', errorText.substring(0, 500));
+      console.error('[FFmpeg API] ❌ Task sent:', JSON.stringify(task, null, 2));
+      console.error('[FFmpeg API] ❌ Request URL:', `${FFMPEG_API_BASE}/ffmpeg/process`);
+      console.error('[FFmpeg API] ❌ Videos count:', videoUrls.length);
       throw new Error(`FFmpeg API merge failed: ${processRes.statusText} - ${errorText.substring(0, 200)}`);
     }
     

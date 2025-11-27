@@ -9602,7 +9602,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             </p>
                           )}
                           
-
+                          {/* Trim Info Display */}
+                          {video.cutPoints && (
+                            <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+                              <p className="text-gray-700">
+                                <strong>Trimmed:</strong> {(video.cutPoints.startKeep / 1000).toFixed(1)}s → {(video.cutPoints.endKeep / 1000).toFixed(1)}s 
+                                ({((video.cutPoints.endKeep - video.cutPoints.startKeep) / 1000).toFixed(1)}s total)
+                              </p>
+                            </div>
+                          )}
                           
                           {/* Step 9 Note Display */}
                           {video.step9Note && (
