@@ -793,14 +793,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
   };
   
-  // DISABLED: localStorage restore - using database as single source of truth
-  // Auto-restore session la mount
-  useEffect(() => {
-    // DISABLED: No longer restoring from localStorage
-    // Database is the only source of truth
-    setIsRestoringSession(false);
-  }, []);
-  
   // Load data from context session when context changes
   useEffect(() => {
     console.log('[Context Session] useEffect triggered with:', {
@@ -904,6 +896,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       // No context session in database - reset to empty state
       console.log('[Context Session] No database session found, resetting to empty state');
       setCurrentStep(1);
+      setIsRestoringSession(false);
       setRawTextAd('');
       setProcessedTextAd('');
       setAdLines([]);
@@ -2598,25 +2591,32 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     const hookUrls: Array<{ name: string; url: string; hookNumber: string }> = [];
     
     for (const hookName of selectedHooks) {
+      console.log(`[Step 10→Step 11] 🔍 Processing hook: ${hookName}`);
       let hookUrl: string | null = null;
       
       // Check if this is a merged hook
       const baseName = Object.keys(hookMergedVideos).find(bn => {
         const mergedName = bn.replace(/(_[^_]+)$/, 'M$1');
+        console.log(`  🔸 Checking merged: ${bn} → ${mergedName} === ${hookName}? ${hookName === mergedName}`);
         return hookName === mergedName;
       });
       
       if (baseName) {
         hookUrl = hookMergedVideos[baseName];
+        console.log(`  ✅ Found in hookMergedVideos[${baseName}]: ${hookUrl}`);
       } else {
         const hookVideo = videoResults.find(v => v.videoName === hookName);
         hookUrl = hookVideo?.trimmedVideoUrl || null;
+        console.log(`  🔸 Searching in videoResults for ${hookName}:`, hookVideo ? `FOUND (trimmedVideoUrl: ${hookUrl})` : 'NOT FOUND');
       }
       
       if (hookUrl) {
         const hookMatch = hookName.match(/HOOK(\d+)[A-Z]?/);
         const hookNumber = hookMatch ? hookMatch[1] : '1';
         hookUrls.push({ name: hookName, url: hookUrl, hookNumber });
+        console.log(`  ✅ Added to hookUrls: ${hookName} (HOOK${hookNumber})`);
+      } else {
+        console.log(`  ❌ SKIPPED ${hookName} - no URL found!`);
       }
     }
     
