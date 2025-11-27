@@ -156,18 +156,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [, setLocation] = useLocation();
   
   // Step 1: Categories
-  const [selectedTamId, setSelectedTamId] = useState<number | null>(() => {
-    const saved = localStorage.getItem('selectedTamId');
-    return saved ? parseInt(saved) : null;
-  });
-  const [selectedCoreBeliefId, setSelectedCoreBeliefId] = useState<number | null>(() => {
-    const saved = localStorage.getItem('selectedCoreBeliefId');
-    return saved ? parseInt(saved) : null;
-  });
-  const [selectedEmotionalAngleId, setSelectedEmotionalAngleId] = useState<number | null>(() => {
-    const saved = localStorage.getItem('selectedEmotionalAngleId');
-    return saved ? parseInt(saved) : null;
-  });
+  const [selectedTamId, setSelectedTamId] = useState<number | null>(null);
+  const [selectedCoreBeliefId, setSelectedCoreBeliefId] = useState<number | null>(null);
+  const [selectedEmotionalAngleId, setSelectedEmotionalAngleId] = useState<number | null>(null);
   const [selectedAdId, setSelectedAdId] = useState<number | null>(() => {
     const saved = localStorage.getItem('selectedAdId');
     return saved ? parseInt(saved) : null;
@@ -1025,29 +1016,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   }, [selectedAdId, selectedCharacterId, allContextSessions]);
 
   // Save all selection IDs to localStorage for persistence across refresh
-  useEffect(() => {
-    if (selectedTamId) {
-      localStorage.setItem('selectedTamId', selectedTamId.toString());
-    } else {
-      localStorage.removeItem('selectedTamId');
-    }
-  }, [selectedTamId]);
-
-  useEffect(() => {
-    if (selectedCoreBeliefId) {
-      localStorage.setItem('selectedCoreBeliefId', selectedCoreBeliefId.toString());
-    } else {
-      localStorage.removeItem('selectedCoreBeliefId');
-    }
-  }, [selectedCoreBeliefId]);
-
-  useEffect(() => {
-    if (selectedEmotionalAngleId) {
-      localStorage.setItem('selectedEmotionalAngleId', selectedEmotionalAngleId.toString());
-    } else {
-      localStorage.removeItem('selectedEmotionalAngleId');
-    }
-  }, [selectedEmotionalAngleId]);
+  // TAM, CoreBelief, EmotionalAngle are NOT saved to localStorage
+  // They are auto-selected on page load based on available data
 
   useEffect(() => {
     if (selectedAdId) {
