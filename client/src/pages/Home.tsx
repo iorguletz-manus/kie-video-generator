@@ -2201,6 +2201,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           // Save merged hook URL
           setHookMergedVideos(prev => ({ ...prev, [baseName]: result.cdnUrl }));
           
+          // Save to database
+          await upsertContextSessionMutation.mutateAsync({
+            userId: localCurrentUser.id,
+            context: contextName,
+            character: characterName,
+            episode: episodeName,
+            videoResults: videoResults,
+            hookMergedVideos: { ...hookMergedVideos, [baseName]: result.cdnUrl },
+            bodyMergedVideoUrl: bodyMergedVideoUrl,
+          });
+          
         } catch (error: any) {
           console.error(`[Merge] ❌ ${baseName} FAILED:`, error);
           mergeResults.push({
@@ -2249,6 +2260,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           });
           
           setBodyMergedVideoUrl(result.cdnUrl);
+          
+          // Save to database
+          await upsertContextSessionMutation.mutateAsync({
+            userId: localCurrentUser.id,
+            context: contextName,
+            character: characterName,
+            episode: episodeName,
+            videoResults: videoResults,
+            hookMergedVideos: hookMergedVideos,
+            bodyMergedVideoUrl: result.cdnUrl,
+          });
           
         } catch (error: any) {
           console.error('[Merge] ❌ BODY FAILED:', error);
@@ -9913,32 +9935,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           {/* Video Player with milliseconds display */}
                           <div className="relative bg-black rounded-lg overflow-hidden mb-3" style={{ aspectRatio: '9/16' }}>
                             <video
-                              ref={(el) => {
-                                if (el && !el.dataset.initialized) {
-                                  el.dataset.initialized = 'true';
-                                  const timeDisplay = el.nextElementSibling as HTMLElement;
-                                  if (timeDisplay) {
-                                    el.addEventListener('timeupdate', () => {
-                                      const current = el.currentTime.toFixed(3);
-                                      const duration = el.duration ? el.duration.toFixed(3) : '0.000';
-                                      timeDisplay.textContent = `${current}s / ${duration}s`;
-                                    });
-                                    el.addEventListener('loadedmetadata', () => {
-                                      const duration = el.duration.toFixed(3);
-                                      timeDisplay.textContent = `0.000s / ${duration}s`;
-                                    });
-                                  }
-                                }
-                              }}
                               src={video.trimmedVideoUrl}
                               className="absolute top-0 left-0 w-full h-full object-contain"
                               controls
                               playsInline
                             />
-                            {/* Time display overlay */}
-                            <div className="absolute bottom-12 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded font-mono">
-                              0.000s / 0.000s
-                            </div>
                           </div>
                           
                           {/* Video Text */}
@@ -9947,9 +9948,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                               {video.redStart !== undefined && video.redEnd !== undefined ? (
                                 <>
                                   {video.text.substring(0, video.redStart)}
-                                  <span className="text-red-600 font-bold">
-                                    {video.text.substring(video.redStart, video.redEnd)}
-                                  </span>
                                   {video.text.substring(video.redEnd)}
                                 </>
                               ) : (
@@ -10257,25 +10255,49 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       v.trimmedVideoUrl && 
                       v.videoName.toLowerCase().includes('hook')
                     );
-                    
-                    // Filter out individual variations if merged version exists
+                                        // Filter out ALL individual variations - show ONLY merged hooks
                     const displayHooks = hookVideos.filter(v => {
-                      // If this is a variation (A, B, C, D), check if merged version exists
-                      const match = v.videoName.match(/(.*HOOK\d+)[A-Z](.*)/);
-                      if (match) {
-                        const baseName = match[1] + match[2];
-                        // Hide variation if merged version exists
-                        return !hookMergedVideos[baseName];
+                      // Check if this video has variations (A, B, C, D suffix)
+                      const hasVariation = /HOOK\d+[A-Z]_/.test(v.videoName);
+                      if (hasVariation) {
+                        // Always hide individual variations
+                        return false;
                       }
+                      
+                      // Check if this is a base hook (no variation suffix)
+                      const isBaseHook = /HOOK\d+_/.test(v.videoName) && !/HOOK\d+[A-Z]_/.test(v.videoName);
+                      if (isBaseHook) {
+                        // Check if merged version exists for this base
+                        const baseName = v.videoName.replace(/_TEST$/, '');
+                        // Hide base if merged exists
+                        return !hookMergedVideos[baseName + '_TEST'];
+                      }
+                      
                       return true;
                     });
                     
                     // Add merged hooks to display
-                    const mergedHooksList = Object.entries(hookMergedVideos).map(([baseName, cdnUrl]) => ({
-                      videoName: baseName.replace(/(_[^_]+)$/, 'M$1'),
-                      trimmedVideoUrl: cdnUrl,
-                      text: 'Merged hook variation',
-                    }));
+                    const mergedHooksList = Object.entries(hookMergedVideos).map(([baseName, cdnUrl]) => {
+                      // Find all variations for this base hook
+                      const basePattern = baseName.replace(/_TEST$/, '');
+                      const variations = hookVideos.filter(v => {
+                        const vPattern = v.videoName.replace(/_TEST$/, '').replace(/[A-Z]$/, '');
+                        return vPattern === basePattern;
+                      });
+                      
+                      // Concatenate white texts (without red parts)
+                      const mergedText = variations.map(v => {
+                        const text = v.text || '';
+                        // Remove red text parts (marked with <span style="color: red">...</span>)
+                        return text.replace(/<span[^>]*color:\s*red[^>]*>.*?<\/span>/gi, '').trim();
+                      }).filter(t => t).join(' ');
+                      
+                      return {
+                        videoName: baseName.replace(/(_TEST)$/, 'M$1'),
+                        trimmedVideoUrl: cdnUrl,
+                        text: mergedText,
+                      };
+                    });
                     
                     const allHooks = [...displayHooks, ...mergedHooksList];
                     
@@ -10314,16 +10336,49 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                   </p>
                                   
                                   {/* Video Player */}
-                                  <video
-                                    src={video.trimmedVideoUrl}
-                                    controls
-                                    className="w-full rounded-lg border border-gray-300"
-                                    style={{ height: '480px', objectFit: 'contain' }}
-                                  />
+                                  <div className="relative bg-black rounded-lg overflow-hidden" style={{ height: '480px' }}>
+                                    <video
+                                      ref={(el) => {
+                                        if (el && !el.dataset.initialized) {
+                                          el.dataset.initialized = 'true';
+                                          const timeDisplay = el.nextElementSibling as HTMLElement;
+                                          if (timeDisplay) {
+                                            el.addEventListener('timeupdate', () => {
+                                              const current = Math.floor(el.currentTime);
+                                              const duration = el.duration ? Math.floor(el.duration) : 0;
+                                              const currentMin = Math.floor(current / 60);
+                                              const currentSec = current % 60;
+                                              const durationMin = Math.floor(duration / 60);
+                                              const durationSec = duration % 60;
+                                              timeDisplay.textContent = `${currentMin}:${currentSec.toString().padStart(2, '0')} / ${durationMin}:${durationSec.toString().padStart(2, '0')}`;
+                                            });
+                                            el.addEventListener('loadedmetadata', () => {
+                                              const duration = Math.floor(el.duration);
+                                              const durationMin = Math.floor(duration / 60);
+                                              const durationSec = duration % 60;
+                                              timeDisplay.textContent = `0:00 / ${durationMin}:${durationSec.toString().padStart(2, '0')}`;
+                                            });
+                                          }
+                                        }
+                                      }}
+                                      src={video.trimmedVideoUrl}
+                                      className="absolute top-0 left-0 w-full h-full object-contain"
+                                      controls
+                                      playsInline
+                                    />
+                                    {/* Time display overlay */}
+                                    <div className="absolute bottom-12 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded font-mono">
+                                      0:00 / 0:00
+                                    </div>
+                                  </div>
                                   
                                   {/* Video Text (without red text) */}
                                   <p className="text-xs text-gray-600 text-center line-clamp-2">
-                                    {video.text}
+                                    {(() => {
+                                      const text = video.text || '';
+                                      // Remove red text parts
+                                      return text.replace(/<span[^>]*color:\s*red[^>]*>.*?<\/span>/gi, '').trim();
+                                    })()}
                                   </p>
                                 </div>
                               </div>

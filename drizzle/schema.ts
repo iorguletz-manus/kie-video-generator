@@ -202,6 +202,8 @@ export const contextSessions = mysqlTable("context_sessions", {
   deletedCombinations: json("deletedCombinations"), // Array of deleted combinations
   videoResults: json("videoResults"), // Array of video results
   reviewHistory: json("reviewHistory"), // Array of review history
+  hookMergedVideos: json("hookMergedVideos"), // Object: { baseName: cdnUrl }
+  bodyMergedVideoUrl: text("bodyMergedVideoUrl"), // CDN URL for merged body video
   
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
