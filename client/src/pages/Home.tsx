@@ -2728,24 +2728,18 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       }
     }
     
-    setFinalVideos(results);
-    setMergeFinalProgress({
-      current: completedCount,
-      total: hookUrls.length,
-      currentVideo: '',
-      status: 'complete'
-    });
-    setIsMergingFinalVideos(false);
-    setCurrentStep(11);
-    
-    // Save finalVideos to database immediately
-    try {
-      await upsertContextSessionMutation.mutateAsync({
+    // Use setFinalVideos callback to save to database with LATEST state
+    setFinalVideos(currentFinalVideos => {
+      const latestFinalVideos = results; // Use results from merge operation
+      
+      // Save to database immediately with latest finalVideos
+      upsertContextSessionMutation.mutateAsync({
         userId: localCurrentUser.id,
-        coreBeliefId: selectedCoreBeliefId!,
-        emotionalAngleId: selectedEmotionalAngleId!,
-        adId: selectedAdId!,
-        characterId: selectedCharacterId!,
+        tamId: selectedTamId,
+        coreBeliefId: selectedCoreBeliefId,
+        emotionalAngleId: selectedEmotionalAngleId,
+        adId: selectedAdId,
+        characterId: selectedCharacterId,
         currentStep: 11,
         rawTextAd,
         processedTextAd,
@@ -2758,12 +2752,25 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         reviewHistory,
         hookMergedVideos,
         bodyMergedVideoUrl,
-        finalVideos: results,
+        finalVideos: latestFinalVideos, // Use LATEST state
+      }).then(() => {
+        console.log('[Step 10→Step 11] ✅ finalVideos saved to database');
+      }).catch((error) => {
+        console.error('[Step 10→Step 11] ❌ Failed to save finalVideos:', error);
       });
-      console.log('[Step 10→Step 11] ✅ finalVideos saved to database');
-    } catch (error) {
-      console.error('[Step 10→Step 11] ❌ Failed to save finalVideos:', error);
-    }
+      
+      // Return new state
+      return latestFinalVideos;
+    });
+    
+    setMergeFinalProgress({
+      current: completedCount,
+      total: hookUrls.length,
+      currentVideo: '',
+      status: 'complete'
+    });
+    setIsMergingFinalVideos(false);
+    setCurrentStep(11);
     
     toast.success(`✅ Final merge complete! ${completedCount}/${hookUrls.length} videos created`);
   };
