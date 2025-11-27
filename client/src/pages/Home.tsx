@@ -9596,7 +9596,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         </svg>
                       </div>
                     </Button>
-                    <div className="text-center -mt-4">
+                    <div className="text-center -mt-2">
                       <span className="text-xs opacity-70 font-normal">GO TO STEP 8</span>
                     </div>
                     </div>
@@ -10495,7 +10495,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         )}
                       </Button>
                       {!isMergingStep10 && (
-                        <div className="text-center -mt-4">
+                        <div className="text-center -mt-2">
                           <span className="text-xs text-purple-600">GO TO STEP 10</span>
                         </div>
                       )}
@@ -10981,7 +10981,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
                     </Button>
-                    <div className="text-center -mt-4">
+                    <div className="text-center -mt-2">
                       <span className="text-xs text-green-600">GO TO STEP 11</span>
                     </div>
                   </div>
