@@ -2971,23 +2971,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     console.log('[Trimming] 🎉 All batches processed!');
     
-    // Final status
-    const successCount = trimmingProgress.successVideos.length;
-    const failCount = trimmingProgress.failedVideos.length;
-    const finalStatus = failCount > 0 ? 'partial' : 'complete';
-    
-    setTrimmingProgress(prev => ({
-      ...prev,
-      status: finalStatus,
-      message: failCount > 0 
-        ? `⚠️ ${successCount} succeeded, ${failCount} failed`
-        : `✅ All ${successCount} videos trimmed successfully!`
-    }));
-    
-    console.log(`[Trimming] 🎉 COMPLETE! Success: ${successCount}, Failed: ${failCount}`);
-    
-    // Save updated videoResults to database (only successful ones)
-    if (successCount > 0) {
+    // Get LATEST counts from state using callback
+    setTrimmingProgress(prev => {
+      const successCount = prev.successVideos.length;
+      const failCount = prev.failedVideos.length;
+      const finalStatus = failCount > 0 ? 'partial' : 'complete';
+      
+      console.log(`[Trimming] 🎉 COMPLETE! Success: ${successCount}, Failed: ${failCount}`);
+      
+      // Save updated videoResults to database (only successful ones)
+      if (successCount > 0) {
       console.log('[Trimming] 💾 Saving trimmedVideoUrl to database...');
       
       // Use setVideoResults callback to get the LATEST state
@@ -3023,7 +3016,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         // Return unchanged state (no modification needed)
         return currentVideoResults;
       });
-    }
+      }
+      
+      // Return updated progress state
+      return {
+        ...prev,
+        status: finalStatus,
+        message: failCount > 0 
+          ? `⚠️ ${successCount} succeeded, ${failCount} failed`
+          : `✅ All ${successCount} videos trimmed successfully!`
+      };
+    });
     
     // DO NOT auto-redirect - user must click button in modal
   };
