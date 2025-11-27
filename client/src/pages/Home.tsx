@@ -351,6 +351,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       return null;
     }
   });
+
+  // Sample Merge countdown timer (65 seconds cooldown)
+  const [lastSampleMergeTimestamp, setLastSampleMergeTimestamp] = useState<number | null>(() => {
+    try {
+      const saved = localStorage.getItem('lastSampleMergeTimestamp');
+      return saved ? parseInt(saved, 10) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [sampleMergeCountdown, setSampleMergeCountdown] = useState<number>(0);
   
   // Persist lastSampleVideoUrl to localStorage
   useEffect(() => {
@@ -358,6 +369,23 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       localStorage.setItem('lastSampleVideoUrl', lastSampleVideoUrl);
     }
   }, [lastSampleVideoUrl]);
+
+  // Persist lastSampleMergeTimestamp to localStorage
+  useEffect(() => {
+    if (lastSampleMergeTimestamp !== null) {
+      localStorage.setItem('lastSampleMergeTimestamp', lastSampleMergeTimestamp.toString());
+    }
+  }, [lastSampleMergeTimestamp]);
+
+  // Countdown timer effect for Sample Merge
+  useEffect(() => {
+    if (sampleMergeCountdown > 0) {
+      const timer = setTimeout(() => {
+        setSampleMergeCountdown(prev => prev - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [sampleMergeCountdown]);
   
   // Download ZIP progress
   const [isDownloadZipModalOpen, setIsDownloadZipModalOpen] = useState(false);
@@ -9492,6 +9520,25 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     <div className="flex flex-col items-end gap-1">
                     <Button
                       onClick={async () => {
+                        // Check cooldown (65 seconds)
+                        const now = Date.now();
+                        if (lastSampleMergeTimestamp) {
+                          const elapsed = now - lastSampleMergeTimestamp;
+                          const cooldownMs = 65000; // 65 seconds
+                          
+                          if (elapsed < cooldownMs) {
+                            const remainingMs = cooldownMs - elapsed;
+                            const remainingSeconds = Math.ceil(remainingMs / 1000);
+                            console.log(`[Sample Merge] Cooldown active! ${remainingSeconds}s remaining`);
+                            setSampleMergeCountdown(remainingSeconds);
+                            toast.error(`Please wait ${remainingSeconds} seconds before merging again`);
+                            return;
+                          }
+                        }
+                        
+                        // Save timestamp for next cooldown
+                        setLastSampleMergeTimestamp(now);
+                        
                         console.log('[Sample Merge] Starting from Step 8 button...');
                         
                         // Get ALL accepted videos (not filtered)
@@ -9579,6 +9626,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     >
                       🎬 Sample Merge ALL Videos
                     </Button>
+                    {/* Countdown timer */}
+                    {sampleMergeCountdown > 0 && (
+                      <div className="text-center -mt-2">
+                        <span className="text-xs text-orange-600">⏱️ Wait {sampleMergeCountdown}s</span>
+                      </div>
+                    )}
                     {/* Open Last Sample link */}
                     {lastSampleVideoUrl && (
                       <button
@@ -9934,6 +9987,25 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             <div className="flex flex-col items-end gap-1">
                             <Button
                               onClick={async () => {
+                            // Check cooldown (65 seconds)
+                            const now = Date.now();
+                            if (lastSampleMergeTimestamp) {
+                              const elapsed = now - lastSampleMergeTimestamp;
+                              const cooldownMs = 65000; // 65 seconds
+                              
+                              if (elapsed < cooldownMs) {
+                                const remainingMs = cooldownMs - elapsed;
+                                const remainingSeconds = Math.ceil(remainingMs / 1000);
+                                console.log(`[Sample Merge] Cooldown active! ${remainingSeconds}s remaining`);
+                                setSampleMergeCountdown(remainingSeconds);
+                                toast.error(`Please wait ${remainingSeconds} seconds before merging again`);
+                                return;
+                              }
+                            }
+                            
+                            // Save timestamp for next cooldown
+                            setLastSampleMergeTimestamp(now);
+                            
                             console.log('[Sample Merge] Starting...');
                             
                             // Prepare video list with notes
@@ -10011,11 +10083,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           }}
                               className="bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap"
                               size="sm"
-                            >
-                              🎬 Sample Merge ALL Videos
-                            </Button>
-                            {/* Open Last Sample link */}
-                            {lastSampleVideoUrl && (
+                              >
+                                🎬 Sample Merge ALL Videos
+                              </Button>
+                              {/* Countdown timer */}
+                              {sampleMergeCountdown > 0 && (
+                                <div className="text-center -mt-2">
+                                  <span className="text-xs text-orange-600">⏱️ Wait {sampleMergeCountdown}s</span>
+                                </div>
+                              )}
+                              {/* Open Last Sample link */}
+                              {lastSampleVideoUrl && (
                               <button
                                 onClick={() => {
                                   // Reopen modal with last sample video
@@ -10064,7 +10142,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                               );
                             })()}
                           </Button>
-                          <div className="text-center mt-1">
+                          <div className="text-center -mt-2">
                             <span className="text-xs text-red-600">GO TO STEP 9</span>
                           </div>
 
@@ -10087,7 +10165,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                 );
                               })()}
                             </Button>
-                            <div className="text-center mt-1">
+                            <div className="text-center -mt-2">
                               <span className="text-xs text-green-600">GO TO STEP 9</span>
                             </div>
                             </>
@@ -10460,7 +10538,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         )}
                       </Button>
                       {!isMergingStep10 && (
-                        <div className="text-center mt-1">
+                        <div className="text-center -mt-2">
                           <span className="text-xs text-purple-600">GO TO STEP 10</span>
                         </div>
                       )}
@@ -10966,7 +11044,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                   </Button>
-                  <div className="text-center mt-1">
+                  <div className="text-center -mt-2">
                     <span className="text-xs text-green-600">GO TO STEP 11</span>
                   </div>
                   </>
