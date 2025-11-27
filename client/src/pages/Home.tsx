@@ -2579,7 +2579,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       bodyUrl = bodyMergedVideoUrl;
     } else {
       const bodyVideo = videoResults.find(v => v.videoName === selectedBody);
-      bodyUrl = bodyVideo?.trimmedVideoUrl || null;
+      // Fallback: use videoUrl if trimmedVideoUrl is null
+      bodyUrl = bodyVideo?.trimmedVideoUrl || bodyVideo?.videoUrl || null;
+      console.log('[Step 10→Step 11] Body video:', selectedBody, 'trimmedVideoUrl:', bodyVideo?.trimmedVideoUrl, 'videoUrl:', bodyVideo?.videoUrl, 'using:', bodyUrl);
     }
     
     if (!bodyUrl) {
@@ -2606,8 +2608,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         console.log(`  ✅ Found in hookMergedVideos[${baseName}]: ${hookUrl}`);
       } else {
         const hookVideo = videoResults.find(v => v.videoName === hookName);
-        hookUrl = hookVideo?.trimmedVideoUrl || null;
-        console.log(`  🔸 Searching in videoResults for ${hookName}:`, hookVideo ? `FOUND (trimmedVideoUrl: ${hookUrl})` : 'NOT FOUND');
+        // Fallback: use videoUrl if trimmedVideoUrl is null
+        hookUrl = hookVideo?.trimmedVideoUrl || hookVideo?.videoUrl || null;
+        console.log(`  🔸 Searching in videoResults for ${hookName}:`, hookVideo ? `FOUND (trimmedVideoUrl: ${hookVideo.trimmedVideoUrl}, videoUrl: ${hookVideo.videoUrl}, using: ${hookUrl})` : 'NOT FOUND');
       }
       
       if (hookUrl) {
@@ -10882,17 +10885,29 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             />
                           </div>
                           
-                          {/* Download Link */}
-                          <a
-                            href={video.cdnUrl}
-                            download={`${video.videoName}.mp4`}
-                            onClick={() => {
-                              toast.success(`📥 Downloading ${video.videoName}...`);
+                          {/* Download Button */}
+                          <button
+                            onClick={async () => {
+                              try {
+                                toast.info(`📥 Downloading ${video.videoName}...`);
+                                const response = await fetch(video.cdnUrl);
+                                const blob = await response.blob();
+                                const url = URL.createObjectURL(blob);
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.download = `${video.videoName}.mp4`;
+                                link.click();
+                                URL.revokeObjectURL(url);
+                                toast.success(`✅ ${video.videoName} downloaded!`);
+                              } catch (error) {
+                                console.error('Download failed:', error);
+                                toast.error('Download failed!');
+                              }
                             }}
-                            className="text-blue-600 hover:text-blue-800 underline text-sm text-center block"
+                            className="text-blue-600 hover:text-blue-800 underline text-sm text-center block cursor-pointer bg-transparent border-0"
                           >
                             Download
-                          </a>
+                          </button>
                         </div>
                       ))}
                     </div>
