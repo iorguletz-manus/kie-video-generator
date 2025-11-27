@@ -2626,6 +2626,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   
   // Sample Merge ALL Videos - with 65-second cooldown timer in popup
   const handleSampleMerge = async (videosToMerge: typeof videoResults) => {
+    // Prevent multiple simultaneous merges
+    if (sampleMergeProgress && sampleMergeProgress !== '') {
+      console.log('[Sample Merge] ⚠️ Merge already in progress, ignoring click');
+      return;
+    }
+    
     console.log('[Sample Merge] 🚀 Starting Sample Merge...');
     
     // Prepare video list with notes
@@ -2635,6 +2641,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }));
     
     setSampleMergeVideos(videoList);
+    
+    // ALWAYS clear old video BEFORE opening popup
+    setSampleMergedVideoUrl(null);
+    setSampleMergeProgress('');
+    
     setIsSampleMergeModalOpen(true);
     
     // Check cooldown (65 seconds)
