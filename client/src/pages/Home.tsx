@@ -9579,7 +9579,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           toast.error(`Eroare la procesarea videouri: ${error.message}`);
                         }
                       }}
-                      className="bg-purple-600 hover:bg-purple-700 px-8 py-8 text-lg flex flex-col items-center gap-1"
+                      className="bg-purple-600 hover:bg-purple-700 px-8 py-8 text-lg"
                       disabled={acceptedVideosWithUrl.length === 0}
                     >
                       <div className="flex items-center">
@@ -9588,8 +9588,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>
                       </div>
-                      <span className="text-xs opacity-70 font-normal -mt-4">GO TO STEP 8</span>
                     </Button>
+                    <div className="text-center -mt-4">
+                      <span className="text-xs opacity-70 font-normal">GO TO STEP 8</span>
+                    </div>
                 </div>
               )}
             </CardContent>
@@ -10957,24 +10959,24 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     Back
                   </Button>
                   
-                  <>
-                  <Button
-                    onClick={handleMergeFinalVideos}
-                    className="bg-green-600 hover:bg-green-700 px-8 py-6 text-base"
-                    disabled={selectedHooks.length === 0 || !selectedBody || isMergingFinalVideos}
-                  >
-                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    Next: Merge Final Videos ({selectedHooks.length})
-                    <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </Button>
-                  <div className="text-center -mt-4">
-                    <span className="text-xs text-green-600">GO TO STEP 11</span>
+                  <div className="flex flex-col items-center gap-0">
+                    <Button
+                      onClick={handleMergeFinalVideos}
+                      className="bg-green-600 hover:bg-green-700 px-8 py-6 text-base"
+                      disabled={selectedHooks.length === 0 || !selectedBody || isMergingFinalVideos}
+                    >
+                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      Next: Merge Final Videos ({selectedHooks.length})
+                      <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </Button>
+                    <div className="text-center -mt-4">
+                      <span className="text-xs text-green-600">GO TO STEP 11</span>
+                    </div>
                   </div>
-                  </>
                 </div>
               </div>
             </CardContent>
