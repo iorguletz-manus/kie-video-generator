@@ -1064,6 +1064,22 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       localStorage.removeItem('selectedCharacterId');
     }
   }, [selectedCharacterId]);
+  
+  // Clear videoResults when Character changes (context switch)
+  // This forces re-loading from database for the new context
+  useEffect(() => {
+    // Skip on initial mount (previousCharacterIdRef is null)
+    if (previousCharacterIdRef.current === null) {
+      return;
+    }
+    
+    // If character changed, clear videoResults to force reload
+    if (selectedCharacterId && selectedCharacterId !== previousCharacterIdRef.current) {
+      console.log('[Context Switch] Character changed from', previousCharacterIdRef.current, 'to', selectedCharacterId, '- clearing videoResults');
+      setVideoResults([]);
+      setCurrentStep(1); // Reset to step 1 when switching context
+    }
+  }, [selectedCharacterId]);
 
   // Lock system removed - free navigation enabled
 
