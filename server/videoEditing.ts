@@ -1569,9 +1569,9 @@ export async function mergeVideosWithFFmpegAPI(
     console.log(`[mergeVideosWithFFmpegAPI] Downloaded ${videoBuffer.length} bytes`);
     
     // 6. Upload to Bunny CDN
-    const BUNNYCDN_STORAGE_PASSWORD = '4c9257d6-aede-4ff1-bb0f-9fc95279-997e-412b';
-    const BUNNYCDN_STORAGE_ZONE = 'manus-storage';
-    const BUNNYCDN_PULL_ZONE_URL = 'https://manus.b-cdn.net';
+    const BUNNYCDN_STORAGE_PASSWORD = process.env.BUNNY_STORAGE_API_KEY || '';
+    const BUNNYCDN_STORAGE_ZONE = process.env.BUNNY_STORAGE_ZONE || 'manus';
+    const BUNNYCDN_PULL_ZONE_URL = `https://${process.env.BUNNY_CDN_HOSTNAME || 'manus.b-cdn.net'}`;
     
     const bunnyFileName = `${outputVideoName}.mp4`;
     const storageUrl = `https://storage.bunnycdn.com/${BUNNYCDN_STORAGE_ZONE}/merged-videos/${bunnyFileName}`;
