@@ -10476,6 +10476,39 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     // Check if we have merged body video
                     if (bodyMergedVideoUrl) {
                       const isSelected = selectedBody === 'body_merged';
+                      
+                      // Extract body video name from first body video in videoResults
+                      const firstBodyVideo = videoResults.find(v => 
+                        v.trimmedVideoUrl && 
+                        !v.videoName.toLowerCase().includes('hook')
+                      );
+                      
+                      // Construct merged body name
+                      let mergedBodyName = 'Body (Merged)';
+                      if (firstBodyVideo) {
+                        // Extract context from video name (e.g., T1_C1_E1_AD1)
+                        const contextMatch = firstBodyVideo.videoName.match(/^(T\d+_C\d+_E\d+_AD\d+)/);
+                        const context = contextMatch ? contextMatch[1] : '';
+                        
+                        // Extract character from video name (last part before extension)
+                        const characterMatch = firstBodyVideo.videoName.match(/_([^_]+)$/);
+                        const character = characterMatch ? characterMatch[1] : 'TEST';
+                        
+                        // Extract image name from imageUrl if available
+                        let imageName = '';
+                        if (firstBodyVideo.imageUrl) {
+                          const urlParts = firstBodyVideo.imageUrl.split('/');
+                          const filename = urlParts[urlParts.length - 1];
+                          const nameMatch = filename.match(/^(.+?)-\d+/);
+                          imageName = nameMatch ? nameMatch[1] : '';
+                        }
+                        
+                        // Construct full merged body name
+                        mergedBodyName = imageName 
+                          ? `${context}_BODY_${character}_${imageName}`
+                          : `${context}_BODY_${character}`;
+                      }
+                      
                       return (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                           <div 
@@ -10490,7 +10523,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                               {/* Selection Indicator */}
                               <div className="flex items-center justify-between">
                                 <p className="text-sm font-semibold text-gray-900 truncate flex-1">
-                                  Body (Merged)
+                                  {mergedBodyName}
                                 </p>
                                 <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
                                   isSelected ? 'bg-green-500' : 'bg-gray-300'
