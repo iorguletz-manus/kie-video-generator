@@ -1496,7 +1496,7 @@ export const appRouter = router({
         videoResults: z.any().optional(),
         reviewHistory: z.any().optional(),
         hookMergedVideos: z.any().optional(),
-        bodyMergedVideoUrl: z.string().optional(),
+        bodyMergedVideoUrl: z.string().nullable().optional(),
       }))
       .mutation(async ({ input }) => {
         return await upsertContextSession(input);
