@@ -1660,7 +1660,8 @@ export const appRouter = router({
             parseFloat(startTimeSeconds),
             parseFloat(endTimeSeconds),
             input.ffmpegApiKey!,
-            input.cleanVoiceAudioUrl  // Pass CleanVoice audio URL
+            input.cleanVoiceAudioUrl,  // Pass CleanVoice audio URL
+            input.userId  // Pass userId for user-specific folder
           );
 
           // Download trimmed video from FFmpeg API
@@ -2155,6 +2156,7 @@ export const appRouter = router({
         videoUrls: z.array(z.string()),
         outputVideoName: z.string(),
         ffmpegApiKey: z.string(),
+        userId: z.number().optional(),
       }))
       .mutation(async ({ input }) => {
         try {
@@ -2169,7 +2171,8 @@ export const appRouter = router({
           const cdnUrl = await mergeVideosWithFFmpegAPI(
             input.videoUrls,
             input.outputVideoName,
-            input.ffmpegApiKey
+            input.ffmpegApiKey,
+            input.userId
           );
           
           console.log(`[mergeVideos] ✅ Merge complete! CDN URL: ${cdnUrl}`);

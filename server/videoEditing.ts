@@ -664,9 +664,10 @@ export async function processVideoForEditing(
     
     const bunnyUploadStartTime = Date.now();
     console.log(`[processVideoForEditing] ☁️ BUNNY UPLOAD START for ${videoName}`);
+    const audioPath = userId ? `user-${userId}/audio/${audioFileName}` : `audio/${audioFileName}`;
     const bunnyAudioUrl = await uploadToBunnyCDN(
       audioBuffer,
-      `audio-files/${audioFileName}`,
+      audioPath,
       'audio/mpeg'
     );
     const bunnyUploadDuration = Date.now() - bunnyUploadStartTime;
@@ -779,7 +780,8 @@ export async function cutVideoWithFFmpegAPI(
   startTimeSeconds: number,
   endTimeSeconds: number,
   ffmpegApiKey: string,
-  cleanVoiceAudioUrl?: string  // Optional CleanVoice audio URL
+  cleanVoiceAudioUrl?: string,  // Optional CleanVoice audio URL
+  userId?: number  // Optional userId for user-specific folder
 ): Promise<string> {
   try {
     console.log(`[cutVideoWithFFmpegAPI] Cutting video ${videoName}: ${startTimeSeconds}s → ${endTimeSeconds}s`);
@@ -890,10 +892,10 @@ export async function cutVideoWithFFmpegAPI(
     
     // 4. Upload to Bunny CDN for permanent storage
     console.log(`[cutVideoWithFFmpegAPI] Uploading to Bunny CDN...`);
-    const bunnyFileName = `trimmed-videos/${outputFileName}`;
+    const trimmedPath = userId ? `user-${userId}/videos/trimmed/${outputFileName}` : `videos/trimmed/${outputFileName}`;
     const bunnyVideoUrl = await uploadToBunnyCDN(
       videoBuffer,
-      bunnyFileName,
+      trimmedPath,
       'video/mp4'
     );
     console.log(`[cutVideoWithFFmpegAPI] Video uploaded to Bunny CDN: ${bunnyVideoUrl}`);
@@ -1431,7 +1433,8 @@ export function calculateCutPointsNew(
 export async function mergeVideosWithFFmpegAPI(
   videoUrls: string[],
   outputVideoName: string,
-  ffmpegApiKey: string
+  ffmpegApiKey: string,
+  userId?: number  // Optional userId for user-specific folder
 ): Promise<string> {
   try {
     console.log('\n\n========================================');
@@ -1574,7 +1577,8 @@ export async function mergeVideosWithFFmpegAPI(
     const BUNNYCDN_PULL_ZONE_URL = 'https://manus.b-cdn.net';
     
     const bunnyFileName = `${outputVideoName}.mp4`;
-    const storageUrl = `https://storage.bunnycdn.com/${BUNNYCDN_STORAGE_ZONE}/merged-videos/${bunnyFileName}`;
+    const mergedPath = userId ? `user-${userId}/videos/merged/${bunnyFileName}` : `videos/merged/${bunnyFileName}`;
+    const storageUrl = `https://storage.bunnycdn.com/${BUNNYCDN_STORAGE_ZONE}/${mergedPath}`;
     
     console.log(`[mergeVideosWithFFmpegAPI] Uploading to Bunny CDN: merged-videos/${bunnyFileName}`);
     
@@ -1592,7 +1596,7 @@ export async function mergeVideosWithFFmpegAPI(
       throw new Error(`Failed to upload to Bunny CDN: ${uploadResponse.status} - ${errorText}`);
     }
     
-    const cdnUrl = `${BUNNYCDN_PULL_ZONE_URL}/merged-videos/${bunnyFileName}`;
+    const cdnUrl = `${BUNNYCDN_PULL_ZONE_URL}/${mergedPath}`;
     console.log(`[mergeVideosWithFFmpegAPI] ✅ Merge complete: ${cdnUrl}`);
     
     return cdnUrl;
