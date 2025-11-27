@@ -1578,17 +1578,18 @@ export async function mergeVideosWithFFmpegAPI(
     
     console.log(`[mergeVideosWithFFmpegAPI] Uploading to Bunny CDN: merged-videos/${bunnyFileName}`);
     
-    const uploadResponse = await axios.put(storageUrl, videoBuffer, {
+    const uploadResponse = await fetch(storageUrl, {
+      method: 'PUT',
+      body: videoBuffer,
       headers: {
         'AccessKey': BUNNYCDN_STORAGE_PASSWORD,
         'Content-Type': 'video/mp4',
       },
-      maxBodyLength: Infinity,
-      maxContentLength: Infinity,
     });
     
     if (uploadResponse.status !== 201) {
-      throw new Error(`Failed to upload to Bunny CDN: ${uploadResponse.status}`);
+      const errorText = await uploadResponse.text();
+      throw new Error(`Failed to upload to Bunny CDN: ${uploadResponse.status} - ${errorText}`);
     }
     
     const cdnUrl = `${BUNNYCDN_PULL_ZONE_URL}/merged-videos/${bunnyFileName}`;
