@@ -9489,6 +9489,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   
                   {/* Sample Merge ALL Videos button */}
                   {videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length > 1 && (
+                    <div className="flex flex-col items-end gap-1">
                     <Button
                       onClick={async () => {
                         console.log('[Sample Merge] Starting from Step 8 button...');
@@ -9578,27 +9579,27 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     >
                       🎬 Sample Merge ALL Videos
                     </Button>
-                  )}
-                  
-                  {/* Open Last Sample link */}
-                  {lastSampleVideoUrl && (
-                    <button
-                      onClick={() => {
-                        // Reopen modal with last sample video
-                        const allAcceptedVideos = videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl);
-                        const videoList = allAcceptedVideos.map(v => ({
-                          name: v.videoName,
-                          note: v.step9Note || ''
-                        }));
-                        setSampleMergeVideos(videoList);
-                        setSampleMergedVideoUrl(lastSampleVideoUrl);
-                        setIsSampleMergeModalOpen(true);
-                        setSampleMergeProgress('');
-                      }}
-                      className="text-blue-600 hover:text-blue-800 underline text-sm ml-2"
-                    >
-                      Open Last Sample
-                    </button>
+                    {/* Open Last Sample link */}
+                    {lastSampleVideoUrl && (
+                      <button
+                        onClick={() => {
+                          // Reopen modal with last sample video
+                          const allAcceptedVideos = videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl);
+                          const videoList = allAcceptedVideos.map(v => ({
+                            name: v.videoName,
+                            note: v.step9Note || ''
+                          }));
+                          setSampleMergeVideos(videoList);
+                          setSampleMergedVideoUrl(lastSampleVideoUrl);
+                          setIsSampleMergeModalOpen(true);
+                          setSampleMergeProgress('');
+                        }}
+                        className="text-blue-600 hover:text-blue-800 underline text-sm"
+                      >
+                        Open Last Sample
+                      </button>
+                    )}
+                    </div>
                   )}
                 </div>
                 
@@ -9930,6 +9931,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         <div className="flex flex-row items-center gap-2 flex-nowrap">
                           {/* Sample Merge Video button - always show if we have approved videos (ignore filter) */}
                           {videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length > 1 && (
+                            <div className="flex flex-col items-end gap-1">
                             <Button
                               onClick={async () => {
                             console.log('[Sample Merge] Starting...');
@@ -10012,26 +10014,26 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             >
                               🎬 Sample Merge ALL Videos
                             </Button>
-                          )}
-                          
-                          {/* Open Last Sample link */}
-                          {lastSampleVideoUrl && (
-                            <button
-                              onClick={() => {
-                                // Reopen modal with last sample video
-                                const videoList = approvedVideos.map(v => ({
-                                  name: v.videoName,
-                                  note: v.step9Note || ''
-                                }));
-                                setSampleMergeVideos(videoList);
-                                setSampleMergedVideoUrl(lastSampleVideoUrl);
-                                setIsSampleMergeModalOpen(true);
-                                setSampleMergeProgress('');
-                              }}
-                              className="text-blue-600 hover:text-blue-800 underline text-sm ml-2"
-                            >
-                              Open Last Sample
-                            </button>
+                            {/* Open Last Sample link */}
+                            {lastSampleVideoUrl && (
+                              <button
+                                onClick={() => {
+                                  // Reopen modal with last sample video
+                                  const videoList = approvedVideos.map(v => ({
+                                    name: v.videoName,
+                                    note: v.step9Note || ''
+                                  }));
+                                  setSampleMergeVideos(videoList);
+                                  setSampleMergedVideoUrl(lastSampleVideoUrl);
+                                  setIsSampleMergeModalOpen(true);
+                                  setSampleMergeProgress('');
+                                }}
+                                className="text-blue-600 hover:text-blue-800 underline text-sm"
+                              >
+                                Open Last Sample
+                              </button>
+                            )}
+                            </div>
                           )}
                         </div>
 
@@ -10045,7 +10047,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                               // Start trimming process
                               handleTrimAllVideos();
                             }}
-                            className="bg-red-600 hover:bg-red-700 px-8 py-8 text-lg w-full max-w-md flex flex-col items-center gap-1"
+                            className="bg-red-600 hover:bg-red-700 px-8 py-8 text-lg w-full max-w-md"
                           >
                             {(() => {
                               const hasTrimmedVideos = videoResults.some(v => v.trimmedVideoUrl);
@@ -10054,39 +10056,41 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                 : videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length;
                               return (
                                 <>
-                                  <div className="flex items-center">
-                                    Next: Trim All Videos ({count})
-                                    <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                    </svg>
-                                  </div>
-                                  <span className="text-xs opacity-70 font-normal">GO TO STEP 9</span>
+                                  Next: Trim All Videos ({count})
+                                  <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                  </svg>
                                 </>
                               );
                             })()}
                           </Button>
+                          <div className="text-center mt-1">
+                            <span className="text-xs text-red-600">GO TO STEP 9</span>
+                          </div>
 
                           {/* Check Videos button - only show if we have trimmed videos */}
                           {videoResults.some(v => v.trimmedVideoUrl) && (
+                            <>
                             <Button
                               onClick={() => setCurrentStep(9)}
-                              className="bg-green-600 hover:bg-green-700 px-8 py-8 text-lg w-full max-w-md flex flex-col items-center gap-1"
+                              className="bg-green-600 hover:bg-green-700 px-8 py-8 text-lg w-full max-w-md"
                             >
                               {(() => {
                                 const count = approvedVideos.filter(v => v.trimmedVideoUrl).length;
                                 return (
                                   <>
-                                    <div className="flex items-center">
-                                      Next: Check Videos ({count})
-                                      <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                      </svg>
-                                    </div>
-                                    <span className="text-xs opacity-70 font-normal">GO TO STEP 9</span>
+                                    Next: Check Videos ({count})
+                                    <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
                                   </>
                                 );
                               })()}
                             </Button>
+                            <div className="text-center mt-1">
+                              <span className="text-xs text-green-600">GO TO STEP 9</span>
+                            </div>
+                            </>
                           )}
                         </div>
                       </div>
@@ -10432,9 +10436,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         Back
                       </Button>
                       
+                      <>
                       <Button
                         onClick={handleMergeVideos}
-                        className="bg-purple-600 hover:bg-purple-700 px-8 py-6 text-base flex flex-col items-center gap-1"
+                        className="bg-purple-600 hover:bg-purple-700 px-8 py-6 text-base"
                         disabled={isMergingStep10}
                       >
                         {isMergingStep10 ? (
@@ -10444,19 +10449,22 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           </>
                         ) : (
                           <>
-                            <div className="flex items-center">
-                              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                              </svg>
-                              Next: Prepare for Merge ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.trimmedVideoUrl).length})
-                              <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                              </svg>
-                            </div>
-                            <span className="text-xs opacity-70 font-normal">GO TO STEP 10</span>
+                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                            </svg>
+                            Next: Prepare for Merge ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.trimmedVideoUrl).length})
+                            <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
                           </>
                         )}
                       </Button>
+                      {!isMergingStep10 && (
+                        <div className="text-center mt-1">
+                          <span className="text-xs text-purple-600">GO TO STEP 10</span>
+                        </div>
+                      )}
+                      </>
                     </div>
                   </div>
                 )}
@@ -10944,22 +10952,24 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     Back
                   </Button>
                   
+                  <>
                   <Button
                     onClick={handleMergeFinalVideos}
-                    className="bg-green-600 hover:bg-green-700 px-8 py-6 text-base flex flex-col items-center gap-1"
+                    className="bg-green-600 hover:bg-green-700 px-8 py-6 text-base"
                     disabled={selectedHooks.length === 0 || !selectedBody || isMergingFinalVideos}
                   >
-                    <div className="flex items-center">
-                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      Next: Merge Final Videos ({selectedHooks.length})
-                      <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </div>
-                    <span className="text-xs opacity-70 font-normal">GO TO STEP 11</span>
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    Next: Merge Final Videos ({selectedHooks.length})
+                    <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
                   </Button>
+                  <div className="text-center mt-1">
+                    <span className="text-xs text-green-600">GO TO STEP 11</span>
+                  </div>
+                  </>
                 </div>
               </div>
             </CardContent>
