@@ -262,8 +262,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     newStatus: 'pending' | 'accepted' | 'recut' | null;
   }>>([]);
   
-  // Current step
-  const [currentStep, setCurrentStep] = useState(1);
+  // Current step - initialize from database if available to prevent Step 1 flash
+  const [currentStep, setCurrentStep] = useState(() => {
+    // Try to get currentStep from contextSession on initial mount
+    return 1; // Will be updated by useEffect immediately
+  });
   const [isRestoringSession, setIsRestoringSession] = useState(true);
   
   // Session management
@@ -835,7 +838,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       console.log('[Context Session] 📦 Restoring step from database:', restoredStep);
       
       setCurrentStep(restoredStep);
-      setIsRestoringSession(false);
+      // Set isRestoringSession to false AFTER a microtask to ensure currentStep is rendered first
+      setTimeout(() => setIsRestoringSession(false), 0);
       if (contextSession.rawTextAd) setRawTextAd(contextSession.rawTextAd);
       if (contextSession.processedTextAd) setProcessedTextAd(contextSession.processedTextAd);
       
@@ -2616,6 +2620,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       }
     }
     
+    console.log('[Step 10→Step 11] 🎯 hookUrls array:', hookUrls);
+    console.log('[Step 10→Step 11] 📊 selectedHooks:', selectedHooks);
+    console.log('[Step 10→Step 11] 📊 hookMergedVideos:', hookMergedVideos);
+    
     if (hookUrls.length === 0) {
       toast.error('No valid hook URLs found!');
       return;
@@ -2679,8 +2687,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         }
         
         const finalVideoName = imageName 
-          ? `${context}_${character}_${imageName}_HOOK${hook.hookNumber}`
-          : `${context}_${character}_HOOK${hook.hookNumber}`;
+          ? `${context}_HOOK${hook.hookNumber}_${character}_${imageName}`
+          : `${context}_HOOK${hook.hookNumber}_${character}`;
         
         setMergeFinalProgress(prev => ({
           ...prev,
@@ -10938,6 +10946,20 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     </div>
                   </>
                 )}
+                
+                {/* Back Button */}
+                <div className="mt-8 flex justify-start">
+                  <Button
+                    variant="outline"
+                    onClick={() => setCurrentStep(10)}
+                    className="px-6 py-3"
+                  >
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Back
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
