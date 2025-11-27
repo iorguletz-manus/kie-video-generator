@@ -1654,7 +1654,8 @@ export const appRouter = router({
           console.log(`[videoEditing.cutVideo] Cutting video ${input.videoName}: ${startTimeSeconds}s → ${endTimeSeconds}s (from ${input.startTimeMs}ms → ${input.endTimeMs}ms)`);
           
           // Cut video using FFmpeg API (with CleanVoice audio if provided)
-          const downloadUrl = await cutVideoWithFFmpegAPI(
+          // cutVideoWithFFmpegAPI already uploads to Bunny CDN and returns the final URL
+          const finalVideoUrl = await cutVideoWithFFmpegAPI(
             input.videoUrl,
             input.videoName,
             parseFloat(startTimeSeconds),
@@ -1663,45 +1664,8 @@ export const appRouter = router({
             input.cleanVoiceAudioUrl,  // Pass CleanVoice audio URL
             input.userId  // Pass userId for user-specific folder
           );
-
-          // Download trimmed video from FFmpeg API
-          console.log(`[videoEditing.cutVideo] Downloading trimmed video from:`, downloadUrl);
-          const videoResponse = await fetch(downloadUrl);
-          if (!videoResponse.ok) {
-            throw new Error(`Failed to download trimmed video: ${videoResponse.status}`);
-          }
-          const videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
           
-          // Upload to Bunny CDN using new path structure
-          const { generateTrimmedVideoPath } = await import('./storageHelpers');
-          const fileName = generateTrimmedVideoPath(
-            input.userId,
-            input.videoName
-          );
-          
-          const BUNNYCDN_STORAGE_PASSWORD = '4c9257d6-aede-4ff1-bb0f9fc95279-997e-412b';
-          const BUNNYCDN_STORAGE_ZONE = 'manus-storage';
-          const BUNNYCDN_PULL_ZONE_URL = 'https://manus.b-cdn.net';
-          
-          const storageUrl = `https://storage.bunnycdn.com/${BUNNYCDN_STORAGE_ZONE}/${fileName}`;
-          console.log(`[videoEditing.cutVideo] Uploading to Bunny CDN:`, storageUrl);
-          
-          const uploadResponse = await fetch(storageUrl, {
-            method: 'PUT',
-            headers: {
-              'AccessKey': BUNNYCDN_STORAGE_PASSWORD,
-              'Content-Type': 'video/mp4',
-            },
-            body: videoBuffer,
-          });
-          
-          if (!uploadResponse.ok) {
-            const errorText = await uploadResponse.text();
-            throw new Error(`Bunny CDN upload failed: ${uploadResponse.status} ${errorText}`);
-          }
-          
-          const finalVideoUrl = `${BUNNYCDN_PULL_ZONE_URL}/${fileName}`;
-          console.log(`[videoEditing.cutVideo] Upload successful:`, finalVideoUrl);
+          console.log(`[videoEditing.cutVideo] Video cut and uploaded successfully:`, finalVideoUrl);
           
           return {
             success: true,

@@ -785,6 +785,7 @@ export async function cutVideoWithFFmpegAPI(
 ): Promise<string> {
   try {
     console.log(`[cutVideoWithFFmpegAPI] Cutting video ${videoName}: ${startTimeSeconds}s → ${endTimeSeconds}s`);
+    console.log(`[cutVideoWithFFmpegAPI] 👤 userId:`, userId, `(type: ${typeof userId})`);
     
     if (!ffmpegApiKey) {
       throw new Error('FFMPEG API Key not configured. Please set it in Settings.');
@@ -893,6 +894,8 @@ export async function cutVideoWithFFmpegAPI(
     // 4. Upload to Bunny CDN for permanent storage
     console.log(`[cutVideoWithFFmpegAPI] Uploading to Bunny CDN...`);
     const trimmedPath = userId ? `user-${userId}/videos/trimmed/${outputFileName}` : `videos/trimmed/${outputFileName}`;
+    console.log(`[cutVideoWithFFmpegAPI] 📁 Upload path:`, trimmedPath, `(userId: ${userId})`);
+    
     const bunnyVideoUrl = await uploadToBunnyCDN(
       videoBuffer,
       trimmedPath,
