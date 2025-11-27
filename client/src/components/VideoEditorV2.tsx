@@ -917,7 +917,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, nextVide
                   position: 'absolute',
                   left: `${timeToPixel(previewStart)}px`,
                   top: 0,
-                  transform: 'translateX(-1px)',
+                  transform: 'translateX(0px)',
                   zIndex: 10,
                 }}
               >
@@ -933,12 +933,12 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, nextVide
                     pointerEvents: 'none',
                   }}
                 />
-                {/* Draggable handle - aligned with line at -1px */}
+                {/* Draggable handle - centered on line (12px width, so -5px to center) */}
                 <div
                   onMouseDown={(e) => handleMarkerMouseDown(e, 'start')}
                   style={{
                     position: 'absolute',
-                    left: '-1px',
+                    left: '-5px',
                     top: 0,
                     width: '12px',
                     height: '12px',
