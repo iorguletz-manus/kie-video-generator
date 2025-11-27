@@ -1144,7 +1144,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       
       // Add merged hooks
       const mergedHookNames = Object.keys(hookMergedVideos).map(baseName => 
-        baseName.replace(/(_TEST)$/, 'M$1')
+        baseName.replace(/(HOOK\d+)/, '$1M')
       );
       
       const allHookNames = [...displayHooks.map(v => v.videoName), ...mergedHookNames];
@@ -2816,22 +2816,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       const batch = hookUrls.slice(i, Math.min(i + BATCH_SIZE, hookUrls.length));
       
       const batchPromises = batch.map(async (hook) => {
-        // Find the hook video to get imageUrl
-        const hookVideo = videoResults.find(v => v.videoName === hook.name);
-        
-        // Extract image name from imageUrl
-        let imageName = '';
-        if (hookVideo && hookVideo.imageUrl) {
-          // Extract filename from URL: .../Alina_1-1763565542441-8ex9ipx3ruv.png → Alina_1
-          const urlParts = hookVideo.imageUrl.split('/');
-          const filename = urlParts[urlParts.length - 1];
-          const nameMatch = filename.match(/^(.+?)-\d+/);
-          imageName = nameMatch ? nameMatch[1] : '';
-        }
-        
-        const finalVideoName = imageName 
-          ? `${context}_HOOK${hook.hookNumber}_${character}_${imageName}`
-          : `${context}_HOOK${hook.hookNumber}_${character}`;
+        const finalVideoName = hook.name.replace(/(HOOK\d+)M/, '$1');
         
         setMergeFinalProgress(prev => ({
           ...prev,
@@ -10680,18 +10665,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         const contextMatch = firstBodyVideo.videoName.match(/^(T\d+_C\d+_E\d+_AD\d+)/);
                         const context = contextMatch ? contextMatch[1] : '';
                         
-                        // Extract character from video name (last part before extension)
-                        const characterMatch = firstBodyVideo.videoName.match(/_([^_]+)$/);
-                        const character = characterMatch ? characterMatch[1] : 'TEST';
-                        
-                        // Extract image name from imageUrl if available
-                        let imageName = '';
-                        if (firstBodyVideo.imageUrl) {
-                          const urlParts = firstBodyVideo.imageUrl.split('/');
-                          const filename = urlParts[urlParts.length - 1];
-                          const nameMatch = filename.match(/^(.+?)-\d+/);
-                          imageName = nameMatch ? nameMatch[1] : '';
-                        }
+                        // Extract character and imageName from video name
+                        // Format: T1_C1_E1_AD1_MIRROR_TEST_ALINA_1
+                        // Extract: TEST (character) and ALINA_1 (imageName)
+                        const nameMatch = firstBodyVideo.videoName.match(/_(\w+)_(\w+_\d+)$/);
+                        const character = nameMatch ? nameMatch[1] : 'TEST';
+                        const imageName = nameMatch ? nameMatch[2] : '';
                         
                         // Construct full merged body name
                         mergedBodyName = imageName 
@@ -10835,34 +10814,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           const context = contextMatch ? contextMatch[1] : 'MERGED';
                           const character = characterMatch ? characterMatch[1] : 'TEST';
                           
-                        selectedHooks.forEach((hookName, index) => {
-                          // Extract hook number from name (e.g., HOOK3M_TEST → HOOK3)
-                          const hookMatch = hookName.match(/HOOK(\d+)[A-Z]?/);
-                          const hookNumber = hookMatch ? hookMatch[1] : (index + 1);
-                          
-                          // Find THIS specific hook video (not first hook)
-                          // If it's a merged hook (e.g., HOOK3M_TEST), find the base hook (HOOK3_TEST)
-                          let thisHookVideo = videoResults.find(v => v.videoName === hookName);
-                          if (!thisHookVideo && hookName.includes('M')) {
-                            // Try to find base hook by removing M
-                            const baseHookName = hookName.replace(/M(_[^_]+)$/, '$1');
-                            thisHookVideo = videoResults.find(v => v.videoName === baseHookName);
-                          }
-                          
-                          // Extract image name from imageUrl
-                          let imageName = '';
-                          if (thisHookVideo && thisHookVideo.imageUrl) {
-                            // Extract filename from URL: .../Alina_1-1763565542441-8ex9ipx3ruv.png → Alina_1
-                            const urlParts = thisHookVideo.imageUrl.split('/');
-                            const filename = urlParts[urlParts.length - 1];
-                            const nameMatch = filename.match(/^(.+?)-\d+/);
-                            imageName = nameMatch ? nameMatch[1] : '';
-                          }
-                          
-                          const finalName = imageName 
-                            ? `${context}_HOOK${hookNumber}_${character}_${imageName}`
-                            : `${context}_HOOK${hookNumber}_${character}`;
+                        selectedHooks.forEach((hookName) => {
+                          // Use hook name directly, just remove M for merged hooks
+                          // T1_C1_E1_AD1_HOOK3M_TEST_ALINA_1 → T1_C1_E1_AD1_HOOK3_TEST_ALINA_1
+                          const finalName = hookName.replace(/(HOOK\d+)M/, '$1');
                           combinations.push(finalName);
+                        });
                         });
                         }
                       } else if (referenceVideo) {
@@ -10871,34 +10828,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         const context = contextMatch ? contextMatch[1] : 'MERGED';
                         const character = characterMatch ? characterMatch[1] : 'TEST';
                         
-                        selectedHooks.forEach((hookName, index) => {
-                          // Extract hook number from name
-                          const hookMatch = hookName.match(/HOOK(\d+)[A-Z]?/);
-                          const hookNumber = hookMatch ? hookMatch[1] : (index + 1);
-                          
-                          // Find the hook video to get imageUrl
-                          // If it's a merged hook (e.g., HOOK3M_TEST), find the base hook (HOOK3_TEST)
-                          let hookVideo = videoResults.find(v => v.videoName === hookName);
-                          if (!hookVideo && hookName.includes('M')) {
-                            // Try to find base hook by removing M
-                            const baseHookName = hookName.replace(/M(_[^_]+)$/, '$1');
-                            hookVideo = videoResults.find(v => v.videoName === baseHookName);
-                          }
-                          
-                          // Extract image name from imageUrl
-                          let imageName = '';
-                          if (hookVideo && hookVideo.imageUrl) {
-                            // Extract filename from URL: .../Alina_1-1763565542441-8ex9ipx3ruv.png → Alina_1
-                            const urlParts = hookVideo.imageUrl.split('/');
-                            const filename = urlParts[urlParts.length - 1];
-                            const nameMatch = filename.match(/^(.+?)-\d+/);
-                            imageName = nameMatch ? nameMatch[1] : '';
-                          }
-                          
-                          const finalName = imageName 
-                            ? `${context}_HOOK${hookNumber}_${character}_${imageName}`
-                            : `${context}_HOOK${hookNumber}_${character}`;
+                        selectedHooks.forEach((hookName) => {
+                          // Use hook name directly, just remove M for merged hooks
+                          // T1_C1_E1_AD1_HOOK3M_TEST_ALINA_1 → T1_C1_E1_AD1_HOOK3_TEST_ALINA_1
+                          const finalName = hookName.replace(/(HOOK\d+)M/, '$1');
                           combinations.push(finalName);
+                        });
                         });
                       }
                     }
