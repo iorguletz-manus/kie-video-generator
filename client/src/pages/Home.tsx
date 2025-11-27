@@ -9486,7 +9486,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               </CardHeader>
               <CardContent className="pt-6">
                 {/* Filter Dropdown */}
-                <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4">
+                <div className="mb-6 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 w-full">
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2">
                       <label className="text-sm font-medium text-purple-900">Filtrează videouri:</label>
@@ -10142,7 +10142,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                               );
                             })()}
                           </Button>
-                          <div className="text-center -mt-2">
+                          <div className="text-center -mt-4">
                             <span className="text-xs text-red-600">GO TO STEP 9</span>
                           </div>
 
@@ -10165,7 +10165,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                 );
                               })()}
                             </Button>
-                            <div className="text-center -mt-2">
+                            <div className="text-center -mt-4">
                               <span className="text-xs text-green-600">GO TO STEP 9</span>
                             </div>
                             </>
@@ -10538,7 +10538,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         )}
                       </Button>
                       {!isMergingStep10 && (
-                        <div className="text-center -mt-2">
+                        <div className="text-center -mt-4">
                           <span className="text-xs text-purple-600">GO TO STEP 10</span>
                         </div>
                       )}
@@ -10612,10 +10612,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       // Check if this is a base hook (no variation suffix)
                       const isBaseHook = /HOOK\d+_/.test(v.videoName) && !/HOOK\d+[A-Z]_/.test(v.videoName);
                       if (isBaseHook) {
-                        // Check if merged version exists for this base
-                        const baseName = v.videoName.replace(/_TEST$/, '');
-                        // Hide base if merged exists
-                        return !hookMergedVideos[baseName + '_TEST'];
+                        // Extract base name pattern: T1_C1_E1_AD1_HOOK3_TEST_ALINA_1 → T1_C1_E1_AD1_HOOK3_TEST_ALINA_1
+                        // Check if merged version exists in hookMergedVideos
+                        const hookMatch = v.videoName.match(/(.*)(HOOK\d+)(.*)/); 
+                        if (hookMatch) {
+                          const prefix = hookMatch[1]; // T1_C1_E1_AD1_
+                          const hookBase = hookMatch[2]; // HOOK3
+                          const suffix = hookMatch[3]; // _TEST_ALINA_1
+                          const baseName = `${prefix}${hookBase}${suffix}`; // Full base name
+                          // Hide base if merged exists
+                          return !hookMergedVideos[baseName];
+                        }
                       }
                       
                       return true;
@@ -10624,10 +10631,20 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     // Add merged hooks to display
                     const mergedHooksList = Object.entries(hookMergedVideos).map(([baseName, cdnUrl]) => {
                       // Find all variations for this base hook
-                      const basePattern = baseName.replace(/_TEST$/, '');
+                      // baseName format: T1_C1_E1_AD1_HOOK3_TEST_ALINA_1
+                      // Variations: T1_C1_E1_AD1_HOOK3A_TEST_ALINA_1, T1_C1_E1_AD1_HOOK3B_TEST_ALINA_1
+                      const hookMatch = baseName.match(/(.*)(HOOK\d+)(.*)/); 
+                      if (!hookMatch) return { videoName: baseName.replace(/(HOOK\d+)/, '$1M'), trimmedVideoUrl: cdnUrl, text: '' };
+                      
+                      const prefix = hookMatch[1]; // T1_C1_E1_AD1_
+                      const hookBase = hookMatch[2]; // HOOK3
+                      const suffix = hookMatch[3]; // _TEST_ALINA_1
+                      
                       const variations = hookVideos.filter(v => {
-                        const vPattern = v.videoName.replace(/_TEST$/, '').replace(/[A-Z]$/, '');
-                        return vPattern === basePattern;
+                        // Match: T1_C1_E1_AD1_HOOK3A_TEST_ALINA_1 should match T1_C1_E1_AD1_HOOK3_TEST_ALINA_1
+                        const vMatch = v.videoName.match(/(.*)(HOOK\d+)([A-Z])?(.*)/); 
+                        if (!vMatch) return false;
+                        return vMatch[1] === prefix && vMatch[2] === hookBase && vMatch[4] === suffix;
                       });
                       
                       // Concatenate white texts ONLY (extract using redStart/redEnd from database)
@@ -10645,7 +10662,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       }).filter(t => t).join(' ');
                       
                       return {
-                        videoName: baseName.replace(/(_TEST)$/, 'M$1'),
+                        videoName: baseName.replace(/(HOOK\d+)/, '$1M'),
                         trimmedVideoUrl: cdnUrl,
                         text: mergedText,
                       };
@@ -10711,8 +10728,23 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                               <p className="text-xs text-gray-600 text-center">
                                   {(() => {
                                     const text = video.text || '';
-                                    // Remove red text parts
-                                    return text.replace(/<span[^>]*color:\s*red[^>]*>.*?<\/span>/gi, '').trim();
+                                    // Extract white text using database redStart/redEnd positions
+                                    // For merged videos, text is already concatenated white text
+                                    // For individual videos, extract white text by removing red portion
+                                    if (video.videoName.includes('M_TEST')) {
+                                      // Merged video - text is already white only
+                                      return text.trim();
+                                    }
+                                    // Individual video - extract white text
+                                    const videoData = videoResults.find(v => v.videoName === video.videoName);
+                                    if (videoData && videoData.redStart !== undefined && videoData.redEnd !== undefined && 
+                                        videoData.redStart >= 0 && videoData.redEnd > videoData.redStart) {
+                                      const beforeRed = text.substring(0, videoData.redStart);
+                                      const afterRed = text.substring(videoData.redEnd);
+                                      return (beforeRed + afterRed).trim();
+                                    }
+                                    // No red text, return full text
+                                    return text.trim();
                                   })()}
                                 </p>
                               </div>
@@ -11044,7 +11076,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                   </Button>
-                  <div className="text-center -mt-2">
+                  <div className="text-center -mt-4">
                     <span className="text-xs text-green-600">GO TO STEP 11</span>
                   </div>
                   </>
