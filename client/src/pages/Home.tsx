@@ -156,9 +156,18 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [, setLocation] = useLocation();
   
   // Step 1: Categories
-  const [selectedTamId, setSelectedTamId] = useState<number | null>(null);
-  const [selectedCoreBeliefId, setSelectedCoreBeliefId] = useState<number | null>(null);
-  const [selectedEmotionalAngleId, setSelectedEmotionalAngleId] = useState<number | null>(null);
+  const [selectedTamId, setSelectedTamId] = useState<number | null>(() => {
+    const saved = localStorage.getItem('selectedTamId');
+    return saved ? parseInt(saved) : null;
+  });
+  const [selectedCoreBeliefId, setSelectedCoreBeliefId] = useState<number | null>(() => {
+    const saved = localStorage.getItem('selectedCoreBeliefId');
+    return saved ? parseInt(saved) : null;
+  });
+  const [selectedEmotionalAngleId, setSelectedEmotionalAngleId] = useState<number | null>(() => {
+    const saved = localStorage.getItem('selectedEmotionalAngleId');
+    return saved ? parseInt(saved) : null;
+  });
   const [selectedAdId, setSelectedAdId] = useState<number | null>(() => {
     const saved = localStorage.getItem('selectedAdId');
     return saved ? parseInt(saved) : null;
@@ -1015,7 +1024,31 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
   }, [selectedAdId, selectedCharacterId, allContextSessions]);
 
-  // Save selectedAdId and selectedCharacterId to localStorage
+  // Save all selection IDs to localStorage for persistence across refresh
+  useEffect(() => {
+    if (selectedTamId) {
+      localStorage.setItem('selectedTamId', selectedTamId.toString());
+    } else {
+      localStorage.removeItem('selectedTamId');
+    }
+  }, [selectedTamId]);
+
+  useEffect(() => {
+    if (selectedCoreBeliefId) {
+      localStorage.setItem('selectedCoreBeliefId', selectedCoreBeliefId.toString());
+    } else {
+      localStorage.removeItem('selectedCoreBeliefId');
+    }
+  }, [selectedCoreBeliefId]);
+
+  useEffect(() => {
+    if (selectedEmotionalAngleId) {
+      localStorage.setItem('selectedEmotionalAngleId', selectedEmotionalAngleId.toString());
+    } else {
+      localStorage.removeItem('selectedEmotionalAngleId');
+    }
+  }, [selectedEmotionalAngleId]);
+
   useEffect(() => {
     if (selectedAdId) {
       localStorage.setItem('selectedAdId', selectedAdId.toString());
@@ -10382,13 +10415,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                     {video.videoName}
                                   </p>
                                   
-                                  {/* Video Player */}
-                                  <video
-                                    src={video.trimmedVideoUrl}
-                                    controls
-                                    className="w-full rounded-lg border border-gray-300"
-                                    style={{ height: '480px', objectFit: 'contain' }}
-                                  />
+                                  {/* Video Player (exact copy from Step 9) */}
+                                  <div className="relative bg-black rounded-lg overflow-hidden" style={{ height: '480px' }}>
+                                    <video
+                                      src={video.trimmedVideoUrl}
+                                      className="absolute top-0 left-0 w-full h-full object-contain"
+                                      controls
+                                      playsInline
+                                    />
+                                  </div>
                                   
                                   {/* Video Text (without red text) */}
                                   <p className="text-xs text-gray-600 text-center">
@@ -10545,11 +10580,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           const hookMatch = hookName.match(/HOOK(\d+)[A-Z]?/);
                           const hookNumber = hookMatch ? hookMatch[1] : (index + 1);
                           
+                          // Find THIS specific hook video (not first hook)
+                          const thisHookVideo = videoResults.find(v => v.videoName === hookName);
+                          
                           // Extract image name from imageUrl
                           let imageName = '';
-                          if (hookVideo && hookVideo.imageUrl) {
+                          if (thisHookVideo && thisHookVideo.imageUrl) {
                             // Extract filename from URL: .../Alina_1-1763565542441-8ex9ipx3ruv.png → Alina_1
-                            const urlParts = hookVideo.imageUrl.split('/');
+                            const urlParts = thisHookVideo.imageUrl.split('/');
                             const filename = urlParts[urlParts.length - 1];
                             const nameMatch = filename.match(/^(.+?)-\d+/);
                             imageName = nameMatch ? nameMatch[1] : '';
@@ -10591,6 +10629,28 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           combinations.push(finalName);
                         });
                       }
+                    }
+                    
+                    // Check if body is selected
+                    if (!selectedBody) {
+                      return (
+                        <div className="bg-yellow-50 p-4 rounded-lg border-2 border-yellow-400">
+                          <p className="text-sm font-semibold text-yellow-800">
+                            ⚠️ Please select a body video to create combinations
+                          </p>
+                        </div>
+                      );
+                    }
+                    
+                    // Check if hooks are selected
+                    if (selectedHooks.length === 0) {
+                      return (
+                        <div className="bg-yellow-50 p-4 rounded-lg border-2 border-yellow-400">
+                          <p className="text-sm font-semibold text-yellow-800">
+                            ⚠️ Please select at least one hook to create combinations
+                          </p>
+                        </div>
+                      );
                     }
                     
                     if (combinations.length === 0) {
