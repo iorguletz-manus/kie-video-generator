@@ -9401,13 +9401,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           toast.error(`Eroare la procesarea videouri: ${error.message}`);
                         }
                       }}
-                      className="bg-purple-600 hover:bg-purple-700 px-8 py-8 text-lg"
+                      className="bg-purple-600 hover:bg-purple-700 px-8 py-8 text-lg flex flex-col items-center gap-1"
                       disabled={acceptedVideosWithUrl.length === 0}
                     >
-                      Next: Auto-Prepare for Cutting ({acceptedVideosWithUrl.length})
-                      <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
+                      <div className="flex items-center">
+                        Next: Auto-Prepare for Cutting ({acceptedVideosWithUrl.length})
+                        <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </div>
+                      <span className="text-xs opacity-70 font-normal">GO TO STEP 8</span>
                     </Button>
                 </div>
               )}
@@ -10042,7 +10045,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                               // Start trimming process
                               handleTrimAllVideos();
                             }}
-                            className="bg-red-600 hover:bg-red-700 px-8 py-8 text-lg w-full max-w-md"
+                            className="bg-red-600 hover:bg-red-700 px-8 py-8 text-lg w-full max-w-md flex flex-col items-center gap-1"
                           >
                             {(() => {
                               const hasTrimmedVideos = videoResults.some(v => v.trimmedVideoUrl);
@@ -10051,10 +10054,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                 : videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length;
                               return (
                                 <>
-                                  Next: Trim All Videos ({count})
-                                  <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                  </svg>
+                                  <div className="flex items-center">
+                                    Next: Trim All Videos ({count})
+                                    <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                  </div>
+                                  <span className="text-xs opacity-70 font-normal">GO TO STEP 9</span>
                                 </>
                               );
                             })()}
@@ -10064,16 +10070,19 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           {videoResults.some(v => v.trimmedVideoUrl) && (
                             <Button
                               onClick={() => setCurrentStep(9)}
-                              className="bg-green-600 hover:bg-green-700 px-8 py-8 text-lg w-full max-w-md"
+                              className="bg-green-600 hover:bg-green-700 px-8 py-8 text-lg w-full max-w-md flex flex-col items-center gap-1"
                             >
                               {(() => {
                                 const count = approvedVideos.filter(v => v.trimmedVideoUrl).length;
                                 return (
                                   <>
-                                    Next: Check Videos ({count})
-                                    <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                    </svg>
+                                    <div className="flex items-center">
+                                      Next: Check Videos ({count})
+                                      <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                      </svg>
+                                    </div>
+                                    <span className="text-xs opacity-70 font-normal">GO TO STEP 9</span>
                                   </>
                                 );
                               })()}
@@ -10425,7 +10434,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       
                       <Button
                         onClick={handleMergeVideos}
-                        className="bg-purple-600 hover:bg-purple-700 px-8 py-6 text-base"
+                        className="bg-purple-600 hover:bg-purple-700 px-8 py-6 text-base flex flex-col items-center gap-1"
                         disabled={isMergingStep10}
                       >
                         {isMergingStep10 ? (
@@ -10435,15 +10444,18 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           </>
                         ) : (
                           <>
-                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                            </svg>
-                            Next: Prepare for Merge ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.trimmedVideoUrl).length})
+                            <div className="flex items-center">
+                              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                              </svg>
+                              Next: Prepare for Merge ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.trimmedVideoUrl).length})
+                              <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              </svg>
+                            </div>
+                            <span className="text-xs opacity-70 font-normal">GO TO STEP 10</span>
                           </>
                         )}
-                        <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
                       </Button>
                     </div>
                   </div>
@@ -10934,16 +10946,19 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   
                   <Button
                     onClick={handleMergeFinalVideos}
-                    className="bg-green-600 hover:bg-green-700 px-8 py-6 text-base"
+                    className="bg-green-600 hover:bg-green-700 px-8 py-6 text-base flex flex-col items-center gap-1"
                     disabled={selectedHooks.length === 0 || !selectedBody || isMergingFinalVideos}
                   >
-                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    Next: Merge Final Videos ({selectedHooks.length})
-                    <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
+                    <div className="flex items-center">
+                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      Next: Merge Final Videos ({selectedHooks.length})
+                      <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                    <span className="text-xs opacity-70 font-normal">GO TO STEP 11</span>
                   </Button>
                 </div>
               </div>
