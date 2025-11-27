@@ -9540,7 +9540,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>
                       </div>
-                      <span className="text-xs opacity-70 font-normal">GO TO STEP 8</span>
+                      <span className="text-xs opacity-70 font-normal -mt-4">GO TO STEP 8</span>
                     </Button>
                 </div>
               )}
@@ -10401,7 +10401,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     </div>
                     
                     {/* Navigation Buttons */}
-                    <div className="flex justify-between gap-4 mt-6">
+                    <div className="flex flex-col lg:flex-row justify-between gap-4 mt-6 max-w-4xl mx-auto">
                       <Button
                         onClick={() => setCurrentStep(8)}
                         variant="outline"
@@ -10897,7 +10897,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 </div>
                 
                 {/* Navigation Buttons */}
-                <div className="flex justify-between items-center gap-4 mt-6">
+                <div className="flex flex-col lg:flex-row justify-between items-center gap-4 mt-6 max-w-4xl mx-auto">
                   <Button
                     onClick={() => setCurrentStep(9)}
                     variant="outline"
