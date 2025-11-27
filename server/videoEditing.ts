@@ -153,7 +153,10 @@ export async function uploadVideoToFFmpegAPI(
     
     // Step 2: Download video from Bunny CDN
     console.log(`[uploadVideoToFFmpegAPI] Downloading from ${videoUrl}...`);
+    const downloadStartTime = Date.now();
     const videoRes = await fetch(videoUrl);
+    const downloadEndTime = Date.now();
+    const downloadDuration = downloadEndTime - downloadStartTime;
     console.log(`[uploadVideoToFFmpegAPI] Bunny CDN response status: ${videoRes.status} ${videoRes.statusText}`);
     console.log(`[uploadVideoToFFmpegAPI] Bunny CDN response headers:`, Object.fromEntries(videoRes.headers.entries()));
     
@@ -164,7 +167,8 @@ export async function uploadVideoToFFmpegAPI(
     }
     
     const videoBuffer = await videoRes.arrayBuffer();
-    console.log(`[uploadVideoToFFmpegAPI] Downloaded ${videoBuffer.byteLength} bytes from Bunny CDN`);
+    const videoSizeMB = (videoBuffer.byteLength / (1024 * 1024)).toFixed(2);
+    console.log(`[uploadVideoToFFmpegAPI] Downloaded ${videoBuffer.byteLength} bytes (${videoSizeMB} MB) from Bunny CDN in ${downloadDuration}ms`);
     
     // Step 3: Upload to FFmpeg API
     console.log(`[uploadVideoToFFmpegAPI] Uploading to FFmpeg API...`);

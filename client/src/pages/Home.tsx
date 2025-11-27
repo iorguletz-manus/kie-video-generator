@@ -9486,7 +9486,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               
               {/* Buton Video Editing - Step 8 */}
               {acceptedVideosWithUrl.length > 0 && (
-                <div className="mt-8 flex flex-col gap-4 items-center">
+                <div className="mt-8 flex justify-between items-center">
                     <Button
                       variant="outline"
                       onClick={() => setCurrentStep(6)}
@@ -9495,6 +9495,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       <ChevronLeft className="w-4 h-4 mr-2" />
                       Back
                     </Button>
+                    <div className="flex flex-col items-center gap-0">
                     <Button
                       onClick={async () => {
                         console.log('[Video Editing] 🔍 Total videos in videoResults:', videoResults.length);
@@ -9597,6 +9598,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     </Button>
                     <div className="text-center -mt-4">
                       <span className="text-xs opacity-70 font-normal">GO TO STEP 8</span>
+                    </div>
                     </div>
                 </div>
               )}
@@ -10457,7 +10459,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     </div>
                     
                     {/* Navigation Buttons */}
-                    <div className="flex flex-col gap-4 items-center mt-6 max-w-4xl mx-auto">
+                    <div className="flex justify-between items-center mt-6 max-w-4xl mx-auto">
                       <Button
                         onClick={() => setCurrentStep(8)}
                         variant="outline"
@@ -10469,7 +10471,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         Back
                       </Button>
                       
-                      <>
+                      <div className="flex flex-col items-center gap-0">
                       <Button
                         onClick={handleMergeVideos}
                         className="bg-purple-600 hover:bg-purple-700 px-8 py-8 text-base"
@@ -10497,7 +10499,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           <span className="text-xs text-purple-600">GO TO STEP 10</span>
                         </div>
                       )}
-                      </>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -10953,7 +10955,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 </div>
                 
                 {/* Navigation Buttons */}
-                <div className="flex flex-col gap-4 items-center mt-6 max-w-4xl mx-auto">
+                <div className="flex justify-between items-center mt-6 max-w-4xl mx-auto">
                   <Button
                     onClick={() => setCurrentStep(9)}
                     variant="outline"
