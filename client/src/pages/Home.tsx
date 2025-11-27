@@ -1160,7 +1160,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       } catch (error) {
         console.error('[Auto-save] ❌ Failed to save currentStep:', error);
       }
-    }, 500); // 500ms debounce
+    }, 0); // 0ms = instant save to prevent currentStep jumping
     
     return () => clearTimeout(saveTimeout);
   }, [currentStep, selectedTamId, selectedCoreBeliefId, selectedEmotionalAngleId, selectedAdId, selectedCharacterId, localCurrentUser, videoResults, hookMergedVideos, bodyMergedVideoUrl, finalVideos]);
@@ -2690,7 +2690,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         
         try {
           const result = await mergeVideosMutation.mutateAsync({
-            videoUrls: [hookUrl, bodyUrl],
+            videoUrls: [hook.url, bodyUrl],
             outputVideoName: finalVideoName,
             ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
             userId: localCurrentUser.id,
