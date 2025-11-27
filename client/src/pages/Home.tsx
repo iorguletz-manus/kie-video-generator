@@ -2201,6 +2201,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           // Save merged hook URL
           setHookMergedVideos(prev => ({ ...prev, [baseName]: result.cdnUrl }));
           
+          // Extract context/character/episode from video name for database save
+          const firstVideoName = videos[0].videoName;
+          const contextMatch = firstVideoName.match(/^(T\d+_C\d+_E\d+_AD\d+)/);
+          const contextName = contextMatch ? contextMatch[1] : 'MERGED';
+          const characterMatch = firstVideoName.match(/_(\w+)$/);
+          const characterName = characterMatch ? characterMatch[1] : 'TEST';
+          const episodeName = contextName; // Use context as episode for now
+          
           // Save to database
           await upsertContextSessionMutation.mutateAsync({
             userId: localCurrentUser.id,
@@ -2238,11 +2246,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           // Extract context from first video
           const firstVideoName = bodyVideos[0].videoName;
           const contextMatch = firstVideoName.match(/^(T\d+_C\d+_E\d+_AD\d+)/);
-          const context = contextMatch ? contextMatch[1] : 'MERGED';
-          const characterMatch = firstVideoName.match(/_([^_]+)$/);
+          const contextName = contextMatch ? contextMatch[1] : 'MERGED';
+          const characterMatch = firstVideoName.match(/_(\w+)$/);
           const characterName = characterMatch ? characterMatch[1] : 'TEST';
+          const episodeName = contextName; // Use context as episode for now
           
-          const outputName = `${context}_BODY_${characterName}`;
+          const outputName = `${contextName}_BODY_${characterName}`;
           
           const result = await mergeVideosMutation.mutateAsync({
             videoUrls: bodyVideoUrls,
@@ -9942,17 +9951,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             />
                           </div>
                           
-                          {/* Video Text */}
+                          {/* Video Text (white text only) */}
                           {video.text && (
                             <p className="text-xs text-gray-700 mb-3 text-center">
-                              {video.redStart !== undefined && video.redEnd !== undefined ? (
-                                <>
-                                  {video.text.substring(0, video.redStart)}
-                                  {video.text.substring(video.redEnd)}
-                                </>
-                              ) : (
-                                video.text
-                              )}
+                              {(() => {
+                                const text = video.text || '';
+                                // Remove red text parts
+                                return text.replace(/<span[^>]*color:\s*red[^>]*>.*?<\/span>/gi, '').trim();
+                              })()}
                             </p>
                           )}
                           
@@ -10336,44 +10342,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                                   </p>
                                   
                                   {/* Video Player */}
-                                  <div className="relative bg-black rounded-lg overflow-hidden" style={{ height: '480px' }}>
-                                    <video
-                                      ref={(el) => {
-                                        if (el && !el.dataset.initialized) {
-                                          el.dataset.initialized = 'true';
-                                          const timeDisplay = el.nextElementSibling as HTMLElement;
-                                          if (timeDisplay) {
-                                            el.addEventListener('timeupdate', () => {
-                                              const current = Math.floor(el.currentTime);
-                                              const duration = el.duration ? Math.floor(el.duration) : 0;
-                                              const currentMin = Math.floor(current / 60);
-                                              const currentSec = current % 60;
-                                              const durationMin = Math.floor(duration / 60);
-                                              const durationSec = duration % 60;
-                                              timeDisplay.textContent = `${currentMin}:${currentSec.toString().padStart(2, '0')} / ${durationMin}:${durationSec.toString().padStart(2, '0')}`;
-                                            });
-                                            el.addEventListener('loadedmetadata', () => {
-                                              const duration = Math.floor(el.duration);
-                                              const durationMin = Math.floor(duration / 60);
-                                              const durationSec = duration % 60;
-                                              timeDisplay.textContent = `0:00 / ${durationMin}:${durationSec.toString().padStart(2, '0')}`;
-                                            });
-                                          }
-                                        }
-                                      }}
-                                      src={video.trimmedVideoUrl}
-                                      className="absolute top-0 left-0 w-full h-full object-contain"
-                                      controls
-                                      playsInline
-                                    />
-                                    {/* Time display overlay */}
-                                    <div className="absolute bottom-12 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded font-mono">
-                                      0:00 / 0:00
-                                    </div>
-                                  </div>
+                                  <video
+                                    src={video.trimmedVideoUrl}
+                                    controls
+                                    className="w-full rounded-lg border border-gray-300"
+                                    style={{ height: '480px', objectFit: 'contain' }}
+                                  />
                                   
                                   {/* Video Text (without red text) */}
-                                  <p className="text-xs text-gray-600 text-center line-clamp-2">
+                                  <p className="text-xs text-gray-600 text-center">
                                     {(() => {
                                       const text = video.text || '';
                                       // Remove red text parts
@@ -10431,7 +10408,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                               />
                               
                               {/* Info */}
-                              <p className="text-xs text-gray-600 text-center line-clamp-2">
+                              <p className="text-xs text-gray-600 text-center">
                                 All body videos merged
                               </p>
                             </div>
