@@ -10472,7 +10472,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       <>
                       <Button
                         onClick={handleMergeVideos}
-                        className="bg-purple-600 hover:bg-purple-700 px-8 py-6 text-base"
+                        className="bg-purple-600 hover:bg-purple-700 px-8 py-8 text-base"
                         disabled={isMergingStep10}
                       >
                         {isMergingStep10 ? (
@@ -10968,7 +10968,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   <div className="flex flex-col items-center gap-0">
                     <Button
                       onClick={handleMergeFinalVideos}
-                      className="bg-green-600 hover:bg-green-700 px-8 py-6 text-base"
+                      className="bg-green-600 hover:bg-green-700 px-8 py-8 text-base"
                       disabled={selectedHooks.length === 0 || !selectedBody || isMergingFinalVideos}
                     >
                       <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
