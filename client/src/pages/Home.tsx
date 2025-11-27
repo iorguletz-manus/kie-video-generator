@@ -2291,7 +2291,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         
         try {
           const sortedVideos = videos.sort((a, b) => a.videoName.localeCompare(b.videoName));
-          const videoUrls = sortedVideos.map(v => v.trimmedVideoUrl!).filter(Boolean);
+          
+          // Extract original URLs (not proxy URLs)
+          const extractOriginalUrl = (url: string) => {
+            if (url.startsWith('/api/proxy-video?url=')) {
+              const urlParam = new URLSearchParams(url.split('?')[1]).get('url');
+              return urlParam ? decodeURIComponent(urlParam) : url;
+            }
+            return url;
+          };
+          
+          const videoUrls = sortedVideos.map(v => extractOriginalUrl(v.trimmedVideoUrl!)).filter(Boolean);
           
           // Output name: T1_C1_E1_AD4_HOOK3M_TEST (M = merged)
           const outputName = baseName.replace(/(HOOK\d+)/, '$1M');
@@ -2377,7 +2387,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         }));
         
         try {
-          const bodyVideoUrls = bodyVideos.map(v => v.trimmedVideoUrl!).filter(Boolean);
+          // Extract original URLs (not proxy URLs)
+          const extractOriginalUrl = (url: string) => {
+            if (url.startsWith('/api/proxy-video?url=')) {
+              const urlParam = new URLSearchParams(url.split('?')[1]).get('url');
+              return urlParam ? decodeURIComponent(urlParam) : url;
+            }
+            return url;
+          };
+          
+          const bodyVideoUrls = bodyVideos.map(v => extractOriginalUrl(v.trimmedVideoUrl!)).filter(Boolean);
           
           // Extract context from first video
           const firstVideoName = bodyVideos[0].videoName;
