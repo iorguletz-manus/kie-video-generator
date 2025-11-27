@@ -10668,7 +10668,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         // Extract character and imageName from video name
                         // Format: T1_C1_E1_AD1_MIRROR_TEST_ALINA_1
                         // Extract: TEST (character) and ALINA_1 (imageName)
-                        const nameMatch = firstBodyVideo.videoName.match(/_(\w+)_(\w+_\d+)$/);
+                        const nameMatch = firstBodyVideo.videoName.match(/_([A-Z]+)_([A-Z]+_\d+)$/);
                         const character = nameMatch ? nameMatch[1] : 'TEST';
                         const imageName = nameMatch ? nameMatch[2] : '';
                         
