@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { Upload, X, Check, Loader2, Video, FileText, Image as ImageIcon, Map as MapIcon, Play, Download, Undo2, ChevronLeft, RefreshCw, Clock, Search, FileEdit, MessageSquare, Images, Grid3x3, Scissors, CheckCircle2, Folder, Settings as SettingsIcon, LogOut, Sparkles } from "lucide-react";
+import { Upload, X, Check, Loader2, Video, FileText, Image as ImageIcon, Map as MapIcon, Play, Download, Undo2, ChevronLeft, RefreshCw, Clock, Search, FileEdit, MessageSquare, Images, Grid3x3, Scissors, CheckCircle2, Folder, Settings as SettingsIcon, LogOut, Sparkles, AlertTriangle, ChevronRight } from "lucide-react";
 
 type PromptType = 'PROMPT_NEUTRAL' | 'PROMPT_SMILING' | 'PROMPT_CTA' | 'PROMPT_CUSTOM';
 type SectionType = 'HOOKS' | 'MIRROR' | 'DCS' | 'TRANZITION' | 'NEW_CAUSE' | 'MECHANISM' | 'EMOTIONAL_PROOF' | 'TRANSFORMATION' | 'CTA' | 'OTHER';
@@ -211,6 +211,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [modifyRedEnd, setModifyRedEnd] = useState<number>(-1);
   const [modifyImageCharacterFilter, setModifyImageCharacterFilter] = useState<string>('all');
   const modifyEditorRef = useRef<HTMLDivElement>(null);
+  const skipCountdownRef = useRef(false);
   
   // State pentru custom prompts (fiecare video poate avea propriul custom prompt)
   const [customPrompts, setCustomPrompts] = useState<Record<number, string>>({});
@@ -2126,8 +2127,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       return;
     }
     
-    // 3. 60-second countdown
+    // 3. 60-second countdown with skip option
     console.log('[Merge] ⏳ Starting 60-second countdown...');
+    skipCountdownRef.current = false;
     setMergeStep10Progress({ 
       status: 'countdown', 
       message: 'Waiting 60s before merge (FFmpeg rate limit)...',
@@ -2136,6 +2138,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     setIsMergingStep10(true);
     
     for (let countdown = 60; countdown > 0; countdown--) {
+      if (skipCountdownRef.current) {
+        console.log('[Merge] ⏭️ Countdown skipped by user');
+        break;
+      }
       setMergeStep10Progress(prev => ({
         ...prev,
         message: `⏳ Waiting ${countdown}s before merge...`,
@@ -4433,6 +4439,20 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               
               {/* Actions */}
               <div className="flex gap-2 justify-end pt-4 border-t">
+                {/* Skip Countdown Button */}
+                {mergeStep10Progress.status === 'countdown' && (
+                  <Button
+                    onClick={() => {
+                      skipCountdownRef.current = true;
+                      toast.info('⏭️ Skipping countdown...');
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    <ChevronRight className="w-4 h-4 mr-2" />
+                    Skip Wait
+                  </Button>
+                )}
+                
                 {/* Retry Button */}
                 {mergeStep10Progress.results && 
                  mergeStep10Progress.results.filter(r => r.status === 'failed').length > 0 &&
