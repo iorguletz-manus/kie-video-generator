@@ -1546,17 +1546,20 @@ export async function mergeVideosWithFFmpegAPI(
       throw new Error(`FFmpeg API returned invalid JSON`);
     }
     
-    if (!result.success || !result.data?.file_path) {
+    // FFmpeg API returns: { ok: true, result: [{ download_url, file_name }] }
+    if (!result.ok || !result.result || result.result.length === 0) {
       console.error('[FFmpeg API] Merge failed:', result);
       throw new Error(`FFmpeg API merge failed: ${result.message || 'Unknown error'}`);
     }
     
-    const mergedFilePath = result.data.file_path;
-    console.log(`[mergeVideosWithFFmpegAPI] Merge successful: ${mergedFilePath}`);
+    const mergedFile = result.result[0];
+    const downloadUrl = mergedFile.download_url;
+    console.log(`[mergeVideosWithFFmpegAPI] Merge successful: ${mergedFile.file_name}`);
+    console.log(`[mergeVideosWithFFmpegAPI] Download URL: ${downloadUrl}`);
     
     // 5. Download merged video
-    console.log(`[mergeVideosWithFFmpegAPI] Downloading merged video...`);
-    const downloadRes = await fetch(`${FFMPEG_API_BASE}/ffmpeg/download/${mergedFilePath}`, {
+    console.log(`[mergeVideosWithFFmpegAPI] Downloading merged video from: ${downloadUrl}`);
+    const downloadRes = await fetch(downloadUrl, {
       headers: {
         'Authorization': ffmpegApiKey,
       },
