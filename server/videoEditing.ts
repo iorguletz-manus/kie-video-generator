@@ -1557,13 +1557,9 @@ export async function mergeVideosWithFFmpegAPI(
     console.log(`[mergeVideosWithFFmpegAPI] Merge successful: ${mergedFile.file_name}`);
     console.log(`[mergeVideosWithFFmpegAPI] Download URL: ${downloadUrl}`);
     
-    // 5. Download merged video
+    // 5. Download merged video (pre-signed URL, no auth needed)
     console.log(`[mergeVideosWithFFmpegAPI] Downloading merged video from: ${downloadUrl}`);
-    const downloadRes = await fetch(downloadUrl, {
-      headers: {
-        'Authorization': ffmpegApiKey,
-      },
-    });
+    const downloadRes = await fetch(downloadUrl);
     
     if (!downloadRes.ok) {
       throw new Error(`Failed to download merged video: ${downloadRes.statusText}`);
