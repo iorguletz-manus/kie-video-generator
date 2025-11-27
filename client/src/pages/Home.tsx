@@ -2747,14 +2747,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       }
     }
     
-    // Use setFinalVideos callback to save to database with LATEST state
-    setFinalVideos(currentFinalVideos => {
-      const latestFinalVideos = results; // Use results from merge operation
-      
-      // Save to database immediately with latest finalVideos
-      console.log('[Step 10→Step 11] 💾 Saving finalVideos to DB:', latestFinalVideos);
-      
-      upsertContextSessionMutation.mutateAsync({
+    // Save to database BEFORE setFinalVideos to ensure completion
+    console.log('[Step 10→Step 11] 💾 Saving finalVideos to DB:', results);
+    
+    try {
+      await upsertContextSessionMutation.mutateAsync({
         userId: localCurrentUser.id,
         tamId: selectedTamId,
         coreBeliefId: selectedCoreBeliefId,
@@ -2773,16 +2770,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         reviewHistory,
         hookMergedVideos,
         bodyMergedVideoUrl,
-        finalVideos: latestFinalVideos, // Use LATEST state
-      }).then(() => {
-        console.log('[Step 10→Step 11] ✅ finalVideos saved to database');
-      }).catch((error) => {
-        console.error('[Step 10→Step 11] ❌ Failed to save finalVideos:', error);
+        finalVideos: results, // Save results directly
       });
-      
-      // Return new state
-      return latestFinalVideos;
-    });
+      console.log('[Step 10→Step 11] ✅ finalVideos saved to database');
+    } catch (error) {
+      console.error('[Step 10→Step 11] ❌ Failed to save finalVideos:', error);
+    }
+    
+    // Update state AFTER database save
+    setFinalVideos(results);
     
     setMergeFinalProgress({
       current: completedCount,
