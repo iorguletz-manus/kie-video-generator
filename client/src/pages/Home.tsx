@@ -2312,8 +2312,20 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             cdnUrl: result.cdnUrl
           });
           
-          // Save merged hook URL
-          setHookMergedVideos(prev => ({ ...prev, [baseName]: result.cdnUrl }));
+          // Save merged hook URL - REPLACE old keys with same hook base
+          setHookMergedVideos(prev => {
+            // Extract hook base pattern: T1_C1_E1_AD1_HOOK3
+            const hookBaseMatch = baseName.match(/(.*HOOK\d+)/);
+            const hookBase = hookBaseMatch ? hookBaseMatch[1] : null;
+            
+            // Remove all old keys with same hook base
+            const cleaned = hookBase 
+              ? Object.fromEntries(Object.entries(prev).filter(([key]) => !key.startsWith(hookBase)))
+              : prev;
+            
+            // Add new key
+            return { ...cleaned, [baseName]: result.cdnUrl };
+          });
           
           // Extract context/character/episode from video name for database save
           const firstVideoName = videos[0].videoName;
