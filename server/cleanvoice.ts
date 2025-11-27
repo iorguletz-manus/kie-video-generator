@@ -24,9 +24,20 @@ interface CleanVoiceEditResponse {
 }
 
 interface CleanVoiceStatusResponse {
-  id: string;
-  status: 'PENDING' | 'STARTED' | 'SUCCESS' | 'FAILURE';
-  download_url?: string;
+  status: 'PENDING' | 'STARTED' | 'EDITING' | 'EXPORT' | 'SUCCESS' | 'FAILURE';
+  result?: {
+    video: boolean;
+    filename: string;
+    download_url?: string;
+    statistics?: any;
+    summarization?: any[];
+    transcription?: any[];
+    social_content?: any[];
+    waveform_result?: any[];
+    merged_audio_url?: any[];
+    timestamps_markers_urls?: any[];
+  };
+  task_id: string;
   error?: string;
 }
 
@@ -179,13 +190,13 @@ export async function processVideoWithCleanVoice(
     throw new Error(`CleanVoice processing failed: ${result.error || 'Unknown error'}`);
   }
 
-  if (!result.download_url) {
+  if (!result.result?.download_url) {
     throw new Error('CleanVoice processing succeeded but no download URL provided');
   }
 
   // Download and upload to Bunny CDN
   const cleanvoiceAudioUrl = await downloadAndUploadCleanVoiceAudio(
-    result.download_url,
+    result.result.download_url,
     videoName,
     userId
   );
