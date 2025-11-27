@@ -2611,6 +2611,101 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       toast.warning(`⚠️ ${successCount} succeeded, ${failCount} still failed`);
     }
   };
+  
+  // Sample Merge ALL Videos - with 65-second cooldown timer in popup
+  const handleSampleMerge = async (videosToMerge: typeof videoResults) => {
+    console.log('[Sample Merge] 🚀 Starting Sample Merge...');
+    
+    // Prepare video list with notes
+    const videoList = videosToMerge.map(v => ({
+      name: v.videoName,
+      note: v.step9Note || ''
+    }));
+    
+    setSampleMergeVideos(videoList);
+    setIsSampleMergeModalOpen(true);
+    
+    // Check cooldown (65 seconds)
+    const now = Date.now();
+    let remainingSeconds = 0;
+    
+    if (lastSampleMergeTimestamp) {
+      const elapsed = now - lastSampleMergeTimestamp;
+      const cooldownMs = 65000; // 65 seconds
+      
+      if (elapsed < cooldownMs) {
+        const remainingMs = cooldownMs - elapsed;
+        remainingSeconds = Math.ceil(remainingMs / 1000);
+        console.log(`[Sample Merge] Cooldown active! ${remainingSeconds}s remaining`);
+      }
+    }
+    
+    // If cooldown active, show countdown in popup
+    if (remainingSeconds > 0) {
+      setSampleMergeCountdown(remainingSeconds);
+      setSampleMergeProgress(`⏳ Waiting ${remainingSeconds}s before merge (FFmpeg rate limit)...`);
+      
+      // Wait for countdown to finish
+      for (let countdown = remainingSeconds; countdown > 0; countdown--) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        setSampleMergeCountdown(countdown - 1);
+        setSampleMergeProgress(`⏳ Waiting ${countdown - 1}s before merge...`);
+      }
+    }
+    
+    // Save timestamp for next cooldown
+    setLastSampleMergeTimestamp(Date.now());
+    setSampleMergeCountdown(0);
+    
+    // Always clear cached video and re-merge (user explicitly clicked button)
+    console.log('[Sample Merge] 🔄 User clicked button, re-merging...');
+    
+    setSampleMergedVideoUrl(null);
+    setSampleMergeProgress('Preparing videos...');
+    
+    try {
+      // Extract original URLs
+      const extractOriginalUrl = (url: string) => {
+        if (url.startsWith('/api/proxy-video?url=')) {
+          const urlParam = new URLSearchParams(url.split('?')[1]).get('url');
+          return urlParam ? decodeURIComponent(urlParam) : url;
+        }
+        return url;
+      };
+      
+      const videos = videosToMerge.map(v => ({
+        url: extractOriginalUrl(v.videoUrl),
+        name: v.videoName,
+        startMs: v.cutPoints?.startKeep || 0,
+        endMs: v.cutPoints?.endKeep || 0,
+      }));
+      
+      console.log('[Sample Merge] Videos:', videos);
+      setSampleMergeProgress(`Uploading ${videos.length} videos to FFmpeg API...`);
+      
+      const result = await cutAndMergeAllMutation.mutateAsync({
+        videos,
+        ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
+      });
+      
+      console.log('[Sample Merge] Success!', result);
+      setSampleMergedVideoUrl(result.downloadUrl);
+      setLastSampleVideoUrl(result.downloadUrl); // Save for "Open Last Sample" link
+      const currentHash = JSON.stringify(videosToMerge.map(v => ({
+        name: v.videoName,
+        startMs: Math.round(v.cutPoints?.startKeep || 0),
+        endMs: Math.round(v.cutPoints?.endKeep || 0),
+      })));
+      setLastMergedVideosHash(currentHash);
+      setSampleMergeProgress('');
+      toast.success('✅ Sample merge complete!');
+    } catch (error: any) {
+      console.error('[Sample Merge] Error:', error);
+      setSampleMergeProgress(`Error: ${error.message}`);
+      toast.error(`Sample merge failed: ${error.message}`);
+    }
+  };
+  
   // Step 10 → Step 11: Merge final videos (hooks + body combinations)
   const handleMergeFinalVideos = async () => {
     console.log('[Step 10→Step 11] Starting final merge process...');
@@ -5059,8 +5154,18 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           <div className="space-y-4 py-4">
             {!sampleMergedVideoUrl ? (
               <div className="flex flex-col items-center gap-3">
-                <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-                <p className="text-sm text-gray-600">{sampleMergeProgress}</p>
+                {sampleMergeCountdown > 0 ? (
+                  <>
+                    <div className="text-6xl font-bold text-orange-600">{sampleMergeCountdown}</div>
+                    <p className="text-sm text-gray-600">{sampleMergeProgress}</p>
+                    <p className="text-xs text-gray-500">Please wait for FFmpeg rate limit...</p>
+                  </>
+                ) : (
+                  <>
+                    <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                    <p className="text-sm text-gray-600">{sampleMergeProgress}</p>
+                  </>
+                )}
               </div>
             ) : (
               <div className="space-y-4">
@@ -9519,119 +9624,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   {videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length > 1 && (
                     <div className="flex flex-col items-end gap-1">
                     <Button
-                      onClick={async () => {
-                        // Check cooldown (65 seconds)
-                        const now = Date.now();
-                        if (lastSampleMergeTimestamp) {
-                          const elapsed = now - lastSampleMergeTimestamp;
-                          const cooldownMs = 65000; // 65 seconds
-                          
-                          if (elapsed < cooldownMs) {
-                            const remainingMs = cooldownMs - elapsed;
-                            const remainingSeconds = Math.ceil(remainingMs / 1000);
-                            console.log(`[Sample Merge] Cooldown active! ${remainingSeconds}s remaining`);
-                            setSampleMergeCountdown(remainingSeconds);
-                            toast.error(`Please wait ${remainingSeconds} seconds before merging again`);
-                            return;
-                          }
-                        }
-                        
-                        // Save timestamp for next cooldown
-                        setLastSampleMergeTimestamp(now);
-                        
-                        console.log('[Sample Merge] Starting from Step 8 button...');
-                        
+                      onClick={() => {
                         // Get ALL accepted videos (not filtered)
                         const allAcceptedVideos = videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl);
-                        
-                        // Prepare video list with notes
-                        const videoList = allAcceptedVideos.map(v => ({
-                          name: v.videoName,
-                          note: v.step9Note || ''
-                        }));
-                        
-                        setSampleMergeVideos(videoList);
-                        setIsSampleMergeModalOpen(true);
-                        
-                        // Smart cache: check if markers were modified
-                        const currentHash = JSON.stringify(allAcceptedVideos.map(v => ({
-                          name: v.videoName,
-                          startMs: Math.round(v.cutPoints?.startKeep || 0),
-                          endMs: Math.round(v.cutPoints?.endKeep || 0),
-                        })));
-                        
-                        console.log('[Sample Merge] Cache check:');
-                        console.log('[Sample Merge]   Initial hash:', initialVideosHash);
-                        console.log('[Sample Merge]   Current hash:', currentHash);
-                        console.log('[Sample Merge]   Last merged hash:', lastMergedVideosHash);
-                        console.log('[Sample Merge]   Has cached video:', !!sampleMergedVideoUrl);
-                        
-                        // Check if we have a cached video with the same hash
-                        if (currentHash === lastMergedVideosHash && sampleMergedVideoUrl) {
-                          console.log('[Sample Merge] ✅ Cache hit! Using cached video.');
-                          setSampleMergeProgress('');
-                          return;
-                        }
-                        
-                        // Check if markers were modified compared to initial state
-                        const markersModified = initialVideosHash && currentHash !== initialVideosHash;
-                        if (markersModified) {
-                          console.log('[Sample Merge] ⚠️ Markers were modified, retransmitting to FFmpeg...');
-                        } else {
-                          console.log('[Sample Merge] 🆕 First merge or cache miss, proceeding...');
-                        }
-                        
-                        // Only clear if cache miss
-                        setSampleMergedVideoUrl(null);
-                        setSampleMergeProgress('Preparing videos...');
-                        
-                        try {
-                          // Extract original URLs
-                          const extractOriginalUrl = (url: string) => {
-                            if (url.startsWith('/api/proxy-video?url=')) {
-                              const urlParam = new URLSearchParams(url.split('?')[1]).get('url');
-                              return urlParam ? decodeURIComponent(urlParam) : url;
-                            }
-                            return url;
-                          };
-                          
-                          const videos = allAcceptedVideos.map(v => ({
-                            url: extractOriginalUrl(v.videoUrl),
-                            name: v.videoName,
-                            startMs: v.cutPoints?.startKeep || 0,
-                            endMs: v.cutPoints?.endKeep || 0,
-                          }));
-                          
-                          console.log('[Sample Merge] Videos:', videos);
-                          setSampleMergeProgress(`Uploading ${videos.length} videos to FFmpeg API...`);
-                          
-                          const result = await cutAndMergeAllMutation.mutateAsync({
-                            videos,
-                            ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
-                          });
-                          
-                          console.log('[Sample Merge] Success!', result);
-                          setSampleMergedVideoUrl(result.downloadUrl);
-                          setLastSampleVideoUrl(result.downloadUrl); // Save for "Open Last Sample" link
-                          setLastMergedVideosHash(currentHash);
-                          setSampleMergeProgress('');
-                        } catch (error: any) {
-                          console.error('[Sample Merge] Error:', error);
-                          setSampleMergeProgress(`Error: ${error.message}`);
-                          toast.error(`Sample merge failed: ${error.message}`);
-                        }
+                        handleSampleMerge(allAcceptedVideos);
                       }}
                       className="bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap"
                       size="sm"
                     >
                       🎬 Sample Merge ALL Videos
                     </Button>
-                    {/* Countdown timer */}
-                    {sampleMergeCountdown > 0 && (
-                      <div className="text-center -mt-2">
-                        <span className="text-xs text-orange-600">⏱️ Wait {sampleMergeCountdown}s</span>
-                      </div>
-                    )}
                     {/* Open Last Sample link */}
                     {lastSampleVideoUrl && (
                       <button
@@ -9986,112 +9988,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           {videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length > 1 && (
                             <div className="flex flex-col items-end gap-1">
                             <Button
-                              onClick={async () => {
-                            // Check cooldown (65 seconds)
-                            const now = Date.now();
-                            if (lastSampleMergeTimestamp) {
-                              const elapsed = now - lastSampleMergeTimestamp;
-                              const cooldownMs = 65000; // 65 seconds
-                              
-                              if (elapsed < cooldownMs) {
-                                const remainingMs = cooldownMs - elapsed;
-                                const remainingSeconds = Math.ceil(remainingMs / 1000);
-                                console.log(`[Sample Merge] Cooldown active! ${remainingSeconds}s remaining`);
-                                setSampleMergeCountdown(remainingSeconds);
-                                toast.error(`Please wait ${remainingSeconds} seconds before merging again`);
-                                return;
-                              }
-                            }
-                            
-                            // Save timestamp for next cooldown
-                            setLastSampleMergeTimestamp(now);
-                            
-                            console.log('[Sample Merge] Starting...');
-                            
-                            // Prepare video list with notes
-                            const videoList = approvedVideos.map(v => ({
-                              name: v.videoName,
-                              note: v.step9Note || ''
-                            }));
-                            
-                            setSampleMergeVideos(videoList);
-                            setIsSampleMergeModalOpen(true);
-                            
-                            // Smart cache: check if markers were modified
-                            const currentHash = JSON.stringify(approvedVideos.map(v => ({
-                              name: v.videoName,
-                              startMs: Math.round(v.cutPoints?.startKeep || 0),
-                              endMs: Math.round(v.cutPoints?.endKeep || 0),
-                            })));
-                            
-                            // Check if markers were modified compared to initial state
-                            const markersModified = initialVideosHash && currentHash !== initialVideosHash;
-                            console.log('[Sample Merge] Markers modified:', markersModified);
-                            console.log('[Sample Merge] Initial hash:', initialVideosHash);
-                            console.log('[Sample Merge] Current hash:', currentHash);
-                            
-                            // Use cache if markers NOT modified AND we have cached video
-                            if (!markersModified && currentHash === lastMergedVideosHash && sampleMergedVideoUrl) {
-                              console.log('[Sample Merge] Cache hit! No markers modified, using cached video.');
-                              setSampleMergeProgress('');
-                              return;
-                            }
-                            
-                            if (markersModified) {
-                              console.log('[Sample Merge] Markers were modified, retransmitting to FFmpeg...');
-                            }
-                            
-                            // Only clear if cache miss
-                            setSampleMergedVideoUrl(null);
-                            setSampleMergeProgress('Preparing videos...');
-                            
-                            try {
-                              // Extract original URLs
-                              const extractOriginalUrl = (url: string) => {
-                                if (url.startsWith('/api/proxy-video?url=')) {
-                                  const urlParam = new URLSearchParams(url.split('?')[1]).get('url');
-                                  return urlParam ? decodeURIComponent(urlParam) : url;
-                                }
-                                return url;
-                              };
-                              
-                              const videos = approvedVideos.map(v => ({
-                                url: extractOriginalUrl(v.videoUrl),
-                                name: v.videoName,
-                                startMs: v.cutPoints?.startKeep || 0,
-                                endMs: v.cutPoints?.endKeep || 0,
-                              }));
-                              
-                              console.log('[Sample Merge] Videos:', videos);
-                              setSampleMergeProgress(`Uploading ${videos.length} videos to FFmpeg API...`);
-                              
-                              const result = await cutAndMergeAllMutation.mutateAsync({
-                                videos,
-                                ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
-                              });
-                              
-                              console.log('[Sample Merge] Success!', result);
-                              setSampleMergedVideoUrl(result.downloadUrl);
-                              setLastSampleVideoUrl(result.downloadUrl); // Save for "Open Last Sample" link
-                              setLastMergedVideosHash(currentHash);
-                              setSampleMergeProgress('');
-                            } catch (error) {
-                              console.error('[Sample Merge] Error:', error);
-                              setSampleMergeProgress(`Error: ${error.message}`);
-                              toast.error(`Sample merge failed: ${error.message}`);
-                            }
-                          }}
+                              onClick={() => handleSampleMerge(approvedVideos)}
                               className="bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap"
                               size="sm"
                               >
                                 🎬 Sample Merge ALL Videos
                               </Button>
-                              {/* Countdown timer */}
-                              {sampleMergeCountdown > 0 && (
-                                <div className="text-center -mt-2">
-                                  <span className="text-xs text-orange-600">⏱️ Wait {sampleMergeCountdown}s</span>
-                                </div>
-                              )}
                               {/* Open Last Sample link */}
                               {lastSampleVideoUrl && (
                               <button
