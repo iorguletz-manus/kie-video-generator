@@ -2304,6 +2304,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           
           const videoUrls = sortedVideos.map(v => extractOriginalUrl(v.trimmedVideoUrl!)).filter(Boolean);
           
+          console.log(`[Merge] 🔗 ${baseName} video URLs:`, videoUrls);
+          console.log(`[Merge] 🔗 ${baseName} trimmed URLs:`, sortedVideos.map(v => v.trimmedVideoUrl));
+          
           // Output name: T1_C1_E1_AD4_HOOK3M_TEST (M = merged)
           const outputName = baseName.replace(/(HOOK\d+)/, '$1M');
           
@@ -2398,6 +2401,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           };
           
           const bodyVideoUrls = bodyVideos.map(v => extractOriginalUrl(v.trimmedVideoUrl!)).filter(Boolean);
+          
+          console.log(`[Merge] 🔗 BODY video URLs:`, bodyVideoUrls);
+          console.log(`[Merge] 🔗 BODY trimmed URLs:`, bodyVideos.map(v => v.trimmedVideoUrl));
           
           // Extract context from first video
           const firstVideoName = bodyVideos[0].videoName;
