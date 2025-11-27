@@ -894,12 +894,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         console.log('[Context Session] 📥 Loaded bodyMergedVideoUrl:', contextSession.bodyMergedVideoUrl);
       }
       
+      console.log('[Context Session] 🔍 Checking finalVideos in DB:', contextSession.finalVideos ? 'EXISTS' : 'NULL');
       if (contextSession.finalVideos) {
         const parsedFinalVideos = typeof contextSession.finalVideos === 'string' 
           ? JSON.parse(contextSession.finalVideos) 
           : contextSession.finalVideos;
         setFinalVideos(parsedFinalVideos || []);
         console.log('[Context Session] 📥 Loaded finalVideos:', parsedFinalVideos);
+      } else {
+        console.log('[Context Session] ⚠️ finalVideos is NULL in database!');
       }
       
       // Update previousCharacterIdRef to track initial character
@@ -2749,6 +2752,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       const latestFinalVideos = results; // Use results from merge operation
       
       // Save to database immediately with latest finalVideos
+      console.log('[Step 10→Step 11] 💾 Saving finalVideos to DB:', latestFinalVideos);
+      
       upsertContextSessionMutation.mutateAsync({
         userId: localCurrentUser.id,
         tamId: selectedTamId,
@@ -10422,7 +10427,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                             </svg>
-                            Next: Merge Videos ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.trimmedVideoUrl).length})
+                            Next: Prepare for Merge ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.trimmedVideoUrl).length})
                           </>
                         )}
                         <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
