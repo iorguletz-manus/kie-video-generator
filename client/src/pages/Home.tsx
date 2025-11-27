@@ -1068,12 +1068,35 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // Step 10: Pre-select all hooks and body when entering Step 10
   useEffect(() => {
     if (currentStep === 10) {
-      // Pre-select all hooks
+      // Pre-select all hooks (exclude base hooks if merged version exists)
       const hookVideos = videoResults.filter(v => 
         v.trimmedVideoUrl && 
         v.videoName.toLowerCase().includes('hook')
       );
-      setSelectedHooks(hookVideos.map(v => v.videoName));
+      
+      // Filter out variations and base hooks that have merged versions
+      const displayHooks = hookVideos.filter(v => {
+        // Hide variations (HOOK3A, HOOK3B, etc.)
+        const hasVariation = /HOOK\d+[A-Z]_/.test(v.videoName);
+        if (hasVariation) return false;
+        
+        // Hide base hook if merged exists
+        const isBaseHook = /HOOK\d+_/.test(v.videoName) && !/HOOK\d+[A-Z]_/.test(v.videoName);
+        if (isBaseHook) {
+          const baseName = v.videoName.replace(/_TEST$/, '');
+          return !hookMergedVideos[baseName + '_TEST'];
+        }
+        
+        return true;
+      });
+      
+      // Add merged hooks
+      const mergedHookNames = Object.keys(hookMergedVideos).map(baseName => 
+        baseName.replace(/(_TEST)$/, 'M$1')
+      );
+      
+      const allHookNames = [...displayHooks.map(v => v.videoName), ...mergedHookNames];
+      setSelectedHooks(allHookNames);
       
       // Pre-select body (first body video or merged body)
       if (bodyMergedVideoUrl) {
@@ -10011,8 +10034,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             <p className="text-xs text-gray-700 mb-3 text-center">
                               {(() => {
                                 const text = video.text || '';
-                                // Remove red text parts
-                                return text.replace(/<span[^>]*color:\s*red[^>]*>.*?<\/span>/gi, '').trim();
+                                // Remove red text using redStart and redEnd from database
+                                if (video.redStart !== undefined && video.redEnd !== undefined) {
+                                  const beforeRed = text.substring(0, video.redStart);
+                                  const afterRed = text.substring(video.redEnd);
+                                  return (beforeRed + afterRed).trim();
+                                }
+                                return text.trim();
                               })()}
                             </p>
                           )}
@@ -10376,56 +10404,65 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     }
                     
                     return (
-                      <div className="relative">
-                        <div className="overflow-x-auto pb-4">
-                          <div className="flex gap-4" style={{ minWidth: 'min-content' }}>
-                            {allHooks.map(video => (
-                              <div key={video.videoName} className="flex-shrink-0" style={{ width: '270px' }}>
-                                <div className="space-y-2">
-                                  {/* Checkbox */}
-                                  <div className="flex items-center justify-center">
-                                    <input
-                                      type="checkbox"
-                                      checked={selectedHooks.includes(video.videoName)}
-                                      onChange={(e) => {
-                                        if (e.target.checked) {
-                                          setSelectedHooks([...selectedHooks, video.videoName]);
-                                        } else {
-                                          setSelectedHooks(selectedHooks.filter(h => h !== video.videoName));
-                                        }
-                                      }}
-                                      className="w-5 h-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-                                    />
-                                  </div>
-                                  
-                                  {/* Video Name */}
-                                  <p className="text-xs font-semibold text-gray-900 text-center truncate">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {allHooks.map(video => {
+                          const isSelected = selectedHooks.includes(video.videoName);
+                          return (
+                            <div 
+                              key={video.videoName} 
+                              onClick={() => {
+                                if (isSelected) {
+                                  setSelectedHooks(selectedHooks.filter(h => h !== video.videoName));
+                                } else {
+                                  setSelectedHooks([...selectedHooks, video.videoName]);
+                                }
+                              }}
+                              className={`cursor-pointer p-4 rounded-lg transition-all ${
+                                isSelected 
+                                  ? 'border-4 border-blue-500 bg-blue-50 shadow-lg' 
+                                  : 'border-2 border-gray-300 bg-white hover:border-gray-400 shadow-sm hover:shadow-md'
+                              }`}
+                            >
+                              <div className="space-y-3">
+                                {/* Selection Indicator */}
+                                <div className="flex items-center justify-between">
+                                  <p className="text-sm font-semibold text-gray-900 truncate flex-1">
                                     {video.videoName}
                                   </p>
-                                  
-                                  {/* Video Player (exact copy from Step 9) */}
-                                  <div className="relative bg-black rounded-lg overflow-hidden" style={{ height: '480px' }}>
-                                    <video
-                                      src={video.trimmedVideoUrl}
-                                      className="absolute top-0 left-0 w-full h-full object-contain"
-                                      controls
-                                      playsInline
-                                    />
+                                  <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                                    isSelected ? 'bg-blue-500' : 'bg-gray-300'
+                                  }`}>
+                                    {isSelected && (
+                                      <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                    )}
                                   </div>
-                                  
-                                  {/* Video Text (without red text) */}
-                                  <p className="text-xs text-gray-600 text-center">
-                                    {(() => {
-                                      const text = video.text || '';
-                                      // Remove red text parts
-                                      return text.replace(/<span[^>]*color:\s*red[^>]*>.*?<\/span>/gi, '').trim();
-                                    })()}
-                                  </p>
                                 </div>
+                                
+                                {/* Video Player */}
+                                <div className="relative bg-black rounded-lg overflow-hidden" style={{ aspectRatio: '9/16' }}>
+                                  <video
+                                    src={video.trimmedVideoUrl}
+                                    className="absolute top-0 left-0 w-full h-full object-contain"
+                                    controls
+                                    playsInline
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                </div>
+                                
+                                {/* Video Text (white text only) */}
+                                <p className="text-xs text-gray-600 text-center line-clamp-3">
+                                  {(() => {
+                                    const text = video.text || '';
+                                    // Remove red text parts
+                                    return text.replace(/<span[^>]*color:\s*red[^>]*>.*?<\/span>/gi, '').trim();
+                                  })()}
+                                </p>
                               </div>
-                            ))}
-                          </div>
-                        </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     );
                   })()}
@@ -10438,38 +10475,44 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   {(() => {
                     // Check if we have merged body video
                     if (bodyMergedVideoUrl) {
+                      const isSelected = selectedBody === 'body_merged';
                       return (
-                        <div className="flex justify-start">
-                          <div className="flex-shrink-0" style={{ width: '270px' }}>
-                            <div className="space-y-2">
-                              {/* Checkbox */}
-                              <div className="flex items-center justify-center">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedBody === 'body_merged'}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setSelectedBody('body_merged');
-                                    } else {
-                                      setSelectedBody(null);
-                                    }
-                                  }}
-                                  className="w-5 h-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-                                />
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                          <div 
+                            onClick={() => setSelectedBody(isSelected ? null : 'body_merged')}
+                            className={`cursor-pointer p-4 rounded-lg transition-all ${
+                              isSelected 
+                                ? 'border-4 border-green-500 bg-green-50 shadow-lg' 
+                                : 'border-2 border-gray-300 bg-white hover:border-gray-400 shadow-sm hover:shadow-md'
+                            }`}
+                          >
+                            <div className="space-y-3">
+                              {/* Selection Indicator */}
+                              <div className="flex items-center justify-between">
+                                <p className="text-sm font-semibold text-gray-900 truncate flex-1">
+                                  Body (Merged)
+                                </p>
+                                <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                                  isSelected ? 'bg-green-500' : 'bg-gray-300'
+                                }`}>
+                                  {isSelected && (
+                                    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                  )}
+                                </div>
                               </div>
                               
-                              {/* Video Name */}
-                              <p className="text-xs font-semibold text-gray-900 text-center truncate">
-                                Body (Merged)
-                              </p>
-                              
                               {/* Video Player */}
-                              <video
-                                src={bodyMergedVideoUrl}
-                                controls
-                                className="w-full rounded-lg border border-gray-300"
-                                style={{ height: '480px', objectFit: 'contain' }}
-                              />
+                              <div className="relative bg-black rounded-lg overflow-hidden" style={{ aspectRatio: '9/16' }}>
+                                <video
+                                  src={bodyMergedVideoUrl}
+                                  className="absolute top-0 left-0 w-full h-full object-contain"
+                                  controls
+                                  playsInline
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              </div>
                               
                               {/* Info */}
                               <p className="text-xs text-gray-600 text-center">
@@ -10494,42 +10537,48 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     }
                     
                     const bodyVideo = bodyVideos[0];
+                    const isSelected = selectedBody === bodyVideo.videoName;
                     
                     return (
-                      <div className="flex justify-start">
-                        <div className="flex-shrink-0" style={{ width: '270px' }}>
-                          <div className="space-y-2">
-                            {/* Checkbox */}
-                            <div className="flex items-center justify-center">
-                              <input
-                                type="checkbox"
-                                checked={selectedBody === bodyVideo.videoName}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setSelectedBody(bodyVideo.videoName);
-                                  } else {
-                                    setSelectedBody(null);
-                                  }
-                                }}
-                                className="w-5 h-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div 
+                          onClick={() => setSelectedBody(isSelected ? null : bodyVideo.videoName)}
+                          className={`cursor-pointer p-4 rounded-lg transition-all ${
+                            isSelected 
+                              ? 'border-4 border-green-500 bg-green-50 shadow-lg' 
+                              : 'border-2 border-gray-300 bg-white hover:border-gray-400 shadow-sm hover:shadow-md'
+                          }`}
+                        >
+                          <div className="space-y-3">
+                            {/* Selection Indicator */}
+                            <div className="flex items-center justify-between">
+                              <p className="text-sm font-semibold text-gray-900 truncate flex-1">
+                                {bodyVideo.videoName}
+                              </p>
+                              <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                                isSelected ? 'bg-green-500' : 'bg-gray-300'
+                              }`}>
+                                {isSelected && (
+                                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* Video Player */}
+                            <div className="relative bg-black rounded-lg overflow-hidden" style={{ aspectRatio: '9/16' }}>
+                              <video
+                                src={bodyVideo.trimmedVideoUrl}
+                                className="absolute top-0 left-0 w-full h-full object-contain"
+                                controls
+                                playsInline
+                                onClick={(e) => e.stopPropagation()}
                               />
                             </div>
                             
-                            {/* Video Name */}
-                            <p className="text-xs font-semibold text-gray-900 text-center truncate">
-                              {bodyVideo.videoName}
-                            </p>
-                            
-                            {/* Video Player */}
-                            <video
-                              src={bodyVideo.trimmedVideoUrl}
-                              controls
-                              className="w-full rounded-lg border border-gray-300"
-                              style={{ height: '480px', objectFit: 'contain' }}
-                            />
-                            
                             {/* Video Text */}
-                            <p className="text-xs text-gray-600 text-center line-clamp-2">
+                            <p className="text-xs text-gray-600 text-center line-clamp-3">
                               {bodyVideo.text}
                             </p>
                           </div>
@@ -10727,12 +10776,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           </p>
                           
                           {/* Video Player */}
-                          <video
-                            src={video.cdnUrl}
-                            controls
-                            className="w-full rounded-lg border border-gray-300"
-                            style={{ height: '320px', objectFit: 'cover' }}
-                          />
+                          <div className="relative bg-black rounded-lg overflow-hidden" style={{ aspectRatio: '9/16' }}>
+                            <video
+                              src={video.cdnUrl}
+                              className="absolute top-0 left-0 w-full h-full object-contain"
+                              controls
+                              playsInline
+                            />
+                          </div>
                           
                           {/* Download Button */}
                           <Button
