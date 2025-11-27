@@ -1115,7 +1115,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           !v.videoName.toLowerCase().includes('hook')
         );
         if (bodyVideos.length > 0) {
-          setSelectedBody(bodyVideos[0].videoName);
+          // Prioritize videos with "BODY" in name, then others
+          const bodyWithName = bodyVideos.find(v => v.videoName.toLowerCase().includes('body'));
+          setSelectedBody(bodyWithName ? bodyWithName.videoName : bodyVideos[0].videoName);
         }
       }
     }
@@ -2721,6 +2723,34 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     });
     setIsMergingFinalVideos(false);
     setCurrentStep(11);
+    
+    // Save finalVideos to database immediately
+    try {
+      await upsertContextSessionMutation.mutateAsync({
+        userId: localCurrentUser.id,
+        coreBeliefId: selectedCoreBeliefId!,
+        emotionalAngleId: selectedEmotionalAngleId!,
+        adId: selectedAdId!,
+        characterId: selectedCharacterId!,
+        currentStep: 11,
+        rawTextAd,
+        processedTextAd,
+        adLines,
+        prompts,
+        images,
+        combinations,
+        deletedCombinations,
+        videoResults,
+        reviewHistory,
+        hookMergedVideos,
+        bodyMergedVideoUrl,
+        finalVideos: results,
+      });
+      console.log('[Step 10→Step 11] ✅ finalVideos saved to database');
+    } catch (error) {
+      console.error('[Step 10→Step 11] ❌ Failed to save finalVideos:', error);
+    }
+    
     toast.success(`✅ Final merge complete! ${completedCount}/${hookUrls.length} videos created`);
   };
 
@@ -10660,7 +10690,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           const hookNumber = hookMatch ? hookMatch[1] : (index + 1);
                           
                           // Find THIS specific hook video (not first hook)
-                          const thisHookVideo = videoResults.find(v => v.videoName === hookName);
+                          // If it's a merged hook (e.g., HOOK3M_TEST), find the base hook (HOOK3_TEST)
+                          let thisHookVideo = videoResults.find(v => v.videoName === hookName);
+                          if (!thisHookVideo && hookName.includes('M')) {
+                            // Try to find base hook by removing M
+                            const baseHookName = hookName.replace(/M(_[^_]+)$/, '$1');
+                            thisHookVideo = videoResults.find(v => v.videoName === baseHookName);
+                          }
                           
                           // Extract image name from imageUrl
                           let imageName = '';
@@ -10690,7 +10726,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           const hookNumber = hookMatch ? hookMatch[1] : (index + 1);
                           
                           // Find the hook video to get imageUrl
-                          const hookVideo = videoResults.find(v => v.videoName === hookName);
+                          // If it's a merged hook (e.g., HOOK3M_TEST), find the base hook (HOOK3_TEST)
+                          let hookVideo = videoResults.find(v => v.videoName === hookName);
+                          if (!hookVideo && hookName.includes('M')) {
+                            // Try to find base hook by removing M
+                            const baseHookName = hookName.replace(/M(_[^_]+)$/, '$1');
+                            hookVideo = videoResults.find(v => v.videoName === baseHookName);
+                          }
                           
                           // Extract image name from imageUrl
                           let imageName = '';
