@@ -868,6 +868,20 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       
       setReviewHistory(parseJsonField(contextSession.reviewHistory));
       
+      // Load merged videos from database
+      if (contextSession.hookMergedVideos) {
+        const parsedHookMerged = typeof contextSession.hookMergedVideos === 'string' 
+          ? JSON.parse(contextSession.hookMergedVideos) 
+          : contextSession.hookMergedVideos;
+        setHookMergedVideos(parsedHookMerged || {});
+        console.log('[Context Session] 📥 Loaded hookMergedVideos:', parsedHookMerged);
+      }
+      
+      if (contextSession.bodyMergedVideoUrl) {
+        setBodyMergedVideoUrl(contextSession.bodyMergedVideoUrl);
+        console.log('[Context Session] 📥 Loaded bodyMergedVideoUrl:', contextSession.bodyMergedVideoUrl);
+      }
+      
       // Update previousCharacterIdRef to track initial character
       if (selectedCharacterId) {
         previousCharacterIdRef.current = selectedCharacterId;
@@ -10311,11 +10325,18 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         return vPattern === basePattern;
                       });
                       
-                      // Concatenate white texts (without red parts)
+                      // Concatenate white texts ONLY (extract using redStart/redEnd from database)
                       const mergedText = variations.map(v => {
                         const text = v.text || '';
-                        // Remove red text parts (marked with <span style="color: red">...</span>)
-                        return text.replace(/<span[^>]*color:\s*red[^>]*>.*?<\/span>/gi, '').trim();
+                        // Extract white text using database redStart/redEnd positions
+                        if (v.redStart !== undefined && v.redEnd !== undefined && v.redStart >= 0 && v.redEnd > v.redStart) {
+                          // Remove red text portion
+                          const beforeRed = text.substring(0, v.redStart);
+                          const afterRed = text.substring(v.redEnd);
+                          return (beforeRed + afterRed).trim();
+                        }
+                        // No red text, return full text
+                        return text.trim();
                       }).filter(t => t).join(' ');
                       
                       return {
@@ -10578,13 +10599,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       );
                     }
                     
+                    // Deduplicate combinations (same hook number should appear only once)
+                    const uniqueCombinations = Array.from(new Set(combinations));
+                    
                     return (
                       <div className="bg-gray-50 p-4 rounded-lg border border-gray-300">
                         <p className="text-xs text-gray-600 mb-2">
-                          {combinations.length} final video{combinations.length > 1 ? 's' : ''} will be created:
+                          {uniqueCombinations.length} final video{uniqueCombinations.length > 1 ? 's' : ''} will be created:
                         </p>
                         <div className="space-y-1">
-                          {combinations.map((name, index) => (
+                          {uniqueCombinations.map((name, index) => (
                             <p key={index} className="text-xs font-mono text-gray-800">
                               {name}
                             </p>
