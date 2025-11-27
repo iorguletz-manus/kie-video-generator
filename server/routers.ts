@@ -2121,6 +2121,7 @@ export const appRouter = router({
         outputVideoName: z.string(),
         ffmpegApiKey: z.string(),
         userId: z.number().optional(),
+        folder: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
         try {
@@ -2136,7 +2137,8 @@ export const appRouter = router({
             input.videoUrls,
             input.outputVideoName,
             input.ffmpegApiKey,
-            input.userId
+            input.userId,
+            input.folder
           );
           
           console.log(`[mergeVideos] ✅ Merge complete! CDN URL: ${cdnUrl}`);

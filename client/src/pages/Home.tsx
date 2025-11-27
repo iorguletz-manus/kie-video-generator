@@ -212,6 +212,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [modifyImageCharacterFilter, setModifyImageCharacterFilter] = useState<string>('all');
   const modifyEditorRef = useRef<HTMLDivElement>(null);
   const skipCountdownRef = useRef(false);
+  const cancelSampleMergeRef = useRef(false);
   
   // State pentru custom prompts (fiecare video poate avea propriul custom prompt)
   const [customPrompts, setCustomPrompts] = useState<Record<number, string>>({});
@@ -2654,6 +2655,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       return;
     }
     
+    // Reset cancel flag
+    cancelSampleMergeRef.current = false;
+    
     console.log('[Sample Merge] 🚀 Starting Sample Merge...');
     
     // Prepare video list with notes
@@ -2692,6 +2696,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       
       // Wait for countdown to finish
       for (let countdown = remainingSeconds; countdown > 0; countdown--) {
+        // Check if merge was cancelled
+        if (cancelSampleMergeRef.current) {
+          console.log('[Sample Merge] ⚠️ Merge cancelled by user');
+          setSampleMergeCountdown(0);
+          setSampleMergeProgress('');
+          return;
+        }
+        
         await new Promise(resolve => setTimeout(resolve, 1000));
         setSampleMergeCountdown(countdown - 1);
         setSampleMergeProgress(`⏳ Waiting ${countdown - 1}s before merge...`);
@@ -2784,7 +2796,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       
       // Check if this is a merged hook
       const baseName = Object.keys(hookMergedVideos).find(bn => {
-        const mergedName = bn.replace(/(_[^_]+)$/, 'M$1');
+        const mergedName = bn.replace(/(HOOK\d+)/, '$1M');
         console.log(`  🔸 Checking merged: ${bn} → ${mergedName} === ${hookName}? ${hookName === mergedName}`);
         return hookName === mergedName;
       });
@@ -2875,6 +2887,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             outputVideoName: finalVideoName,
             ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
             userId: localCurrentUser.id,
+            folder: 'merged',  // Step 11 final videos go to /merged/ folder
           });
           
           results.push({
@@ -5324,9 +5337,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           <DialogFooter>
             <Button
               onClick={() => {
+                cancelSampleMergeRef.current = true;  // Signal cancellation
                 setIsSampleMergeModalOpen(false);
                 setSampleMergedVideoUrl(null);
                 setSampleMergeProgress('');
+                setSampleMergeCountdown(0);  // Cancel countdown
                 setEditingNoteId(null);
                 setEditingNoteText('');
               }}
