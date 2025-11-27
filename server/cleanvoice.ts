@@ -49,7 +49,8 @@ export async function submitToCleanVoice(
   apiKey: string
 ): Promise<string> {
   const config: CleanVoiceConfig = {
-    video: true,
+    video: false,           // Extract audio only (not video)
+    export_format: 'wav',   // WAV format for Peaks.js waveform
     breath: 'mute',         // Mute breaths
     normalize: true,        // Normalize audio levels
     remove_noise: true,     // Remove background noise

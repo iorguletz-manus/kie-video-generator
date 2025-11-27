@@ -689,50 +689,51 @@ export async function processVideoForEditing(
     // console.log(`[processVideoForEditing] Audio uploaded to Bunny.net: ${bunnyAudioUrl}`);
     // ============================================================================
     
-    // 1. Process CleanVoice FIRST (extracts audio from video)
-    console.log(`[processVideoForEditing] 🎤 CLEANVOICE START for ${videoName}`);
-    const cleanvoiceStartTime = Date.now();
+    // 1. Run CleanVoice, Whisper, and Waveform in PARALLEL
+    console.log(`[processVideoForEditing] 🚀 PARALLEL START (CleanVoice + Whisper + Waveform) for ${videoName}`);
+    const parallelStartTime = Date.now();
     
     if (!cleanvoiceApiKey || !userId) {
       throw new Error('CleanVoice API Key not configured. Please set it in Settings.');
     }
     
     const { processVideoWithCleanVoice } = await import('./cleanvoice.js');
-    const cleanvoiceAudioUrl = await processVideoWithCleanVoice(videoUrl, videoName, userId, cleanvoiceApiKey);
     
-    if (!cleanvoiceAudioUrl) {
-      throw new Error('CleanVoice failed to process video');
-    }
-    
-    const cleanvoiceDuration = Date.now() - cleanvoiceStartTime;
-    console.log(`[processVideoForEditing] ✅ CLEANVOICE DONE for ${videoName} in ${cleanvoiceDuration}ms (${(cleanvoiceDuration/1000).toFixed(2)}s)`);
-    console.log(`[processVideoForEditing] CleanVoice audio URL: ${cleanvoiceAudioUrl}`);
-    
-    // 3. Run Whisper and Waveform in PARALLEL using CleanVoice audio
-    console.log(`[processVideoForEditing] 🚀 PARALLEL START (Whisper + Waveform) for ${videoName}`);
-    const parallelStartTime = Date.now();
-    
-    const [whisperResult, waveformJson] = await Promise.allSettled([
-      // Whisper: Transcribe CleanVoice audio
-      transcribeWithWhisper(cleanvoiceAudioUrl, 'ro', userApiKey),
+    const [cleanvoiceResult, whisperResult, waveformJson] = await Promise.allSettled([
+      // CleanVoice: Extract WAV audio from video
+      processVideoWithCleanVoice(videoUrl, videoName, userId, cleanvoiceApiKey),
       
-      // Waveform: Generate waveform data from CleanVoice audio
-      generateWaveformData(cleanvoiceAudioUrl, videoId, videoName),
+      // Whisper: Transcribe ORIGINAL video directly
+      transcribeWithWhisper(videoUrl, 'ro', userApiKey),
+      
+      // Waveform: Will use CleanVoice audio later (placeholder for now)
+      Promise.resolve(null),
     ]);
     const parallelDuration = Date.now() - parallelStartTime;
     console.log(`[processVideoForEditing] ✅ PARALLEL DONE for ${videoName} in ${parallelDuration}ms (${(parallelDuration/1000).toFixed(2)}s)`);
     
-    // Extract results from Promise.allSettled (Whisper + Waveform)
+    // Extract results from Promise.allSettled (CleanVoice + Whisper + Waveform)
+    
+    if (cleanvoiceResult.status === 'rejected') {
+      throw new Error(`CleanVoice processing failed: ${cleanvoiceResult.reason}`);
+    }
+    const cleanvoiceAudioUrl = cleanvoiceResult.value;
+    
+    if (!cleanvoiceAudioUrl) {
+      throw new Error('CleanVoice failed to process video');
+    }
     
     if (whisperResult.status === 'rejected') {
       throw new Error(`Whisper transcription failed: ${whisperResult.reason}`);
     }
     const { words, fullTranscript } = whisperResult.value;
     
-    if (waveformJson.status === 'rejected') {
-      throw new Error(`Waveform generation failed: ${waveformJson.reason}`);
-    }
-    const waveformData = waveformJson.value;
+    // Now generate waveform using CleanVoice audio
+    console.log(`[processVideoForEditing] 🌊 Generating waveform from CleanVoice audio...`);
+    const waveformStartTime = Date.now();
+    const waveformData = await generateWaveformData(cleanvoiceAudioUrl, videoId, videoName);
+    const waveformDuration = Date.now() - waveformStartTime;
+    console.log(`[processVideoForEditing] ✅ Waveform generated in ${waveformDuration}ms`);
     
     // 5. Calculate cut points using NEW ALGORITHM
     const cutPointsStartTime = Date.now();
@@ -742,7 +743,7 @@ export async function processVideoForEditing(
     
     const totalDuration = Date.now() - startTime;
     console.log(`[processVideoForEditing] ✅ TOTAL COMPLETE for ${videoName} in ${totalDuration}ms (${(totalDuration/1000).toFixed(2)}s)`);
-    console.log(`[processVideoForEditing] 📈 BREAKDOWN: CleanVoice=${cleanvoiceDuration}ms, Parallel=${parallelDuration}ms, CutPoints=${cutPointsDuration}ms`);
+    console.log(`[processVideoForEditing] 📊 BREAKDOWN: Parallel=${parallelDuration}ms, Waveform=${waveformDuration}ms, CutPoints=${cutPointsDuration}ms`);
     console.log(`[processVideoForEditing] Processing complete for video ${videoId}`);
     console.log(`[processVideoForEditing] Debug info:`, debugInfo.message);
     
