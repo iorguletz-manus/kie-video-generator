@@ -640,99 +640,89 @@ export async function processVideoForEditing(
     console.log(`[processVideoForEditing] ⏱️ START ${videoName} at ${new Date().toISOString()}`);
     console.log(`[processVideoForEditing] Starting for video ${videoId}...`);
     
-    if (!ffmpegApiKey) {
-      throw new Error('FFMPEG API Key not configured. Please set it in Settings.');
+    // ============================================================================
+    // FFMPEG CODE COMMENTED OUT - Using CleanVoice audio instead
+    // ============================================================================
+    // if (!ffmpegApiKey) {
+    //   throw new Error('FFMPEG API Key not configured. Please set it in Settings.');
+    // }
+    // 
+    // // 1. Upload video to FFmpeg API
+    // const uploadStartTime = Date.now();
+    // console.log(`[processVideoForEditing] 📤 FFMPEG UPLOAD START for ${videoName}`);
+    // const sanitizedVideoName = videoName.replace(/[^a-zA-Z0-9_-]/g, '_');
+    // const videoFileName = `video_${sanitizedVideoName}.mp4`;
+    // const videoFilePath = await uploadVideoToFFmpegAPI(videoUrl, videoFileName, ffmpegApiKey);
+    // const uploadDuration = Date.now() - uploadStartTime;
+    // console.log(`[processVideoForEditing] ✅ FFMPEG UPLOAD DONE for ${videoName} in ${uploadDuration}ms (${(uploadDuration/1000).toFixed(2)}s)`);
+    // 
+    // // 2. Extract audio
+    // const extractStartTime = Date.now();
+    // console.log(`[processVideoForEditing] 🎵 AUDIO EXTRACT START for ${videoName}`);
+    // const timestamp = Date.now();
+    // const audioFileName = `${sanitizedVideoName}_${timestamp}.mp3`;
+    // const audioDownloadUrl = await extractAudioWithFFmpegAPI(videoFilePath, audioFileName, ffmpegApiKey!);
+    // const extractDuration = Date.now() - extractStartTime;
+    // console.log(`[processVideoForEditing] ✅ AUDIO EXTRACT DONE for ${videoName} in ${extractDuration}ms (${(extractDuration/1000).toFixed(2)}s)`);
+    // 
+    // // 2.5. Download audio and upload to Bunny.net for permanent storage
+    // const downloadStartTime = Date.now();
+    // console.log(`[processVideoForEditing] ⬇️ AUDIO DOWNLOAD START for ${videoName}`);
+    // const audioResponse = await fetch(audioDownloadUrl);
+    // if (!audioResponse.ok) {
+    //   throw new Error(`Failed to download audio: ${audioResponse.statusText}`);
+    // }
+    // const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
+    // const downloadDuration = Date.now() - downloadStartTime;
+    // console.log(`[processVideoForEditing] ✅ AUDIO DOWNLOAD DONE for ${videoName} in ${downloadDuration}ms (${(downloadDuration/1000).toFixed(2)}s)`);
+    // 
+    // const bunnyUploadStartTime = Date.now();
+    // console.log(`[processVideoForEditing] ☁️ BUNNY UPLOAD START for ${videoName}`);
+    // const audioPath = userId ? `user-${userId}/audio/${audioFileName}` : `audio/${audioFileName}`;
+    // const bunnyAudioUrl = await uploadToBunnyCDN(
+    //   audioBuffer,
+    //   audioPath,
+    //   'audio/mpeg'
+    // );
+    // const bunnyUploadDuration = Date.now() - bunnyUploadStartTime;
+    // console.log(`[processVideoForEditing] ✅ BUNNY UPLOAD DONE for ${videoName} in ${bunnyUploadDuration}ms (${(bunnyUploadDuration/1000).toFixed(2)}s)`);
+    // console.log(`[processVideoForEditing] Audio uploaded to Bunny.net: ${bunnyAudioUrl}`);
+    // ============================================================================
+    
+    // 1. Process CleanVoice FIRST (extracts audio from video)
+    console.log(`[processVideoForEditing] 🎤 CLEANVOICE START for ${videoName}`);
+    const cleanvoiceStartTime = Date.now();
+    
+    if (!cleanvoiceApiKey || !userId) {
+      throw new Error('CleanVoice API Key not configured. Please set it in Settings.');
     }
     
-    // 1. Upload video to FFmpeg API
-    const uploadStartTime = Date.now();
-    console.log(`[processVideoForEditing] 📤 FFMPEG UPLOAD START for ${videoName}`);
-    const sanitizedVideoName = videoName.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const videoFileName = `video_${sanitizedVideoName}.mp4`;
-    const videoFilePath = await uploadVideoToFFmpegAPI(videoUrl, videoFileName, ffmpegApiKey);
-    const uploadDuration = Date.now() - uploadStartTime;
-    console.log(`[processVideoForEditing] ✅ FFMPEG UPLOAD DONE for ${videoName} in ${uploadDuration}ms (${(uploadDuration/1000).toFixed(2)}s)`);
+    const { processVideoWithCleanVoice } = await import('./cleanvoice.js');
+    const cleanvoiceAudioUrl = await processVideoWithCleanVoice(videoUrl, videoName, userId, cleanvoiceApiKey);
     
-    // 2. Extract audio
-    const extractStartTime = Date.now();
-    console.log(`[processVideoForEditing] 🎵 AUDIO EXTRACT START for ${videoName}`);
-    const timestamp = Date.now();
-    const audioFileName = `${sanitizedVideoName}_${timestamp}.mp3`;
-    const audioDownloadUrl = await extractAudioWithFFmpegAPI(videoFilePath, audioFileName, ffmpegApiKey!);
-    const extractDuration = Date.now() - extractStartTime;
-    console.log(`[processVideoForEditing] ✅ AUDIO EXTRACT DONE for ${videoName} in ${extractDuration}ms (${(extractDuration/1000).toFixed(2)}s)`);
-    
-    // 2.5. Download audio and upload to Bunny.net for permanent storage
-    const downloadStartTime = Date.now();
-    console.log(`[processVideoForEditing] ⬇️ AUDIO DOWNLOAD START for ${videoName}`);
-    const audioResponse = await fetch(audioDownloadUrl);
-    if (!audioResponse.ok) {
-      throw new Error(`Failed to download audio: ${audioResponse.statusText}`);
+    if (!cleanvoiceAudioUrl) {
+      throw new Error('CleanVoice failed to process video');
     }
-    const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
-    const downloadDuration = Date.now() - downloadStartTime;
-    console.log(`[processVideoForEditing] ✅ AUDIO DOWNLOAD DONE for ${videoName} in ${downloadDuration}ms (${(downloadDuration/1000).toFixed(2)}s)`);
     
-    const bunnyUploadStartTime = Date.now();
-    console.log(`[processVideoForEditing] ☁️ BUNNY UPLOAD START for ${videoName}`);
-    const audioPath = userId ? `user-${userId}/audio/${audioFileName}` : `audio/${audioFileName}`;
-    const bunnyAudioUrl = await uploadToBunnyCDN(
-      audioBuffer,
-      audioPath,
-      'audio/mpeg'
-    );
-    const bunnyUploadDuration = Date.now() - bunnyUploadStartTime;
-    console.log(`[processVideoForEditing] ✅ BUNNY UPLOAD DONE for ${videoName} in ${bunnyUploadDuration}ms (${(bunnyUploadDuration/1000).toFixed(2)}s)`);
-    console.log(`[processVideoForEditing] Audio uploaded to Bunny.net: ${bunnyAudioUrl}`);
+    const cleanvoiceDuration = Date.now() - cleanvoiceStartTime;
+    console.log(`[processVideoForEditing] ✅ CLEANVOICE DONE for ${videoName} in ${cleanvoiceDuration}ms (${(cleanvoiceDuration/1000).toFixed(2)}s)`);
+    console.log(`[processVideoForEditing] CleanVoice audio URL: ${cleanvoiceAudioUrl}`);
     
-    // 3. Run CleanVoice, Whisper, and Waveform generation in PARALLEL
+    // 3. Run Whisper and Waveform in PARALLEL using CleanVoice audio
+    console.log(`[processVideoForEditing] 🚀 PARALLEL START (Whisper + Waveform) for ${videoName}`);
     const parallelStartTime = Date.now();
-    console.log(`[processVideoForEditing] 🚀 PARALLEL START (CleanVoice + Whisper + Waveform) for ${videoName}`);
     
-    const [cleanvoiceResult, whisperResult, waveformJson] = await Promise.allSettled([
-      // CleanVoice: Process video (only if API key provided)
-      cleanvoiceApiKey && userId
-        ? (async () => {
-            const { processVideoWithCleanVoice } = await import('./cleanvoice.js');
-            return await processVideoWithCleanVoice(videoUrl, videoName, userId, cleanvoiceApiKey);
-          })()
-        : Promise.resolve(null),
+    const [whisperResult, waveformJson] = await Promise.allSettled([
+      // Whisper: Transcribe CleanVoice audio
+      transcribeWithWhisper(cleanvoiceAudioUrl, 'ro', userApiKey),
       
-      // Whisper: Transcribe audio
-      transcribeWithWhisper(audioDownloadUrl, 'ro', userApiKey),
-      
-      // Waveform: Generate waveform data
-      generateWaveformData(bunnyAudioUrl, videoId, videoName),
+      // Waveform: Generate waveform data from CleanVoice audio
+      generateWaveformData(cleanvoiceAudioUrl, videoId, videoName),
     ]);
     const parallelDuration = Date.now() - parallelStartTime;
     console.log(`[processVideoForEditing] ✅ PARALLEL DONE for ${videoName} in ${parallelDuration}ms (${(parallelDuration/1000).toFixed(2)}s)`);
     
-    // Extract results from Promise.allSettled
-    const cleanvoiceAudioUrl = cleanvoiceResult.status === 'fulfilled' ? cleanvoiceResult.value : null;
-    if (cleanvoiceResult.status === 'rejected') {
-      console.error(`[processVideoForEditing] ❌ CleanVoice FAILED for ${videoName}:`, cleanvoiceResult.reason);
-      console.error(`[processVideoForEditing] CleanVoice error details:`, JSON.stringify(cleanvoiceResult.reason?.response?.data || cleanvoiceResult.reason, null, 2));
-      
-      // Write error to file for debugging
-      const fs = await import('fs');
-      const errorLog = {
-        timestamp: new Date().toISOString(),
-        videoName,
-        videoUrl,
-        error: cleanvoiceResult.reason?.message || String(cleanvoiceResult.reason),
-        stack: cleanvoiceResult.reason?.stack,
-        response: cleanvoiceResult.reason?.response?.data
-      };
-      await fs.promises.appendFile(
-        '/tmp/cleanvoice_errors.log',
-        JSON.stringify(errorLog, null, 2) + '\n---\n',
-        'utf-8'
-      );
-    } else if (cleanvoiceAudioUrl) {
-      console.log(`[processVideoForEditing] ✅ CleanVoice SUCCESS for ${videoName}: ${cleanvoiceAudioUrl}`);
-    } else {
-      console.warn(`[processVideoForEditing] ⚠️ CleanVoice returned NULL for ${videoName} (API key missing or not configured)`);
-    }
+    // Extract results from Promise.allSettled (Whisper + Waveform)
     
     if (whisperResult.status === 'rejected') {
       throw new Error(`Whisper transcription failed: ${whisperResult.reason}`);
@@ -752,7 +742,7 @@ export async function processVideoForEditing(
     
     const totalDuration = Date.now() - startTime;
     console.log(`[processVideoForEditing] ✅ TOTAL COMPLETE for ${videoName} in ${totalDuration}ms (${(totalDuration/1000).toFixed(2)}s)`);
-    console.log(`[processVideoForEditing] 📈 BREAKDOWN: Upload=${uploadDuration}ms, Extract=${extractDuration}ms, Download=${downloadDuration}ms, Bunny=${bunnyUploadDuration}ms, Parallel=${parallelDuration}ms, CutPoints=${cutPointsDuration}ms`);
+    console.log(`[processVideoForEditing] 📈 BREAKDOWN: CleanVoice=${cleanvoiceDuration}ms, Parallel=${parallelDuration}ms, CutPoints=${cutPointsDuration}ms`);
     console.log(`[processVideoForEditing] Processing complete for video ${videoId}`);
     console.log(`[processVideoForEditing] Debug info:`, debugInfo.message);
     
@@ -760,7 +750,7 @@ export async function processVideoForEditing(
       words,
       cutPoints,
       whisperTranscript: fullTranscript,
-      audioUrl: bunnyAudioUrl, // Use permanent Bunny.net URL
+      audioUrl: cleanvoiceAudioUrl, // Use CleanVoice audio URL
       waveformJson: waveformData,
       editingDebugInfo: debugInfo,
       cleanvoiceAudioUrl, // Add CleanVoice processed audio URL

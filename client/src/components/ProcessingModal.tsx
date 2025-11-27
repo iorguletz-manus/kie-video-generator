@@ -49,60 +49,30 @@ export function ProcessingModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Loader2 className="w-5 h-5 animate-spin text-purple-600" />
-            🎬 Procesare Videouri
+            🎤 CleanVoice și Whisper
           </DialogTitle>
           <DialogDescription>
-            Analizăm fiecare video pentru a detecta textul roșu și a calcula timestamps...
+            Procesăm audio și generăm timestamps pentru fiecare video...
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* FFmpeg Progress Bar */}
+          {/* CleanVoice Progress Bar - FIRST */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-gray-600">📤 FFmpeg (Upload + Extract Audio)</p>
-              <p className="text-xs font-medium text-gray-700">{ffmpegProgress.current}/{ffmpegProgress.total}</p>
-            </div>
-            <Progress value={ffmpegPercent} className="h-2" />
-            <p className="text-xs text-gray-500">
-              {ffmpegProgress.status === 'idle' && '⏸️ Waiting...'}
-              {ffmpegProgress.status === 'processing' && ffmpegProgress.activeVideos.length > 0 && (
-                <span>⏳ Processing {ffmpegProgress.activeVideos.length} video(s): {ffmpegProgress.activeVideos.slice(0, 2).join(', ')}{ffmpegProgress.activeVideos.length > 2 && ` +${ffmpegProgress.activeVideos.length - 2} more`}</span>
-              )}
-              {ffmpegProgress.status === 'complete' && '✅ Complete!'}
-            </p>
-          </div>
-
-          {/* Whisper Progress Bar */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-gray-600">🎤 Whisper (Transcription)</p>
-              <p className="text-xs font-medium text-gray-700">{whisperProgress.current}/{whisperProgress.total}</p>
-            </div>
-            <Progress value={whisperPercent} className="h-2" />
-            <p className="text-xs text-gray-500">
-              {whisperProgress.status === 'idle' && '⏸️ Waiting...'}
-              {whisperProgress.status === 'processing' && whisperProgress.activeVideos.length > 0 && (
-                <span>⏳ Processing {whisperProgress.activeVideos.length} video(s): {whisperProgress.activeVideos.slice(0, 2).join(', ')}{whisperProgress.activeVideos.length > 2 && ` +${whisperProgress.activeVideos.length - 2} more`}</span>
-              )}
-              {whisperProgress.status === 'complete' && '✅ Complete!'}
-            </p>
-          </div>
-
-          {/* CleanVoice Progress Bar */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-gray-600">🎵 CleanVoice (Audio Enhancement)</p>
+              <p className="text-xs font-medium text-gray-600">🎤 CleanVoice (Audio Processing)</p>
               <p className="text-xs font-medium text-gray-700">{cleanvoiceProgress.current}/{cleanvoiceProgress.total}</p>
             </div>
             <Progress value={cleanvoicePercent} className="h-2" />
-            <p className="text-xs text-gray-500">
-              {cleanvoiceProgress.status === 'idle' && '⏸️ Waiting...'}
-              {cleanvoiceProgress.status === 'processing' && cleanvoiceProgress.activeVideos.length > 0 && (
-                <span>⏳ Processing {cleanvoiceProgress.activeVideos.length} video(s): {cleanvoiceProgress.activeVideos.slice(0, 2).join(', ')}{cleanvoiceProgress.activeVideos.length > 2 && ` +${cleanvoiceProgress.activeVideos.length - 2} more`}</span>
-              )}
-              {cleanvoiceProgress.status === 'complete' && '✅ Complete!'}
-            </p>
+          </div>
+
+          {/* Whisper Progress Bar - SECOND */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-gray-600">📝 Whisper (Transcription)</p>
+              <p className="text-xs font-medium text-gray-700">{whisperProgress.current}/{whisperProgress.total}</p>
+            </div>
+            <Progress value={whisperPercent} className="h-2" />
           </div>
 
           {/* Overall Progress */}
