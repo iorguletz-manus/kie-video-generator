@@ -2579,9 +2579,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       bodyUrl = bodyMergedVideoUrl;
     } else {
       const bodyVideo = videoResults.find(v => v.videoName === selectedBody);
-      // Fallback: use videoUrl if trimmedVideoUrl is null
-      bodyUrl = bodyVideo?.trimmedVideoUrl || bodyVideo?.videoUrl || null;
-      console.log('[Step 10→Step 11] Body video:', selectedBody, 'trimmedVideoUrl:', bodyVideo?.trimmedVideoUrl, 'videoUrl:', bodyVideo?.videoUrl, 'using:', bodyUrl);
+      bodyUrl = bodyVideo?.trimmedVideoUrl || null;
+      console.log('[Step 10→Step 11] Body video:', selectedBody, 'trimmedVideoUrl:', bodyUrl);
     }
     
     if (!bodyUrl) {
@@ -2608,9 +2607,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         console.log(`  ✅ Found in hookMergedVideos[${baseName}]: ${hookUrl}`);
       } else {
         const hookVideo = videoResults.find(v => v.videoName === hookName);
-        // Fallback: use videoUrl if trimmedVideoUrl is null
-        hookUrl = hookVideo?.trimmedVideoUrl || hookVideo?.videoUrl || null;
-        console.log(`  🔸 Searching in videoResults for ${hookName}:`, hookVideo ? `FOUND (trimmedVideoUrl: ${hookVideo.trimmedVideoUrl}, videoUrl: ${hookVideo.videoUrl}, using: ${hookUrl})` : 'NOT FOUND');
+        hookUrl = hookVideo?.trimmedVideoUrl || null;
+        console.log(`  🔸 Searching in videoResults for ${hookName}:`, hookVideo ? `FOUND (trimmedVideoUrl: ${hookUrl})` : 'NOT FOUND');
       }
       
       if (hookUrl) {
@@ -2991,20 +2989,40 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     // Save updated videoResults to database (only successful ones)
     if (successCount > 0) {
       console.log('[Trimming] 💾 Saving trimmedVideoUrl to database...');
-      try {
-        await upsertContextSessionMutation.mutateAsync({
+      
+      // Use setVideoResults callback to get the LATEST state
+      setVideoResults(currentVideoResults => {
+        // Save to database with latest videoResults
+        upsertContextSessionMutation.mutateAsync({
           userId: localCurrentUser.id,
-          coreBeliefId: selectedCoreBelief!,
-          emotionalAngleId: selectedEmotionalAngle!,
-          adId: selectedAd!,
-          characterId: selectedCharacter!,
-          videoResults: videoResults,
+          tamId: selectedTamId,
+          coreBeliefId: selectedCoreBeliefId,
+          emotionalAngleId: selectedEmotionalAngleId,
+          adId: selectedAdId,
+          characterId: selectedCharacterId,
+          currentStep,
+          rawTextAd,
+          processedTextAd,
+          adLines,
+          prompts,
+          images,
+          combinations,
+          deletedCombinations,
+          videoResults: currentVideoResults, // Use LATEST state
+          reviewHistory,
+          hookMergedVideos,
+          bodyMergedVideoUrl,
+          finalVideos,
+        }).then(() => {
+          console.log('[Trimming] ✅ Database save successful!');
+        }).catch((error) => {
+          console.error('[Trimming] ❌ Database save failed:', error);
+          toast.error('Failed to save trimmed videos to database');
         });
-        console.log('[Trimming] ✅ Database save successful!');
-      } catch (error) {
-        console.error('[Trimming] ❌ Database save failed:', error);
-        toast.error('Failed to save trimmed videos to database');
-      }
+        
+        // Return unchanged state (no modification needed)
+        return currentVideoResults;
+      });
     }
     
     // DO NOT auto-redirect - user must click button in modal
