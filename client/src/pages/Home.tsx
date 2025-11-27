@@ -10820,7 +10820,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                           const finalName = hookName.replace(/(HOOK\d+)M/, '$1');
                           combinations.push(finalName);
                         });
-                        });
                         }
                       } else if (referenceVideo) {
                         const contextMatch = referenceVideo.videoName.match(/^(T\d+_C\d+_E\d+_AD\d+)/);
