@@ -2712,7 +2712,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         
         setMergeFinalProgress(prev => ({
           ...prev,
-          current: completedCount + 1,
+          current: completedCount,
           currentVideo: finalVideoName
         }));
         
@@ -11011,23 +11011,35 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             const JSZip = (await import('jszip')).default;
                             const zip = new JSZip();
                             
-                            // Download all videos and add to ZIP
+                            // Generate folder name from first video (all have same context/character/image)
+                            const firstVideo = finalVideos[0];
+                            if (!firstVideo) {
+                              toast.error('No videos to download');
+                              return;
+                            }
+                            
+                            // Extract folder name from video name (e.g., T1_C1_E1_AD1_HOOK1_TEST_ALINA_1 → T1_C1_E1_AD1_TEST_ALINA_1)
+                            // Remove HOOK{number}_ from the name
+                            const folderName = firstVideo.videoName.replace(/_HOOK\d+_/, '_');
+                            
+                            // Download all videos and add to ZIP inside folder
                             for (const video of finalVideos) {
                               try {
                                 const response = await fetch(video.cdnUrl);
                                 const blob = await response.blob();
-                                zip.file(`${video.videoName}.mp4`, blob);
+                                // Add video to folder inside ZIP
+                                zip.file(`${folderName}/${video.videoName}.mp4`, blob);
                               } catch (error) {
                                 console.error(`Failed to download ${video.videoName}:`, error);
                                 toast.error(`Failed to download ${video.videoName}`);
                               }
                             }
                             
-                            // Generate ZIP and download
+                            // Generate ZIP and download with folder name
                             const zipBlob = await zip.generateAsync({ type: 'blob' });
                             const link = document.createElement('a');
                             link.href = URL.createObjectURL(zipBlob);
-                            link.download = 'final-videos.zip';
+                            link.download = `${folderName}.zip`;
                             link.click();
                             
                             toast.success('🎉 All videos downloaded!');

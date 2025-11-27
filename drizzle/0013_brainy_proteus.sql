@@ -1,0 +1,1 @@
+ALTER TABLE `context_sessions` ADD `finalVideos` json;
