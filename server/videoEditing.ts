@@ -154,10 +154,17 @@ export async function uploadVideoToFFmpegAPI(
     // Step 2: Download video from Bunny CDN
     console.log(`[uploadVideoToFFmpegAPI] Downloading from ${videoUrl}...`);
     const videoRes = await fetch(videoUrl);
+    console.log(`[uploadVideoToFFmpegAPI] Bunny CDN response status: ${videoRes.status} ${videoRes.statusText}`);
+    console.log(`[uploadVideoToFFmpegAPI] Bunny CDN response headers:`, Object.fromEntries(videoRes.headers.entries()));
+    
     if (!videoRes.ok) {
-      throw new Error(`Failed to download video: ${videoRes.statusText}`);
+      const errorBody = await videoRes.text();
+      console.error(`[uploadVideoToFFmpegAPI] Bunny CDN error body:`, errorBody.substring(0, 500));
+      throw new Error(`Failed to download video: ${videoRes.status} ${videoRes.statusText} - URL: ${videoUrl}`);
     }
+    
     const videoBuffer = await videoRes.arrayBuffer();
+    console.log(`[uploadVideoToFFmpegAPI] Downloaded ${videoBuffer.byteLength} bytes from Bunny CDN`);
     
     // Step 3: Upload to FFmpeg API
     console.log(`[uploadVideoToFFmpegAPI] Uploading to FFmpeg API...`);
