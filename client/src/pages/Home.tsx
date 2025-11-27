@@ -10166,7 +10166,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         {isMergingStep10 ? (
                           <>
                             <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                            {mergeStep10Progress || 'Merging...'}
+                            {mergeStep10Progress.message || 'Merging...'}
                           </>
                         ) : (
                           <>
