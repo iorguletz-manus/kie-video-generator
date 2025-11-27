@@ -1434,7 +1434,12 @@ export async function mergeVideosWithFFmpegAPI(
   ffmpegApiKey: string
 ): Promise<string> {
   try {
-    console.log(`[mergeVideosWithFFmpegAPI] Merging ${videoUrls.length} videos into ${outputVideoName}`);
+    console.log('\n\n========================================');
+    console.log('[mergeVideosWithFFmpegAPI] 🚀 MERGE STARTED');
+    console.log(`[mergeVideosWithFFmpegAPI] Output name: ${outputVideoName}`);
+    console.log(`[mergeVideosWithFFmpegAPI] Video count: ${videoUrls.length}`);
+    console.log(`[mergeVideosWithFFmpegAPI] Video URLs:`, videoUrls);
+    console.log('========================================\n');
     
     if (!ffmpegApiKey) {
       throw new Error('FFMPEG API Key not configured. Please set it in Settings.');
