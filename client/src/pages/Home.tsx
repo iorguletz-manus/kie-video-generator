@@ -1119,6 +1119,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           deletedCombinations,
           videoResults,
           reviewHistory,
+          hookMergedVideos,
+          bodyMergedVideoUrl,
         });
         console.log('[Auto-save] ✅ currentStep saved successfully');
       } catch (error) {
