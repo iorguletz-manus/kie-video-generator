@@ -3353,8 +3353,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           hookMergedVideos,
           bodyMergedVideoUrl,
           finalVideos,
-        }).then(() => {
+        }).then(async () => {
           console.log('[Trimming] ✅ Database save successful!');
+          
+          // STEP 2: Merge Hooks (B+C+D variations) - AFTER database save
+          await performHooksAndBodyMerge();
         }).catch((error) => {
           console.error('[Trimming] ❌ Database save failed:', error);
           toast.error('Failed to save trimmed videos to database');
@@ -3375,24 +3378,25 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       };
     });
     
-    // STEP 2: Merge Hooks (B+C+D variations)
-    // Get LATEST successVideos from state (not stale localSuccessVideos)
-    let latestSuccessVideos: typeof localSuccessVideos = [];
-    setTrimmingProgress(current => {
-      latestSuccessVideos = current.successVideos;
-      return current;
-    });
-    
-    if (latestSuccessVideos.length > 0) {
-      console.log('[Trimming] \ud83c\udfa3 Starting Hooks merge (B+C+D)...');
-      console.log(`[Trimming] Latest success videos count: ${latestSuccessVideos.length}`);
+    // Define hooks/body merge function to be called after database save
+    const performHooksAndBodyMerge = async () => {
+      console.log('[Trimming] 🎣 Starting Hooks merge (B+C+D)...');
       
-      // Get LATEST videoResults using callback to avoid stale state
+      // Get LATEST successVideos and videoResults from state
+      let latestSuccessVideos: typeof localSuccessVideos = [];
       let latestVideoResults: typeof videoResults = [];
+      
+      setTrimmingProgress(current => {
+        latestSuccessVideos = current.successVideos;
+        return current;
+      });
+      
       setVideoResults(current => {
         latestVideoResults = current;
         return current;
       });
+      
+      console.log(`[Trimming] Latest success videos count: ${latestSuccessVideos.length}`);
       
       const trimmedVideos = latestVideoResults.filter(v => 
         latestSuccessVideos.some(sv => sv.name === v.videoName)
@@ -3423,17 +3427,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       // Filter: only groups with 2+ videos need merging
       const hookGroupsToMerge = Object.entries(hookGroups).filter(([_, videos]) => videos.length > 1);
       const bodyVideos = trimmedVideos.filter(v => !v.videoName.match(/HOOK\d+[A-Z]?/));
-      const needsBodyMerge = bodyVideos.length > 0;
-      
-      // Update total to include merge processes
-      const totalProcesses = localSuccessVideos.length + hookGroupsToMerge.length + (needsBodyMerge ? 1 : 0);
-      setTrimmingProgress(prev => ({
-        ...prev,
-        total: totalProcesses
-      }));
       
       console.log('[Trimming] 🎣 Hook groups to merge:', hookGroupsToMerge.length);
-      console.log('[Trimming] 📊 Total processes:', totalProcesses, '(', localSuccessVideos.length, 'videos +', hookGroupsToMerge.length, 'hooks +', (needsBodyMerge ? 1 : 0), 'body )');
       
       // Merge each hook group
       for (const [baseName, videos] of hookGroupsToMerge) {
@@ -3496,11 +3491,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             return { ...cleaned, [baseName]: result.cdnUrl };
           });
           
-          // Add to merged list (separate from CUT videos) and increment progress
+          // Add to merged list and increment progress
           setTrimmingProgress(prev => ({
             ...prev,
             current: prev.current + 1,
-            mergingCurrent: prev.mergingCurrent + 1,  // Increment merging progress
+            mergingCurrent: prev.mergingCurrent + 1,
             mergedVideos: [...prev.mergedVideos, { name: outputName, type: 'hooks' }]
           }));
           
@@ -3543,7 +3538,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       // STEP 3: Merge Body (all non-hook videos)
       console.log('[Trimming] 📺 Starting Body merge...');
       
-      // Reuse bodyVideos from above (already calculated)
       if (bodyVideos.length > 0) {
         console.log(`[Trimming] 📺 Merging BODY (${bodyVideos.length} videos)...`);
         
@@ -3567,71 +3561,71 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           }));
           
           try {
-          // Extract original URLs
-          const extractOriginalUrl = (url: string) => {
-            if (url.startsWith('/api/proxy-video?url=')) {
-              const urlParam = new URLSearchParams(url.split('?')[1]).get('url');
-              return urlParam ? decodeURIComponent(urlParam) : url;
-            }
-            return url;
-          };
-          
-          const bodyVideoUrls = bodyVideos.map(v => extractOriginalUrl(v.trimmedVideoUrl!)).filter(Boolean);
-          
-          // Extract context from first video
-          const firstVideoName = bodyVideos[0].videoName;
-          const contextMatch = firstVideoName.match(/^(T\d+_C\d+_E\d+_AD\d+)/);
-          const contextName = contextMatch ? contextMatch[1] : 'MERGED';
-          
-          // Extract character and imageName
-          const nameMatch = firstVideoName.match(/_([ A-Z]+)_([A-Z]+_\d+)$/);
-          const character = nameMatch ? nameMatch[1] : 'TEST';
-          const imageName = nameMatch ? nameMatch[2] : 'ALINA_1';
-          
-          const outputName = `${contextName}_BODY_${character}_${imageName}`;
-          
-          const result = await mergeVideosMutation.mutateAsync({
-            videoUrls: bodyVideoUrls,
-            outputVideoName: outputName,
-            ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
-            userId: localCurrentUser.id,
-          });
-          
-          console.log('[Trimming] ✅ BODY merged:', result.cdnUrl);
-          
-          setBodyMergedVideoUrl(result.cdnUrl);
-          
-          // Add to merged list (separate from CUT videos) and increment progress
-          setTrimmingProgress(prev => ({
-            ...prev,
-            current: prev.current + 1,
-            mergingCurrent: prev.mergingCurrent + 1,  // Increment merging progress
-            mergedVideos: [...prev.mergedVideos, { name: outputName, type: 'body' }]
-          }));
-          
-          // Save to database
-          await upsertContextSessionMutation.mutateAsync({
-            userId: localCurrentUser.id,
-            tamId: selectedTamId,
-            coreBeliefId: selectedCoreBeliefId,
-            emotionalAngleId: selectedEmotionalAngleId,
-            adId: selectedAdId,
-            characterId: selectedCharacterId,
-            currentStep,
-            rawTextAd,
-            processedTextAd,
-            adLines,
-            prompts,
-            images,
-            combinations,
-            deletedCombinations,
-            videoResults: videoResults,
-            reviewHistory,
-            hookMergedVideos: hookMergedVideos,
-            bodyMergedVideoUrl: result.cdnUrl,
-            finalVideos,
-          });
-          
+            // Extract original URLs
+            const extractOriginalUrl = (url: string) => {
+              if (url.startsWith('/api/proxy-video?url=')) {
+                const urlParam = new URLSearchParams(url.split('?')[1]).get('url');
+                return urlParam ? decodeURIComponent(urlParam) : url;
+              }
+              return url;
+            };
+            
+            const bodyVideoUrls = bodyVideos.map(v => extractOriginalUrl(v.trimmedVideoUrl!)).filter(Boolean);
+            
+            // Extract context from first video
+            const firstVideoName = bodyVideos[0].videoName;
+            const contextMatch = firstVideoName.match(/^(T\d+_C\d+_E\d+_AD\d+)/);
+            const contextName = contextMatch ? contextMatch[1] : 'MERGED';
+            
+            // Extract character and imageName
+            const nameMatch = firstVideoName.match(/_([ A-Z]+)_([A-Z]+_\d+)$/);
+            const character = nameMatch ? nameMatch[1] : 'TEST';
+            const imageName = nameMatch ? nameMatch[2] : 'ALINA_1';
+            
+            const outputName = `${contextName}_BODY_${character}_${imageName}`;
+            
+            const result = await mergeVideosMutation.mutateAsync({
+              videoUrls: bodyVideoUrls,
+              outputVideoName: outputName,
+              ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
+              userId: localCurrentUser.id,
+            });
+            
+            console.log('[Trimming] ✅ BODY merged:', result.cdnUrl);
+            
+            setBodyMergedVideoUrl(result.cdnUrl);
+            
+            // Add to merged list and increment progress
+            setTrimmingProgress(prev => ({
+              ...prev,
+              current: prev.current + 1,
+              mergingCurrent: prev.mergingCurrent + 1,
+              mergedVideos: [...prev.mergedVideos, { name: outputName, type: 'body' }]
+            }));
+            
+            // Save to database
+            await upsertContextSessionMutation.mutateAsync({
+              userId: localCurrentUser.id,
+              tamId: selectedTamId,
+              coreBeliefId: selectedCoreBeliefId,
+              emotionalAngleId: selectedEmotionalAngleId,
+              adId: selectedAdId,
+              characterId: selectedCharacterId,
+              currentStep,
+              rawTextAd,
+              processedTextAd,
+              adLines,
+              prompts,
+              images,
+              combinations,
+              deletedCombinations,
+              videoResults: videoResults,
+              reviewHistory,
+              hookMergedVideos: hookMergedVideos,
+              bodyMergedVideoUrl: result.cdnUrl,
+              finalVideos,
+            });
+            
           } catch (error: any) {
             console.error('[Trimming] ❌ BODY merge failed:', error);
             setTrimmingProgress(prev => ({
@@ -3645,7 +3639,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           }
         }
       }
-    }
+    };
+    
+    // STEP 4: Final merge (all original videos for preview)
+    // Skip to final merge section below
+    let latestSuccessVideos: typeof localSuccessVideos = [];
+    setTrimmingProgress(current => {
+      latestSuccessVideos = current.successVideos;
+      return current;
+    });
+
     
     // STEP 4: Final merge (all original videos for preview)
     // Only show merge notification when all processes are complete (current === total)
