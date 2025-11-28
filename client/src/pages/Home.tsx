@@ -3480,6 +3480,68 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         toast.error('Failed to save trimmed videos to database');
       }
     }
+    
+    // Auto-merge if ALL videos are now successful
+    if (failCount === 0 && successCount > 0) {
+      console.log('[Retry] 🔄 All videos successful! Auto-merging...');
+      
+      setTrimmingProgress(prev => ({
+        ...prev,
+        status: 'merging',
+        mergeStatus: 'pending',
+        message: `🔄 Merging ALL ${successCount} videos... Please wait...`
+      }));
+      
+      try {
+        // Extract original URLs
+        const extractOriginalUrl = (url: string) => {
+          if (url.startsWith('/api/proxy-video?url=')) {
+            const urlParam = new URLSearchParams(url.split('?')[1]).get('url');
+            return urlParam ? decodeURIComponent(urlParam) : url;
+          }
+          return url;
+        };
+        
+        const trimmedVideos = videoResults.filter(v => 
+          trimmingProgress.successVideos.some(sv => sv.name === v.videoName)
+        );
+        
+        const videos = trimmedVideos.map(v => ({
+          url: extractOriginalUrl(v.videoUrl),
+          name: v.videoName,
+          startMs: v.cutPoints?.startKeep || 0,
+          endMs: v.cutPoints?.endKeep || 0,
+        }));
+        
+        console.log('[Retry] 📦 Calling cutAndMergeAllMutation with:', videos.length, 'videos');
+        
+        const result = await cutAndMergeAllMutation.mutateAsync({
+          videos,
+          ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
+        });
+        
+        console.log('[Retry] ✅ Auto-merge successful!', result);
+        
+        // Save merged video URL to state
+        setTrimmingMergedVideoUrl(result.downloadUrl);
+        
+        setTrimmingProgress(prev => ({
+          ...prev,
+          status: 'complete',
+          mergeStatus: 'success',
+          message: '✅ All videos trimmed and merged successfully!'
+        }));
+        
+      } catch (error: any) {
+        console.error('[Retry] ❌ Auto-merge failed:', error);
+        setTrimmingProgress(prev => ({
+          ...prev,
+          status: 'partial',
+          mergeStatus: 'failed',
+          message: `⚠️ Retry complete but merge failed: ${error.message}`
+        }));
+      }
+    }
   };
 
   // Step 4: Create mappings
