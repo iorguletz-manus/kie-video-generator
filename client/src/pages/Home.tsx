@@ -10454,11 +10454,20 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         {/* Action buttons - stacked vertically */}
                         <div className="flex flex-col gap-4 items-center mt-4">
                           {/* Open Last Sample link (above button) */}
-                          {lastSampleMergeUrl && (
+                          {lastSampleVideoUrl && (
                             <button
                               onClick={() => {
-                                setMergedVideoUrl(lastSampleMergeUrl);
-                                setIsMergeModalOpen(true);
+                                // Reconstruct video list from localStorage
+                                const videoList = videoResults
+                                  .filter(v => v.reviewStatus === 'accepted' && v.status === 'success')
+                                  .map(v => ({
+                                    name: v.videoName,
+                                    note: v.step9Note || ''
+                                  }));
+                                setSampleMergeVideos(videoList);
+                                setSampleMergedVideoUrl(lastSampleVideoUrl);
+                                setIsSampleMergeModalOpen(true);
+                                setSampleMergeProgress('');
                               }}
                               className="text-blue-600 hover:text-blue-800 underline text-sm"
                             >
