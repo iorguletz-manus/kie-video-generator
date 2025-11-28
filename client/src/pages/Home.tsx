@@ -4366,11 +4366,10 @@ const handlePrepareForMerge = async () => {
     console.log(`  Chunk ${idx + 1}: ${chunk.length} videos (${chunk.map(v => v.videoName).join(', ')})`);
   });
   
-  // 5. Initialize progress state
+  // 5. Initialize progress state - NO INITIAL COUNTDOWN
   setMergeStep10Progress({
-    status: 'countdown',
-    message: 'Waiting 60s before merge (FFmpeg rate limit)...',
-    countdown: 60,
+    status: 'processing',
+    message: 'Starting merge process...',
     totalMerges,
     bodyInfo: needsBodyMerge ? {
       totalVideos: bodyVideos.length,
@@ -4391,23 +4390,7 @@ const handlePrepareForMerge = async () => {
     failedItems: []
   });
   
-  // 6. Countdown
-  console.log('[Prepare for Merge] ⏳ Starting 60-second countdown...');
-  for (let countdown = 60; countdown > 0; countdown--) {
-    setMergeStep10Progress(prev => ({
-      ...prev,
-      message: `⏳ Waiting ${countdown}s before merge...`,
-      countdown
-    }));
-    await new Promise(resolve => setTimeout(resolve, 1000));
-  }
-  
-  // 7. Start merging
-  setMergeStep10Progress(prev => ({
-    ...prev,
-    status: 'processing',
-    message: 'Starting merge...'
-  }));
+  console.log('[Prepare for Merge] 🚀 Starting immediately (no initial countdown)...');
   
   try {
     // 8. BODY MERGE (with chunking)
@@ -4447,8 +4430,11 @@ const handlePrepareForMerge = async () => {
           
           const chunkVideoUrls = chunk.map(v => extractOriginalUrl(v.trimmedVideoUrl!)).filter(Boolean);
           
+          console.log(`[Prepare for Merge] 📦 Chunk ${chunkNum} video URLs:`, chunkVideoUrls);
+          
           // Merge chunk
           const chunkOutputName = `BODY_CHUNK_${chunkNum}_${Date.now()}`;
+          console.log(`[Prepare for Merge] 📦 Calling FFmpeg API for chunk ${chunkNum}...`);
           
           const result = await mergeVideosMutation.mutateAsync({
             videoUrls: chunkVideoUrls,
@@ -4471,21 +4457,25 @@ const handlePrepareForMerge = async () => {
             } : null
           }));
           
-          // Wait 60s before next chunk (except for last chunk if it's the only one)
-          if (chunkIdx < bodyChunks.length - 1 || bodyChunks.length > 1) {
-            console.log(`[Prepare for Merge] ⏳ Waiting 60s before next operation...`);
-            for (let countdown = 60; countdown > 0; countdown--) {
+          // Wait 60s AFTER chunk (except for last chunk)
+          if (chunkIdx < bodyChunks.length - 1) {
+            console.log(`[Prepare for Merge] ⏳ Waiting 60s after chunk ${chunkNum}...`);
+            for (let countdown = 60; countdown >= 0; countdown--) {
               setMergeStep10Progress(prev => ({
                 ...prev,
                 message: `⏳ FFmpeg rate limit: waiting ${countdown}s...`,
                 countdown
               }));
-              await new Promise(resolve => setTimeout(resolve, 1000));
+              if (countdown > 0) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
+              }
             }
+            console.log(`[Prepare for Merge] ✅ Wait complete, proceeding to next chunk...`);
           }
           
         } catch (error: any) {
           console.error(`[Prepare for Merge] ❌ Chunk ${chunkNum} FAILED:`, error);
+          console.error(`[Prepare for Merge] ❌ Error details:`, error.message, error.stack);
           
           setMergeStep10Progress(prev => ({
             ...prev,
@@ -4503,7 +4493,8 @@ const handlePrepareForMerge = async () => {
             ]
           }));
           
-          throw new Error(`Body chunk ${chunkNum} failed: ${error.message}`);
+          // DON'T throw - continue to next chunk
+          console.log(`[Prepare for Merge] ⚠️ Continuing to next chunk despite failure...`);
         }
       }
       
@@ -4549,6 +4540,7 @@ const handlePrepareForMerge = async () => {
           
         } catch (error: any) {
           console.error('[Prepare for Merge] ❌ BODY FINAL FAILED:', error);
+          console.error('[Prepare for Merge] ❌ Error details:', error.message, error.stack);
           
           setMergeStep10Progress(prev => ({
             ...prev,
@@ -4562,19 +4554,23 @@ const handlePrepareForMerge = async () => {
             ]
           }));
           
-          throw new Error(`Body final merge failed: ${error.message}`);
+          // DON'T throw - continue to hooks
+          console.log('[Prepare for Merge] ⚠️ Continuing to hooks despite body final failure...');
         }
         
-        // Wait 60s before hooks
-        console.log(`[Prepare for Merge] ⏳ Waiting 60s before hooks merge...`);
-        for (let countdown = 60; countdown > 0; countdown--) {
+        // Wait 60s AFTER body final merge, before hooks
+        console.log(`[Prepare for Merge] ⏳ Waiting 60s after body merge...`);
+        for (let countdown = 60; countdown >= 0; countdown--) {
           setMergeStep10Progress(prev => ({
             ...prev,
             message: `⏳ FFmpeg rate limit: waiting ${countdown}s before hooks...`,
             countdown
           }));
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          if (countdown > 0) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
         }
+        console.log(`[Prepare for Merge] ✅ Wait complete, starting hooks...`);
         
       } else {
         // Only one chunk - use it as final URL
@@ -4754,10 +4750,14 @@ const handlePrepareForMerge = async () => {
     
   } catch (error: any) {
     console.error('[Prepare for Merge] ❌ Fatal error:', error);
+    console.error('[Prepare for Merge] ❌ Error type:', error.constructor.name);
+    console.error('[Prepare for Merge] ❌ Error message:', error.message);
+    console.error('[Prepare for Merge] ❌ Error stack:', error.stack);
+    
     setMergeStep10Progress(prev => ({
       ...prev,
       status: 'error',
-      message: `Error: ${error.message}`
+      message: `Fatal Error: ${error.message}`
     }));
     toast.error(`Merge failed: ${error.message}`);
   }
