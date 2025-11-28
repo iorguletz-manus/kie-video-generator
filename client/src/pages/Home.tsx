@@ -284,11 +284,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     current: number;
     total: number;
     currentVideo: string;
-    status: 'idle' | 'processing' | 'complete' | 'partial';
+    status: 'idle' | 'processing' | 'merging' | 'complete' | 'partial';
     message: string;
     successVideos: Array<{name: string}>;
     failedVideos: Array<{name: string; error: string; retries: number; status?: 'retrying'}>;
     inProgressVideos: Array<{name: string}>;
+    currentBatch: number;
+    totalBatches: number;
+    batchSize: number;
+    mergeStatus: 'idle' | 'pending' | 'success' | 'failed';
   }>({
     current: 0,
     total: 0,
@@ -297,7 +301,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     message: '',
     successVideos: [],
     failedVideos: [],
-    inProgressVideos: []
+    inProgressVideos: [],
+    currentBatch: 0,
+    totalBatches: 0,
+    batchSize: 0,
+    mergeStatus: 'idle'
   });
   
   // Cut & Merge modal with localStorage persistence
@@ -3078,15 +3086,23 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     // Open modal immediately
     setIsTrimmingModalOpen(true);
+    
+    // Calculate total batches
+    const totalBatches = Math.ceil(videosToTrim.length / BATCH_SIZE);
+    
     setTrimmingProgress({
       current: 0,
       total: videosToTrim.length,
       currentVideo: '',
       status: 'processing',
-      message: 'Starting...',
+      message: `Starting batch processing (${totalBatches} batches)...`,
       successVideos: [],
       failedVideos: [],
-      inProgressVideos: []
+      inProgressVideos: [],
+      currentBatch: 0,
+      totalBatches,
+      batchSize: BATCH_SIZE,
+      mergeStatus: 'idle'
     });
     
     // Process videos in batches
@@ -3100,6 +3116,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       
       console.log(`[Trimming] 📦 Batch ${batchNumber}: Processing ${batchVideos.length} videos (${currentIndex + 1}-${batchEnd})...`);
       
+      // Update batch progress
+      setTrimmingProgress(prev => ({
+        ...prev,
+        currentBatch: batchNumber,
+        message: `📦 Batch ${batchNumber}/${totalBatches}: Trimming ${batchVideos.length} videos...`
+      }));
+      
       // Process all videos in this batch IN PARALLEL
       const batchPromises = batchVideos.map(async (video) => {
         const videoIndex = videosToTrim.indexOf(video);
@@ -3107,8 +3130,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         // Update progress: add to in-progress list
         setTrimmingProgress(prev => ({
           ...prev,
-          inProgressVideos: [...prev.inProgressVideos, { name: video.videoName }],
-          message: `Processing batch ${batchNumber}...`
+          inProgressVideos: [...prev.inProgressVideos, { name: video.videoName }]
         }));
         
         try {
@@ -3266,7 +3288,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       
       setTrimmingProgress(prev => ({
         ...prev,
-        message: 'Merging all videos...'
+        status: 'merging',
+        mergeStatus: 'pending',
+        message: `🔄 Merging ALL ${localSuccessVideos.length} videos... Please wait...`
       }));
       
       try {
@@ -3305,7 +3329,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         
         setTrimmingProgress(prev => ({
           ...prev,
-          message: '✅ All videos trimmed and merged!'
+          status: 'complete',
+          mergeStatus: 'success',
+          message: '✅ All videos trimmed and merged successfully!'
         }));
         
       } catch (error: any) {
@@ -3313,6 +3339,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         console.error('[Trimming] Error details:', error.message, error.stack);
         setTrimmingProgress(prev => ({
           ...prev,
+          status: 'partial',
+          mergeStatus: 'failed',
           message: `⚠️ Trimming complete but merge failed: ${error.message}`
         }));
       }
@@ -5051,13 +5079,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       
       {/* Trimming Modal for Step 8 → Step 9 */}
       <Dialog open={isTrimmingModalOpen} onOpenChange={(open) => {
-        // Allow closing only when NOT processing
-        if (!open && trimmingProgress.status === 'processing') return;
+        // Allow closing only when NOT processing or merging
+        if (!open && (trimmingProgress.status === 'processing' || trimmingProgress.status === 'merging')) return;
         setIsTrimmingModalOpen(open);
       }}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto" onInteractOutside={(e) => {
-          // Prevent closing by clicking outside during processing
-          if (trimmingProgress.status === 'processing') e.preventDefault();
+          // Prevent closing by clicking outside during processing or merging
+          if (trimmingProgress.status === 'processing' || trimmingProgress.status === 'merging') e.preventDefault();
         }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -5072,23 +5100,81 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           </DialogHeader>
           
           <div className="space-y-4 py-4">
-            {/* Progress Bar (always visible during processing) */}
-            {trimmingProgress.status === 'processing' && (
-              <div className="space-y-2">
-                <Progress 
-                  value={(trimmingProgress.current / trimmingProgress.total) * 100} 
-                  className="h-3"
-                />
-                <p className="text-center text-sm font-medium text-gray-700">
-                  {trimmingProgress.current}/{trimmingProgress.total} videouri procesate
-                </p>
-                
-                {/* Countdown message */}
-                {trimmingProgress.message && (
-                  <p className="text-center text-xs text-gray-500">
-                    {trimmingProgress.message}
-                  </p>
+            {/* Batch Progress (always visible during processing or merging) */}
+            {(trimmingProgress.status === 'processing' || trimmingProgress.status === 'merging') && (
+              <div className="space-y-3">
+                {/* Batch Info */}
+                {trimmingProgress.totalBatches > 0 && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <p className="text-sm font-semibold text-blue-800">
+                      📦 Batch {trimmingProgress.currentBatch}/{trimmingProgress.totalBatches}
+                    </p>
+                    <p className="text-xs text-blue-600 mt-1">
+                      {trimmingProgress.batchSize} videos per batch
+                    </p>
+                  </div>
                 )}
+                
+                {/* Progress Bar */}
+                <div className="space-y-2">
+                  <Progress 
+                    value={(trimmingProgress.current / trimmingProgress.total) * 100} 
+                    className="h-3"
+                  />
+                  <p className="text-center text-sm font-medium text-gray-700">
+                    {trimmingProgress.current}/{trimmingProgress.total} videouri procesate
+                  </p>
+                </div>
+                
+                {/* Status message */}
+                {trimmingProgress.message && (
+                  <div className={`text-center text-sm font-medium p-2 rounded-lg ${
+                    trimmingProgress.status === 'merging' 
+                      ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                      : 'bg-gray-50 text-gray-600'
+                  }`}>
+                    {trimmingProgress.message}
+                  </div>
+                )}
+                
+                {/* Merge Status */}
+                {trimmingProgress.mergeStatus === 'pending' && (
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 flex items-center gap-3">
+                    <Loader2 className="w-5 h-5 animate-spin text-purple-600" />
+                    <div>
+                      <p className="text-sm font-semibold text-purple-800">
+                        🔄 Merging videos...
+                      </p>
+                      <p className="text-xs text-purple-600 mt-1">
+                        Please wait, this may take a minute...
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* Merge Success */}
+            {trimmingProgress.mergeStatus === 'success' && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                <p className="text-sm font-semibold text-green-800">
+                  ✅ Merge successful!
+                </p>
+                <p className="text-xs text-green-600 mt-1">
+                  All videos have been trimmed and merged.
+                </p>
+              </div>
+            )}
+            
+            {/* Merge Failed */}
+            {trimmingProgress.mergeStatus === 'failed' && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-sm font-semibold text-red-800">
+                  ❌ Merge failed
+                </p>
+                <p className="text-xs text-red-600 mt-1">
+                  Videos were trimmed but merge operation failed.
+                </p>
               </div>
             )}
             
