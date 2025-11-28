@@ -348,13 +348,22 @@ async function generateWaveformData(
       throw new Error(`Failed to download audio: ${audioRes.statusText}`);
     }
     const audioBuffer = await audioRes.arrayBuffer();
-    await fs.writeFile(audioPathMp3, Buffer.from(audioBuffer));
     
-    // 🔧 FIX: Convert MP3 → WAV PCM 16-bit (audiowaveform doesn't support MP3 VBR)
-    console.log(`[generateWaveformData] Converting MP3 → WAV PCM 16-bit...`);
-    const convertCommand = `ffmpeg -y -i "${audioPathMp3}" -ac 1 -ar 48000 -c:a pcm_s16le "${audioPathWav}"`;
-    await exec(convertCommand);
-    console.log(`[generateWaveformData] Conversion complete`);
+    // Detect if input is WAV or MP3 based on URL or content
+    const isWAV = audioDownloadUrl.toLowerCase().endsWith('.wav');
+    
+    if (isWAV) {
+      // Input is already WAV - use directly
+      console.log(`[generateWaveformData] Input is WAV - using directly without conversion`);
+      await fs.writeFile(audioPathWav, Buffer.from(audioBuffer));
+    } else {
+      // Input is MP3 - convert to WAV
+      await fs.writeFile(audioPathMp3, Buffer.from(audioBuffer));
+      console.log(`[generateWaveformData] Converting MP3 → WAV PCM 16-bit...`);
+      const convertCommand = `ffmpeg -y -i "${audioPathMp3}" -ac 1 -ar 48000 -c:a pcm_s16le "${audioPathWav}"`;
+      await exec(convertCommand);
+      console.log(`[generateWaveformData] Conversion complete`);
+    }
     
     // Generate waveform JSON with audiowaveform CLI (from WAV, not MP3!)
     console.log(`[generateWaveformData] Running audiowaveform on WAV...`);
@@ -689,10 +698,10 @@ export function calculateCutPoints(
 export async function processVideoForEditing(
   videoUrl: string,
   videoId: number,
-  videoName: string,  // Video name for unique file naming
+  videoName: string,
   fullText: string,
   redText: string,
-  redTextPosition: 'START' | 'END' | undefined,  // Position from database (redStart/redEnd), undefined for white-text-only
+  redTextPosition: 'START' | 'END' | undefined,
   marginMs: number = 50,
   userApiKey?: string,
   ffmpegApiKey?: string,
@@ -702,104 +711,88 @@ export async function processVideoForEditing(
   try {
     const startTime = Date.now();
     console.log(`[processVideoForEditing] ⏱️ START ${videoName} at ${new Date().toISOString()}`);
-    console.log(`[processVideoForEditing] Starting for video ${videoId}...`);
     
-    // ============================================================================
-    // FFMPEG CODE COMMENTED OUT - Using CleanVoice audio instead
-    // ============================================================================
-    // if (!ffmpegApiKey) {
-    //   throw new Error('FFMPEG API Key not configured. Please set it in Settings.');
-    // }
-    // 
-    // // 1. Upload video to FFmpeg API
-    // const uploadStartTime = Date.now();
-    // console.log(`[processVideoForEditing] 📤 FFMPEG UPLOAD START for ${videoName}`);
-    // const sanitizedVideoName = videoName.replace(/[^a-zA-Z0-9_-]/g, '_');
-    // const videoFileName = `video_${sanitizedVideoName}.mp4`;
-    // const videoFilePath = await uploadVideoToFFmpegAPI(videoUrl, videoFileName, ffmpegApiKey);
-    // const uploadDuration = Date.now() - uploadStartTime;
-    // console.log(`[processVideoForEditing] ✅ FFMPEG UPLOAD DONE for ${videoName} in ${uploadDuration}ms (${(uploadDuration/1000).toFixed(2)}s)`);
-    // 
-    // // 2. Extract audio
-    // const extractStartTime = Date.now();
-    // console.log(`[processVideoForEditing] 🎵 AUDIO EXTRACT START for ${videoName}`);
-    // const timestamp = Date.now();
-    // const audioFileName = `${sanitizedVideoName}_${timestamp}.mp3`;
-    // const audioDownloadUrl = await extractAudioWithFFmpegAPI(videoFilePath, audioFileName, ffmpegApiKey!);
-    // const extractDuration = Date.now() - extractStartTime;
-    // console.log(`[processVideoForEditing] ✅ AUDIO EXTRACT DONE for ${videoName} in ${extractDuration}ms (${(extractDuration/1000).toFixed(2)}s)`);
-    // 
-    // // 2.5. Download audio and upload to Bunny.net for permanent storage
-    // const downloadStartTime = Date.now();
-    // console.log(`[processVideoForEditing] ⬇️ AUDIO DOWNLOAD START for ${videoName}`);
-    // const audioResponse = await fetch(audioDownloadUrl);
-    // if (!audioResponse.ok) {
-    //   throw new Error(`Failed to download audio: ${audioResponse.statusText}`);
-    // }
-    // const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
-    // const downloadDuration = Date.now() - downloadStartTime;
-    // console.log(`[processVideoForEditing] ✅ AUDIO DOWNLOAD DONE for ${videoName} in ${downloadDuration}ms (${(downloadDuration/1000).toFixed(2)}s)`);
-    // 
-    // const bunnyUploadStartTime = Date.now();
-    // console.log(`[processVideoForEditing] ☁️ BUNNY UPLOAD START for ${videoName}`);
-    // const audioPath = userId ? `user-${userId}/audio/${audioFileName}` : `audio/${audioFileName}`;
-    // const bunnyAudioUrl = await uploadToBunnyCDN(
-    //   audioBuffer,
-    //   audioPath,
-    //   'audio/mpeg'
-    // );
-    // const bunnyUploadDuration = Date.now() - bunnyUploadStartTime;
-    // console.log(`[processVideoForEditing] ✅ BUNNY UPLOAD DONE for ${videoName} in ${bunnyUploadDuration}ms (${(bunnyUploadDuration/1000).toFixed(2)}s)`);
-    // console.log(`[processVideoForEditing] Audio uploaded to Bunny.net: ${bunnyAudioUrl}`);
-    // ============================================================================
-    
-    // 1. Run CleanVoice, Whisper, and Waveform in PARALLEL
-    console.log(`[processVideoForEditing] 🚀 PARALLEL START (CleanVoice + Whisper + Waveform) for ${videoName}`);
-    const parallelStartTime = Date.now();
+    if (!ffmpegApiKey) {
+      throw new Error('FFMPEG API Key not configured');
+    }
     
     if (!cleanvoiceApiKey || !userId) {
-      throw new Error('CleanVoice API Key not configured. Please set it in Settings.');
+      throw new Error('CleanVoice API Key not configured');
     }
+    
+    // STEP 1: Upload video to FFmpeg API
+    const uploadStartTime = Date.now();
+    console.log(`[processVideoForEditing] 📤 FFMPEG UPLOAD START for ${videoName}`);
+    const sanitizedVideoName = videoName.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const videoFileName = `video_${sanitizedVideoName}.mp4`;
+    const videoFilePath = await uploadVideoToFFmpegAPI(videoUrl, videoFileName, ffmpegApiKey);
+    const uploadDuration = Date.now() - uploadStartTime;
+    console.log(`[processVideoForEditing] ✅ FFMPEG UPLOAD DONE in ${uploadDuration}ms`);
+    
+    // STEP 2: Extract WAV audio with FFmpeg
+    const extractStartTime = Date.now();
+    console.log(`[processVideoForEditing] 🎵 WAV EXTRACT START for ${videoName}`);
+    const timestamp = Date.now();
+    const wavFileName = `${sanitizedVideoName}_${timestamp}.wav`;
+    const wavDownloadUrl = await extractWAVWithFFmpegAPI(videoFilePath, wavFileName, ffmpegApiKey);
+    const extractDuration = Date.now() - extractStartTime;
+    console.log(`[processVideoForEditing] ✅ WAV EXTRACT DONE in ${extractDuration}ms`);
+    
+    // STEP 3: Download WAV and upload to Bunny CDN for permanent storage
+    const downloadStartTime = Date.now();
+    console.log(`[processVideoForEditing] ⬇️ WAV DOWNLOAD START for ${videoName}`);
+    const wavResponse = await fetch(wavDownloadUrl);
+    if (!wavResponse.ok) {
+      throw new Error(`Failed to download WAV: ${wavResponse.statusText}`);
+    }
+    const wavBuffer = Buffer.from(await wavResponse.arrayBuffer());
+    const downloadDuration = Date.now() - downloadStartTime;
+    console.log(`[processVideoForEditing] ✅ WAV DOWNLOAD DONE in ${downloadDuration}ms`);
+    
+    const bunnyUploadStartTime = Date.now();
+    console.log(`[processVideoForEditing] ☁️ BUNNY UPLOAD START for ${videoName}`);
+    const wavPath = `user-${userId}/audio/${wavFileName}`;
+    const bunnyWavUrl = await uploadToBunnyCDN(wavBuffer, wavPath, 'audio/wav');
+    const bunnyUploadDuration = Date.now() - bunnyUploadStartTime;
+    console.log(`[processVideoForEditing] ✅ BUNNY UPLOAD DONE in ${bunnyUploadDuration}ms`);
+    console.log(`[processVideoForEditing] WAV uploaded to Bunny: ${bunnyWavUrl}`);
+    
+    // STEP 4: Generate waveform from WAV (for Peaks.js)
+    const waveformStartTime = Date.now();
+    console.log(`[processVideoForEditing] 🌊 WAVEFORM START for ${videoName}`);
+    const waveformData = await generateWaveformData(bunnyWavUrl, videoId, videoName);
+    const waveformDuration = Date.now() - waveformStartTime;
+    console.log(`[processVideoForEditing] ✅ WAVEFORM DONE in ${waveformDuration}ms`);
+    
+    // STEP 5: Send same WAV to Whisper + CleanVoice (PARALLEL)
+    console.log(`[processVideoForEditing] 🚀 PARALLEL START (Whisper + CleanVoice) for ${videoName}`);
+    const parallelStartTime = Date.now();
     
     const { processVideoWithCleanVoice } = await import('./cleanvoice.js');
     
-    const [cleanvoiceResult, whisperResult, waveformJson] = await Promise.allSettled([
-      // CleanVoice: Extract WAV audio from video
-      processVideoWithCleanVoice(videoUrl, videoName, userId, cleanvoiceApiKey),
+    const [whisperResult, cleanvoiceResult] = await Promise.allSettled([
+      // Whisper: Transcribe WAV audio
+      transcribeWithWhisper(bunnyWavUrl, 'ro', userApiKey),
       
-      // Whisper: Transcribe ORIGINAL video directly
-      transcribeWithWhisper(videoUrl, 'ro', userApiKey),
-      
-      // Waveform: Will use CleanVoice audio later (placeholder for now)
-      Promise.resolve(null),
+      // CleanVoice: Process WAV audio (returns cleaned WAV)
+      processVideoWithCleanVoice(bunnyWavUrl, videoName, userId, cleanvoiceApiKey),
     ]);
+    
     const parallelDuration = Date.now() - parallelStartTime;
-    console.log(`[processVideoForEditing] ✅ PARALLEL DONE for ${videoName} in ${parallelDuration}ms (${(parallelDuration/1000).toFixed(2)}s)`);
+    console.log(`[processVideoForEditing] ✅ PARALLEL DONE in ${parallelDuration}ms`);
     
-    // Extract results from Promise.allSettled (CleanVoice + Whisper + Waveform)
-    
-    if (cleanvoiceResult.status === 'rejected') {
-      throw new Error(`CleanVoice processing failed: ${cleanvoiceResult.reason}`);
-    }
-    const cleanvoiceAudioUrl = cleanvoiceResult.value;
-    
-    if (!cleanvoiceAudioUrl) {
-      throw new Error('CleanVoice failed to process video');
-    }
-    
+    // Extract results
     if (whisperResult.status === 'rejected') {
-      throw new Error(`Whisper transcription failed: ${whisperResult.reason}`);
+      throw new Error(`Whisper failed: ${whisperResult.reason}`);
     }
     const { words, fullTranscript } = whisperResult.value;
     
-    // Now generate waveform using CleanVoice audio
-    console.log(`[processVideoForEditing] 🌊 Generating waveform from CleanVoice audio...`);
-    const waveformStartTime = Date.now();
-    const waveformData = await generateWaveformData(cleanvoiceAudioUrl, videoId, videoName);
-    const waveformDuration = Date.now() - waveformStartTime;
-    console.log(`[processVideoForEditing] ✅ Waveform generated in ${waveformDuration}ms`);
+    if (cleanvoiceResult.status === 'rejected') {
+      throw new Error(`CleanVoice failed: ${cleanvoiceResult.reason}`);
+    }
+    const cleanvoiceAudioUrl = cleanvoiceResult.value;
     
-    // 5. Calculate cut points using NEW ALGORITHM
+    // STEP 6: Calculate cut points
     const cutPointsStartTime = Date.now();
     const { cutPoints, debugInfo } = calculateCutPointsNew(fullText, redText, words, redTextPosition, marginMs);
     const cutPointsDuration = Date.now() - cutPointsStartTime;
@@ -807,18 +800,16 @@ export async function processVideoForEditing(
     
     const totalDuration = Date.now() - startTime;
     console.log(`[processVideoForEditing] ✅ TOTAL COMPLETE for ${videoName} in ${totalDuration}ms (${(totalDuration/1000).toFixed(2)}s)`);
-    console.log(`[processVideoForEditing] 📊 BREAKDOWN: Parallel=${parallelDuration}ms, Waveform=${waveformDuration}ms, CutPoints=${cutPointsDuration}ms`);
-    console.log(`[processVideoForEditing] Processing complete for video ${videoId}`);
-    console.log(`[processVideoForEditing] Debug info:`, debugInfo.message);
+    console.log(`[processVideoForEditing] 📊 BREAKDOWN: Upload=${uploadDuration}ms, Extract=${extractDuration}ms, Waveform=${waveformDuration}ms, Parallel=${parallelDuration}ms`);
     
     return {
       words,
       cutPoints,
       whisperTranscript: fullTranscript,
-      audioUrl: cleanvoiceAudioUrl, // Use CleanVoice audio URL
+      audioUrl: bunnyWavUrl, // Use FFmpeg WAV URL (not CleanVoice)
       waveformJson: waveformData,
       editingDebugInfo: debugInfo,
-      cleanvoiceAudioUrl, // Add CleanVoice processed audio URL
+      cleanvoiceAudioUrl, // CleanVoice processed audio URL
     };
   } catch (error) {
     console.error(`[processVideoForEditing] Error for video ${videoId}:`, error);
