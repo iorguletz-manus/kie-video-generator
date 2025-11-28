@@ -1957,7 +1957,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const batchStartTime = Date.now();
   console.log('[Batch Processing] ⏱️ BATCH START at', new Date().toISOString());
   console.log('[Batch Processing] 🚀 Starting FFmpeg batch processing with', videos.length, 'videos');
-  console.log('[Batch Processing] 📋 Video list:', videos.map(v => v.videoName).join(', '));
   
   const BATCH_SIZE = 10;
   const DELAY_BETWEEN_BATCHES = 61000; // 61 seconds
@@ -1966,13 +1965,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const totalBatches = Math.ceil(videos.length / BATCH_SIZE);
   
   // Calculate estimated time
-  // Each batch takes 61s wait + 30s for Whisper/CleanVoice
-  // First batch: no wait, just 30s
-  // Subsequent batches: 61s wait + 30s processing
   const estimatedSeconds = 30 + ((totalBatches - 1) * (61 + 30));
   const estimatedMinutes = Math.ceil(estimatedSeconds / 60);
   
-  // Initialize progress bars
+  // Initialize progress with SEPARATE counters
   setProcessingProgress({
     ffmpeg: { current: 0, total: videos.length, status: 'processing', activeVideos: [] },
     whisper: { current: 0, total: videos.length, status: 'idle', activeVideos: [] },
@@ -1984,15 +1980,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     failedVideos: []
   });
   
-  let ffmpegCompletedCount = 0;
-  let whisperCompletedCount = 0;
-  let cleanvoiceCompletedCount = 0;
-  
-  const successVideos: string[] = [];
-  const failedVideos: Array<{ videoName: string; error: string }> = [];
-  
-  // Collect all results
+  // Track results
   const resultsMap = new Map<string, any>();
+  const failedVideos: Array<{ videoName: string; error: string; step: 'ffmpeg' | 'whisper' | 'cleanvoice' }> = [];
+  
+  // Collect all Whisper+CleanVoice promises to wait for at the end
+  const allAudioProcessingPromises: Promise<void>[] = [];
   
   // Process videos in batches for FFmpeg
   let currentIndex = 0;
@@ -2014,7 +2007,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       try {
         console.log(`[Batch Processing] 🎬 FFmpeg START for ${video.videoName}`);
         
-        // Update FFmpeg progress: add to active list
         setProcessingProgress(prev => ({
           ...prev,
           ffmpeg: {
@@ -2024,7 +2016,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           }
         }));
         
-        // Extract WAV from video
         const wavResult = await extractWAVFromVideoMutation.mutateAsync({
           videoUrl: video.videoUrl!,
           videoId: parseInt(video.id || '0'),
@@ -2035,14 +2026,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         
         console.log(`[Batch Processing] ✅ FFmpeg SUCCESS for ${video.videoName}`);
         
-        // Update FFmpeg progress: increment and remove from active list
-        ffmpegCompletedCount++;
         setProcessingProgress(prev => ({
           ...prev,
           ffmpeg: {
-            current: ffmpegCompletedCount,
+            current: prev.ffmpeg.current + 1,
             total: videos.length,
-            status: ffmpegCompletedCount === videos.length ? 'complete' : 'processing',
+            status: prev.ffmpeg.current + 1 === videos.length ? 'complete' : 'processing',
             activeVideos: prev.ffmpeg.activeVideos.filter(v => v !== video.videoName)
           }
         }));
@@ -2056,24 +2045,18 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       } catch (error: any) {
         console.error(`[Batch Processing] ❌ FFmpeg FAILED for ${video.videoName}:`, error);
         
-        // Update FFmpeg progress: increment and remove from active list
-        ffmpegCompletedCount++;
         setProcessingProgress(prev => ({
           ...prev,
           ffmpeg: {
-            current: ffmpegCompletedCount,
+            current: prev.ffmpeg.current + 1,
             total: videos.length,
             status: 'processing',
             activeVideos: prev.ffmpeg.activeVideos.filter(v => v !== video.videoName)
-          }
+          },
+          failedVideos: [...prev.failedVideos, { videoName: video.videoName, error: `FFmpeg: ${error.message}` }]
         }));
         
-        // Add to failed list
-        failedVideos.push({ videoName: video.videoName, error: error.message });
-        setProcessingProgress(prev => ({
-          ...prev,
-          failedVideos: [...prev.failedVideos, { videoName: video.videoName, error: error.message }]
-        }));
+        failedVideos.push({ videoName: video.videoName, error: error.message, step: 'ffmpeg' });
         
         return {
           video,
@@ -2083,12 +2066,35 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       }
     });
     
-    // Wait for all FFmpeg extractions in this batch to complete
     const ffmpegResults = await Promise.all(ffmpegPromises);
     
     console.log(`[Batch Processing] ✅ FFmpeg Batch ${batchNumber} complete!`);
     
-    // STEP 2: Immediately send WAVs to Whisper + CleanVoice (NO LIMIT, PARALLEL)
+    // SAVE TO DB after FFmpeg batch
+    try {
+      const updatedVideosAfterFFmpeg = videos.map(video => {
+        const result = ffmpegResults.find(r => r.video.videoName === video.videoName);
+        if (!result || !result.success) return video;
+        
+        return {
+          ...video,
+          audioUrl: result.wavUrl,
+          waveformData: result.waveformJson,
+        };
+      });
+      
+      await upsertContextSessionMutation.mutateAsync({
+        userId: localCurrentUser.id,
+        sessionId: contextSessionId,
+        videoResults: updatedVideosAfterFFmpeg,
+      });
+      
+      console.log(`[Batch Processing] 💾 DB saved after FFmpeg batch ${batchNumber}`);
+    } catch (error) {
+      console.error(`[Batch Processing] ❌ Failed to save to DB after FFmpeg batch ${batchNumber}:`, error);
+    }
+    
+    // STEP 2: Start Whisper+CleanVoice for successful FFmpeg results (NO LIMIT, PARALLEL)
     const audioProcessingPromises = ffmpegResults
       .filter(r => r.success)
       .map(async (ffmpegResult) => {
@@ -2097,7 +2103,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         try {
           console.log(`[Batch Processing] 🎵 Whisper+CleanVoice START for ${video.videoName}`);
           
-          // Update Whisper and CleanVoice progress: add to active lists
           setProcessingProgress(prev => ({
             ...prev,
             whisper: {
@@ -2112,7 +2117,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             }
           }));
           
-          // Extract red text from video
           const hasRedText = video.redStart !== undefined && 
                             video.redEnd !== undefined && 
                             video.redStart >= 0 && 
@@ -2127,7 +2131,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             ? ((video.redEnd || 0) >= textLength - 10 ? 'END' : 'START')
             : undefined;
           
-          // Process WAV with Whisper + CleanVoice
           const audioResult = await processAudioWithWhisperCleanVoiceMutation.mutateAsync({
             wavUrl: wavUrl!,
             videoId: parseInt(video.id || '0'),
@@ -2143,38 +2146,23 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           
           console.log(`[Batch Processing] ✅ Whisper+CleanVoice SUCCESS for ${video.videoName}`);
           
-          // Update Whisper progress
-          whisperCompletedCount++;
           setProcessingProgress(prev => ({
             ...prev,
             whisper: {
-              current: whisperCompletedCount,
+              current: prev.whisper.current + 1,
               total: videos.length,
-              status: whisperCompletedCount === videos.length ? 'complete' : 'processing',
+              status: prev.whisper.current + 1 === videos.length ? 'complete' : 'processing',
               activeVideos: prev.whisper.activeVideos.filter(v => v !== video.videoName)
-            }
-          }));
-          
-          // Update CleanVoice progress
-          cleanvoiceCompletedCount++;
-          setProcessingProgress(prev => ({
-            ...prev,
+            },
             cleanvoice: {
-              current: cleanvoiceCompletedCount,
+              current: prev.cleanvoice.current + 1,
               total: videos.length,
-              status: cleanvoiceCompletedCount === videos.length ? 'complete' : 'processing',
+              status: prev.cleanvoice.current + 1 === videos.length ? 'complete' : 'processing',
               activeVideos: prev.cleanvoice.activeVideos.filter(v => v !== video.videoName)
-            }
-          }));
-          
-          // Add to success list
-          successVideos.push(video.videoName);
-          setProcessingProgress(prev => ({
-            ...prev,
+            },
             successVideos: [...prev.successVideos, video.videoName]
           }));
           
-          // Store result
           resultsMap.set(video.videoName, {
             videoName: video.videoName,
             success: true,
@@ -2193,31 +2181,24 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         } catch (error: any) {
           console.error(`[Batch Processing] ❌ Whisper+CleanVoice FAILED for ${video.videoName}:`, error);
           
-          // Update progress even on failure
-          whisperCompletedCount++;
-          cleanvoiceCompletedCount++;
           setProcessingProgress(prev => ({
             ...prev,
             whisper: {
-              current: whisperCompletedCount,
+              current: prev.whisper.current + 1,
               total: videos.length,
               status: 'processing',
               activeVideos: prev.whisper.activeVideos.filter(v => v !== video.videoName)
             },
             cleanvoice: {
-              current: cleanvoiceCompletedCount,
+              current: prev.cleanvoice.current + 1,
               total: videos.length,
               status: 'processing',
               activeVideos: prev.cleanvoice.activeVideos.filter(v => v !== video.videoName)
-            }
+            },
+            failedVideos: [...prev.failedVideos, { videoName: video.videoName, error: `Whisper/CleanVoice: ${error.message}` }]
           }));
           
-          // Add to failed list
-          failedVideos.push({ videoName: video.videoName, error: error.message });
-          setProcessingProgress(prev => ({
-            ...prev,
-            failedVideos: [...prev.failedVideos, { videoName: video.videoName, error: error.message }]
-          }));
+          failedVideos.push({ videoName: video.videoName, error: error.message, step: 'whisper' });
           
           resultsMap.set(video.videoName, {
             videoName: video.videoName,
@@ -2227,8 +2208,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         }
       });
     
-    // Don't wait for Whisper+CleanVoice - they run in parallel across all batches
-    // Just start them and move to next FFmpeg batch
+    // Collect all audio processing promises (don't wait yet)
+    allAudioProcessingPromises.push(...audioProcessingPromises);
     
     // Move to next batch
     currentIndex = batchEnd;
@@ -2238,7 +2219,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     if (currentIndex < videos.length) {
       console.log(`[Batch Processing] ⏳ Waiting 61 seconds before FFmpeg batch ${batchNumber}...`);
       
-      // Countdown timer: 61s → 60s → 59s → ... → 1s
       for (let countdown = 61; countdown > 0; countdown--) {
         setProcessingProgress(prev => ({
           ...prev,
@@ -2248,7 +2228,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
       
-      // Reset countdown
       setProcessingProgress(prev => ({
         ...prev,
         countdown: 0
@@ -2263,28 +2242,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     currentVideoName: '⏳ Waiting for Whisper + CleanVoice to finish...'
   }));
   
-  // Wait for all Whisper+CleanVoice processing to complete (with timeout)
-  const maxWaitTime = 300000; // 5 minutes max
-  const startWaitTime = Date.now();
+  // Wait for ALL Whisper+CleanVoice processing to complete
+  await Promise.all(allAudioProcessingPromises);
   
-  while (whisperCompletedCount < videos.length || cleanvoiceCompletedCount < videos.length) {
-    // Check timeout
-    if (Date.now() - startWaitTime > maxWaitTime) {
-      console.error('[Batch Processing] ⚠️ Timeout waiting for Whisper+CleanVoice!');
-      toast.error('⚠️ Timeout: Some videos did not complete processing');
-      break;
-    }
-    
-    await new Promise(resolve => setTimeout(resolve, 1000));
-  }
+  console.log('[Batch Processing] 🎉 All Whisper+CleanVoice processing complete!');
   
-  console.log('[Batch Processing] 🎉 All processing complete!');
-  
-  const batchDuration = Date.now() - batchStartTime;
-  console.log(`[Batch Processing] ⏱️ BATCH COMPLETE in ${batchDuration}ms (${(batchDuration/1000).toFixed(2)}s)`);
-  console.log(`[Batch Processing] 📊 Success: ${successVideos.length}, Failed: ${failedVideos.length}`);
-  
-  // Update videoResults with all results
+  // SAVE TO DB after all Whisper+CleanVoice
   const updatedResults = videos.map(video => {
     const result = resultsMap.get(video.videoName);
     if (!result || !result.success) {
@@ -2305,7 +2268,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     };
   });
   
-  // Capture new state before database save (same pattern as STEP 1)
+  // Capture new state before database save
   const currentVideoResults = await new Promise<typeof videoResults>((resolve) => {
     setVideoResults(prev => {
       const newResults = [...prev];
@@ -2320,360 +2283,43 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     });
   });
   
-  // Save to database
   try {
     await upsertContextSessionMutation.mutateAsync({
       userId: localCurrentUser.id,
       sessionId: contextSessionId,
       videoResults: currentVideoResults,
     });
-    console.log('[Batch Processing] ✅ Saved to database');
+    console.log('[Batch Processing] 💾 Final DB save complete');
   } catch (error) {
-    console.error('[Batch Processing] ❌ Failed to save to database:', error);
+    console.error('[Batch Processing] ❌ Failed to save final results to database:', error);
   }
   
-  setProcessingProgress({
-    ffmpeg: { current: videos.length, total: videos.length, status: 'complete', activeVideos: [] },
-    whisper: { current: videos.length, total: videos.length, status: 'complete', activeVideos: [] },
-    cleanvoice: { current: videos.length, total: videos.length, status: 'complete', activeVideos: [] },
-    currentVideoName: successVideos.length === videos.length 
-      ? '✅ All videos processed successfully!' 
-      : `✅ Complete: ${successVideos.length} success, ${failedVideos.length} failed`,
-    countdown: 0,
-    estimatedMinutes: 0,
-    successVideos,
-    failedVideos
-  });
+  const batchDuration = Date.now() - batchStartTime;
+  const successCount = videos.length - failedVideos.length;
   
-  // Show toast with summary
+  console.log(`[Batch Processing] ⏱️ BATCH COMPLETE in ${batchDuration}ms (${(batchDuration/1000).toFixed(2)}s)`);
+  console.log(`[Batch Processing] 📊 Success: ${successCount}, Failed: ${failedVideos.length}`);
+  
+  setProcessingProgress(prev => ({
+    ...prev,
+    ffmpeg: { ...prev.ffmpeg, status: 'complete' },
+    whisper: { ...prev.whisper, status: 'complete' },
+    cleanvoice: { ...prev.cleanvoice, status: 'complete' },
+    currentVideoName: successCount === videos.length 
+      ? '✅ All videos processed successfully!' 
+      : `✅ Complete: ${successCount} success, ${failedVideos.length} failed`,
+    countdown: 0,
+    estimatedMinutes: 0
+  }));
+  
   if (failedVideos.length > 0) {
-    toast.warning(`⚠️ Processing complete: ${successVideos.length} success, ${failedVideos.length} failed`);
+    toast.warning(`⚠️ Processing complete: ${successCount} success, ${failedVideos.length} failed`);
   } else {
-    toast.success(`✅ All ${successVideos.length} videos processed successfully!`);
+    toast.success(`✅ All ${successCount} videos processed successfully!`);
   }
   
   return resultsMap;
 };
-
-
-
-  // Step 9 → Step 10: Merge videos (body + hook variations)
-  // Step 9 → Step 10: Merge videos (REWRITTEN - simple, manual retry)
-  const handleMergeVideos = async () => {
-    console.log('[Step 9→Step 10] 🚀 Starting merge process...');
-    
-    const trimmedVideos = videoResults.filter(v => 
-      v.reviewStatus === 'accepted' && 
-      v.status === 'success' && 
-      v.trimmedVideoUrl &&
-      v.recutStatus === 'accepted' // Only accepted videos
-    );
-    
-    if (trimmedVideos.length === 0) {
-      toast.error('No accepted trimmed videos to merge!');
-      return;
-    }
-    
-    console.log('[Merge] 📋 Trimmed videos:', trimmedVideos.map(v => v.videoName));
-    
-    // 1. Group HOOKS by base name (HOOK3, HOOK3B, HOOK3C → 1 group)
-    const hookVideos = trimmedVideos.filter(v => v.videoName.match(/HOOK\d+[A-Z]?/));
-    const hookGroups: Record<string, typeof hookVideos> = {};
-    
-    hookVideos.forEach(video => {
-      // Extract base hook name: T1_C1_E1_AD4_HOOK3_TEST → HOOK3
-      const hookMatch = video.videoName.match(/(.*)(HOOK\d+)[A-Z]?(.*)/);
-      if (hookMatch) {
-        const prefix = hookMatch[1]; // T1_C1_E1_AD4_
-        const hookBase = hookMatch[2]; // HOOK3
-        const suffix = hookMatch[3]; // _TEST
-        const groupKey = `${prefix}${hookBase}${suffix}`; // T1_C1_E1_AD4_HOOK3_TEST
-        
-        if (!hookGroups[groupKey]) {
-          hookGroups[groupKey] = [];
-        }
-        hookGroups[groupKey].push(video);
-      }
-    });
-    
-    // Filter: only groups with 2+ videos need merging
-    const hookGroupsToMerge = Object.entries(hookGroups).filter(([_, videos]) => videos.length > 1);
-    
-    console.log('[Merge] 🎣 Hook groups to merge:', hookGroupsToMerge.length);
-    hookGroupsToMerge.forEach(([baseName, videos]) => {
-      console.log(`[Merge]   ${baseName}: ${videos.length} videos (${videos.map(v => v.videoName).join(', ')})`);
-    });
-    
-    // 2. BODY videos (all non-hook videos from MIRROR to CTA)
-    const bodyVideos = trimmedVideos.filter(v => !v.videoName.match(/HOOK\d+[A-Z]?/));
-    const needsBodyMerge = bodyVideos.length > 0;
-    
-    console.log('[Merge] 📺 Body videos:', bodyVideos.length);
-    console.log('[Merge] 📺 Body video names:', bodyVideos.map(v => v.videoName));
-    
-    if (hookGroupsToMerge.length === 0 && !needsBodyMerge) {
-      toast.info('No videos need merging! All hooks are standalone.');
-      return;
-    }
-    
-    // 3. 60-second countdown with skip option
-    console.log('[Merge] ⏳ Starting 60-second countdown...');
-    skipCountdownRef.current = false;
-    setMergeStep10Progress({ 
-      status: 'countdown', 
-      message: 'Waiting 60s before merge (FFmpeg rate limit)...',
-      countdown: 60
-    });
-    setIsMergingStep10(true);
-    
-    for (let countdown = 60; countdown > 0; countdown--) {
-      if (skipCountdownRef.current) {
-        console.log('[Merge] ⏭️ Countdown skipped by user');
-        break;
-      }
-      setMergeStep10Progress(prev => ({
-        ...prev,
-        message: `⏳ Waiting ${countdown}s before merge...`,
-        countdown
-      }));
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-    
-    // 4. Start merging
-    setMergeStep10Progress({ 
-      status: 'processing', 
-      message: 'Starting merge...',
-      hookGroups: [],
-      bodyGroup: null
-    });
-    
-    const mergeResults: Array<{
-      type: 'hook' | 'body';
-      name: string;
-      videoCount: number;
-      status: 'success' | 'failed';
-      cdnUrl?: string;
-      error?: string;
-    }> = [];
-    
-    try {
-      // 5. Merge HOOKS
-      for (const [baseName, videos] of hookGroupsToMerge) {
-        console.log(`[Merge] 🎣 Merging ${baseName} (${videos.length} videos)...`);
-        setMergeStep10Progress(prev => ({
-          ...prev,
-          message: `Merging ${baseName} (${videos.length} videos)...`
-        }));
-        
-        try {
-          const sortedVideos = videos.sort((a, b) => a.videoName.localeCompare(b.videoName));
-          
-          // Extract original URLs (not proxy URLs)
-          const extractOriginalUrl = (url: string) => {
-            if (url.startsWith('/api/proxy-video?url=')) {
-              const urlParam = new URLSearchParams(url.split('?')[1]).get('url');
-              return urlParam ? decodeURIComponent(urlParam) : url;
-            }
-            return url;
-          };
-          
-          const videoUrls = sortedVideos.map(v => extractOriginalUrl(v.trimmedVideoUrl!)).filter(Boolean);
-          
-          console.log(`[Merge] 🔗 ${baseName} video URLs:`, videoUrls);
-          console.log(`[Merge] 🔗 ${baseName} trimmed URLs:`, sortedVideos.map(v => v.trimmedVideoUrl));
-          
-          // Output name: T1_C1_E1_AD4_HOOK3M_TEST (M = merged)
-          const outputName = baseName.replace(/(HOOK\d+)/, '$1M');
-          
-          const result = await mergeVideosMutation.mutateAsync({
-            videoUrls,
-            outputVideoName: outputName,
-            ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
-            userId: localCurrentUser.id,
-          });
-          
-          console.log(`[Merge] ✅ ${baseName} SUCCESS:`, result.cdnUrl);
-          mergeResults.push({
-            type: 'hook',
-            name: baseName,
-            videoCount: videos.length,
-            status: 'success',
-            cdnUrl: result.cdnUrl
-          });
-          
-          // Save merged hook URL - REPLACE old keys with same hook base
-          setHookMergedVideos(prev => {
-            // Extract hook base pattern: T1_C1_E1_AD1_HOOK3
-            const hookBaseMatch = baseName.match(/(.*HOOK\d+)/);
-            const hookBase = hookBaseMatch ? hookBaseMatch[1] : null;
-            
-            // Remove all old keys with same hook base
-            const cleaned = hookBase 
-              ? Object.fromEntries(Object.entries(prev).filter(([key]) => !key.startsWith(hookBase)))
-              : prev;
-            
-            // Add new key
-            return { ...cleaned, [baseName]: result.cdnUrl };
-          });
-          
-          // Extract context/character/episode from video name for database save
-          const firstVideoName = videos[0].videoName;
-          const contextMatch = firstVideoName.match(/^(T\d+_C\d+_E\d+_AD\d+)/);
-          const contextName = contextMatch ? contextMatch[1] : 'MERGED';
-          const characterMatch = firstVideoName.match(/_(\w+)$/);
-          const characterName = characterMatch ? characterMatch[1] : 'TEST';
-          const episodeName = contextName; // Use context as episode for now
-          
-          // Save to database
-          await upsertContextSessionMutation.mutateAsync({
-            userId: localCurrentUser.id,
-            coreBeliefId: selectedCoreBeliefId!,
-            emotionalAngleId: selectedEmotionalAngleId!,
-            adId: selectedAdId!,
-            characterId: selectedCharacterId!,
-            currentStep,
-            rawTextAd,
-            processedTextAd,
-            adLines,
-            prompts,
-            images,
-            combinations,
-            deletedCombinations,
-            videoResults: videoResults,
-            reviewHistory,
-            hookMergedVideos: { ...hookMergedVideos, [baseName]: result.cdnUrl },
-            bodyMergedVideoUrl: bodyMergedVideoUrl,
-          });
-          
-        } catch (error: any) {
-          console.error(`[Merge] ❌ ${baseName} FAILED:`, error);
-          mergeResults.push({
-            type: 'hook',
-            name: baseName,
-            videoCount: videos.length,
-            status: 'failed',
-            error: error.message
-          });
-        }
-      }
-      
-      // 6. Merge BODY
-      if (needsBodyMerge) {
-        console.log(`[Merge] 📺 Merging BODY (${bodyVideos.length} videos)...`);
-        setMergeStep10Progress(prev => ({
-          ...prev,
-          message: `Merging BODY (${bodyVideos.length} videos)...`
-        }));
-        
-        try {
-          // Extract original URLs (not proxy URLs)
-          const extractOriginalUrl = (url: string) => {
-            if (url.startsWith('/api/proxy-video?url=')) {
-              const urlParam = new URLSearchParams(url.split('?')[1]).get('url');
-              return urlParam ? decodeURIComponent(urlParam) : url;
-            }
-            return url;
-          };
-          
-          const bodyVideoUrls = bodyVideos.map(v => extractOriginalUrl(v.trimmedVideoUrl!)).filter(Boolean);
-          
-          console.log(`[Merge] 🔗 BODY video URLs:`, bodyVideoUrls);
-          console.log(`[Merge] 🔗 BODY trimmed URLs:`, bodyVideos.map(v => v.trimmedVideoUrl));
-          
-          // Extract context from first video
-          const firstVideoName = bodyVideos[0].videoName;
-          const contextMatch = firstVideoName.match(/^(T\d+_C\d+_E\d+_AD\d+)/);
-          const contextName = contextMatch ? contextMatch[1] : 'MERGED';
-          
-          // Extract character and imageName: T1_C1_E1_AD1_TRANSFORMATION1_TEST_ALINA_1 → TEST_ALINA_1
-          const nameMatch = firstVideoName.match(/_([A-Z]+)_([A-Z]+_\d+)$/);
-          const character = nameMatch ? nameMatch[1] : 'TEST';
-          const imageName = nameMatch ? nameMatch[2] : 'ALINA_1';
-          const episodeName = contextName; // Use context as episode for now
-          
-          const outputName = `${contextName}_BODY_${character}_${imageName}`;
-          
-          const result = await mergeVideosMutation.mutateAsync({
-            videoUrls: bodyVideoUrls,
-            outputVideoName: outputName,
-            ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
-            userId: localCurrentUser.id,
-          });
-          
-          console.log('[Merge] ✅ BODY SUCCESS:', result.cdnUrl);
-          mergeResults.push({
-            type: 'body',
-            name: 'BODY',
-            videoCount: bodyVideos.length,
-            status: 'success',
-            cdnUrl: result.cdnUrl
-          });
-          
-          setBodyMergedVideoUrl(result.cdnUrl);
-          
-          // Save to database
-          await upsertContextSessionMutation.mutateAsync({
-            userId: localCurrentUser.id,
-            coreBeliefId: selectedCoreBeliefId!,
-            emotionalAngleId: selectedEmotionalAngleId!,
-            adId: selectedAdId!,
-            characterId: selectedCharacterId!,
-            currentStep,
-            rawTextAd,
-            processedTextAd,
-            adLines,
-            prompts,
-            images,
-            combinations,
-            deletedCombinations,
-            videoResults: videoResults,
-            reviewHistory,
-            hookMergedVideos: hookMergedVideos,
-            bodyMergedVideoUrl: result.cdnUrl,
-          });
-          
-        } catch (error: any) {
-          console.error('[Merge] ❌ BODY FAILED:', error);
-          mergeResults.push({
-            type: 'body',
-            name: 'BODY',
-            videoCount: bodyVideos.length,
-            status: 'failed',
-            error: error.message
-          });
-        }
-      }
-      
-      // 7. Update progress with results
-      const successCount = mergeResults.filter(r => r.status === 'success').length;
-      const failCount = mergeResults.filter(r => r.status === 'failed').length;
-      
-      setMergeStep10Progress({
-        status: failCount > 0 ? 'partial' : 'complete',
-        message: failCount > 0 
-          ? `⚠️ ${successCount} succeeded, ${failCount} failed`
-          : `✅ All merges complete!`,
-        results: mergeResults
-      });
-      
-      console.log('[Merge] 🎉 COMPLETE! Success:', successCount, 'Failed:', failCount);
-      
-      if (failCount === 0) {
-        toast.success(`✅ All ${successCount} groups merged successfully!`);
-      } else {
-        toast.warning(`⚠️ ${successCount} succeeded, ${failCount} failed. Check results.`);
-      }
-      
-    } catch (error: any) {
-      console.error('[Merge] ❌ Fatal error:', error);
-      setMergeStep10Progress({
-        status: 'error',
-        message: `Error: ${error.message}`,
-        results: mergeResults
-      });
-      toast.error(`Merge failed: ${error.message}`);
-    }
-  };
 
   // Retry failed merge groups
   const handleRetryFailedMerges = async () => {
@@ -6296,10 +5942,54 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         estimatedMinutes={processingProgress.estimatedMinutes}
         successVideos={processingProgress.successVideos}
         failedVideos={processingProgress.failedVideos}
-        onRetryFailed={() => {
-          // TODO: Implement retry failed logic
-          console.log('Retry failed videos:', processingProgress.failedVideos);
-          toast.info('🔄 Retry functionality coming soon...');
+        onRetryFailed={async () => {
+          console.log('[Retry Failed] Starting retry for failed videos:', processingProgress.failedVideos);
+          
+          // Get failed video names
+          const failedVideoNames = processingProgress.failedVideos.map(f => f.videoName);
+          
+          // Find the original video objects
+          const videosToRetry = videoResults.filter(v => failedVideoNames.includes(v.videoName));
+          
+          if (videosToRetry.length === 0) {
+            toast.error('No failed videos to retry');
+            return;
+          }
+          
+          console.log(`[Retry Failed] Retrying ${videosToRetry.length} videos...`);
+          toast.info(`🔄 Retrying ${videosToRetry.length} failed videos...`);
+          
+          // Reset progress for retry
+          setProcessingProgress({
+            ffmpeg: { current: 0, total: videosToRetry.length, status: 'idle', activeVideos: [] },
+            whisper: { current: 0, total: videosToRetry.length, status: 'idle', activeVideos: [] },
+            cleanvoice: { current: 0, total: videosToRetry.length, status: 'idle', activeVideos: [] },
+            currentVideoName: '',
+            countdown: 0,
+            estimatedMinutes: 0,
+            successVideos: [],
+            failedVideos: []
+          });
+          
+          try {
+            // Reprocess failed videos
+            await batchProcessVideosWithWhisper(videosToRetry);
+            
+            // Check if there are still failed videos
+            const stillFailedCount = processingProgress.failedVideos.length;
+            
+            if (stillFailedCount > 0) {
+              toast.warning(`⚠️ Retry complete: ${videosToRetry.length - stillFailedCount} success, ${stillFailedCount} still failed`);
+            } else {
+              // All retries successful - close modal and go to Step 8
+              setShowProcessingModal(false);
+              setCurrentStep(8);
+              toast.success(`✅ All ${videosToRetry.length} retried videos processed successfully!`);
+            }
+          } catch (error: any) {
+            console.error('[Retry Failed] Error:', error);
+            toast.error(`Eroare la retry: ${error.message}`);
+          }
         }}
       />
       
