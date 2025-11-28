@@ -251,6 +251,70 @@ async function extractAudioWithFFmpegAPI(
   }
 }
 
+/**
+ * Extract WAV audio from video using FFmpeg API
+ * Uses specific parameters: -vn -ac 1 -ar 48000 -sample_fmt s16
+ * Returns download URL for the WAV file
+ */
+async function extractWAVWithFFmpegAPI(
+  videoFilePath: string,
+  outputFileName: string,
+  ffmpegApiKey: string
+): Promise<string> {
+  try {
+    console.log(`[extractWAVWithFFmpegAPI] Extracting WAV audio from ${videoFilePath}...`);
+    
+    const processRes = await fetch(`${FFMPEG_API_BASE}/ffmpeg/process`, {
+      method: 'POST',
+      headers: {
+        'Authorization': ffmpegApiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        task: {
+          inputs: [{ file_path: videoFilePath }],
+          outputs: [{
+            file: outputFileName,
+            options: [
+              '-vn',              // No video
+              '-ac', '1',         // Mono (1 audio channel)
+              '-ar', '48000',     // 48kHz sample rate
+              '-sample_fmt', 's16' // 16-bit signed integer samples
+            ]
+          }]
+        }
+      }),
+    });
+    
+    if (!processRes.ok) {
+      const errorText = await processRes.text();
+      console.error('[FFmpeg API] Error response:', errorText.substring(0, 500));
+      throw new Error(`FFmpeg API processing failed: ${processRes.statusText}`);
+    }
+    
+    const responseText = await processRes.text();
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch (e) {
+      console.error('[FFmpeg API] Invalid JSON response:', responseText.substring(0, 500));
+      throw new Error(`FFmpeg API returned invalid JSON`);
+    }
+    
+    if (!result.ok || !result.result || result.result.length === 0) {
+      throw new Error(`FFmpeg API returned error: ${JSON.stringify(result)}`);
+    }
+    
+    const downloadUrl = result.result[0].download_url;
+    console.log(`[extractWAVWithFFmpegAPI] WAV extracted! URL: ${downloadUrl}`);
+    
+    return downloadUrl;
+  } catch (error) {
+    console.error('[extractWAVWithFFmpegAPI] Error:', error);
+    throw new Error(`Failed to extract WAV: ${error.message}`);
+  }
+}
+
 // ============================================================================
 // 3. WAVEFORM GENERATION
 // ============================================================================
