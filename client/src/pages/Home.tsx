@@ -295,6 +295,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     totalBatches: number;
     batchSize: number;
     mergeStatus: 'idle' | 'pending' | 'success' | 'failed';
+    ffmpegRequestsCurrent: number;
+    ffmpegRequestsTotal: number;
+    countdown: number;  // Countdown timer in seconds for 65s pause
   }>({
     current: 0,
     total: 0,
@@ -307,7 +310,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     currentBatch: 0,
     totalBatches: 0,
     batchSize: 0,
-    mergeStatus: 'idle'
+    mergeStatus: 'idle',
+    ffmpegRequestsCurrent: 0,
+    ffmpegRequestsTotal: 0,
+    countdown: 0
   });
   
   // Auto-open failed list if there are failures
@@ -3062,6 +3068,20 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     // We'll update this after CUT completes when we know hook groups count
     const initialTotal = videosToTrim.length; // Start with videos only
     
+    // Calculate total FFmpeg requests:
+    // 1 directory + (N videos * 2 uploads) + (N videos * 1 process) = 1 + 2N + N = 1 + 3N
+    // For videos with CleanVoice: 1 + (N * 3 uploads) + (N * 1 process) = 1 + 4N
+    const videosWithCleanVoice = videosToTrim.filter(v => v.cleanvoiceAudioUrl).length;
+    const videosWithoutCleanVoice = videosToTrim.length - videosWithCleanVoice;
+    const totalFFmpegRequests = 1 + (videosWithCleanVoice * 4) + (videosWithoutCleanVoice * 3);
+    
+    console.log('[Trimming] 📊 FFmpeg requests calculation:', {
+      total: totalFFmpegRequests,
+      directory: 1,
+      withCleanVoice: videosWithCleanVoice,
+      withoutCleanVoice: videosWithoutCleanVoice
+    });
+    
     setTrimmingProgress({
       current: 0,
       total: initialTotal,
@@ -3074,7 +3094,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       currentBatch: 0,
       totalBatches,
       batchSize: BATCH_SIZE,
-      mergeStatus: 'idle'
+      mergeStatus: 'idle',
+      ffmpegRequestsCurrent: 0,
+      ffmpegRequestsTotal: totalFFmpegRequests,
+      countdown: 0
     });
     
     // Create shared directory for ALL videos in this batch (optimization: 1 request instead of N)
@@ -3086,6 +3109,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       });
       sharedDirId = dirResult.dirId;
       console.log('[Trimming] ✅ Shared directory created:', sharedDirId);
+      
+      // Increment FFmpeg requests counter (1 directory creation)
+      setTrimmingProgress(prev => ({
+        ...prev,
+        ffmpegRequestsCurrent: prev.ffmpegRequestsCurrent + 1
+      }));
     } catch (error) {
       console.error('[Trimming] ❌ Failed to create shared directory:', error);
       // Continue without shared directory (each video will create its own)
@@ -3157,11 +3186,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           // Track locally
           localSuccessVideos.push({ name: video.videoName });
           
+          // Calculate FFmpeg requests for this video:
+          // - 2 uploads (video + audio) or 1 upload (video only) + 1 process
+          const ffmpegRequestsForVideo = video.cleanvoiceAudioUrl ? 3 : 2;
+          
           setTrimmingProgress(prev => ({
             ...prev,
             current: prev.current + 1,
             successVideos: [...prev.successVideos, { name: video.videoName }],
-            inProgressVideos: prev.inProgressVideos.filter(v => v.name !== video.videoName)
+            inProgressVideos: prev.inProgressVideos.filter(v => v.name !== video.videoName),
+            ffmpegRequestsCurrent: prev.ffmpegRequestsCurrent + ffmpegRequestsForVideo
           }));
           
           return { video, status: 'success' };
@@ -3203,10 +3237,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           setTrimmingProgress(prev => ({
             ...prev,
             message: `⏳ Waiting ${countdown}s before next batch (FFmpeg rate limit)...`,
-            status: 'processing'
+            status: 'processing',
+            countdown: countdown  // Update countdown state for UI
           }));
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
+        
+        // Reset countdown after delay
+        setTrimmingProgress(prev => ({
+          ...prev,
+          countdown: 0
+        }));
       }
     }
     
@@ -5420,15 +5461,49 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   </div>
                 )}
                 
-                {/* Progress Bar */}
-                <div className="space-y-2">
-                  <Progress 
-                    value={(trimmingProgress.current / trimmingProgress.total) * 100} 
-                    className="h-3"
-                  />
-                  <p className="text-center text-sm font-medium text-gray-700">
-                    {trimmingProgress.current}/{trimmingProgress.total} videouri procesate
-                  </p>
+                {/* Progress Bars */}
+                <div className="space-y-4">
+                  {/* Videos Progress */}
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+                      Videos Progress
+                    </p>
+                    <Progress 
+                      value={(trimmingProgress.current / trimmingProgress.total) * 100} 
+                      className="h-3"
+                    />
+                    <p className="text-center text-sm font-medium text-gray-700">
+                      {trimmingProgress.current}/{trimmingProgress.total} videos processed
+                    </p>
+                  </div>
+                  
+                  {/* FFmpeg Requests Progress */}
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+                      FFmpeg API Requests
+                    </p>
+                    <Progress 
+                      value={(trimmingProgress.ffmpegRequestsCurrent / trimmingProgress.ffmpegRequestsTotal) * 100} 
+                      className="h-3 bg-blue-100"
+                    />
+                    <p className="text-center text-sm font-medium text-blue-700">
+                      {trimmingProgress.ffmpegRequestsCurrent}/{trimmingProgress.ffmpegRequestsTotal} requests
+                    </p>
+                    
+                    {/* Countdown Timer */}
+                    {trimmingProgress.countdown > 0 && (
+                      <div className="mt-4 flex items-center justify-center">
+                        <div className="bg-orange-50 border-2 border-orange-300 rounded-lg px-6 py-4">
+                          <p className="text-center text-4xl font-bold text-orange-600 tabular-nums">
+                            ⏳ {trimmingProgress.countdown}s
+                          </p>
+                          <p className="text-center text-xs text-orange-500 mt-2">
+                            Waiting for FFmpeg rate limit...
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 
                 {/* Status message */}
