@@ -423,12 +423,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     const handleTimeUpdate = () => {
       const currentPlaybackTime = videoElement.currentTime;
       
+      console.log(`[Video Sync] Current time: ${currentPlaybackTime.toFixed(2)}s`);
+      
       const currentSegment = timeline.find(
         seg => currentPlaybackTime >= seg.startTime && currentPlaybackTime < seg.endTime
       );
       
       if (currentSegment) {
+        console.log(`[Video Sync] Found segment: ${currentSegment.name} (${currentSegment.startTime.toFixed(2)}s - ${currentSegment.endTime.toFixed(2)}s)`);
         setCurrentPlayingVideoName(currentSegment.name);
+      } else {
+        console.log(`[Video Sync] ⚠️ No segment found for time ${currentPlaybackTime.toFixed(2)}s`);
       }
     };
     
