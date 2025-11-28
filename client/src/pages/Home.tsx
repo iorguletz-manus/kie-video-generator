@@ -239,6 +239,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   
   // Step 6: Regenerate (advanced)
   const [selectedVideoIndex, setSelectedVideoIndex] = useState<number>(-1);
+  const [editingVideoName, setEditingVideoName] = useState<string | null>(null);
+  const [editedVideoNameText, setEditedVideoNameText] = useState<string>('');
   const [regenerateMultiple, setRegenerateMultiple] = useState(false);
   const [regenerateVariantCount, setRegenerateVariantCount] = useState(1);
   const [regenerateVariants, setRegenerateVariants] = useState<Array<{
@@ -4232,6 +4234,287 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         }));
       }
     }
+  };
+
+  // STEP 1: Simple Cut - Only cut videos without merge
+  const handleSimpleCut = async () => {
+    // Filter videos to cut (same as Trim All Videos)
+    const videosToTrim = videoResults.filter(v => 
+      v.reviewStatus === 'accepted' && 
+      v.status === 'success' && 
+      v.videoUrl
+    );
+    
+    if (videosToTrim.length === 0) {
+      toast.error('Nu există videouri pentru tăiere!');
+      setIsTrimmingModalOpen(false);
+      return;
+    }
+    
+    // Validate that all videos have START and END locked
+    const unlockedVideos = videosToTrim.filter(v => 
+      !v.isStartLocked || !v.isEndLocked
+    );
+    
+    if (unlockedVideos.length > 0) {
+      const unlockedNames = unlockedVideos.map(v => v.videoName).join('\n');
+      
+      toast.error(
+        `❌ Următoarele videouri nu sunt locked:\n\n${unlockedNames}\n\nTe rog să blochezi START și END pentru toate videourile înainte de trimming!`,
+        { duration: 8000 }
+      );
+      setIsTrimmingModalOpen(false);
+      return;
+    }
+    
+    console.log('[Simple Cut] Starting batch process for', videosToTrim.length, 'videos (10 per batch, 58s wait)');
+    
+    // SIMPLE BATCH PROCESSING: 10 at once → wait 58s → next 10 → wait 58s → rest
+    const BATCH_SIZE = 10;
+    const DELAY_BETWEEN_BATCHES = 58000; // 58 seconds
+    
+    // Open modal immediately
+    setIsTrimmingModalOpen(true);
+    
+    // Calculate total batches
+    const totalBatches = Math.ceil(videosToTrim.length / BATCH_SIZE);
+    
+    // Calculate total FFmpeg requests
+    const videosWithCleanVoice = videosToTrim.filter(v => v.cleanvoiceAudioUrl).length;
+    const videosWithoutCleanVoice = videosToTrim.length - videosWithCleanVoice;
+    const totalFFmpegRequests = 1 + (videosWithCleanVoice * 4) + (videosWithoutCleanVoice * 3);
+    
+    console.log('[Simple Cut] 📊 FFmpeg requests calculation:', {
+      total: totalFFmpegRequests,
+      directory: 1,
+      withCleanVoice: videosWithCleanVoice,
+      withoutCleanVoice: videosWithoutCleanVoice
+    });
+    
+    setTrimmingProgress({
+      current: 0,
+      total: videosToTrim.length,
+      currentVideo: '',
+      status: 'processing',
+      message: `Starting batch processing (${totalBatches} batches)...`,
+      successVideos: [],
+      failedVideos: [],
+      inProgressVideos: [],
+      currentBatch: 0,
+      totalBatches,
+      batchSize: BATCH_SIZE,
+      mergeStatus: 'idle',
+      ffmpegRequestsCurrent: 0,
+      ffmpegRequestsTotal: totalFFmpegRequests,
+      countdown: 0,
+      cuttingCurrent: 0,
+      cuttingTotal: videosToTrim.length,
+      mergingCurrent: 0,
+      mergingTotal: 0,
+      mergedVideos: []
+    });
+    
+    // Create shared directory for ALL videos in this batch
+    console.log('[Simple Cut] 📁 Creating shared FFmpeg directory...');
+    let sharedDirId: string | undefined;
+    try {
+      const dirResult = await createDirectoryMutation.mutateAsync({
+        ffmpegApiKey: localCurrentUser.ffmpegApiKey || ''
+      });
+      sharedDirId = dirResult.dirId;
+      console.log('[Simple Cut] ✅ Shared directory created:', sharedDirId);
+      
+      // Increment FFmpeg requests counter
+      setTrimmingProgress(prev => ({
+        ...prev,
+        ffmpegRequestsCurrent: prev.ffmpegRequestsCurrent + 1
+      }));
+    } catch (error) {
+      console.error('[Simple Cut] ❌ Failed to create shared directory:', error);
+    }
+    
+    // Process videos in batches
+    let currentIndex = 0;
+    let batchNumber = 1;
+    
+    while (currentIndex < videosToTrim.length) {
+      const batchEnd = Math.min(currentIndex + BATCH_SIZE, videosToTrim.length);
+      const batchVideos = videosToTrim.slice(currentIndex, batchEnd);
+      
+      console.log(`[Simple Cut] 📦 Batch ${batchNumber}: Processing ${batchVideos.length} videos (${currentIndex + 1}-${batchEnd})...`);
+      
+      // Update batch progress
+      setTrimmingProgress(prev => ({
+        ...prev,
+        currentBatch: batchNumber,
+        message: `📦 Batch ${batchNumber}/${totalBatches}: Cutting ${batchVideos.length} videos...`
+      }));
+      
+      // Process all videos in this batch IN PARALLEL
+      const batchPromises = batchVideos.map(async (video) => {
+        const videoIndex = videosToTrim.indexOf(video);
+        
+        // Update progress: add to in-progress list
+        setTrimmingProgress(prev => ({
+          ...prev,
+          inProgressVideos: [...prev.inProgressVideos, { name: video.videoName }]
+        }));
+        
+        try {
+          const trimStart = video.cutPoints?.startKeep || 0;
+          const trimEnd = video.cutPoints?.endKeep || 0;
+          
+          console.log(`[Simple Cut] Processing ${video.videoName} (${videoIndex + 1}/${videosToTrim.length})`);
+          
+          const result = await cutVideoMutation.mutateAsync({
+            userId: localCurrentUser.id,
+            videoUrl: video.videoUrl!,
+            videoName: video.videoName,
+            startTimeMs: trimStart,
+            endTimeMs: trimEnd,
+            ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
+            cleanVoiceAudioUrl: video.cleanvoiceAudioUrl || null,
+            dirId: sharedDirId,
+          });
+          
+          if (!result.success || !result.downloadUrl) {
+            throw new Error('Failed to trim video');
+          }
+          
+          // Update videoResults with trimmed URL
+          setVideoResults(prev => prev.map(v =>
+            v.videoName === video.videoName
+              ? { 
+                  ...v, 
+                  trimmedVideoUrl: result.downloadUrl,
+                  recutStatus: 'accepted'
+                }
+              : v
+          ));
+          
+          // SUCCESS - SAVE TO DATABASE IMMEDIATELY
+          console.log(`[Simple Cut] ✅ ${video.videoName} SUCCESS - Saving to database...`);
+          
+          try {
+            // Get current videoResults state
+            const currentVideoResults = await new Promise<typeof videoResults>((resolve) => {
+              setVideoResults(current => {
+                resolve(current);
+                return current;
+              });
+            });
+            
+            await upsertContextSessionMutation.mutateAsync({
+              userId: localCurrentUser.id,
+              tamId: selectedTamId,
+              coreBeliefId: selectedCoreBeliefId,
+              emotionalAngleId: selectedEmotionalAngleId,
+              adId: selectedAdId,
+              characterId: selectedCharacterId,
+              currentStep,
+              rawTextAd,
+              processedTextAd,
+              adLines,
+              prompts,
+              images,
+              combinations,
+              deletedCombinations,
+              videoResults: currentVideoResults,
+              reviewHistory,
+              hookMergedVideos,
+              bodyMergedVideoUrl,
+              finalVideos,
+            });
+            
+            console.log(`[Simple Cut] 💾 ${video.videoName} saved to database`);
+          } catch (dbError: any) {
+            console.error(`[Simple Cut] ❌ Database save failed for ${video.videoName}:`, dbError);
+            // Continue processing even if DB save fails
+          }
+          
+          // Calculate FFmpeg requests for this video
+          const ffmpegRequestsForVideo = video.cleanvoiceAudioUrl ? 3 : 2;
+          
+          setTrimmingProgress(prev => ({
+            ...prev,
+            current: prev.current + 1,
+            cuttingCurrent: prev.cuttingCurrent + 1,
+            successVideos: [...prev.successVideos, { name: video.videoName }],
+            inProgressVideos: prev.inProgressVideos.filter(v => v.name !== video.videoName),
+            ffmpegRequestsCurrent: prev.ffmpegRequestsCurrent + ffmpegRequestsForVideo
+          }));
+          
+          return { video, status: 'success' };
+          
+        } catch (error: any) {
+          // FAILED
+          console.error(`[Simple Cut] ❌ ${video.videoName} FAILED:`, error);
+          
+          setTrimmingProgress(prev => ({
+            ...prev,
+            current: prev.current + 1,
+            failedVideos: [...prev.failedVideos, {
+              name: video.videoName,
+              error: error.message || 'Unknown error',
+              retries: 0
+            }],
+            inProgressVideos: prev.inProgressVideos.filter(v => v.name !== video.videoName)
+          }));
+          
+          return { video, status: 'failed', error: error.message };
+        }
+      });
+      
+      // Wait for ALL videos in this batch to complete
+      await Promise.all(batchPromises);
+      
+      console.log(`[Simple Cut] ✅ Batch ${batchNumber} complete!`);
+      
+      // Move to next batch
+      currentIndex = batchEnd;
+      batchNumber++;
+      
+      // Wait 58s before next batch (if there are more videos)
+      if (currentIndex < videosToTrim.length) {
+        console.log(`[Simple Cut] ⏳ Waiting 58 seconds before batch ${batchNumber}...`);
+        
+        // Countdown timer: 58s → 57s → 56s → ... → 1s
+        for (let countdown = 58; countdown > 0; countdown--) {
+          setTrimmingProgress(prev => ({
+            ...prev,
+            message: `⏳ Waiting ${countdown}s before next batch (FFmpeg rate limit)...`,
+            status: 'processing',
+            countdown: countdown
+          }));
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
+        // Reset countdown after delay
+        setTrimmingProgress(prev => ({
+          ...prev,
+          countdown: 0
+        }));
+      }
+    }
+    
+    console.log('[Simple Cut] 🎉 All batches processed!');
+    
+    // Get final counts from state
+    setTrimmingProgress(prev => {
+      const successCount = prev.successVideos.length;
+      const failCount = prev.failedVideos.length;
+      const finalStatus = failCount > 0 ? 'partial' : 'complete';
+      
+      console.log(`[Simple Cut] 🎉 COMPLETE! Success: ${successCount}, Failed: ${failCount}`);
+      
+      return {
+        ...prev,
+        status: finalStatus,
+        message: failCount > 0 
+          ? `⚠️ ${successCount} succeeded, ${failCount} failed`
+          : `✅ All ${successCount} videos cut successfully!`
+      };
+    });
   };
 
   // Step 4: Create mappings
@@ -10654,7 +10937,114 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         return (
                         <div key={video.videoName} className="p-4 bg-white rounded-lg border-2 border-green-200">
                           {/* TITLE */}
-                          <h4 className="font-bold text-green-900 mb-2 text-lg">{video.videoName}</h4>
+                          <div className="mb-2">
+                            {editingVideoName === video.videoName ? (
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  type="text"
+                                  value={editedVideoNameText}
+                                  onChange={(e) => setEditedVideoNameText(e.target.value)}
+                                  className="flex-1 text-sm font-bold"
+                                  autoFocus
+                                />
+                                <Button
+                                  size="sm"
+                                  onClick={async () => {
+                                    // Save to database
+                                    const oldVideoName = video.videoName;
+                                    const newVideoName = editedVideoNameText.trim();
+                                    
+                                    if (!newVideoName) {
+                                      toast.error('Numele video nu poate fi gol!');
+                                      return;
+                                    }
+                                    
+                                    // Check if name already exists
+                                    const nameExists = videoResults.some(v => v.videoName === newVideoName && v.videoName !== oldVideoName);
+                                    if (nameExists) {
+                                      toast.error('Un video cu acest nume există deja!');
+                                      return;
+                                    }
+                                    
+                                    // Update local state
+                                    setVideoResults(prev => prev.map(v =>
+                                      v.videoName === oldVideoName
+                                        ? { ...v, videoName: newVideoName }
+                                        : v
+                                    ));
+                                    
+                                    // Save to database
+                                    try {
+                                      await upsertContextSessionMutation.mutateAsync({
+                                        userId: localCurrentUser.id,
+                                        tamId: selectedTamId || undefined,
+                                        coreBeliefId: selectedCoreBeliefId!,
+                                        emotionalAngleId: selectedEmotionalAngleId!,
+                                        adId: selectedAdId!,
+                                        characterId: selectedCharacterId!,
+                                        sessionData: {
+                                          currentStep,
+                                          rawTextAd,
+                                          processedTextAd,
+                                          adLines,
+                                          prompts,
+                                          images,
+                                          combinations,
+                                          deletedCombinations,
+                                          videoResults: videoResults.map(v =>
+                                            v.videoName === oldVideoName
+                                              ? { ...v, videoName: newVideoName }
+                                              : v
+                                          ),
+                                          reviewHistory,
+                                          hookMergedVideos,
+                                          bodyMergedVideoUrl,
+                                          finalVideos
+                                        }
+                                      }, {
+                                        onSuccess: () => {
+                                          toast.success(`Nume video actualizat: ${newVideoName}`);
+                                          setEditingVideoName(null);
+                                        },
+                                        onError: (error: any) => {
+                                          toast.error(`Eroare la salvare: ${error.message}`);
+                                        }
+                                      });
+                                    } catch (error: any) {
+                                      toast.error(`Eroare la salvare: ${error.message}`);
+                                    }
+                                  }}
+                                  className="bg-green-600 hover:bg-green-700 text-white"
+                                >
+                                  <Check className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setEditingVideoName(null);
+                                    setEditedVideoNameText('');
+                                  }}
+                                >
+                                  <X className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-bold text-green-900 text-lg flex-1">{video.videoName}</h4>
+                                <button
+                                  onClick={() => {
+                                    setEditingVideoName(video.videoName);
+                                    setEditedVideoNameText(video.videoName);
+                                  }}
+                                  className="text-gray-500 hover:text-green-600 transition-colors"
+                                  title="Editează numele video"
+                                >
+                                  <FileEdit className="w-4 h-4" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
                           
                           {/* Text with red highlighting */}
                           <p className="text-sm text-gray-700 mb-3">
@@ -11256,20 +11646,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       
                       return (
                         <div key={video.videoName} className="space-y-4">
-                          {/* Display Notes from Step 7 and Step 9 */}
-                          {(video.internalNote || video.step9Note) && (
-                            <div className="space-y-2">
-                              {video.internalNote && (
-                                <div className="p-3 bg-blue-50 border border-blue-300 rounded">
-                                  <p className="text-sm text-gray-700">
-                                    <strong className="text-blue-900">Step 7 Note:</strong> {video.internalNote}
-                                  </p>
-                                </div>
-                              )}
-
-                            </div>
-                          )}
-                          
                           <VideoEditorV2
                             key={`${video.videoName}-${video.audioUrl || 'no-audio'}-${video.step9Note || 'no-note'}`}
                             video={{
@@ -11611,6 +11987,32 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             </button>
                           )}
                           
+                          {/* Buton STEP 1: SIMPLE CUT - doar cutting fără merge */}
+                          <Button
+                            onClick={() => {
+                              // Open trimming modal
+                              setIsTrimmingModalOpen(true);
+                              // Start simple cut process (no merge)
+                              handleSimpleCut();
+                            }}
+                            className="bg-blue-600 hover:bg-blue-700 px-8 py-8 text-lg w-full max-w-md"
+                          >
+                            {(() => {
+                              const count = videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length;
+                              return (
+                                <>
+                                  STEP 1: Simple Cut ({count})
+                                  <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" />
+                                  </svg>
+                                </>
+                              );
+                            })()}
+                          </Button>
+                          <div className="text-center -mt-4">
+                            <span className="text-xs text-blue-600">CUT ONLY - NO MERGE</span>
+                          </div>
+
                           {/* Buton TRIM ALL VIDEOS - va trimite la FFmpeg API pentru cutting */}
                           <Button
                             onClick={() => {

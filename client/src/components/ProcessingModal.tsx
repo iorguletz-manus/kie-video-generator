@@ -75,13 +75,6 @@ export function ProcessingModal({
             <Progress value={whisperPercent} className="h-2" />
           </div>
 
-          {/* Overall Progress */}
-          <div className="border-t pt-3">
-            <p className="text-center text-sm font-semibold text-gray-800">
-              📊 Total: {totalCompleted}/{totalVideos} videouri complete
-            </p>
-          </div>
-
           {/* Removed: Current Video and Step labels - batch processing makes this confusing */}
 
           {/* Estimated Time - Hardcoded */}

@@ -838,14 +838,14 @@ export async function cutVideoWithFFmpegAPI(
       console.log(`[cutVideoWithFFmpegAPI] CleanVoice audio uploaded: ${audioFilePath}`);
     }
     
-    // 3. Prepare task: Trim video + Replace audio (if CleanVoice provided)
+    // 3. VARIANT 1: Cut BOTH inputs (video + audio) at same start/end for perfect sync
     const outputFileName = `${videoName}_trimmed_${Date.now()}.mp4`;
     
     const task: any = {
       inputs: [
         {
           file_path: videoFilePath,
-          options: ['-ss', startTimeSeconds.toString(), '-t', duration.toString()]
+          options: ['-ss', startTimeSeconds.toString(), '-t', duration.toString()]  // Cut video input
         }
       ],
       outputs: [
@@ -856,29 +856,28 @@ export async function cutVideoWithFFmpegAPI(
       ]
     };
     
-    // If CleanVoice audio provided, add it as second input and configure audio replacement
+    // If CleanVoice audio provided, cut it at SAME timestamps as video
     if (audioFilePath) {
       task.inputs.push({
-        file_path: audioFilePath
+        file_path: audioFilePath,
+        options: ['-ss', startTimeSeconds.toString(), '-t', duration.toString()]  // Cut audio input (SAME as video!)
       });
       
-      // Output options: Copy video (no re-encoding), replace audio with CleanVoice
+      // Output options: Map both cut streams and replace audio
       task.outputs[0].options = [
+        '-map', '0:v:0',       // Map video from input 0 (already cut)
+        '-map', '1:a:0',       // Map audio from input 1 (already cut at SAME timestamps)
         '-c:v', 'copy',        // Copy video codec (FAST, no re-encoding)
         '-c:a', 'aac',         // AAC audio codec
         '-b:a', '192k',        // 192 kbps audio bitrate
-        '-ar', '48000',        // 48 kHz sample rate
-        '-map', '0:v:0',       // Map video from input 0 (original video)
-        '-map', '1:a:0',       // Map audio from input 1 (CleanVoice audio)
-        '-shortest'            // Trim to shortest stream
+        '-ar', '48000'         // 48 kHz sample rate
       ];
-      console.log(`[cutVideoWithFFmpegAPI] Task configured: Trim + Replace audio with CleanVoice`);
+      console.log(`[cutVideoWithFFmpegAPI] ✅ VARIANT 1: Cut both video AND audio at ${startTimeSeconds}s-${endTimeSeconds}s (perfect sync)`);
     } else {
       // No CleanVoice audio, just trim with original audio
       task.outputs[0].options = [
-        '-c:v', 'libx264',     // Re-encode video
-        '-crf', '23',          // Good quality
-        '-c:a', 'aac'          // AAC audio codec
+        '-c:v', 'copy',     // Copy video codec (FAST)
+        '-c:a', 'copy'      // Copy audio codec (FAST)
       ];
       console.log(`[cutVideoWithFFmpegAPI] Task configured: Trim only (no audio replacement)`);
     }
