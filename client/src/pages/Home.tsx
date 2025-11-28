@@ -3057,9 +3057,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     // Calculate total batches
     const totalBatches = Math.ceil(videosToTrim.length / BATCH_SIZE);
     
+    // Calculate total processes (videos + hook groups + body merge)
+    // We'll update this after CUT completes when we know hook groups count
+    const initialTotal = videosToTrim.length; // Start with videos only
+    
     setTrimmingProgress({
       current: 0,
-      total: videosToTrim.length,
+      total: initialTotal,
       currentVideo: '',
       status: 'processing',
       message: `Starting batch processing (${totalBatches} batches)...`,
@@ -3278,8 +3282,18 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       
       // Filter: only groups with 2+ videos need merging
       const hookGroupsToMerge = Object.entries(hookGroups).filter(([_, videos]) => videos.length > 1);
+      const bodyVideos = trimmedVideos.filter(v => !v.videoName.match(/HOOK\d+[A-Z]?/));
+      const needsBodyMerge = bodyVideos.length > 0;
+      
+      // Update total to include merge processes
+      const totalProcesses = localSuccessVideos.length + hookGroupsToMerge.length + (needsBodyMerge ? 1 : 0);
+      setTrimmingProgress(prev => ({
+        ...prev,
+        total: totalProcesses
+      }));
       
       console.log('[Trimming] 🎣 Hook groups to merge:', hookGroupsToMerge.length);
+      console.log('[Trimming] 📊 Total processes:', totalProcesses, '(', localSuccessVideos.length, 'videos +', hookGroupsToMerge.length, 'hooks +', (needsBodyMerge ? 1 : 0), 'body )');
       
       // Merge each hook group
       for (const [baseName, videos] of hookGroupsToMerge) {
@@ -3342,9 +3356,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             return { ...cleaned, [baseName]: result.cdnUrl };
           });
           
-          // Add to success list
+          // Add to success list and increment progress
           setTrimmingProgress(prev => ({
             ...prev,
+            current: prev.current + 1,
             successVideos: [...prev.successVideos, { name: `${outputName} (Hooks merged)` }]
           }));
           
@@ -3446,9 +3461,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           
           setBodyMergedVideoUrl(result.cdnUrl);
           
-          // Add to success list
+          // Add to success list and increment progress
           setTrimmingProgress(prev => ({
             ...prev,
+            current: prev.current + 1,
             successVideos: [...prev.successVideos, { name: 'BODY (Body merged)' }]
           }));
           
@@ -3491,15 +3507,21 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
     
     // STEP 4: Final merge (all original videos for preview)
+    // Only show merge notification when all processes are complete (current === total)
     if (localSuccessVideos.length > 0) {
       console.log('[Trimming] 🔄 Auto-merging trimmed videos for preview...');
       
-      setTrimmingProgress(prev => ({
-        ...prev,
-        status: 'merging',
-        mergeStatus: 'pending',
-        message: `🔄 Merging ALL ${localSuccessVideos.length} videos... Please wait...`
-      }));
+      setTrimmingProgress(prev => {
+        const allProcessesComplete = prev.current === prev.total;
+        console.log('[Trimming] 📊 Progress check:', prev.current, '/', prev.total, '- Show merge notification:', allProcessesComplete);
+        
+        return {
+          ...prev,
+          status: 'merging',
+          mergeStatus: allProcessesComplete ? 'pending' : 'idle',
+          message: allProcessesComplete ? `🔄 Merging ALL ${localSuccessVideos.length} videos... Please wait...` : prev.message
+        };
+      });
       
       try {
         // Extract original URLs
