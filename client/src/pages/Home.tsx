@@ -3290,6 +3290,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           endMs: v.cutPoints?.endKeep || 0,
         }));
         
+        console.log('[Trimming] 📦 Calling cutAndMergeAllMutation with:', videos.length, 'videos');
+        console.log('[Trimming] Videos:', videos);
+        
         const result = await cutAndMergeAllMutation.mutateAsync({
           videos,
           ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
@@ -3307,6 +3310,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         
       } catch (error: any) {
         console.error('[Trimming] ❌ Auto-merge failed:', error);
+        console.error('[Trimming] Error details:', error.message, error.stack);
         setTrimmingProgress(prev => ({
           ...prev,
           message: `⚠️ Trimming complete but merge failed: ${error.message}`
