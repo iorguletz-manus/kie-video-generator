@@ -3249,9 +3249,221 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       };
     });
     
-    // Auto-merge all trimmed videos
+    // STEP 2: Merge Hooks (B+C+D variations)
     if (localSuccessVideos.length > 0) {
-      console.log('[Trimming] 🔄 Auto-merging trimmed videos...');
+      console.log('[Trimming] 🎣 Starting Hooks merge (B+C+D)...');
+      
+      const trimmedVideos = videoResults.filter(v => 
+        localSuccessVideos.some(sv => sv.name === v.videoName)
+      );
+      
+      // Group HOOKS by base name (HOOK3, HOOK3B, HOOK3C → 1 group)
+      const hookVideos = trimmedVideos.filter(v => v.videoName.match(/HOOK\d+[A-Z]?/));
+      const hookGroups: Record<string, typeof hookVideos> = {};
+      
+      hookVideos.forEach(video => {
+        const hookMatch = video.videoName.match(/(.*)(HOOK\d+)[A-Z]?(.*)/);
+        if (hookMatch) {
+          const prefix = hookMatch[1];
+          const hookBase = hookMatch[2];
+          const suffix = hookMatch[3];
+          const groupKey = `${prefix}${hookBase}${suffix}`;
+          
+          if (!hookGroups[groupKey]) {
+            hookGroups[groupKey] = [];
+          }
+          hookGroups[groupKey].push(video);
+        }
+      });
+      
+      // Filter: only groups with 2+ videos need merging
+      const hookGroupsToMerge = Object.entries(hookGroups).filter(([_, videos]) => videos.length > 1);
+      
+      console.log('[Trimming] 🎣 Hook groups to merge:', hookGroupsToMerge.length);
+      
+      // Merge each hook group
+      for (const [baseName, videos] of hookGroupsToMerge) {
+        console.log(`[Trimming] 🎣 Merging ${baseName} (${videos.length} videos)...`);
+        
+        setTrimmingProgress(prev => ({
+          ...prev,
+          status: 'merging',
+          message: `Merging ${baseName} (${videos.length} videos)...`
+        }));
+        
+        try {
+          const sortedVideos = videos.sort((a, b) => a.videoName.localeCompare(b.videoName));
+          
+          // Extract original URLs
+          const extractOriginalUrl = (url: string) => {
+            if (url.startsWith('/api/proxy-video?url=')) {
+              const urlParam = new URLSearchParams(url.split('?')[1]).get('url');
+              return urlParam ? decodeURIComponent(urlParam) : url;
+            }
+            return url;
+          };
+          
+          const videoUrls = sortedVideos.map(v => extractOriginalUrl(v.trimmedVideoUrl!)).filter(Boolean);
+          
+          // Output name: T1_C1_E1_AD4_HOOK3M_TEST (M = merged)
+          const outputName = baseName.replace(/(HOOK\d+)/, '$1M');
+          
+          const result = await mergeVideosMutation.mutateAsync({
+            videoUrls,
+            outputVideoName: outputName,
+            ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
+            userId: localCurrentUser.id,
+          });
+          
+          console.log(`[Trimming] ✅ ${baseName} merged:`, result.cdnUrl);
+          
+          // Save merged hook URL
+          setHookMergedVideos(prev => {
+            const hookBaseMatch = baseName.match(/(.*HOOK\d+)/);
+            const hookBase = hookBaseMatch ? hookBaseMatch[1] : null;
+            const cleaned = hookBase 
+              ? Object.fromEntries(Object.entries(prev).filter(([key]) => !key.startsWith(hookBase)))
+              : prev;
+            return { ...cleaned, [baseName]: result.cdnUrl };
+          });
+          
+          // Add to success list
+          setTrimmingProgress(prev => ({
+            ...prev,
+            successVideos: [...prev.successVideos, { name: `${outputName} (Hooks merged)` }]
+          }));
+          
+          // Save to database
+          await upsertContextSessionMutation.mutateAsync({
+            userId: localCurrentUser.id,
+            tamId: selectedTamId,
+            coreBeliefId: selectedCoreBeliefId,
+            emotionalAngleId: selectedEmotionalAngleId,
+            adId: selectedAdId,
+            characterId: selectedCharacterId,
+            currentStep,
+            rawTextAd,
+            processedTextAd,
+            adLines,
+            prompts,
+            images,
+            combinations,
+            deletedCombinations,
+            videoResults: videoResults,
+            reviewHistory,
+            hookMergedVideos: { ...hookMergedVideos, [baseName]: result.cdnUrl },
+            bodyMergedVideoUrl: bodyMergedVideoUrl,
+            finalVideos,
+          });
+          
+        } catch (error: any) {
+          console.error(`[Trimming] ❌ ${baseName} merge failed:`, error);
+          setTrimmingProgress(prev => ({
+            ...prev,
+            failedVideos: [...prev.failedVideos, { 
+              name: `${baseName} (Hooks merge)`, 
+              error: error.message,
+              retries: 0
+            }]
+          }));
+        }
+      }
+      
+      // STEP 3: Merge Body (all non-hook videos)
+      console.log('[Trimming] 📺 Starting Body merge...');
+      
+      const bodyVideos = trimmedVideos.filter(v => !v.videoName.match(/HOOK\d+[A-Z]?/));
+      
+      if (bodyVideos.length > 0) {
+        console.log(`[Trimming] 📺 Merging BODY (${bodyVideos.length} videos)...`);
+        
+        setTrimmingProgress(prev => ({
+          ...prev,
+          status: 'merging',
+          message: `Merging BODY (${bodyVideos.length} videos)...`
+        }));
+        
+        try {
+          // Extract original URLs
+          const extractOriginalUrl = (url: string) => {
+            if (url.startsWith('/api/proxy-video?url=')) {
+              const urlParam = new URLSearchParams(url.split('?')[1]).get('url');
+              return urlParam ? decodeURIComponent(urlParam) : url;
+            }
+            return url;
+          };
+          
+          const bodyVideoUrls = bodyVideos.map(v => extractOriginalUrl(v.trimmedVideoUrl!)).filter(Boolean);
+          
+          // Extract context from first video
+          const firstVideoName = bodyVideos[0].videoName;
+          const contextMatch = firstVideoName.match(/^(T\d+_C\d+_E\d+_AD\d+)/);
+          const contextName = contextMatch ? contextMatch[1] : 'MERGED';
+          
+          // Extract character and imageName
+          const nameMatch = firstVideoName.match(/_([ A-Z]+)_([A-Z]+_\d+)$/);
+          const character = nameMatch ? nameMatch[1] : 'TEST';
+          const imageName = nameMatch ? nameMatch[2] : 'ALINA_1';
+          
+          const outputName = `${contextName}_BODY_${character}_${imageName}`;
+          
+          const result = await mergeVideosMutation.mutateAsync({
+            videoUrls: bodyVideoUrls,
+            outputVideoName: outputName,
+            ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
+            userId: localCurrentUser.id,
+          });
+          
+          console.log('[Trimming] ✅ BODY merged:', result.cdnUrl);
+          
+          setBodyMergedVideoUrl(result.cdnUrl);
+          
+          // Add to success list
+          setTrimmingProgress(prev => ({
+            ...prev,
+            successVideos: [...prev.successVideos, { name: 'BODY (Body merged)' }]
+          }));
+          
+          // Save to database
+          await upsertContextSessionMutation.mutateAsync({
+            userId: localCurrentUser.id,
+            tamId: selectedTamId,
+            coreBeliefId: selectedCoreBeliefId,
+            emotionalAngleId: selectedEmotionalAngleId,
+            adId: selectedAdId,
+            characterId: selectedCharacterId,
+            currentStep,
+            rawTextAd,
+            processedTextAd,
+            adLines,
+            prompts,
+            images,
+            combinations,
+            deletedCombinations,
+            videoResults: videoResults,
+            reviewHistory,
+            hookMergedVideos: hookMergedVideos,
+            bodyMergedVideoUrl: result.cdnUrl,
+            finalVideos,
+          });
+          
+        } catch (error: any) {
+          console.error('[Trimming] ❌ BODY merge failed:', error);
+          setTrimmingProgress(prev => ({
+            ...prev,
+            failedVideos: [...prev.failedVideos, { 
+              name: 'BODY (Body merge)', 
+              error: error.message,
+              retries: 0
+            }]
+          }));
+        }
+      }
+    }
+    
+    // STEP 4: Final merge (all original videos for preview)
+    if (localSuccessVideos.length > 0) {
+      console.log('[Trimming] 🔄 Auto-merging trimmed videos for preview...');
       
       setTrimmingProgress(prev => ({
         ...prev,
@@ -5168,16 +5380,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 
                 {/* Merge Status */}
                 {trimmingProgress.mergeStatus === 'pending' && (
-                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 flex items-center gap-3">
-                    <Loader2 className="w-5 h-5 animate-spin text-purple-600" />
-                    <div>
-                      <p className="text-sm font-semibold text-purple-800">
-                        🔄 Merging videos...
-                      </p>
-                      <p className="text-xs text-purple-600 mt-1">
-                        Please wait, this may take a minute...
-                      </p>
-                    </div>
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 flex items-center gap-3">
+                    <Loader2 className="w-5 h-5 animate-spin text-orange-600" />
+                    <p className="text-sm font-semibold text-orange-800">
+                      🔄 Merging all {trimmingProgress.total} videos, please wait...
+                    </p>
                   </div>
                 )}
               </div>
@@ -5267,11 +5474,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 <p className="text-sm font-medium text-green-700 mb-2">
                   ✅ Merge successful!
                 </p>
-                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                  <p className="text-xs text-green-600">
-                    All videos have been trimmed and merged.
-                  </p>
-                </div>
               </div>
             )}
             
@@ -5295,12 +5497,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
              trimmingProgress.successVideos.length > 0 && 
              trimmingMergedVideoUrl && (
               <div className="space-y-4 mt-6">
-                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                  <p className="text-sm font-semibold text-green-900">
-                    ✅ All videos trimmed and merged! Preview below:
-                  </p>
-                </div>
-                
                 {/* Video Player */}
                 <video
                   id="trimming-video-player"
@@ -5317,16 +5513,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   </p>
                 </div>
                 
-                {/* Copy Video Link Button */}
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(trimmingMergedVideoUrl);
-                    alert('Video link copied to clipboard!');
-                  }}
-                  className="w-full px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                {/* Download Video Link */}
+                <a
+                  href={trimmingMergedVideoUrl}
+                  download="merged-video.mp4"
+                  className="text-blue-600 hover:text-blue-800 underline text-sm text-center"
                 >
-                  🔗 Copy video link
-                </button>
+                  📥 Download merged video
+                </a>
                 
                 {/* Video List with Notes */}
                 <div className="border-t pt-4">
@@ -5436,7 +5630,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             
             {/* Action Buttons */}
             <div className="flex gap-2 mt-6">
-              {/* Go to Step 9 (only if ALL videos succeeded and video player is visible) */}
+              {/* Go to Step 10 (only if ALL videos succeeded and video player is visible) */}
               {trimmingProgress.status !== 'processing' && 
                trimmingProgress.failedVideos.length === 0 && 
                trimmingProgress.successVideos.length > 0 && 
@@ -5444,11 +5638,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 <button
                   onClick={() => {
                     setIsTrimmingModalOpen(false);
-                    setCurrentStep(9);
+                    setCurrentStep(10);
                   }}
                   className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                 >
-                  ➡️ Go to Step 9
+                  ➡️ Go to Step 10
                 </button>
               )}
               
