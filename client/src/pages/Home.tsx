@@ -280,6 +280,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [isTrimmingModalOpen, setIsTrimmingModalOpen] = useState(false);
   const [trimmingMergedVideoUrl, setTrimmingMergedVideoUrl] = useState<string | null>(null);
   const [trimmingCurrentVideoName, setTrimmingCurrentVideoName] = useState<string>('');
+  const [isTrimmingSuccessLogOpen, setIsTrimmingSuccessLogOpen] = useState(false);
+  const [isTrimmingFailedLogOpen, setIsTrimmingFailedLogOpen] = useState(false);
   const [trimmingProgress, setTrimmingProgress] = useState<{
     current: number;
     total: number;
@@ -307,6 +309,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     batchSize: 0,
     mergeStatus: 'idle'
   });
+  
+  // Auto-open failed list if there are failures
+  useEffect(() => {
+    if (trimmingProgress.failedVideos.length > 0) {
+      setIsTrimmingFailedLogOpen(true);
+    }
+  }, [trimmingProgress.failedVideos.length]);
   
   // Cut & Merge modal with localStorage persistence
   const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
@@ -3007,57 +3016,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // Step 8 → Step 9: Trim all videos using FFMPEG API
   // Step 8 → Step 9: Trim all videos using FFMPEG API
   const handleTrimAllVideos = async () => {
-    // Check if we have trimmed videos (Step 9 exists)
-    const hasTrimmedVideos = videoResults.some(v => v.trimmedVideoUrl);
-    
-    let videosToTrim;
-    
-    if (hasTrimmedVideos) {
-      // Scenario 2: We've been to Step 9, trim videos with "recut" status OR failed videos (trimmedVideoUrl === null)
-      videosToTrim = videoResults.filter(v => 
-        v.reviewStatus === 'accepted' && 
-        v.status === 'success' && 
-        v.videoUrl &&
-        (!v.trimmedVideoUrl || v.recutStatus === 'recut') // Failed videos OR recut videos
-      );
-    } else {
-      // Scenario 1: First time, trim all approved videos
-      videosToTrim = videoResults.filter(v => 
-        v.reviewStatus === 'accepted' && 
-        v.status === 'success' && 
-        v.videoUrl
-      );
-    }
+    // ALWAYS reprocess ALL accepted videos (ignore recutStatus)
+    const videosToTrim = videoResults.filter(v => 
+      v.reviewStatus === 'accepted' && 
+      v.status === 'success' && 
+      v.videoUrl
+    );
     
     if (videosToTrim.length === 0) {
-      if (hasTrimmedVideos) {
-        // Check if all recut videos are already trimmed
-        const recutVideos = videoResults.filter(v => 
-          v.reviewStatus === 'accepted' && 
-          v.status === 'success' && 
-          v.recutStatus === 'recut'
-        );
-        const allRecutTrimmed = recutVideos.every(v => v.trimmedVideoUrl);
-        
-        if (allRecutTrimmed && recutVideos.length > 0) {
-          toast.success('✅ Toate videourile sunt deja tăiate! Redirectăm către Step 9...', { duration: 3000 });
-          setIsTrimmingModalOpen(false);
-          // Auto-redirect with countdown
-          let countdown = 3;
-          const countdownInterval = setInterval(() => {
-            countdown--;
-            if (countdown === 0) {
-              clearInterval(countdownInterval);
-              setCurrentStep(9);
-            }
-          }, 1000);
-          return;
-        } else {
-          toast.error('Nu există videouri cu status "Recut" pentru tăiere!');
-        }
-      } else {
-        toast.error('Nu există videouri pentru tăiere!');
-      }
+      toast.error('Nu există videouri pentru tăiere!');
       setIsTrimmingModalOpen(false);
       return;
     }
@@ -5145,7 +5112,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         if (!open && (trimmingProgress.status === 'processing' || trimmingProgress.status === 'merging')) return;
         setIsTrimmingModalOpen(open);
       }}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto" onInteractOutside={(e) => {
+        <DialogContent className="max-w-5xl max-h-[80vh] overflow-y-auto" onInteractOutside={(e) => {
           // Prevent closing by clicking outside during processing or merging
           if (trimmingProgress.status === 'processing' || trimmingProgress.status === 'merging') e.preventDefault();
         }}>
@@ -5216,76 +5183,64 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               </div>
             )}
             
-            {/* Merge Success */}
-            {trimmingProgress.mergeStatus === 'success' && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                <p className="text-sm font-semibold text-green-800">
-                  ✅ Merge successful!
-                </p>
-                <p className="text-xs text-green-600 mt-1">
-                  All videos have been trimmed and merged.
-                </p>
-              </div>
-            )}
-            
-            {/* Merge Failed */}
-            {trimmingProgress.mergeStatus === 'failed' && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                <p className="text-sm font-semibold text-red-800">
-                  ❌ Merge failed
-                </p>
-                <p className="text-xs text-red-600 mt-1">
-                  Videos were trimmed but merge operation failed.
-                </p>
-              </div>
-            )}
-            
-            {/* Success List (always visible when there are successes) */}
+            {/* Success List (collapsible) */}
             {trimmingProgress.successVideos.length > 0 && (
               <div>
-                <p className="text-sm font-medium text-green-700 mb-2">
-                  ✅ Success ({trimmingProgress.successVideos.length}):
-                </p>
-                <div className="max-h-48 overflow-y-auto bg-green-50 border border-green-200 rounded-lg p-3 space-y-1">
-                  {trimmingProgress.successVideos.map((v, i) => (
-                    <div key={i} className="flex items-center gap-2 text-sm text-green-700">
-                      <span className="text-green-600">✓</span>
-                      <span>{v.name}</span>
-                    </div>
-                  ))}
-                </div>
+                <button
+                  onClick={() => setIsTrimmingSuccessLogOpen(!isTrimmingSuccessLogOpen)}
+                  className="w-full flex items-center justify-between text-sm font-medium text-green-700 mb-2 hover:text-green-800"
+                >
+                  <span>✅ Success ({trimmingProgress.successVideos.length})</span>
+                  <span className="text-blue-600 underline text-xs">View log</span>
+                </button>
+                {isTrimmingSuccessLogOpen && (
+                  <div className="max-h-48 overflow-y-auto bg-green-50 border border-green-200 rounded-lg p-3 space-y-1">
+                    {trimmingProgress.successVideos.map((v, i) => (
+                      <div key={i} className="flex items-center gap-2 text-sm text-green-700">
+                        <span className="text-green-600">✓</span>
+                        <span>{v.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
             
-            {/* Failed List (always visible when there are failures) */}
+            {/* Failed List (collapsible, auto-open if has failures) */}
             {trimmingProgress.failedVideos.length > 0 && (
               <div>
-                <p className="text-sm font-medium text-red-700 mb-2">
-                  ❌ Failed ({trimmingProgress.failedVideos.length}):
-                </p>
-                <div className="max-h-48 overflow-y-auto bg-red-50 border border-red-200 rounded-lg p-3 space-y-2">
-                  {trimmingProgress.failedVideos.map((v, i) => (
-                    <div key={i} className="text-sm">
-                      <div className="flex items-start gap-2">
-                        {/* Show loading spinner if video is retrying */}
-                        {v.status === 'retrying' ? (
-                          <Loader2 className="w-4 h-4 animate-spin text-orange-600 mt-0.5" />
-                        ) : (
-                          <span className="text-red-600">✗</span>
-                        )}
-                        <div className="flex-1">
-                          <div className="font-medium text-red-700">{v.name}</div>
-                          {v.error && v.status !== 'retrying' && (
-                            <div className="text-xs text-gray-600 mt-0.5">{v.error}</div>
+                <button
+                  onClick={() => setIsTrimmingFailedLogOpen(!isTrimmingFailedLogOpen)}
+                  className="w-full flex items-center justify-between text-sm font-medium text-red-700 mb-2 hover:text-red-800"
+                >
+                  <span>❌ Failed ({trimmingProgress.failedVideos.length})</span>
+                  <span className="text-blue-600 underline text-xs">View log</span>
+                </button>
+                {isTrimmingFailedLogOpen && (
+                  <div className="max-h-48 overflow-y-auto bg-red-50 border border-red-200 rounded-lg p-3 space-y-2">
+                    {trimmingProgress.failedVideos.map((v, i) => (
+                      <div key={i} className="text-sm">
+                        <div className="flex items-start gap-2">
+                          {/* Show loading spinner if video is retrying */}
+                          {v.status === 'retrying' ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-orange-600 mt-0.5" />
+                          ) : (
+                            <span className="text-red-600">✗</span>
                           )}
-                          {v.status === 'retrying' && (
-                            <div className="text-xs text-orange-600 mt-0.5">Retrying...</div>
-                          )}
+                          <div className="flex-1">
+                            <div className="font-medium text-red-700">{v.name}</div>
+                            {v.error && v.status !== 'retrying' && (
+                              <div className="text-xs text-gray-600 mt-0.5">{v.error}</div>
+                            )}
+                            {v.status === 'retrying' && (
+                              <div className="text-xs text-orange-600 mt-0.5">Retrying...</div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
             
@@ -5306,6 +5261,34 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               </div>
             )}
             
+            {/* Merge Success (at bottom) */}
+            {trimmingProgress.mergeStatus === 'success' && (
+              <div>
+                <p className="text-sm font-medium text-green-700 mb-2">
+                  ✅ Merge successful!
+                </p>
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                  <p className="text-xs text-green-600">
+                    All videos have been trimmed and merged.
+                  </p>
+                </div>
+              </div>
+            )}
+            
+            {/* Merge Failed (at bottom) */}
+            {trimmingProgress.mergeStatus === 'failed' && (
+              <div>
+                <p className="text-sm font-medium text-red-700 mb-2">
+                  ❌ Merge failed
+                </p>
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-xs text-red-600">
+                    Videos were trimmed but merge operation failed.
+                  </p>
+                </div>
+              </div>
+            )}
+            
             {/* Video Player (only if ALL videos succeeded) */}
             {trimmingProgress.status !== 'processing' && 
              trimmingProgress.failedVideos.length === 0 && 
@@ -5318,13 +5301,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   </p>
                 </div>
                 
-                {/* Current Video Name Display */}
-                <div className="bg-yellow-100 border-2 border-yellow-400 rounded-lg p-3 text-center">
-                  <p className="text-lg font-bold text-yellow-900" id="trimming-current-video-name">
-                    🎬 {trimmingCurrentVideoName || trimmingProgress.successVideos[0]?.name || 'Loading...'}
-                  </p>
-                </div>
-                
                 {/* Video Player */}
                 <video
                   id="trimming-video-player"
@@ -5333,6 +5309,24 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   className="w-full rounded-lg border border-gray-300"
                   style={{ maxHeight: '400px' }}
                 />
+                
+                {/* Current Video Name Display (below video) */}
+                <div className="bg-yellow-100 border-2 border-yellow-400 rounded-lg p-2 text-center">
+                  <p className="text-xs font-bold text-yellow-900" id="trimming-current-video-name">
+                    🎬 {trimmingCurrentVideoName || trimmingProgress.successVideos[0]?.name || 'Loading...'}
+                  </p>
+                </div>
+                
+                {/* Copy Video Link Button */}
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(trimmingMergedVideoUrl);
+                    alert('Video link copied to clipboard!');
+                  }}
+                  className="w-full px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  🔗 Copy video link
+                </button>
                 
                 {/* Video List with Notes */}
                 <div className="border-t pt-4">
@@ -10459,21 +10453,32 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
                         {/* Action buttons - stacked vertically */}
                         <div className="flex flex-col gap-4 items-center mt-4">
+                          {/* Open Last Sample link (above button) */}
+                          {lastSampleMergeUrl && (
+                            <button
+                              onClick={() => {
+                                setMergedVideoUrl(lastSampleMergeUrl);
+                                setIsMergeModalOpen(true);
+                              }}
+                              className="text-blue-600 hover:text-blue-800 underline text-sm"
+                            >
+                              🔗 Open Last Sample
+                            </button>
+                          )}
+                          
                           {/* Buton TRIM ALL VIDEOS - va trimite la FFmpeg API pentru cutting */}
                           <Button
                             onClick={() => {
                               // Open trimming modal
                               setIsTrimmingModalOpen(true);
-                              // Start trimming process
+                              // Start trimming process - ALWAYS reprocess ALL videos (ignore recutStatus)
                               handleTrimAllVideos();
                             }}
                             className="bg-red-600 hover:bg-red-700 px-8 py-8 text-lg w-full max-w-md"
                           >
                             {(() => {
-                              const hasTrimmedVideos = videoResults.some(v => v.trimmedVideoUrl);
-                              const count = hasTrimmedVideos 
-                                ? videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && (!v.trimmedVideoUrl || v.recutStatus === 'recut')).length
-                                : videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length;
+                              // Always count ALL accepted videos, ignore recutStatus
+                              const count = videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length;
                               return (
                                 <>
                                   Next: Trim All Videos ({count})
