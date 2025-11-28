@@ -5368,12 +5368,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 </div>
                 
                 {/* Status message */}
-                {trimmingProgress.message && (
-                  <div className={`text-center text-sm font-medium p-2 rounded-lg ${
-                    trimmingProgress.status === 'merging' 
-                      ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                      : 'bg-gray-50 text-gray-600'
-                  }`}>
+                {trimmingProgress.message && trimmingProgress.status !== 'merging' && (
+                  <div className="text-center text-sm font-medium p-2 rounded-lg bg-gray-50 text-gray-600">
                     {trimmingProgress.message}
                   </div>
                 )}
@@ -5514,19 +5510,23 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 </div>
                 
                 {/* Download Video Link */}
-                <a
-                  href={trimmingMergedVideoUrl}
-                  download="merged-video.mp4"
-                  className="text-blue-600 hover:text-blue-800 underline text-sm text-center"
-                >
-                  📥 Download merged video
-                </a>
+                <div className="flex justify-end">
+                  <a
+                    href={trimmingMergedVideoUrl}
+                    download="merged-video.mp4"
+                    className="text-blue-600 hover:text-blue-800 underline text-xs italic"
+                  >
+                    Download video
+                  </a>
+                </div>
                 
                 {/* Video List with Notes */}
                 <div className="border-t pt-4">
                   <h3 className="text-sm font-semibold text-gray-900 mb-3">Videos in this merge:</h3>
                   <div className="space-y-2">
-                    {trimmingProgress.successVideos.map((video) => {
+                    {trimmingProgress.successVideos
+                      .filter(video => !video.name.includes('(Hooks merged)') && !video.name.includes('(Body merged)'))
+                      .map((video) => {
                       const videoData = videoResults.find(v => v.videoName === video.name);
                       const note = videoData?.step9Note || '';
                       
