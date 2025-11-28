@@ -4653,7 +4653,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             cdnUrl: result.cdnUrl
           });
           
-          // Save merged hook URL
+          // Save merged hook URL to local state
           setHookMergedVideos(prev => {
             const hookBaseMatch = baseName.match(/(.*HOOK\d+)/);
             const hookBase = hookBaseMatch ? hookBaseMatch[1] : null;
@@ -4665,7 +4665,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             return { ...cleaned, [baseName]: result.cdnUrl };
           });
           
-          // Save to database
+          // Capture NEW state before database save (same pattern as STEP 1)
+          const currentHookMergedVideos = await new Promise<typeof hookMergedVideos>((resolve) => {
+            setHookMergedVideos(current => {
+              resolve(current);
+              return current;
+            });
+          });
+          
+          // Save to database with NEW state
           await upsertContextSessionMutation.mutateAsync({
             userId: localCurrentUser.id,
             tamId: selectedTamId,
@@ -4679,9 +4687,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             deletedCombinations,
             videoResults: videoResults,
             reviewHistory,
-            hookMergedVideos: { ...hookMergedVideos, [baseName]: result.cdnUrl },
+            hookMergedVideos: currentHookMergedVideos,  // Use captured NEW state
             bodyMergedVideoUrl: bodyMergedVideoUrl,
           });
+          
+          console.log(`[Prepare for Merge] 💾 ${baseName} saved to database with NEW state`);
           
         } catch (error: any) {
           console.error(`[Prepare for Merge] ❌ ${baseName} FAILED:`, error);
@@ -4745,7 +4755,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           
           setBodyMergedVideoUrl(result.cdnUrl);
           
-          // Save to database
+          // Capture NEW state before database save (same pattern as STEP 1)
+          const currentBodyMergedVideoUrl = await new Promise<typeof bodyMergedVideoUrl>((resolve) => {
+            setBodyMergedVideoUrl(current => {
+              resolve(current);
+              return current;
+            });
+          });
+          
+          // Save to database with NEW state
           await upsertContextSessionMutation.mutateAsync({
             userId: localCurrentUser.id,
             tamId: selectedTamId,
@@ -4760,8 +4778,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             videoResults: videoResults,
             reviewHistory,
             hookMergedVideos: hookMergedVideos,
-            bodyMergedVideoUrl: result.cdnUrl,
+            bodyMergedVideoUrl: currentBodyMergedVideoUrl,  // Use captured NEW state
           });
+          
+          console.log(`[Prepare for Merge] 💾 BODY saved to database with NEW state`);
           
         } catch (error: any) {
           console.error('[Prepare for Merge] ❌ BODY FAILED:', error);
