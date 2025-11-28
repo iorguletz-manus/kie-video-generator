@@ -3402,8 +3402,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       // STEP 3: Merge Body (all non-hook videos)
       console.log('[Trimming] 📺 Starting Body merge...');
       
-      const bodyVideos = trimmedVideos.filter(v => !v.videoName.match(/HOOK\d+[A-Z]?/));
-      
+      // Reuse bodyVideos from above (already calculated)
       if (bodyVideos.length > 0) {
         console.log(`[Trimming] 📺 Merging BODY (${bodyVideos.length} videos)...`);
         
