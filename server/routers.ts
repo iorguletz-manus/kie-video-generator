@@ -13,7 +13,7 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 import { saveVideoTask, updateVideoTask } from "./videoCache";
-import { processVideoForEditing, cutVideoWithFFmpegAPI, WhisperWord, CutPoints } from "./videoEditing";
+import { processVideoForEditing, extractWAVFromVideo, processAudioWithWhisperCleanVoice, cutVideoWithFFmpegAPI, WhisperWord, CutPoints } from "./videoEditing";
 import { parseAdDocument, parsePromptDocument, replaceInsertText, parseAdDocumentWithSections, PromptType } from "./documentParser";
 import { processAdDocument, addRedOnLine1 } from "./text-processor";
 import { createAppUser, getAppUserByUsername, getAppUserById, updateAppUser, createAppSession, getAppSessionsByUserId, updateAppSession, deleteAppSession, createUserImage, getUserImagesByUserId, getUserImagesByCharacter, updateUserImage, deleteUserImage, getUniqueCharacterNames, createUserPrompt, getUserPromptsByUserId, getUserPromptById, updateUserPrompt, deleteUserPrompt, createTam, getTamsByUserId, getTamById, updateTam, deleteTam, createCoreBelief, getCoreBeliefsByUserId, getCoreBeliefsByTamId, getCoreBeliefById, updateCoreBelief, deleteCoreBelief, createEmotionalAngle, getEmotionalAnglesByUserId, getEmotionalAnglesByCoreBeliefId, getEmotionalAngleById, updateEmotionalAngle, deleteEmotionalAngle, createAd, getAdsByUserId, getAdsByEmotionalAngleId, getAdById, updateAd, deleteAd, createCharacter, getCharactersByUserId, getCharacterById, updateCharacter, deleteCharacter, getContextSession, upsertContextSession, deleteContextSession, getDb } from "./db";
@@ -1665,6 +1665,93 @@ export const appRouter = router({
           throw new TRPCError({
             code: 'INTERNAL_SERVER_ERROR',
             message: `Failed to process video: ${error.message}`,
+          });
+        }
+      }),
+
+    // STEP 7 PART 1: Extract WAV from video (FFmpeg only)
+    extractWAVFromVideo: publicProcedure
+      .input(z.object({
+        videoUrl: z.string(),
+        videoId: z.number(),
+        videoName: z.string(),
+        ffmpegApiKey: z.string(),
+        userId: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          console.log(`[extractWAVFromVideo] Request for ${input.videoName}`);
+          
+          const result = await extractWAVFromVideo(
+            input.videoUrl,
+            input.videoId,
+            input.videoName,
+            input.ffmpegApiKey,
+            input.userId
+          );
+          
+          console.log(`[extractWAVFromVideo] Complete for ${input.videoName}`);
+          
+          return {
+            success: true,
+            wavUrl: result.wavUrl,
+            waveformJson: result.waveformJson,
+          };
+        } catch (error) {
+          console.error(`[extractWAVFromVideo] Error for ${input.videoName}:`, error);
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Failed to extract WAV: ${error.message}`,
+          });
+        }
+      }),
+
+    // STEP 7 PART 2: Process WAV with Whisper + CleanVoice
+    processAudioWithWhisperCleanVoice: publicProcedure
+      .input(z.object({
+        wavUrl: z.string(),
+        videoId: z.number(),
+        videoName: z.string(),
+        fullText: z.string(),
+        redText: z.string().optional().default(''),
+        redTextPosition: z.enum(['START', 'END']).optional(),
+        marginMs: z.number().optional().default(50),
+        userApiKey: z.string().optional(),
+        cleanvoiceApiKey: z.string().optional(),
+        userId: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          console.log(`[processAudioWithWhisperCleanVoice] Request for ${input.videoName}`);
+          
+          const result = await processAudioWithWhisperCleanVoice(
+            input.wavUrl,
+            input.videoId,
+            input.videoName,
+            input.fullText,
+            input.redText,
+            input.redTextPosition,
+            input.marginMs,
+            input.userApiKey,
+            input.cleanvoiceApiKey,
+            input.userId
+          );
+          
+          console.log(`[processAudioWithWhisperCleanVoice] Complete for ${input.videoName}`);
+          
+          return {
+            success: true,
+            words: result.words,
+            cutPoints: result.cutPoints,
+            whisperTranscript: result.whisperTranscript,
+            cleanvoiceAudioUrl: result.cleanvoiceAudioUrl,
+            editingDebugInfo: result.editingDebugInfo,
+          };
+        } catch (error) {
+          console.error(`[processAudioWithWhisperCleanVoice] Error for ${input.videoName}:`, error);
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Failed to process audio: ${error.message}`,
           });
         }
       }),
