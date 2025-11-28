@@ -433,6 +433,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     };
     
     videoElement.addEventListener('timeupdate', handleTimeUpdate);
+    videoElement.addEventListener('seeked', handleTimeUpdate);  // Update instantly when seeking
     
     // Set initial video name
     if (timeline.length > 0) {
@@ -441,6 +442,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     return () => {
       videoElement.removeEventListener('timeupdate', handleTimeUpdate);
+      videoElement.removeEventListener('seeked', handleTimeUpdate);
     };
   }, [sampleMergedVideoUrl, sampleMergeVideos, videoResults]);
   
