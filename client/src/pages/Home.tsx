@@ -5599,7 +5599,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             )}
             
             {/* Merged Videos List (hooks + body, separate from CUT videos) */}
-            {trimmingProgress.mergedVideos.length > 0 && (
+            {trimmingProgress.mergedVideos?.length > 0 && (
               <div>
                 <button
                   onClick={() => setIsTrimmingSuccessLogOpen(!isTrimmingSuccessLogOpen)}
