@@ -5379,9 +5379,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     <p className="text-sm font-semibold text-blue-800">
                       📦 Batch {trimmingProgress.currentBatch}/{trimmingProgress.totalBatches}
                     </p>
-                    <p className="text-xs text-blue-600 mt-1">
-                      {trimmingProgress.batchSize} videos per batch
-                    </p>
                   </div>
                 )}
                 
