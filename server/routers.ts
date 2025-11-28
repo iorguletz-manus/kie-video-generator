@@ -1875,13 +1875,8 @@ export const appRouter = router({
             const startSec = (video.startMs / 1000).toFixed(3);
             const endSec = (video.endMs / 1000).toFixed(3);
             
-            // Escape single quotes in video name
-            const escapedName = video.name.replace(/'/g, "\\\\\\'");
-            
-            // Video trim + drawtext overlay
-            // Position: bottom center (higher position), bold red text with semi-transparent black background
-            const drawtextFilter = `drawtext=text='${escapedName}':x=(w-text_w)/2:y=20:fontsize=32:fontcolor=red:font=Arial-Bold:box=1:boxcolor=black@0.7:boxborderw=5`;
-            filterParts.push(`[${index}:v]trim=start=${startSec}:end=${endSec},setpts=PTS-STARTPTS,${drawtextFilter}[v${index}]`);
+            // Video trim (no text overlay)
+            filterParts.push(`[${index}:v]trim=start=${startSec}:end=${endSec},setpts=PTS-STARTPTS[v${index}]`);
             
             // Audio trim
             filterParts.push(`[${index}:a]atrim=start=${startSec}:end=${endSec},asetpts=PTS-STARTPTS[a${index}]`);

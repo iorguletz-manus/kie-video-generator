@@ -278,6 +278,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [localCurrentUser, setLocalCurrentUser] = useState(currentUser);
   // Step 8 → Step 9: Trimming modal
   const [isTrimmingModalOpen, setIsTrimmingModalOpen] = useState(false);
+  const [trimmingMergedVideoUrl, setTrimmingMergedVideoUrl] = useState<string | null>(null);
+  const [trimmingCurrentVideoName, setTrimmingCurrentVideoName] = useState<string>('');
   const [trimmingProgress, setTrimmingProgress] = useState<{
     current: number;
     total: number;
@@ -389,7 +391,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
   }, [sampleMergeCountdown]);
   
-  // Sync current video name with playback time
+  // Sync current video name with playback time (Sample Merge)
   useEffect(() => {
     if (!sampleMergedVideoUrl || sampleMergeVideos.length === 0) return;
     
@@ -450,6 +452,68 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       videoElement.removeEventListener('seeked', handleTimeUpdate);
     };
   }, [sampleMergedVideoUrl, sampleMergeVideos, videoResults]);
+  
+  // Sync current video name with playback time (Trimming Modal)
+  useEffect(() => {
+    if (!trimmingMergedVideoUrl || trimmingProgress.successVideos.length === 0) return;
+    
+    const videoElement = document.getElementById('trimming-video-player') as HTMLVideoElement;
+    if (!videoElement) return;
+    
+    // Build timeline from video durations
+    const timeline: Array<{ startTime: number; endTime: number; name: string }> = [];
+    let currentTime = 0;
+    
+    trimmingProgress.successVideos.forEach((video) => {
+      // Find video data to get duration
+      const videoData = videoResults.find(v => v.videoName === video.name);
+      if (!videoData?.cutPoints) return;
+      
+      const durationMs = (videoData.cutPoints.endKeep || 0) - (videoData.cutPoints.startKeep || 0);
+      const durationSeconds = durationMs / 1000;
+      
+      timeline.push({
+        startTime: currentTime,
+        endTime: currentTime + durationSeconds,
+        name: video.name,
+      });
+      
+      currentTime += durationSeconds;
+    });
+    
+    console.log('[Trimming] Timeline:', timeline);
+    
+    // Update current video name based on playback time
+    const handleTimeUpdate = () => {
+      const currentPlaybackTime = videoElement.currentTime;
+      
+      console.log(`[Trimming Sync] Current time: ${currentPlaybackTime.toFixed(2)}s`);
+      
+      const currentSegment = timeline.find(
+        seg => currentPlaybackTime >= seg.startTime && currentPlaybackTime < seg.endTime
+      );
+      
+      if (currentSegment) {
+        console.log(`[Trimming Sync] Found segment: ${currentSegment.name} (${currentSegment.startTime.toFixed(2)}s - ${currentSegment.endTime.toFixed(2)}s)`);
+        setTrimmingCurrentVideoName(currentSegment.name);
+      } else {
+        console.log(`[Trimming Sync] ⚠️ No segment found for time ${currentPlaybackTime.toFixed(2)}s`);
+      }
+    };
+    
+    videoElement.addEventListener('timeupdate', handleTimeUpdate);
+    videoElement.addEventListener('seeked', handleTimeUpdate);  // Update instantly when seeking
+    
+    // Set initial video name
+    if (timeline.length > 0) {
+      setTrimmingCurrentVideoName(timeline[0].name);
+    }
+    
+    return () => {
+      videoElement.removeEventListener('timeupdate', handleTimeUpdate);
+      videoElement.removeEventListener('seeked', handleTimeUpdate);
+    };
+  }, [trimmingMergedVideoUrl, trimmingProgress.successVideos, videoResults]);
   
   // Download ZIP progress
   const [isDownloadZipModalOpen, setIsDownloadZipModalOpen] = useState(false);
@@ -3192,7 +3256,59 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       };
     });
     
-    // DO NOT auto-redirect - user must click button in modal
+    // Auto-merge all trimmed videos
+    if (trimmingProgress.successVideos.length > 0) {
+      console.log('[Trimming] 🔄 Auto-merging trimmed videos...');
+      
+      setTrimmingProgress(prev => ({
+        ...prev,
+        message: 'Merging all videos...'
+      }));
+      
+      try {
+        // Extract original URLs
+        const extractOriginalUrl = (url: string) => {
+          if (url.startsWith('/api/proxy-video?url=')) {
+            const urlParam = new URLSearchParams(url.split('?')[1]).get('url');
+            return urlParam ? decodeURIComponent(urlParam) : url;
+          }
+          return url;
+        };
+        
+        const trimmedVideos = videoResults.filter(v => 
+          trimmingProgress.successVideos.some(sv => sv.name === v.videoName)
+        );
+        
+        const videos = trimmedVideos.map(v => ({
+          url: extractOriginalUrl(v.videoUrl),
+          name: v.videoName,
+          startMs: v.cutPoints?.startKeep || 0,
+          endMs: v.cutPoints?.endKeep || 0,
+        }));
+        
+        const result = await cutAndMergeAllMutation.mutateAsync({
+          videos,
+          ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
+        });
+        
+        console.log('[Trimming] ✅ Auto-merge successful!', result);
+        
+        // Save merged video URL to state
+        setTrimmingMergedVideoUrl(result.downloadUrl);
+        
+        setTrimmingProgress(prev => ({
+          ...prev,
+          message: '✅ All videos trimmed and merged!'
+        }));
+        
+      } catch (error: any) {
+        console.error('[Trimming] ❌ Auto-merge failed:', error);
+        setTrimmingProgress(prev => ({
+          ...prev,
+          message: `⚠️ Trimming complete but merge failed: ${error.message}`
+        }));
+      }
+    }
   };
 
   // Manual retry for failed videos
@@ -5034,10 +5150,147 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               </div>
             )}
             
+            {/* Video Player (only if ALL videos succeeded) */}
+            {trimmingProgress.status !== 'processing' && 
+             trimmingProgress.failedVideos.length === 0 && 
+             trimmingProgress.successVideos.length > 0 && 
+             trimmingMergedVideoUrl && (
+              <div className="space-y-4 mt-6">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                  <p className="text-sm font-semibold text-green-900">
+                    ✅ All videos trimmed and merged! Preview below:
+                  </p>
+                </div>
+                
+                {/* Current Video Name Display */}
+                <div className="bg-yellow-100 border-2 border-yellow-400 rounded-lg p-3 text-center">
+                  <p className="text-lg font-bold text-yellow-900" id="trimming-current-video-name">
+                    🎬 {trimmingCurrentVideoName || trimmingProgress.successVideos[0]?.name || 'Loading...'}
+                  </p>
+                </div>
+                
+                {/* Video Player */}
+                <video
+                  id="trimming-video-player"
+                  src={trimmingMergedVideoUrl}
+                  controls
+                  className="w-full rounded-lg border border-gray-300"
+                  style={{ maxHeight: '400px' }}
+                />
+                
+                {/* Video List with Notes */}
+                <div className="border-t pt-4">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Videos in this merge:</h3>
+                  <div className="space-y-2">
+                    {trimmingProgress.successVideos.map((video) => {
+                      const videoData = videoResults.find(v => v.videoName === video.name);
+                      const note = videoData?.step9Note || '';
+                      
+                      return (
+                        <div key={video.name} className="flex items-start justify-between gap-3 p-3 bg-gray-50 rounded-lg">
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-900">{video.name}</p>
+                            
+                            {/* Note editor */}
+                            {editingNoteId === video.name ? (
+                              <div className="mt-2 space-y-2">
+                                <textarea
+                                  value={editingNoteText}
+                                  onChange={(e) => setEditingNoteText(e.target.value)}
+                                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  rows={3}
+                                  placeholder="Add note for Step 9..."
+                                />
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => {
+                                      // Update videoResults
+                                      const updatedVideoResults = videoResults.map(v =>
+                                        v.videoName === video.name ? { ...v, step9Note: editingNoteText } : v
+                                      );
+                                      setVideoResults(updatedVideoResults);
+                                      
+                                      // Close editing mode
+                                      setEditingNoteId(null);
+                                      setEditingNoteText('');
+                                      toast.success('Note saved!');
+                                      
+                                      // Save to database in background
+                                      if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
+                                        upsertContextSessionMutation.mutate({
+                                          userId: currentUser.id,
+                                          tamId: selectedTamId,
+                                          coreBeliefId: selectedCoreBeliefId,
+                                          emotionalAngleId: selectedEmotionalAngleId,
+                                          adId: selectedAdId,
+                                          characterId: selectedCharacterId,
+                                          currentStep,
+                                          rawTextAd,
+                                          processedTextAd,
+                                          adLines,
+                                          prompts,
+                                          images,
+                                          combinations,
+                                          deletedCombinations,
+                                          videoResults: updatedVideoResults,
+                                          reviewHistory,
+                                          hookMergedVideos,
+                                          bodyMergedVideoUrl,
+                                          finalVideos,
+                                        });
+                                      }
+                                    }}
+                                    className="bg-green-600 hover:bg-green-700"
+                                  >
+                                    Save
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setEditingNoteId(null);
+                                      setEditingNoteText('');
+                                    }}
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              note && (
+                                <p className="mt-1 text-xs text-gray-600">📝 {note}</p>
+                              )
+                            )}
+                          </div>
+                          
+                          {/* Add Note link */}
+                          {editingNoteId !== video.name && (
+                            <button
+                              onClick={() => {
+                                setEditingNoteId(video.name);
+                                setEditingNoteText(note);
+                              }}
+                              className="text-xs text-blue-600 hover:text-blue-800 underline whitespace-nowrap"
+                            >
+                              {note ? 'Edit note' : 'Add note'}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+            
             {/* Action Buttons */}
             <div className="flex gap-2 mt-6">
-              {/* Continue to Step 9 (only if processing complete and has successes) */}
-              {trimmingProgress.status !== 'processing' && trimmingProgress.successVideos.length > 0 && (
+              {/* Go to Step 9 (only if ALL videos succeeded and video player is visible) */}
+              {trimmingProgress.status !== 'processing' && 
+               trimmingProgress.failedVideos.length === 0 && 
+               trimmingProgress.successVideos.length > 0 && 
+               trimmingMergedVideoUrl && (
                 <button
                   onClick={() => {
                     setIsTrimmingModalOpen(false);
@@ -5045,7 +5298,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   }}
                   className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                 >
-                  ✅ Continue to Step 9
+                  ➡️ Go to Step 9
                 </button>
               )}
               
