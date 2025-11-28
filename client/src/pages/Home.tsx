@@ -389,7 +389,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
   });
 
-  // Sample Merge countdown timer (65 seconds cooldown)
+  // Sample Merge countdown timer (58 seconds cooldown)
   const [lastSampleMergeTimestamp, setLastSampleMergeTimestamp] = useState<number | null>(() => {
     try {
       const saved = localStorage.getItem('lastSampleMergeTimestamp');
@@ -2746,13 +2746,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     setIsSampleMergeModalOpen(true);
     
-    // Check cooldown (65 seconds)
+    // Check cooldown (58 seconds)
     const now = Date.now();
     let remainingSeconds = 0;
     
     if (lastSampleMergeTimestamp) {
       const elapsed = now - lastSampleMergeTimestamp;
-      const cooldownMs = 65000; // 65 seconds
+      const cooldownMs = 58000; // 58 seconds
       
       if (elapsed < cooldownMs) {
         const remainingMs = cooldownMs - elapsed;
@@ -3062,11 +3062,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       return;
     }
     
-    console.log('[Trimming] Starting SIMPLE batch process for', videosToTrim.length, 'videos (10 per batch, 65s wait)');
+    console.log('[Trimming] Starting SIMPLE batch process for', videosToTrim.length, 'videos (10 per batch, 58s wait)');
     
-    // SIMPLE BATCH PROCESSING: 10 at once → wait 65s → next 10 → wait 65s → rest
+    // SIMPLE BATCH PROCESSING: 10 at once → wait 58s → next 10 → wait 58s → rest
     const BATCH_SIZE = 10;
-    const DELAY_BETWEEN_BATCHES = 65000; // 65 seconds
+    const DELAY_BETWEEN_BATCHES = 58000; // 58 seconds
     
     // Open modal immediately
     setIsTrimmingModalOpen(true);
@@ -3276,12 +3276,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       currentIndex = batchEnd;
       batchNumber++;
       
-      // Wait 65s before next batch (if there are more videos)
+      // Wait 58s before next batch (if there are more videos)
       if (currentIndex < videosToTrim.length) {
-        console.log(`[Trimming] ⏳ Waiting 65 seconds before batch ${batchNumber}...`);
+        console.log(`[Trimming] ⏳ Waiting 58 seconds before batch ${batchNumber}...`);
         
-        // Countdown timer: 65s → 64s → 63s → ... → 1s
-        for (let countdown = 65; countdown > 0; countdown--) {
+        // Countdown timer: 58s → 57s → 56s → ... → 1s
+        for (let countdown = 58; countdown > 0; countdown--) {
           setTrimmingProgress(prev => ({
             ...prev,
             message: `⏳ Waiting ${countdown}s before next batch (FFmpeg rate limit)...`,
@@ -3300,9 +3300,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
      console.log('[Trimming] \ud83c\udf89 All batches processed!');
     
-    // Wait 65s after last batch before merge operations (FFmpeg rate limit)
-    console.log('[Trimming] \u23f3 Waiting 65 seconds before merge operations (FFmpeg rate limit)...');
-    for (let countdown = 65; countdown > 0; countdown--) {
+    // Wait 58s after last batch before merge operations (FFmpeg rate limit)
+    console.log('[Trimming] ⏳ Waiting 58 seconds before merge operations (FFmpeg rate limit)...');
+    for (let countdown = 58; countdown > 0; countdown--) {
       setTrimmingProgress(prev => ({
         ...prev,
         message: `\u23f3 Waiting ${countdown}s before merge operations (FFmpeg rate limit)...`,
@@ -3357,7 +3357,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           console.log('[Trimming] ✅ Database save successful!');
           
           // STEP 2: Merge Hooks (B+C+D variations) - AFTER database save
-          await performHooksAndBodyMerge();
+          const hooksBodySuccess = await performHooksAndBodyMerge();
+          
+          // STEP 3: Final merge (only if hooks/body succeeded)
+          if (hooksBodySuccess) {
+            await performFinalMerge();
+          } else {
+            console.log('[Trimming] ⚠️ Skipping final merge due to hooks/body merge failure');
+          }
         }).catch((error) => {
           console.error('[Trimming] ❌ Database save failed:', error);
           toast.error('Failed to save trimmed videos to database');
@@ -3379,7 +3386,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     });
     
     // Define hooks/body merge function to be called after database save
-    const performHooksAndBodyMerge = async () => {
+    const performHooksAndBodyMerge = async (): Promise<boolean> => {
       console.log('[Trimming] 🎣 Starting Hooks merge (B+C+D)...');
       
       // Get LATEST successVideos and videoResults from state
@@ -3522,17 +3529,20 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             finalVideos,
           });
           
-        } catch (error: any) {
-          console.error(`[Trimming] ❌ ${baseName} merge failed:`, error);
-          setTrimmingProgress(prev => ({
-            ...prev,
-            failedVideos: [...prev.failedVideos, { 
-              name: `${baseName} (Hooks merge)`, 
-              error: error.message,
-              retries: 0
-            }]
-          }));
-        }
+          } catch (error: any) {
+            console.error('[Trimming] ❌ Hook merge failed:', error);
+            setTrimmingProgress(prev => ({
+              ...prev,
+              status: 'partial',
+              failedVideos: [...prev.failedVideos, { 
+                name: `${baseName} (Hooks merge)`, 
+                error: error.message,
+                retries: 0
+              }],
+              message: `⚠️ Hooks merge failed: ${error.message}`
+            }));
+            return false; // Signal failure
+          }
       }
       
       // STEP 3: Merge Body (all non-hook videos)
@@ -3570,8 +3580,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               return url;
             };
             
-            const bodyVideoUrls = bodyVideos.map(v => extractOriginalUrl(v.trimmedVideoUrl!)).filter(Boolean);
-            
             // Extract context from first video
             const firstVideoName = bodyVideos[0].videoName;
             const contextMatch = firstVideoName.match(/^(T\d+_C\d+_E\d+_AD\d+)/);
@@ -3584,12 +3592,62 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             
             const outputName = `${contextName}_BODY_${character}_${imageName}`;
             
-            const result = await mergeVideosMutation.mutateAsync({
-              videoUrls: bodyVideoUrls,
-              outputVideoName: outputName,
-              ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
-              userId: localCurrentUser.id,
-            });
+            // BATCH MERGE: Split into batches of 5 videos to avoid FFmpeg crash
+            const BATCH_SIZE = 5;
+            const batches: typeof bodyVideos[] = [];
+            for (let i = 0; i < bodyVideos.length; i += BATCH_SIZE) {
+              batches.push(bodyVideos.slice(i, i + BATCH_SIZE));
+            }
+            
+            console.log(`[Trimming] 📦 Splitting ${bodyVideos.length} body videos into ${batches.length} batches of ${BATCH_SIZE}`);
+            
+            // Merge each batch separately
+            const batchResults: string[] = [];
+            for (let i = 0; i < batches.length; i++) {
+              const batch = batches[i];
+              const batchVideoUrls = batch.map(v => extractOriginalUrl(v.trimmedVideoUrl!)).filter(Boolean);
+              
+              console.log(`[Trimming] 📦 Merging batch ${i + 1}/${batches.length} (${batch.length} videos)...`);
+              
+              setTrimmingProgress(prev => ({
+                ...prev,
+                message: `Merging BODY batch ${i + 1}/${batches.length} (${batch.length} videos)...`
+              }));
+              
+              const batchResult = await mergeVideosMutation.mutateAsync({
+                videoUrls: batchVideoUrls,
+                outputVideoName: `${outputName}_BATCH_${i + 1}`,
+                ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
+                userId: localCurrentUser.id,
+              });
+              
+              batchResults.push(batchResult.cdnUrl);
+              console.log(`[Trimming] ✅ Batch ${i + 1}/${batches.length} merged:`, batchResult.cdnUrl);
+            }
+            
+            // If only one batch, use it directly
+            let result;
+            if (batchResults.length === 1) {
+              result = { cdnUrl: batchResults[0] };
+              console.log('[Trimming] ✅ Single batch - using directly');
+            } else {
+              // Merge all batch results into final video
+              console.log(`[Trimming] 🔗 Merging ${batchResults.length} batch results into final BODY video...`);
+              
+              setTrimmingProgress(prev => ({
+                ...prev,
+                message: `Merging ${batchResults.length} batch results into final BODY video...`
+              }));
+              
+              result = await mergeVideosMutation.mutateAsync({
+                videoUrls: batchResults,
+                outputVideoName: outputName,
+                ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
+                userId: localCurrentUser.id,
+              });
+              
+              console.log('[Trimming] ✅ Final BODY merge complete:', result.cdnUrl);
+            }
             
             console.log('[Trimming] ✅ BODY merged:', result.cdnUrl);
             
@@ -3630,95 +3688,132 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             console.error('[Trimming] ❌ BODY merge failed:', error);
             setTrimmingProgress(prev => ({
               ...prev,
+              status: 'partial',
               failedVideos: [...prev.failedVideos, { 
                 name: 'BODY (Body merge)', 
                 error: error.message,
                 retries: 0
-              }]
+              }],
+              message: `⚠️ Body merge failed: ${error.message}`
             }));
+            return false; // Signal failure
           }
         }
       }
+      return true; // All merges succeeded
     };
     
-    // STEP 4: Final merge (all original videos for preview)
-    // Skip to final merge section below
-    let latestSuccessVideos: typeof localSuccessVideos = [];
-    setTrimmingProgress(current => {
-      latestSuccessVideos = current.successVideos;
-      return current;
-    });
-
-    
-    // STEP 4: Final merge (all original videos for preview)
-    // Only show merge notification when all processes are complete (current === total)
-    if (localSuccessVideos.length > 0) {
-      console.log('[Trimming] 🔄 Auto-merging trimmed videos for preview...');
+    // Define final merge function to be called after hooks/body merge
+    const performFinalMerge = async () => {
+      // STEP 4: Wait 58s before final merge (FFmpeg rate limit)
+      console.log('[Trimming] ⏳ Waiting 58 seconds before final merge (FFmpeg rate limit)...');
+      for (let countdown = 58; countdown > 0; countdown--) {
+        setTrimmingProgress(prev => ({
+          ...prev,
+          message: `⏳ Waiting ${countdown}s before final merge (FFmpeg rate limit)...`,
+          status: 'processing',
+          countdown: countdown
+        }));
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
       
-      setTrimmingProgress(prev => {
-        const allProcessesComplete = prev.current === prev.total;
-        console.log('[Trimming] 📊 Progress check:', prev.current, '/', prev.total, '- Show merge notification:', allProcessesComplete);
-        
-        return {
+      // Reset countdown
+      setTrimmingProgress(prev => ({
+        ...prev,
+        countdown: 0
+      }));
+      
+      // STEP 5: Final merge (all original videos for preview) - AFTER hooks/body merge + 58s delay
+      console.log('[Trimming] 🔄 Starting final merge for preview...');
+      
+      // Get latest videoResults from database (fresh data)
+      console.log('[Trimming] 💾 Fetching latest videoResults from database...');
+      
+      let dbVideoResults: typeof videoResults = [];
+      try {
+        const dbData = await contextSessionQuery.refetch();
+        if (dbData.data?.videoResults) {
+          dbVideoResults = dbData.data.videoResults;
+          console.log('[Trimming] ✅ Loaded', dbVideoResults.length, 'videos from database');
+        }
+      } catch (error) {
+        console.error('[Trimming] ❌ Failed to fetch from database:', error);
+        // Fallback to current state
+        dbVideoResults = videoResults;
+      }
+      
+      // Filter videos that have trimmedVideoUrl (successfully trimmed)
+      // EXCLUDE hooks/body merged videos (only original 20 videos)
+      const finalMergeSuccessVideos = dbVideoResults.filter(v => 
+        v.trimmedVideoUrl && 
+        v.recutStatus === 'accepted' &&
+        !v.videoName.includes('(Hooks merged)') &&
+        !v.videoName.includes('(Body merged)')
+      );
+      
+      console.log('[Trimming] 📊 Final merge check: successVideos count =', finalMergeSuccessVideos.length);
+      console.log('[Trimming] 📊 Video names:', finalMergeSuccessVideos.map(v => v.videoName));
+      
+      if (finalMergeSuccessVideos.length > 0) {
+        setTrimmingProgress(prev => ({
           ...prev,
           status: 'merging',
-          mergeStatus: allProcessesComplete ? 'pending' : 'idle',
-          message: allProcessesComplete ? `🔄 Merging ALL ${localSuccessVideos.length} videos... Please wait...` : prev.message
-        };
-      });
-      
-      try {
-        // Extract original URLs
-        const extractOriginalUrl = (url: string) => {
-          if (url.startsWith('/api/proxy-video?url=')) {
-            const urlParam = new URLSearchParams(url.split('?')[1]).get('url');
-            return urlParam ? decodeURIComponent(urlParam) : url;
-          }
-          return url;
-        };
-        
-        const trimmedVideos = videoResults.filter(v => 
-          localSuccessVideos.some(sv => sv.name === v.videoName)
-        );
-        
-        const videos = trimmedVideos.map(v => ({
-          url: extractOriginalUrl(v.videoUrl),
-          name: v.videoName,
-          startMs: v.cutPoints?.startKeep || 0,
-          endMs: v.cutPoints?.endKeep || 0,
+          mergeStatus: 'pending',
+          message: `🔄 Merging ALL ${finalMergeSuccessVideos.length} videos for preview... Please wait...`
         }));
         
-        console.log('[Trimming] 📦 Calling cutAndMergeAllMutation with:', videos.length, 'videos');
-        console.log('[Trimming] Videos:', videos);
-        
-        const result = await cutAndMergeAllMutation.mutateAsync({
-          videos,
-          ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
-        });
-        
-        console.log('[Trimming] ✅ Auto-merge successful!', result);
-        
-        // Save merged video URL to state
-        setTrimmingMergedVideoUrl(result.downloadUrl);
-        
-        setTrimmingProgress(prev => ({
-          ...prev,
-          status: 'complete',
-          mergeStatus: 'success',
-          message: '✅ All videos trimmed and merged successfully!'
-        }));
-        
-      } catch (error: any) {
-        console.error('[Trimming] ❌ Auto-merge failed:', error);
-        console.error('[Trimming] Error details:', error.message, error.stack);
-        setTrimmingProgress(prev => ({
-          ...prev,
-          status: 'partial',
-          mergeStatus: 'failed',
-          message: `⚠️ Trimming complete but merge failed: ${error.message}`
-        }));
+        try {
+          // Extract original URLs
+          const extractOriginalUrl = (url: string) => {
+            if (url.startsWith('/api/proxy-video?url=')) {
+              const urlParam = new URLSearchParams(url.split('?')[1]).get('url');
+              return urlParam ? decodeURIComponent(urlParam) : url;
+            }
+            return url;
+          };
+          
+          // Use dbVideoResults directly (already filtered)
+          const trimmedVideos = finalMergeSuccessVideos;
+          
+          const videos = trimmedVideos.map(v => ({
+            url: extractOriginalUrl(v.videoUrl),
+            name: v.videoName,
+            startMs: v.cutPoints?.startKeep || 0,
+            endMs: v.cutPoints?.endKeep || 0,
+          }));
+          
+          console.log('[Trimming] 📦 Calling cutAndMergeAllMutation with:', videos.length, 'videos');
+          console.log('[Trimming] Videos:', videos);
+          
+          const result = await cutAndMergeAllMutation.mutateAsync({
+            videos,
+            ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
+          });
+          
+          console.log('[Trimming] ✅ Auto-merge successful!', result);
+          
+          // Save merged video URL to state
+          setTrimmingMergedVideoUrl(result.downloadUrl);
+          
+          setTrimmingProgress(prev => ({
+            ...prev,
+            status: 'complete',
+            mergeStatus: 'success',
+            message: '✅ All videos trimmed and merged successfully!'
+          }));
+          
+        } catch (error: any) {
+          console.error('[Trimming] ❌ Auto-merge failed:', error);
+          console.error('[Trimming] Error details:', error.message, error.stack);
+          setTrimmingProgress(prev => ({
+            ...prev,
+            status: 'partial',
+            mergeStatus: 'failed',
+            message: `⚠️ Trimming complete but merge failed: ${error.message}`
+          }));
+        }
       }
-    }
+    };
   };
 
   // Manual retry for failed videos
@@ -3739,8 +3834,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       message: `Retrying ${failedVideos.length} failed videos...`
     }));
     
-    // Process each failed video
-    for (const failedVideo of failedVideos) {
+    // Separate CUT failures from MERGE failures
+    const cutFailures = failedVideos.filter(v => !v.name.includes('(Hooks merge)') && !v.name.includes('(Body merge)'));
+    const mergeFailures = failedVideos.filter(v => v.name.includes('(Hooks merge)') || v.name.includes('(Body merge)'));
+    
+    // Process CUT failures first
+    for (const failedVideo of cutFailures) {
       // Find the actual video object from videoResults
       const video = videoResults.find(v => v.videoName === failedVideo.name);
       
@@ -3856,8 +3955,224 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       }
     }
     
-    // Auto-merge if ALL videos are now successful
-    if (failCount === 0 && successCount > 0) {
+    // Process MERGE failures (hooks/body merge)
+    for (const failedMerge of mergeFailures) {
+      console.log(`[Retry] 🔄 Retrying merge: ${failedMerge.name}`);
+      
+      setTrimmingProgress(prev => ({
+        ...prev,
+        message: `Retrying ${failedMerge.name}...`,
+        failedVideos: prev.failedVideos.map(v =>
+          v.name === failedMerge.name
+            ? { ...v, status: 'retrying', error: '' }
+            : v
+        )
+      }));
+      
+      try {
+        if (failedMerge.name.includes('(Hooks merge)')) {
+          // Retry hooks merge - extract base name
+          const baseName = failedMerge.name.replace(' (Hooks merge)', '');
+          
+          // Find hook videos for this group
+          const hookVideos = videoResults.filter(v => 
+            v.videoName.startsWith(baseName) && 
+            (v.videoName.includes('_HOOK') || v.videoName.includes('HOOK')) &&
+            v.trimmedVideoUrl
+          );
+          
+          if (hookVideos.length === 0) {
+            throw new Error('No hook videos found for merge');
+          }
+          
+          console.log(`[Retry] Found ${hookVideos.length} hook videos for ${baseName}`);
+          
+          const videos = hookVideos.map(v => ({
+            url: v.trimmedVideoUrl!,
+            name: v.videoName,
+          }));
+          
+          const outputName = `${baseName}_HOOKS_MERGED`;
+          
+          const result = await mergeVideosMutation.mutateAsync({
+            videos,
+            outputVideoName: outputName,
+            ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
+            userId: localCurrentUser.id,
+          });
+          
+          console.log(`[Retry] ✅ ${failedMerge.name} SUCCESS:`, result.cdnUrl);
+          
+          // Update hookMergedVideos
+          setHookMergedVideos(prev => [
+            ...prev.filter(v => !v.name.startsWith(baseName)),
+            { name: outputName, url: result.cdnUrl }
+          ]);
+          
+          // Remove from failed list
+          setTrimmingProgress(prev => ({
+            ...prev,
+            failedVideos: prev.failedVideos.filter(v => v.name !== failedMerge.name),
+            mergedVideos: [...prev.mergedVideos, { name: outputName, type: 'hook' }]
+          }));
+          
+        } else if (failedMerge.name.includes('(Body merge)')) {
+          // Retry body merge
+          const bodyVideos = videoResults.filter(v => 
+            !v.videoName.includes('_HOOK') && 
+            !v.videoName.includes('HOOK') &&
+            v.trimmedVideoUrl &&
+            v.recutStatus === 'accepted'
+          );
+          
+          if (bodyVideos.length === 0) {
+            throw new Error('No body videos found for merge');
+          }
+          
+          console.log(`[Retry] Found ${bodyVideos.length} body videos`);
+          
+          const videos = bodyVideos.map(v => ({
+            url: v.trimmedVideoUrl!,
+            name: v.videoName,
+          }));
+          
+          const outputName = 'BODY_MERGED';
+          
+          const result = await mergeVideosMutation.mutateAsync({
+            videos,
+            outputVideoName: outputName,
+            ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
+            userId: localCurrentUser.id,
+          });
+          
+          console.log(`[Retry] ✅ BODY merge SUCCESS:`, result.cdnUrl);
+          
+          setBodyMergedVideoUrl(result.cdnUrl);
+          
+          // Remove from failed list
+          setTrimmingProgress(prev => ({
+            ...prev,
+            failedVideos: prev.failedVideos.filter(v => v.name !== failedMerge.name),
+            mergedVideos: [...prev.mergedVideos, { name: outputName, type: 'body' }]
+          }));
+        }
+        
+        // Save to database after successful merge
+        await upsertContextSessionMutation.mutateAsync({
+          userId: localCurrentUser.id,
+          tamId: selectedTamId,
+          coreBeliefId: selectedCoreBeliefId,
+          emotionalAngleId: selectedEmotionalAngleId,
+          adId: selectedAdId,
+          characterId: selectedCharacterId,
+          currentStep,
+          rawTextAd,
+          processedTextAd,
+          adLines,
+          prompts,
+          images,
+          combinations,
+          deletedCombinations,
+          videoResults: videoResults,
+          reviewHistory,
+          hookMergedVideos,
+          bodyMergedVideoUrl,
+          finalVideos,
+        });
+        
+      } catch (error: any) {
+        console.error(`[Retry] ❌ ${failedMerge.name} FAILED AGAIN:`, error);
+        
+        setTrimmingProgress(prev => ({
+          ...prev,
+          failedVideos: prev.failedVideos.map(v =>
+            v.name === failedMerge.name
+              ? { ...v, status: 'failed', error: error.message }
+              : v
+          )
+        }));
+        
+        toast.error(`Failed to retry ${failedMerge.name}: ${error.message}`);
+      }
+    }
+    
+    // If all merge retries succeeded, continue with final merge
+    const remainingFailures = trimmingProgress.failedVideos.filter(v => v.status !== 'retrying');
+    if (mergeFailures.length > 0 && remainingFailures.length === 0) {
+      console.log('[Retry] ✅ All merge retries successful! Continuing with final merge...');
+      
+      // Call final merge
+      setTrimmingProgress(prev => ({
+        ...prev,
+        status: 'processing',
+        message: 'Continuing with final merge...'
+      }));
+      
+      // Wait 58s before final merge
+      console.log('[Retry] ⏳ Waiting 58 seconds before final merge (FFmpeg rate limit)...');
+      for (let countdown = 58; countdown > 0; countdown--) {
+        setTrimmingProgress(prev => ({
+          ...prev,
+          message: `⏳ Waiting ${countdown}s before final merge (FFmpeg rate limit)...`,
+          countdown: countdown
+        }));
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
+      // Fetch latest videoResults from database
+      const dbData = await getContextSessionQuery.refetch();
+      const dbVideoResults = dbData.data?.videoResults || videoResults;
+      
+      const finalMergeSuccessVideos = dbVideoResults.filter(v => 
+        v.trimmedVideoUrl && 
+        v.recutStatus === 'accepted' &&
+        !v.videoName.includes('(Hooks merged)') &&
+        !v.videoName.includes('(Body merged)')
+      );
+      
+      if (finalMergeSuccessVideos.length > 0) {
+        try {
+          const videos = finalMergeSuccessVideos.map(v => ({
+            url: v.trimmedVideoUrl!,
+            name: v.videoName,
+          }));
+          
+          const result = await mergeVideosMutation.mutateAsync({
+            videos,
+            outputVideoName: 'FINAL_PREVIEW_MERGE',
+            ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
+            userId: localCurrentUser.id,
+          });
+          
+          console.log('[Retry] ✅ Final merge successful!', result.cdnUrl);
+          
+          setTrimmingMergedVideoUrl(result.cdnUrl);
+          
+          setTrimmingProgress(prev => ({
+            ...prev,
+            status: 'complete',
+            mergeStatus: 'success',
+            message: '✅ All operations completed successfully!'
+          }));
+          
+          toast.success('Final merge successful!');
+          
+        } catch (error: any) {
+          console.error('[Retry] ❌ Final merge failed:', error);
+          setTrimmingProgress(prev => ({
+            ...prev,
+            status: 'partial',
+            mergeStatus: 'failed',
+            message: `⚠️ Merge retry complete but final merge failed: ${error.message}`
+          }));
+        }
+      }
+      
+      return; // Exit early - don't run the old auto-merge logic
+    }
+    
+    // Auto-merge if ALL CUT videos are now successful (old logic for CUT retries)
+    if (failCount === 0 && successCount > 0 && cutFailures.length > 0) {
       console.log('[Retry] 🔄 All videos successful! Auto-merging...');
       
       setTrimmingProgress(prev => ({
@@ -5568,9 +5883,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   {/* Prepare for Merge Progress */}
                   {trimmingProgress.mergingTotal > 0 && (
                     <div className="space-y-2">
-                      <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">
-                        🔗 Prepare for Merge
-                      </p>
+                      <div className="flex items-center justify-center gap-2">
+                        <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+                          🔗 Prepare for Merge
+                        </p>
+                        {trimmingProgress.mergingCurrent < trimmingProgress.mergingTotal && (
+                          <Loader2 className="w-4 h-4 animate-spin text-purple-600" />
+                        )}
+                      </div>
                       <Progress 
                         value={(trimmingProgress.mergingCurrent / trimmingProgress.mergingTotal) * 100} 
                         className="h-3 bg-purple-100"
@@ -5683,14 +6003,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   onClick={() => setIsTrimmingSuccessLogOpen(!isTrimmingSuccessLogOpen)}
                   className="w-full flex items-center justify-between text-sm font-medium text-purple-700 mb-2 hover:text-purple-800"
                 >
-                  <span>\ud83d\udd17 Merged ({trimmingProgress.mergedVideos.length})</span>
+                  <span>🔗 Merged ({trimmingProgress.mergedVideos.length})</span>
                   <span className="text-blue-600 underline text-xs">View log</span>
                 </button>
                 {isTrimmingSuccessLogOpen && (
                   <div className="max-h-48 overflow-y-auto bg-purple-50 border border-purple-200 rounded-lg p-3 space-y-1">
                     {trimmingProgress.mergedVideos.map((v, i) => (
                       <div key={i} className="flex items-center gap-2 text-sm text-purple-700">
-                        <span>\u2713</span>
+                        <span>✓</span>
                         <span>{v.name} ({v.type === 'hooks' ? 'Hooks merged' : 'Body merged'})</span>
                       </div>
                     ))}
@@ -5729,7 +6049,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             {trimmingProgress.mergeStatus === 'failed' && (
               <div>
                 <p className="text-sm font-medium text-red-700 mb-2">
-                  \u274c Merge failed
+                  ❌ Merge failed
                 </p>
                 <div className="bg-red-50 border border-red-200 rounded-lg p-3 space-y-2">
                   <p className="text-xs text-red-600">
@@ -5738,13 +6058,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   <Button
                     onClick={async () => {
                       // Retry final merge
-                      console.log('[Trimming] \ud83d\udd04 Retrying final merge...');
+                      console.log('[Trimming] 🔄 Retrying final merge...');
                       
                       setTrimmingProgress(prev => ({
                         ...prev,
                         status: 'merging',
                         mergeStatus: 'pending',
-                        message: '\ud83d\udd04 Retrying merge...'
+                        message: '🔄 Retrying merge...'
                       }));
                       
                       try {
@@ -5788,12 +6108,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         
                         toast.success('Merge successful!');
                       } catch (error: any) {
-                        console.error('[Trimming] \u274c Retry merge failed:', error);
+                        console.error('[Trimming] ❌ Retry merge failed:', error);
                         setTrimmingProgress(prev => ({
                           ...prev,
                           status: 'partial',
                           mergeStatus: 'failed',
-                          message: `\u274c Merge failed: ${error.message}`
+                          message: `❌ Merge failed: ${error.message}`
                         }));
                         toast.error(`Merge failed: ${error.message}`);
                       }
@@ -5801,7 +6121,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     className="bg-red-600 hover:bg-red-700 text-white text-xs"
                     size="sm"
                   >
-                    \ud83d\udd04 Retry Merge
+                    🔄 Retry Merge
                   </Button>
                 </div>
               </div>
@@ -5840,12 +6160,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   </a>
                 </div>
                 
-                {/* 3-Video Container (prev, current, next) - Live synced */}
-                <div className="bg-purple-50 border-2 border-purple-300 rounded-lg p-4 space-y-3">
-                  <h3 className="text-sm font-semibold text-purple-900 text-center mb-3">
+                {/* Video Timeline - Simple list matching "Videos in this merge" design */}
+                <div className="bg-purple-50 border-2 border-purple-300 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3">
                     🎬 Video Timeline
                   </h3>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-2">
                     {/* Previous Video */}
                     {(() => {
                       const currentIdx = trimmingProgress.successVideos.findIndex(
@@ -5854,106 +6174,94 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       const prevVideo = currentIdx > 0 
                         ? trimmingProgress.successVideos[currentIdx - 1] 
                         : null;
-                      if (!prevVideo) {
-                        return (
-                          <div className="bg-white border border-purple-200 rounded-lg p-3">
-                            <p className="text-xs font-medium text-purple-600 mb-2">← Previous</p>
-                            <p className="text-xs text-gray-400">-</p>
-                          </div>
-                        );
-                      }
+                      if (!prevVideo) return null;
                       const videoData = videoResults.find(v => v.videoName === prevVideo.name);
                       const note = videoData?.step9Note || '';
                       const isEditing = editingNoteId === prevVideo.name;
                       
                       return (
-                        <div className="bg-white border border-purple-200 rounded-lg p-3">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1">
-                              <p className="text-xs font-medium text-purple-600 mb-1">← Previous</p>
-                              <p className="text-xs text-purple-900 font-mono break-words mb-2">
-                                {prevVideo.name}
-                              </p>
-                              
-                              {isEditing ? (
-                                <div className="space-y-2">
-                                  <textarea
-                                    value={editingNoteText}
-                                    onChange={(e) => setEditingNoteText(e.target.value)}
-                                    className="w-full px-2 py-1 text-xs border border-purple-300 rounded focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                    rows={3}
-                                    placeholder="Add note for Step 9..."
-                                  />
-                                  <div className="flex gap-2">
-                                    <Button
-                                      size="sm"
-                                      onClick={() => {
-                                        const updatedVideoResults = videoResults.map(v =>
-                                          v.videoName === prevVideo.name ? { ...v, step9Note: editingNoteText } : v
-                                        );
-                                        setVideoResults(updatedVideoResults);
-                                        setEditingNoteId(null);
-                                        setEditingNoteText('');
-                                        toast.success('Note saved!');
-                                        if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
-                                          upsertContextSessionMutation.mutate({
-                                            userId: currentUser.id,
-                                            tamId: selectedTamId,
-                                            coreBeliefId: selectedCoreBeliefId,
-                                            emotionalAngleId: selectedEmotionalAngleId,
-                                            adId: selectedAdId,
-                                            characterId: selectedCharacterId,
-                                            currentStep,
-                                            rawTextAd,
-                                            processedTextAd,
-                                            adLines,
-                                            prompts,
-                                            images,
-                                            combinations,
-                                            deletedCombinations,
-                                            videoResults: updatedVideoResults,
-                                            reviewHistory,
-                                            hookMergedVideos,
-                                            bodyMergedVideoUrl,
-                                            finalVideos,
-                                          });
-                                        }
-                                      }}
-                                      className="bg-green-600 hover:bg-green-700"
-                                    >
-                                      Save
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => {
-                                        setEditingNoteId(null);
-                                        setEditingNoteText('');
-                                      }}
-                                    >
-                                      Cancel
-                                    </Button>
-                                  </div>
-                                </div>
-                              ) : (
-                                note && (
-                                  <p className="text-xs text-gray-600">📝 {note}</p>
-                                )
-                              )}
-                            </div>
+                        <div className="flex items-start justify-between gap-3 p-3 bg-gray-50 rounded-lg">
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-900">← Previous: {prevVideo.name}</p>
                             
-                            {!isEditing && (
-                              <button
-                                onClick={() => {
-                                  setEditingNoteId(prevVideo.name);
-                                  setEditingNoteText(note);
-                                }}
-                                className="text-xs text-blue-600 hover:text-blue-800 underline whitespace-nowrap"
-                              >
-                                {note ? 'Edit' : 'Add note'}
-                              </button>
+                            {isEditing ? (
+                              <div className="mt-2 space-y-2">
+                                <textarea
+                                  value={editingNoteText}
+                                  onChange={(e) => setEditingNoteText(e.target.value)}
+                                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  rows={3}
+                                  placeholder="Add note for Step 9..."
+                                />
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => {
+                                      const updatedVideoResults = videoResults.map(v =>
+                                        v.videoName === prevVideo.name ? { ...v, step9Note: editingNoteText } : v
+                                      );
+                                      setVideoResults(updatedVideoResults);
+                                      setEditingNoteId(null);
+                                      setEditingNoteText('');
+                                      toast.success('Note saved!');
+                                      if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
+                                        upsertContextSessionMutation.mutate({
+                                          userId: currentUser.id,
+                                          tamId: selectedTamId,
+                                          coreBeliefId: selectedCoreBeliefId,
+                                          emotionalAngleId: selectedEmotionalAngleId,
+                                          adId: selectedAdId,
+                                          characterId: selectedCharacterId,
+                                          currentStep,
+                                          rawTextAd,
+                                          processedTextAd,
+                                          adLines,
+                                          prompts,
+                                          images,
+                                          combinations,
+                                          deletedCombinations,
+                                          videoResults: updatedVideoResults,
+                                          reviewHistory,
+                                          hookMergedVideos,
+                                          bodyMergedVideoUrl,
+                                          finalVideos,
+                                        });
+                                      }
+                                    }}
+                                    className="bg-green-600 hover:bg-green-700"
+                                  >
+                                    Save
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setEditingNoteId(null);
+                                      setEditingNoteText('');
+                                    }}
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              note && (
+                                <p className="mt-1 text-xs text-purple-600">📝 {note}</p>
+                              )
                             )}
                           </div>
+                          
+                          {!isEditing && (
+                            <button
+                              onClick={() => {
+                                setEditingNoteId(prevVideo.name);
+                                setEditingNoteText(note);
+                              }}
+                              className="text-xs text-blue-600 hover:text-blue-800 underline whitespace-nowrap"
+                            >
+                              {note ? 'Edit note' : 'Add note'}
+                            </button>
+                          )}
                         </div>
                       );
                     })()}
@@ -5966,93 +6274,88 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       const isEditing = editingNoteId === videoName;
                       
                       return (
-                        <div className="bg-purple-100 border-2 border-purple-400 rounded-lg p-3">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1">
-                              <p className="text-xs font-medium text-purple-700 mb-1">▶️ Current</p>
-                              <p className="text-xs text-purple-900 font-mono font-bold break-words mb-2">
-                                {videoName}
-                              </p>
-                              
-                              {isEditing ? (
-                                <div className="space-y-2">
-                                  <textarea
-                                    value={editingNoteText}
-                                    onChange={(e) => setEditingNoteText(e.target.value)}
-                                    className="w-full px-2 py-1 text-xs border border-purple-300 rounded focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                    rows={3}
-                                    placeholder="Add note for Step 9..."
-                                  />
-                                  <div className="flex gap-2">
-                                    <Button
-                                      size="sm"
-                                      onClick={() => {
-                                        const updatedVideoResults = videoResults.map(v =>
-                                          v.videoName === videoName ? { ...v, step9Note: editingNoteText } : v
-                                        );
-                                        setVideoResults(updatedVideoResults);
-                                        setEditingNoteId(null);
-                                        setEditingNoteText('');
-                                        toast.success('Note saved!');
-                                        if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
-                                          upsertContextSessionMutation.mutate({
-                                            userId: currentUser.id,
-                                            tamId: selectedTamId,
-                                            coreBeliefId: selectedCoreBeliefId,
-                                            emotionalAngleId: selectedEmotionalAngleId,
-                                            adId: selectedAdId,
-                                            characterId: selectedCharacterId,
-                                            currentStep,
-                                            rawTextAd,
-                                            processedTextAd,
-                                            adLines,
-                                            prompts,
-                                            images,
-                                            combinations,
-                                            deletedCombinations,
-                                            videoResults: updatedVideoResults,
-                                            reviewHistory,
-                                            hookMergedVideos,
-                                            bodyMergedVideoUrl,
-                                            finalVideos,
-                                          });
-                                        }
-                                      }}
-                                      className="bg-green-600 hover:bg-green-700"
-                                    >
-                                      Save
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => {
-                                        setEditingNoteId(null);
-                                        setEditingNoteText('');
-                                      }}
-                                    >
-                                      Cancel
-                                    </Button>
-                                  </div>
-                                </div>
-                              ) : (
-                                note && (
-                                  <p className="text-xs text-gray-600">📝 {note}</p>
-                                )
-                              )}
-                            </div>
+                        <div className="flex items-start justify-between gap-3 p-3 bg-white border-2 border-purple-400 rounded-lg">
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-900 font-bold">▶️ Current: {videoName}</p>
                             
-                            {!isEditing && (
-                              <button
-                                onClick={() => {
-                                  setEditingNoteId(videoName);
-                                  setEditingNoteText(note);
-                                }}
-                                className="text-xs text-blue-600 hover:text-blue-800 underline whitespace-nowrap"
-                              >
-                                {note ? 'Edit' : 'Add note'}
-                              </button>
+                            {isEditing ? (
+                              <div className="mt-2 space-y-2">
+                                <textarea
+                                  value={editingNoteText}
+                                  onChange={(e) => setEditingNoteText(e.target.value)}
+                                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  rows={3}
+                                  placeholder="Add note for Step 9..."
+                                />
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => {
+                                      const updatedVideoResults = videoResults.map(v =>
+                                        v.videoName === videoName ? { ...v, step9Note: editingNoteText } : v
+                                      );
+                                      setVideoResults(updatedVideoResults);
+                                      setEditingNoteId(null);
+                                      setEditingNoteText('');
+                                      toast.success('Note saved!');
+                                      if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
+                                        upsertContextSessionMutation.mutate({
+                                          userId: currentUser.id,
+                                          tamId: selectedTamId,
+                                          coreBeliefId: selectedCoreBeliefId,
+                                          emotionalAngleId: selectedEmotionalAngleId,
+                                          adId: selectedAdId,
+                                          characterId: selectedCharacterId,
+                                          currentStep,
+                                          rawTextAd,
+                                          processedTextAd,
+                                          adLines,
+                                          prompts,
+                                          images,
+                                          combinations,
+                                          deletedCombinations,
+                                          videoResults: updatedVideoResults,
+                                          reviewHistory,
+                                          hookMergedVideos,
+                                          bodyMergedVideoUrl,
+                                          finalVideos,
+                                        });
+                                      }
+                                    }}
+                                    className="bg-green-600 hover:bg-green-700"
+                                  >
+                                    Save
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setEditingNoteId(null);
+                                      setEditingNoteText('');
+                                    }}
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              note && (
+                                <p className="mt-1 text-xs text-purple-600">📝 {note}</p>
+                              )
                             )}
                           </div>
+                          
+                          {!isEditing && (
+                            <button
+                              onClick={() => {
+                                setEditingNoteId(videoName);
+                                setEditingNoteText(note);
+                              }}
+                              className="text-xs text-blue-600 hover:text-blue-800 underline whitespace-nowrap"
+                            >
+                              {note ? 'Edit note' : 'Add note'}
+                            </button>
+                          )}
                         </div>
                       );
                     })()}
@@ -6065,106 +6368,94 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                       const nextVideo = currentIdx >= 0 && currentIdx < trimmingProgress.successVideos.length - 1
                         ? trimmingProgress.successVideos[currentIdx + 1] 
                         : null;
-                      if (!nextVideo) {
-                        return (
-                          <div className="bg-white border border-purple-200 rounded-lg p-3">
-                            <p className="text-xs font-medium text-purple-600 mb-2">Next →</p>
-                            <p className="text-xs text-gray-400">-</p>
-                          </div>
-                        );
-                      }
+                      if (!nextVideo) return null;
                       const videoData = videoResults.find(v => v.videoName === nextVideo.name);
                       const note = videoData?.step9Note || '';
                       const isEditing = editingNoteId === nextVideo.name;
                       
                       return (
-                        <div className="bg-white border border-purple-200 rounded-lg p-3">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1">
-                              <p className="text-xs font-medium text-purple-600 mb-1">Next →</p>
-                              <p className="text-xs text-purple-900 font-mono break-words mb-2">
-                                {nextVideo.name}
-                              </p>
-                              
-                              {isEditing ? (
-                                <div className="space-y-2">
-                                  <textarea
-                                    value={editingNoteText}
-                                    onChange={(e) => setEditingNoteText(e.target.value)}
-                                    className="w-full px-2 py-1 text-xs border border-purple-300 rounded focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                    rows={3}
-                                    placeholder="Add note for Step 9..."
-                                  />
-                                  <div className="flex gap-2">
-                                    <Button
-                                      size="sm"
-                                      onClick={() => {
-                                        const updatedVideoResults = videoResults.map(v =>
-                                          v.videoName === nextVideo.name ? { ...v, step9Note: editingNoteText } : v
-                                        );
-                                        setVideoResults(updatedVideoResults);
-                                        setEditingNoteId(null);
-                                        setEditingNoteText('');
-                                        toast.success('Note saved!');
-                                        if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
-                                          upsertContextSessionMutation.mutate({
-                                            userId: currentUser.id,
-                                            tamId: selectedTamId,
-                                            coreBeliefId: selectedCoreBeliefId,
-                                            emotionalAngleId: selectedEmotionalAngleId,
-                                            adId: selectedAdId,
-                                            characterId: selectedCharacterId,
-                                            currentStep,
-                                            rawTextAd,
-                                            processedTextAd,
-                                            adLines,
-                                            prompts,
-                                            images,
-                                            combinations,
-                                            deletedCombinations,
-                                            videoResults: updatedVideoResults,
-                                            reviewHistory,
-                                            hookMergedVideos,
-                                            bodyMergedVideoUrl,
-                                            finalVideos,
-                                          });
-                                        }
-                                      }}
-                                      className="bg-green-600 hover:bg-green-700"
-                                    >
-                                      Save
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => {
-                                        setEditingNoteId(null);
-                                        setEditingNoteText('');
-                                      }}
-                                    >
-                                      Cancel
-                                    </Button>
-                                  </div>
-                                </div>
-                              ) : (
-                                note && (
-                                  <p className="text-xs text-gray-600">📝 {note}</p>
-                                )
-                              )}
-                            </div>
+                        <div className="flex items-start justify-between gap-3 p-3 bg-gray-50 rounded-lg">
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-900">Next → {nextVideo.name}</p>
                             
-                            {!isEditing && (
-                              <button
-                                onClick={() => {
-                                  setEditingNoteId(nextVideo.name);
-                                  setEditingNoteText(note);
-                                }}
-                                className="text-xs text-blue-600 hover:text-blue-800 underline whitespace-nowrap"
-                              >
-                                {note ? 'Edit' : 'Add note'}
-                              </button>
+                            {isEditing ? (
+                              <div className="mt-2 space-y-2">
+                                <textarea
+                                  value={editingNoteText}
+                                  onChange={(e) => setEditingNoteText(e.target.value)}
+                                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  rows={3}
+                                  placeholder="Add note for Step 9..."
+                                />
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => {
+                                      const updatedVideoResults = videoResults.map(v =>
+                                        v.videoName === nextVideo.name ? { ...v, step9Note: editingNoteText } : v
+                                      );
+                                      setVideoResults(updatedVideoResults);
+                                      setEditingNoteId(null);
+                                      setEditingNoteText('');
+                                      toast.success('Note saved!');
+                                      if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
+                                        upsertContextSessionMutation.mutate({
+                                          userId: currentUser.id,
+                                          tamId: selectedTamId,
+                                          coreBeliefId: selectedCoreBeliefId,
+                                          emotionalAngleId: selectedEmotionalAngleId,
+                                          adId: selectedAdId,
+                                          characterId: selectedCharacterId,
+                                          currentStep,
+                                          rawTextAd,
+                                          processedTextAd,
+                                          adLines,
+                                          prompts,
+                                          images,
+                                          combinations,
+                                          deletedCombinations,
+                                          videoResults: updatedVideoResults,
+                                          reviewHistory,
+                                          hookMergedVideos,
+                                          bodyMergedVideoUrl,
+                                          finalVideos,
+                                        });
+                                      }
+                                    }}
+                                    className="bg-green-600 hover:bg-green-700"
+                                  >
+                                    Save
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setEditingNoteId(null);
+                                      setEditingNoteText('');
+                                    }}
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              note && (
+                                <p className="mt-1 text-xs text-purple-600">📝 {note}</p>
+                              )
                             )}
                           </div>
+                          
+                          {!isEditing && (
+                            <button
+                              onClick={() => {
+                                setEditingNoteId(nextVideo.name);
+                                setEditingNoteText(note);
+                              }}
+                              className="text-xs text-blue-600 hover:text-blue-800 underline whitespace-nowrap"
+                            >
+                              {note ? 'Edit note' : 'Add note'}
+                            </button>
+                          )}
                         </div>
                       );
                     })()}
