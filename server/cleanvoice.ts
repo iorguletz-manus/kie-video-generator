@@ -51,10 +51,8 @@ export async function submitToCleanVoice(
   const config: CleanVoiceConfig = {
     video: false,           // Extract audio only (not video)
     export_format: 'wav',   // WAV format for Peaks.js waveform
-    breath: 'mute',         // Mute breaths
-    normalize: true,        // Normalize audio levels
-    remove_noise: true,     // Remove background noise
-    studio_sound: 'nightly', // Apply studio processing
+    breath: 'natural',      // Natural breath sounds
+    studio_sound: 'true',   // Apply studio processing (standard)
   };
 
   console.log(`[CleanVoice] Submitting video: ${videoUrl}`);
