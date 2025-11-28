@@ -5844,196 +5844,327 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   </h3>
                   <div className="grid grid-cols-3 gap-3">
                     {/* Previous Video */}
-                    <div className="bg-white border border-purple-200 rounded-lg p-3">
-                      <p className="text-xs font-medium text-purple-600 mb-2">← Previous</p>
-                      <p className="text-xs text-gray-700 font-mono break-words">
-                        {(() => {
-                          const currentIdx = trimmingProgress.successVideos.findIndex(
-                            v => v.name === trimmingCurrentVideoName
-                          );
-                          const prevVideo = currentIdx > 0 
-                            ? trimmingProgress.successVideos[currentIdx - 1] 
-                            : null;
-                          return prevVideo?.name || '-';
-                        })()}
-                      </p>
-                      {/* Note textarea for previous video */}
-                      {(() => {
-                        const currentIdx = trimmingProgress.successVideos.findIndex(
-                          v => v.name === trimmingCurrentVideoName
-                        );
-                        const prevVideo = currentIdx > 0 
-                          ? trimmingProgress.successVideos[currentIdx - 1] 
-                          : null;
-                        if (!prevVideo) return null;
-                        const videoData = videoResults.find(v => v.videoName === prevVideo.name);
-                        const note = videoData?.step9Note || '';
+                    {(() => {
+                      const currentIdx = trimmingProgress.successVideos.findIndex(
+                        v => v.name === trimmingCurrentVideoName
+                      );
+                      const prevVideo = currentIdx > 0 
+                        ? trimmingProgress.successVideos[currentIdx - 1] 
+                        : null;
+                      if (!prevVideo) {
                         return (
-                          <div className="mt-2">
-                            <textarea
-                              value={note}
-                              onChange={(e) => {
-                                const updatedVideoResults = videoResults.map(v =>
-                                  v.videoName === prevVideo.name ? { ...v, step9Note: e.target.value } : v
-                                );
-                                setVideoResults(updatedVideoResults);
-                              }}
-                              onBlur={() => {
-                                if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
-                                  upsertContextSessionMutation.mutate({
-                                    userId: currentUser.id,
-                                    tamId: selectedTamId,
-                                    coreBeliefId: selectedCoreBeliefId,
-                                    emotionalAngleId: selectedEmotionalAngleId,
-                                    adId: selectedAdId,
-                                    characterId: selectedCharacterId,
-                                    currentStep,
-                                    rawTextAd,
-                                    processedTextAd,
-                                    adLines,
-                                    prompts,
-                                    images,
-                                    combinations,
-                                    deletedCombinations,
-                                    videoResults,
-                                    reviewHistory,
-                                    hookMergedVideos,
-                                    bodyMergedVideoUrl,
-                                    finalVideos,
-                                  });
-                                }
-                              }}
-                              className="w-full px-2 py-1 text-xs border border-purple-200 rounded focus:outline-none focus:ring-1 focus:ring-purple-400"
-                              rows={2}
-                              placeholder="Add note..."
-                            />
+                          <div className="bg-white border border-purple-200 rounded-lg p-3">
+                            <p className="text-xs font-medium text-purple-600 mb-2">← Previous</p>
+                            <p className="text-xs text-gray-400">-</p>
                           </div>
                         );
-                      })()}
-                    </div>
+                      }
+                      const videoData = videoResults.find(v => v.videoName === prevVideo.name);
+                      const note = videoData?.step9Note || '';
+                      const isEditing = editingNoteId === prevVideo.name;
+                      
+                      return (
+                        <div className="bg-white border border-purple-200 rounded-lg p-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1">
+                              <p className="text-xs font-medium text-purple-600 mb-1">← Previous</p>
+                              <p className="text-xs text-purple-900 font-mono break-words mb-2">
+                                {prevVideo.name}
+                              </p>
+                              
+                              {isEditing ? (
+                                <div className="space-y-2">
+                                  <textarea
+                                    value={editingNoteText}
+                                    onChange={(e) => setEditingNoteText(e.target.value)}
+                                    className="w-full px-2 py-1 text-xs border border-purple-300 rounded focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                    rows={3}
+                                    placeholder="Add note for Step 9..."
+                                  />
+                                  <div className="flex gap-2">
+                                    <Button
+                                      size="sm"
+                                      onClick={() => {
+                                        const updatedVideoResults = videoResults.map(v =>
+                                          v.videoName === prevVideo.name ? { ...v, step9Note: editingNoteText } : v
+                                        );
+                                        setVideoResults(updatedVideoResults);
+                                        setEditingNoteId(null);
+                                        setEditingNoteText('');
+                                        toast.success('Note saved!');
+                                        if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
+                                          upsertContextSessionMutation.mutate({
+                                            userId: currentUser.id,
+                                            tamId: selectedTamId,
+                                            coreBeliefId: selectedCoreBeliefId,
+                                            emotionalAngleId: selectedEmotionalAngleId,
+                                            adId: selectedAdId,
+                                            characterId: selectedCharacterId,
+                                            currentStep,
+                                            rawTextAd,
+                                            processedTextAd,
+                                            adLines,
+                                            prompts,
+                                            images,
+                                            combinations,
+                                            deletedCombinations,
+                                            videoResults: updatedVideoResults,
+                                            reviewHistory,
+                                            hookMergedVideos,
+                                            bodyMergedVideoUrl,
+                                            finalVideos,
+                                          });
+                                        }
+                                      }}
+                                      className="bg-green-600 hover:bg-green-700"
+                                    >
+                                      Save
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        setEditingNoteId(null);
+                                        setEditingNoteText('');
+                                      }}
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                note && (
+                                  <p className="text-xs text-gray-600">📝 {note}</p>
+                                )
+                              )}
+                            </div>
+                            
+                            {!isEditing && (
+                              <button
+                                onClick={() => {
+                                  setEditingNoteId(prevVideo.name);
+                                  setEditingNoteText(note);
+                                }}
+                                className="text-xs text-blue-600 hover:text-blue-800 underline whitespace-nowrap"
+                              >
+                                {note ? 'Edit' : 'Add note'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
                     
                     {/* Current Video */}
-                    <div className="bg-purple-100 border-2 border-purple-400 rounded-lg p-3">
-                      <p className="text-xs font-medium text-purple-700 mb-2">▶️ Current</p>
-                      <p className="text-xs text-purple-900 font-mono font-bold break-words">
-                        {trimmingCurrentVideoName || trimmingProgress.successVideos[0]?.name || 'Loading...'}
-                      </p>
-                      {/* Note textarea for current video */}
-                      {(() => {
-                        const videoData = videoResults.find(v => v.videoName === trimmingCurrentVideoName);
-                        const note = videoData?.step9Note || '';
-                        return (
-                          <div className="mt-2">
-                            <textarea
-                              value={note}
-                              onChange={(e) => {
-                                const updatedVideoResults = videoResults.map(v =>
-                                  v.videoName === trimmingCurrentVideoName ? { ...v, step9Note: e.target.value } : v
-                                );
-                                setVideoResults(updatedVideoResults);
-                              }}
-                              onBlur={() => {
-                                if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
-                                  upsertContextSessionMutation.mutate({
-                                    userId: currentUser.id,
-                                    tamId: selectedTamId,
-                                    coreBeliefId: selectedCoreBeliefId,
-                                    emotionalAngleId: selectedEmotionalAngleId,
-                                    adId: selectedAdId,
-                                    characterId: selectedCharacterId,
-                                    currentStep,
-                                    rawTextAd,
-                                    processedTextAd,
-                                    adLines,
-                                    prompts,
-                                    images,
-                                    combinations,
-                                    deletedCombinations,
-                                    videoResults,
-                                    reviewHistory,
-                                    hookMergedVideos,
-                                    bodyMergedVideoUrl,
-                                    finalVideos,
-                                  });
-                                }
-                              }}
-                              className="w-full px-2 py-1 text-xs border border-purple-300 rounded focus:outline-none focus:ring-1 focus:ring-purple-500"
-                              rows={2}
-                              placeholder="Add note..."
-                            />
+                    {(() => {
+                      const videoName = trimmingCurrentVideoName || trimmingProgress.successVideos[0]?.name || 'Loading...';
+                      const videoData = videoResults.find(v => v.videoName === videoName);
+                      const note = videoData?.step9Note || '';
+                      const isEditing = editingNoteId === videoName;
+                      
+                      return (
+                        <div className="bg-purple-100 border-2 border-purple-400 rounded-lg p-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1">
+                              <p className="text-xs font-medium text-purple-700 mb-1">▶️ Current</p>
+                              <p className="text-xs text-purple-900 font-mono font-bold break-words mb-2">
+                                {videoName}
+                              </p>
+                              
+                              {isEditing ? (
+                                <div className="space-y-2">
+                                  <textarea
+                                    value={editingNoteText}
+                                    onChange={(e) => setEditingNoteText(e.target.value)}
+                                    className="w-full px-2 py-1 text-xs border border-purple-300 rounded focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                    rows={3}
+                                    placeholder="Add note for Step 9..."
+                                  />
+                                  <div className="flex gap-2">
+                                    <Button
+                                      size="sm"
+                                      onClick={() => {
+                                        const updatedVideoResults = videoResults.map(v =>
+                                          v.videoName === videoName ? { ...v, step9Note: editingNoteText } : v
+                                        );
+                                        setVideoResults(updatedVideoResults);
+                                        setEditingNoteId(null);
+                                        setEditingNoteText('');
+                                        toast.success('Note saved!');
+                                        if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
+                                          upsertContextSessionMutation.mutate({
+                                            userId: currentUser.id,
+                                            tamId: selectedTamId,
+                                            coreBeliefId: selectedCoreBeliefId,
+                                            emotionalAngleId: selectedEmotionalAngleId,
+                                            adId: selectedAdId,
+                                            characterId: selectedCharacterId,
+                                            currentStep,
+                                            rawTextAd,
+                                            processedTextAd,
+                                            adLines,
+                                            prompts,
+                                            images,
+                                            combinations,
+                                            deletedCombinations,
+                                            videoResults: updatedVideoResults,
+                                            reviewHistory,
+                                            hookMergedVideos,
+                                            bodyMergedVideoUrl,
+                                            finalVideos,
+                                          });
+                                        }
+                                      }}
+                                      className="bg-green-600 hover:bg-green-700"
+                                    >
+                                      Save
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        setEditingNoteId(null);
+                                        setEditingNoteText('');
+                                      }}
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                note && (
+                                  <p className="text-xs text-gray-600">📝 {note}</p>
+                                )
+                              )}
+                            </div>
+                            
+                            {!isEditing && (
+                              <button
+                                onClick={() => {
+                                  setEditingNoteId(videoName);
+                                  setEditingNoteText(note);
+                                }}
+                                className="text-xs text-blue-600 hover:text-blue-800 underline whitespace-nowrap"
+                              >
+                                {note ? 'Edit' : 'Add note'}
+                              </button>
+                            )}
                           </div>
-                        );
-                      })()}
-                    </div>
+                        </div>
+                      );
+                    })()}
                     
                     {/* Next Video */}
-                    <div className="bg-white border border-purple-200 rounded-lg p-3">
-                      <p className="text-xs font-medium text-purple-600 mb-2">Next →</p>
-                      <p className="text-xs text-gray-700 font-mono break-words">
-                        {(() => {
-                          const currentIdx = trimmingProgress.successVideos.findIndex(
-                            v => v.name === trimmingCurrentVideoName
-                          );
-                          const nextVideo = currentIdx >= 0 && currentIdx < trimmingProgress.successVideos.length - 1
-                            ? trimmingProgress.successVideos[currentIdx + 1] 
-                            : null;
-                          return nextVideo?.name || '-';
-                        })()}
-                      </p>
-                      {/* Note textarea for next video */}
-                      {(() => {
-                        const currentIdx = trimmingProgress.successVideos.findIndex(
-                          v => v.name === trimmingCurrentVideoName
-                        );
-                        const nextVideo = currentIdx >= 0 && currentIdx < trimmingProgress.successVideos.length - 1
-                          ? trimmingProgress.successVideos[currentIdx + 1] 
-                          : null;
-                        if (!nextVideo) return null;
-                        const videoData = videoResults.find(v => v.videoName === nextVideo.name);
-                        const note = videoData?.step9Note || '';
+                    {(() => {
+                      const currentIdx = trimmingProgress.successVideos.findIndex(
+                        v => v.name === trimmingCurrentVideoName
+                      );
+                      const nextVideo = currentIdx >= 0 && currentIdx < trimmingProgress.successVideos.length - 1
+                        ? trimmingProgress.successVideos[currentIdx + 1] 
+                        : null;
+                      if (!nextVideo) {
                         return (
-                          <div className="mt-2">
-                            <textarea
-                              value={note}
-                              onChange={(e) => {
-                                const updatedVideoResults = videoResults.map(v =>
-                                  v.videoName === nextVideo.name ? { ...v, step9Note: e.target.value } : v
-                                );
-                                setVideoResults(updatedVideoResults);
-                              }}
-                              onBlur={() => {
-                                if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
-                                  upsertContextSessionMutation.mutate({
-                                    userId: currentUser.id,
-                                    tamId: selectedTamId,
-                                    coreBeliefId: selectedCoreBeliefId,
-                                    emotionalAngleId: selectedEmotionalAngleId,
-                                    adId: selectedAdId,
-                                    characterId: selectedCharacterId,
-                                    currentStep,
-                                    rawTextAd,
-                                    processedTextAd,
-                                    adLines,
-                                    prompts,
-                                    images,
-                                    combinations,
-                                    deletedCombinations,
-                                    videoResults,
-                                    reviewHistory,
-                                    hookMergedVideos,
-                                    bodyMergedVideoUrl,
-                                    finalVideos,
-                                  });
-                                }
-                              }}
-                              className="w-full px-2 py-1 text-xs border border-purple-200 rounded focus:outline-none focus:ring-1 focus:ring-purple-400"
-                              rows={2}
-                              placeholder="Add note..."
-                            />
+                          <div className="bg-white border border-purple-200 rounded-lg p-3">
+                            <p className="text-xs font-medium text-purple-600 mb-2">Next →</p>
+                            <p className="text-xs text-gray-400">-</p>
                           </div>
                         );
-                      })()}
-                    </div>
+                      }
+                      const videoData = videoResults.find(v => v.videoName === nextVideo.name);
+                      const note = videoData?.step9Note || '';
+                      const isEditing = editingNoteId === nextVideo.name;
+                      
+                      return (
+                        <div className="bg-white border border-purple-200 rounded-lg p-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1">
+                              <p className="text-xs font-medium text-purple-600 mb-1">Next →</p>
+                              <p className="text-xs text-purple-900 font-mono break-words mb-2">
+                                {nextVideo.name}
+                              </p>
+                              
+                              {isEditing ? (
+                                <div className="space-y-2">
+                                  <textarea
+                                    value={editingNoteText}
+                                    onChange={(e) => setEditingNoteText(e.target.value)}
+                                    className="w-full px-2 py-1 text-xs border border-purple-300 rounded focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                    rows={3}
+                                    placeholder="Add note for Step 9..."
+                                  />
+                                  <div className="flex gap-2">
+                                    <Button
+                                      size="sm"
+                                      onClick={() => {
+                                        const updatedVideoResults = videoResults.map(v =>
+                                          v.videoName === nextVideo.name ? { ...v, step9Note: editingNoteText } : v
+                                        );
+                                        setVideoResults(updatedVideoResults);
+                                        setEditingNoteId(null);
+                                        setEditingNoteText('');
+                                        toast.success('Note saved!');
+                                        if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
+                                          upsertContextSessionMutation.mutate({
+                                            userId: currentUser.id,
+                                            tamId: selectedTamId,
+                                            coreBeliefId: selectedCoreBeliefId,
+                                            emotionalAngleId: selectedEmotionalAngleId,
+                                            adId: selectedAdId,
+                                            characterId: selectedCharacterId,
+                                            currentStep,
+                                            rawTextAd,
+                                            processedTextAd,
+                                            adLines,
+                                            prompts,
+                                            images,
+                                            combinations,
+                                            deletedCombinations,
+                                            videoResults: updatedVideoResults,
+                                            reviewHistory,
+                                            hookMergedVideos,
+                                            bodyMergedVideoUrl,
+                                            finalVideos,
+                                          });
+                                        }
+                                      }}
+                                      className="bg-green-600 hover:bg-green-700"
+                                    >
+                                      Save
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        setEditingNoteId(null);
+                                        setEditingNoteText('');
+                                      }}
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                note && (
+                                  <p className="text-xs text-gray-600">📝 {note}</p>
+                                )
+                              )}
+                            </div>
+                            
+                            {!isEditing && (
+                              <button
+                                onClick={() => {
+                                  setEditingNoteId(nextVideo.name);
+                                  setEditingNoteText(note);
+                                }}
+                                className="text-xs text-blue-600 hover:text-blue-800 underline whitespace-nowrap"
+                              >
+                                {note ? 'Edit' : 'Add note'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
                 
