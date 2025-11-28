@@ -4602,6 +4602,10 @@ const handlePrepareForMerge = async () => {
         await upsertContextSessionMutation.mutateAsync({
           userId: localCurrentUser.id,
           tamId: selectedTamId,
+          coreBeliefId: selectedCoreBeliefId!,
+          emotionalAngleId: selectedEmotionalAngleId!,
+          adId: selectedAdId!,
+          characterId: selectedCharacterId!,
           currentStep,
           rawTextAd,
           processedTextAd,
@@ -4688,6 +4692,10 @@ const handlePrepareForMerge = async () => {
           await upsertContextSessionMutation.mutateAsync({
             userId: localCurrentUser.id,
             tamId: selectedTamId,
+            coreBeliefId: selectedCoreBeliefId!,
+            emotionalAngleId: selectedEmotionalAngleId!,
+            adId: selectedAdId!,
+            characterId: selectedCharacterId!,
             currentStep,
             rawTextAd,
             processedTextAd,
@@ -4944,6 +4952,10 @@ const handlePrepareForMerge = async () => {
               await upsertContextSessionMutation.mutateAsync({
                 userId: localCurrentUser.id,
                 tamId: selectedTamId,
+                coreBeliefId: selectedCoreBeliefId!,
+                emotionalAngleId: selectedEmotionalAngleId!,
+                adId: selectedAdId!,
+                characterId: selectedCharacterId!,
                 currentStep,
                 rawTextAd,
                 processedTextAd,
@@ -5082,6 +5094,10 @@ const handlePrepareForMerge = async () => {
             await upsertContextSessionMutation.mutateAsync({
               userId: localCurrentUser.id,
               tamId: selectedTamId,
+              coreBeliefId: selectedCoreBeliefId!,
+              emotionalAngleId: selectedEmotionalAngleId!,
+              adId: selectedAdId!,
+              characterId: selectedCharacterId!,
               currentStep,
               rawTextAd,
               processedTextAd,
