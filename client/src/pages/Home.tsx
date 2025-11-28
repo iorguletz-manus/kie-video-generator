@@ -299,6 +299,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     ffmpegRequestsCurrent: number;
     ffmpegRequestsTotal: number;
     countdown: number;  // Countdown timer in seconds for 65s pause
+    cuttingCurrent: number;  // Track cutting progress separately
+    cuttingTotal: number;
+    mergingCurrent: number;  // Track merging progress separately (hooks + body)
+    mergingTotal: number;
   }>({
     current: 0,
     total: 0,
@@ -315,7 +319,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     mergeStatus: 'idle',
     ffmpegRequestsCurrent: 0,
     ffmpegRequestsTotal: 0,
-    countdown: 0
+    countdown: 0,
+    cuttingCurrent: 0,
+    cuttingTotal: 0,
+    mergingCurrent: 0,
+    mergingTotal: 0
   });
   
   // Auto-open failed list if there are failures
@@ -3067,8 +3075,40 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     const totalBatches = Math.ceil(videosToTrim.length / BATCH_SIZE);
     
     // Calculate total processes (videos + hook groups + body merge)
-    // We'll update this after CUT completes when we know hook groups count
-    const initialTotal = videosToTrim.length; // Start with videos only
+    // Calculate hook groups upfront
+    const hookVideos = videosToTrim.filter(v => v.videoName.match(/HOOK\d+[A-Z]?/));
+    const hookGroups: Record<string, typeof hookVideos> = {};
+    
+    hookVideos.forEach(video => {
+      const hookMatch = video.videoName.match(/(.*)(HOOK\d+)[A-Z]?(.*)/); 
+      if (hookMatch) {
+        const prefix = hookMatch[1];
+        const hookBase = hookMatch[2];
+        const suffix = hookMatch[3];
+        const groupKey = `${prefix}${hookBase}${suffix}`;
+        
+        if (!hookGroups[groupKey]) {
+          hookGroups[groupKey] = [];
+        }
+        hookGroups[groupKey].push(video);
+      }
+    });
+    
+    const hookGroupsToMerge = Object.entries(hookGroups).filter(([_, videos]) => videos.length > 1);
+    const bodyVideos = videosToTrim.filter(v => !v.videoName.match(/HOOK\d+[A-Z]?/));
+    const needsBodyMerge = bodyVideos.length > 0;
+    
+    const cuttingTotal = videosToTrim.length;
+    const mergingTotal = hookGroupsToMerge.length + (needsBodyMerge ? 1 : 0);
+    const initialTotal = cuttingTotal + mergingTotal;
+    
+    console.log('[Trimming] 📊 Progress calculation:', {
+      cuttingTotal,
+      hookGroups: hookGroupsToMerge.length,
+      bodyMerge: needsBodyMerge ? 1 : 0,
+      mergingTotal,
+      total: initialTotal
+    });
     
     // Calculate total FFmpeg requests:
     // 1 directory + (N videos * 2 uploads) + (N videos * 1 process) = 1 + 2N + N = 1 + 3N
@@ -3099,7 +3139,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       mergeStatus: 'idle',
       ffmpegRequestsCurrent: 0,
       ffmpegRequestsTotal: totalFFmpegRequests,
-      countdown: 0
+      countdown: 0,
+      cuttingCurrent: 0,
+      cuttingTotal,
+      mergingCurrent: 0,
+      mergingTotal,
+      mergedVideos: []
     });
     
     // Create shared directory for ALL videos in this batch (optimization: 1 request instead of N)
@@ -3195,6 +3240,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           setTrimmingProgress(prev => ({
             ...prev,
             current: prev.current + 1,
+            cuttingCurrent: prev.cuttingCurrent + 1,  // Increment cutting progress
             successVideos: [...prev.successVideos, { name: video.videoName }],
             inProgressVideos: prev.inProgressVideos.filter(v => v.name !== video.videoName),
             ffmpegRequestsCurrent: prev.ffmpegRequestsCurrent + ffmpegRequestsForVideo
@@ -3443,6 +3489,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           setTrimmingProgress(prev => ({
             ...prev,
             current: prev.current + 1,
+            mergingCurrent: prev.mergingCurrent + 1,  // Increment merging progress
             mergedVideos: [...prev.mergedVideos, { name: outputName, type: 'hooks' }]
           }));
           
@@ -3547,6 +3594,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           setTrimmingProgress(prev => ({
             ...prev,
             current: prev.current + 1,
+            mergingCurrent: prev.mergingCurrent + 1,  // Increment merging progress
             mergedVideos: [...prev.mergedVideos, { name: outputName, type: 'body' }]
           }));
           
@@ -5489,26 +5537,42 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 
                 {/* Progress Bars */}
                 <div className="space-y-4">
-                  {/* Videos Progress */}
+                  {/* Cutting Videos Progress */}
                   <div className="space-y-2">
                     <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">
-                      Videos Progress
+                      ✂️ Cutting Videos
                     </p>
                     <Progress 
-                      value={(trimmingProgress.current / trimmingProgress.total) * 100} 
-                      className="h-3"
+                      value={(trimmingProgress.cuttingCurrent / trimmingProgress.cuttingTotal) * 100} 
+                      className="h-3 bg-green-100"
                     />
-                    <p className="text-center text-sm font-medium text-gray-700">
-                      {trimmingProgress.current}/{trimmingProgress.total} videos processed
+                    <p className="text-center text-sm font-medium text-green-700">
+                      {trimmingProgress.cuttingCurrent}/{trimmingProgress.cuttingTotal} videos cut
                     </p>
                   </div>
+                  
+                  {/* Prepare for Merge Progress */}
+                  {trimmingProgress.mergingTotal > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+                        🔗 Prepare for Merge
+                      </p>
+                      <Progress 
+                        value={(trimmingProgress.mergingCurrent / trimmingProgress.mergingTotal) * 100} 
+                        className="h-3 bg-purple-100"
+                      />
+                      <p className="text-center text-sm font-medium text-purple-700">
+                        {trimmingProgress.mergingCurrent}/{trimmingProgress.mergingTotal} merged
+                      </p>
+                    </div>
+                  )}
                   
                   {/* Countdown Timer */}
                   {trimmingProgress.countdown > 0 && (
                     <div className="flex items-center justify-center">
                       <div className="bg-orange-50 border-2 border-orange-300 rounded-lg px-6 py-4">
                         <p className="text-center text-4xl font-bold text-orange-600 tabular-nums">
-                          \u23f3 {trimmingProgress.countdown}s
+                          ⏳ {trimmingProgress.countdown}s
                         </p>
                         <p className="text-center text-xs text-orange-500 mt-2">
                           Waiting for FFmpeg rate limit...
