@@ -11906,10 +11906,20 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                         try {
                           await batchProcessVideosWithWhisper(videosToProcess);
                           
-                          // Close modal and go to Step 8
+                          // Check if there are failed videos
+                          const failedCount = processingProgress.failedVideos.length;
+                          
+                          // Close modal
                           setShowProcessingModal(false);
-                          setCurrentStep(8);
-                          toast.success(`✅ ${videosToProcess.length} videouri procesate cu succes!`);
+                          
+                          if (failedCount > 0) {
+                            // Don't redirect if there are failed videos - stay on Step 7
+                            toast.warning(`⚠️ Processing complete: ${processingProgress.successVideos.length} success, ${failedCount} failed. Please retry failed videos.`);
+                          } else {
+                            // All success - go to Step 8
+                            setCurrentStep(8);
+                            toast.success(`✅ ${videosToProcess.length} videouri procesate cu succes!`);
+                          }
                         } catch (error: any) {
                           console.error('[Video Editing] Batch processing error:', error);
                           setShowProcessingModal(false);

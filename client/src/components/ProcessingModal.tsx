@@ -122,21 +122,21 @@ export function ProcessingModal({
                 </p>
               )}
               {failedVideos.length > 0 && (
-                <div className="space-y-1">
-                  <p className="text-xs text-red-600">
-                    ❌ Failed: {failedVideos.length}
-                  </p>
-                  {onRetryFailed && (
-                    <button
-                      onClick={onRetryFailed}
-                      className="w-full px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors"
-                    >
-                      🔄 Retry Failed Videos
-                    </button>
-                  )}
-                </div>
+                <p className="text-xs text-red-600">
+                  ❌ Failed: {failedVideos.length}
+                </p>
               )}
             </div>
+          )}
+
+          {/* Retry Failed Button - Only show when ALL processing is complete */}
+          {totalCompleted === totalVideos && totalVideos > 0 && failedVideos.length > 0 && onRetryFailed && (
+            <button
+              onClick={onRetryFailed}
+              className="w-full px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors"
+            >
+              🔄 Retry {failedVideos.length} Failed Video{failedVideos.length > 1 ? 's' : ''}
+            </button>
           )}
 
           {/* Completion Message */}
