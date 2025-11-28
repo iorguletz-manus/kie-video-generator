@@ -809,8 +809,13 @@ export async function cutVideoWithFFmpegAPI(
     }
     
     const dirData = await dirRes.json();
-    const dirId = dirData.id;
+    console.log(`[cutVideoWithFFmpegAPI] Directory API response:`, JSON.stringify(dirData));
+    const dirId = dirData.id || dirData.directory?.id || dirData.dir_id;
     console.log(`[cutVideoWithFFmpegAPI] Created directory: ${dirId}`);
+    
+    if (!dirId) {
+      throw new Error(`Failed to extract directory ID from response: ${JSON.stringify(dirData)}`);
+    }
     
     // 2. Upload video to FFmpeg API (in the same directory)
     const videoFileName = `${videoName}_original.mp4`;

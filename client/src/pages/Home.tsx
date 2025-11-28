@@ -331,6 +331,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   
   // Sample Merge modal
   const [isSampleMergeModalOpen, setIsSampleMergeModalOpen] = useState(false);
+  const [currentPlayingVideoName, setCurrentPlayingVideoName] = useState<string>('');
   // Sample Merge cache with localStorage persistence
   const [sampleMergedVideoUrl, setSampleMergedVideoUrl] = useState<string | null>(() => {
     try {
@@ -387,6 +388,61 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       return () => clearTimeout(timer);
     }
   }, [sampleMergeCountdown]);
+  
+  // Sync current video name with playback time
+  useEffect(() => {
+    if (!sampleMergedVideoUrl || sampleMergeVideos.length === 0) return;
+    
+    const videoElement = document.getElementById('sample-merge-video-player') as HTMLVideoElement;
+    if (!videoElement) return;
+    
+    // Build timeline from video durations
+    const timeline: Array<{ startTime: number; endTime: number; name: string }> = [];
+    let currentTime = 0;
+    
+    sampleMergeVideos.forEach((video) => {
+      // Find video data to get duration
+      const videoData = videoResults.find(v => v.videoName === video.name);
+      if (!videoData?.cutPoints) return;
+      
+      const durationMs = (videoData.cutPoints.endKeep || 0) - (videoData.cutPoints.startKeep || 0);
+      const durationSeconds = durationMs / 1000;
+      
+      timeline.push({
+        startTime: currentTime,
+        endTime: currentTime + durationSeconds,
+        name: video.name,
+      });
+      
+      currentTime += durationSeconds;
+    });
+    
+    console.log('[Sample Merge] Timeline:', timeline);
+    
+    // Update current video name based on playback time
+    const handleTimeUpdate = () => {
+      const currentPlaybackTime = videoElement.currentTime;
+      
+      const currentSegment = timeline.find(
+        seg => currentPlaybackTime >= seg.startTime && currentPlaybackTime < seg.endTime
+      );
+      
+      if (currentSegment) {
+        setCurrentPlayingVideoName(currentSegment.name);
+      }
+    };
+    
+    videoElement.addEventListener('timeupdate', handleTimeUpdate);
+    
+    // Set initial video name
+    if (timeline.length > 0) {
+      setCurrentPlayingVideoName(timeline[0].name);
+    }
+    
+    return () => {
+      videoElement.removeEventListener('timeupdate', handleTimeUpdate);
+    };
+  }, [sampleMergedVideoUrl, sampleMergeVideos, videoResults]);
   
   // Download ZIP progress
   const [isDownloadZipModalOpen, setIsDownloadZipModalOpen] = useState(false);
@@ -5129,8 +5185,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   </p>
                 </div>
                 
+                {/* Current Video Name Display */}
+                <div className="bg-yellow-100 border-2 border-yellow-400 rounded-lg p-3 text-center">
+                  <p className="text-lg font-bold text-yellow-900" id="current-video-name">
+                    🎬 {currentPlayingVideoName || sampleMergeVideos[0]?.name || 'Loading...'}
+                  </p>
+                </div>
+                
                 {/* Video Player */}
                 <video
+                  id="sample-merge-video-player"
                   src={sampleMergedVideoUrl}
                   controls
                   className="w-full rounded-lg border border-gray-300"
