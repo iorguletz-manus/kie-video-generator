@@ -636,6 +636,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
   // Video Editing mutations (Step 8)
   const processVideoForEditingMutation = trpc.videoEditing.processVideoForEditing.useMutation();
+  const createDirectoryMutation = trpc.videoEditing.createDirectory.useMutation();
   const cutVideoMutation = trpc.videoEditing.cutVideo.useMutation();
   const cutAndMergeMutation = trpc.videoEditing.cutAndMergeVideos.useMutation();
   const cutAndMergeAllMutation = trpc.videoEditing.cutAndMergeAllVideos.useMutation();
@@ -3076,6 +3077,20 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       mergeStatus: 'idle'
     });
     
+    // Create shared directory for ALL videos in this batch (optimization: 1 request instead of N)
+    console.log('[Trimming] 📁 Creating shared FFmpeg directory...');
+    let sharedDirId: string | undefined;
+    try {
+      const dirResult = await createDirectoryMutation.mutateAsync({
+        ffmpegApiKey: localCurrentUser.ffmpegApiKey || ''
+      });
+      sharedDirId = dirResult.dirId;
+      console.log('[Trimming] ✅ Shared directory created:', sharedDirId);
+    } catch (error) {
+      console.error('[Trimming] ❌ Failed to create shared directory:', error);
+      // Continue without shared directory (each video will create its own)
+    }
+    
     // Process videos in batches
     let currentIndex = 0;
     let batchNumber = 1;
@@ -3116,8 +3131,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             videoName: video.videoName,
             startTimeMs: trimStart,
             endTimeMs: trimEnd,
-            ffmpegApiKey: localCurrentUser.ffmpegApiKey || undefined,
-            cleanVoiceAudioUrl: video.cleanvoiceAudioUrl || undefined
+            ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
+            cleanVoiceAudioUrl: video.cleanvoiceAudioUrl || null,
+            dirId: sharedDirId,  // Pass shared directory ID for optimization
           });
           
           if (!result.success || !result.downloadUrl) {
@@ -3628,7 +3644,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           startTimeMs: trimStart,
           endTimeMs: trimEnd,
           ffmpegApiKey: localCurrentUser.ffmpegApiKey || undefined,
-          cleanVoiceAudioUrl: video.cleanvoiceAudioUrl || undefined
+          cleanVoiceAudioUrl: video.cleanvoiceAudioUrl || undefined,
+          // No dirId for retry - each retry creates its own directory
         });
         
         if (!result.success || !result.downloadUrl) {

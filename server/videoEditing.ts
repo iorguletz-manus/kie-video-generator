@@ -783,7 +783,8 @@ export async function cutVideoWithFFmpegAPI(
   endTimeSeconds: number,
   ffmpegApiKey: string,
   cleanVoiceAudioUrl?: string,  // Optional CleanVoice audio URL
-  userId?: number  // Optional userId for user-specific folder
+  userId?: number,  // Optional userId for user-specific folder
+  dirId?: string  // Optional: shared directory ID for batch processing
 ): Promise<string> {
   try {
     console.log(`[cutVideoWithFFmpegAPI] Cutting video ${videoName}: ${startTimeSeconds}s → ${endTimeSeconds}s`);
@@ -795,38 +796,45 @@ export async function cutVideoWithFFmpegAPI(
     
     const duration = endTimeSeconds - startTimeSeconds;
     
-    // 1. Create directory for this trim operation
-    const dirRes = await fetch(`${FFMPEG_API_BASE}/directory`, {
-      method: 'POST',
-      headers: {
-        'Authorization': ffmpegApiKey,
-        'Content-Type': 'application/json',
-      },
-    });
+    // 1. Create directory for this trim operation (or reuse existing dirId)
+    let finalDirId = dirId;
     
-    if (!dirRes.ok) {
-      throw new Error(`Failed to create directory: ${dirRes.statusText}`);
-    }
-    
-    const dirData = await dirRes.json();
-    console.log(`[cutVideoWithFFmpegAPI] Directory API response:`, JSON.stringify(dirData));
-    const dirId = dirData.id || dirData.directory?.id || dirData.dir_id;
-    console.log(`[cutVideoWithFFmpegAPI] Created directory: ${dirId}`);
-    
-    if (!dirId) {
-      throw new Error(`Failed to extract directory ID from response: ${JSON.stringify(dirData)}`);
+    if (!finalDirId) {
+      console.log(`[cutVideoWithFFmpegAPI] Creating new directory...`);
+      const dirRes = await fetch(`${FFMPEG_API_BASE}/directory`, {
+        method: 'POST',
+        headers: {
+          'Authorization': ffmpegApiKey,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!dirRes.ok) {
+        throw new Error(`Failed to create directory: ${dirRes.statusText}`);
+      }
+      
+      const dirData = await dirRes.json();
+      console.log(`[cutVideoWithFFmpegAPI] Directory API response:`, JSON.stringify(dirData));
+      finalDirId = dirData.id || dirData.directory?.id || dirData.dir_id;
+      console.log(`[cutVideoWithFFmpegAPI] Created directory: ${finalDirId}`);
+      
+      if (!finalDirId) {
+        throw new Error(`Failed to extract directory ID from response: ${JSON.stringify(dirData)}`);
+      }
+    } else {
+      console.log(`[cutVideoWithFFmpegAPI] Reusing existing directory: ${finalDirId}`);
     }
     
     // 2. Upload video to FFmpeg API (in the same directory)
     const videoFileName = `${videoName}_original.mp4`;
-    const videoFilePath = await uploadVideoToFFmpegAPI(videoUrl, videoFileName, ffmpegApiKey, dirId);
+    const videoFilePath = await uploadVideoToFFmpegAPI(videoUrl, videoFileName, ffmpegApiKey, finalDirId);
     
     // 3. Upload CleanVoice audio if provided (in the SAME directory)
     let audioFilePath: string | undefined;
     if (cleanVoiceAudioUrl) {
       console.log(`[cutVideoWithFFmpegAPI] Uploading CleanVoice audio to same directory...`);
       const audioFileName = `${videoName}_cleanvoice.mp3`;
-      audioFilePath = await uploadVideoToFFmpegAPI(cleanVoiceAudioUrl, audioFileName, ffmpegApiKey, dirId);
+      audioFilePath = await uploadVideoToFFmpegAPI(cleanVoiceAudioUrl, audioFileName, ffmpegApiKey, finalDirId);
       console.log(`[cutVideoWithFFmpegAPI] CleanVoice audio uploaded: ${audioFilePath}`);
     }
     

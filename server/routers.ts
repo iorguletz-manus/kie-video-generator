@@ -1563,6 +1563,41 @@ export const appRouter = router({
 
   // Video Editing router for Step 8 (batch processing) and Step 10 (cutting)
   videoEditing: router({
+    // Create FFmpeg directory for batch processing
+    createDirectory: publicProcedure
+      .input(z.object({
+        ffmpegApiKey: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          const FFMPEG_API_BASE = 'https://api.ffmpeg-api.com';
+          
+          const dirRes = await fetch(`${FFMPEG_API_BASE}/directory`, {
+            method: 'POST',
+            headers: {
+              'Authorization': input.ffmpegApiKey,
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          if (!dirRes.ok) {
+            throw new Error(`Failed to create directory: ${dirRes.statusText}`);
+          }
+          
+          const dirData = await dirRes.json();
+          const dirId = dirData.id || dirData.directory?.id || dirData.dir_id;
+          
+          if (!dirId) {
+            throw new Error(`Failed to extract directory ID from response`);
+          }
+          
+          console.log(`[createDirectory] Created directory: ${dirId}`);
+          return { dirId };
+        } catch (error: any) {
+          console.error('[createDirectory] Error:', error);
+          throw new Error(`Failed to create directory: ${error.message}`);
+        }
+      }),
     // Process single video for editing (Step 8 batch processing)
     processVideoForEditing: publicProcedure
       .input(z.object({
@@ -1644,6 +1679,7 @@ export const appRouter = router({
         endTimeMs: z.number(),    // milliseconds
         ffmpegApiKey: z.string().optional(),
         cleanVoiceAudioUrl: z.string().nullable().optional(),  // CleanVoice audio URL (can be null or undefined)
+        dirId: z.string().optional(),  // Optional: shared directory ID for batch processing
       }))
       .mutation(async ({ input }) => {
         try {
@@ -1662,7 +1698,8 @@ export const appRouter = router({
             parseFloat(endTimeSeconds),
             input.ffmpegApiKey!,
             input.cleanVoiceAudioUrl,  // Pass CleanVoice audio URL
-            input.userId  // Pass userId for user-specific folder
+            input.userId,  // Pass userId for user-specific folder
+            input.dirId  // Pass dirId for batch processing optimization
           );
           
           console.log(`[videoEditing.cutVideo] Video cut and uploaded successfully:`, finalVideoUrl);
