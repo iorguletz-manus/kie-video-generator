@@ -193,7 +193,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     ffmpeg: { current: 0, total: 0, status: 'idle' as 'idle' | 'processing' | 'complete', activeVideos: [] as string[] },
     whisper: { current: 0, total: 0, status: 'idle' as 'idle' | 'processing' | 'complete', activeVideos: [] as string[] },
     cleanvoice: { current: 0, total: 0, status: 'idle' as 'idle' | 'processing' | 'complete', activeVideos: [] as string[] },
-    currentVideoName: '' 
+    currentVideoName: '',
+    countdown: 0,
+    estimatedMinutes: 0,
+    successVideos: [] as string[],
+    failedVideos: [] as Array<{ videoName: string; error: string }>
   });
   const [processingStep, setProcessingStep] = useState<'download' | 'extract' | 'whisper' | 'cleanvoice' | 'detect' | 'save' | null>(null);
   
@@ -1948,27 +1952,44 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const removeImage = (id: string) => {
     setImages(prev => prev.filter(img => img.id !== id));
   };
-
-const batchProcessVideosWithWhisper = async (videos: VideoResult[]) => {
+  // Step 8: Batch process videos with FFmpeg batch (10 per batch, 61s pause) + Whisper + CleanVoice
+  const batchProcessVideosWithWhisper = async (videos: VideoResult[]) => {
   const batchStartTime = Date.now();
   console.log('[Batch Processing] ⏱️ BATCH START at', new Date().toISOString());
   console.log('[Batch Processing] 🚀 Starting FFmpeg batch processing with', videos.length, 'videos');
   console.log('[Batch Processing] 📋 Video list:', videos.map(v => v.videoName).join(', '));
   
+  const BATCH_SIZE = 10;
+  const DELAY_BETWEEN_BATCHES = 61000; // 61 seconds
+  
+  // Calculate total batches
+  const totalBatches = Math.ceil(videos.length / BATCH_SIZE);
+  
+  // Calculate estimated time
+  // Each batch takes 61s wait + 30s for Whisper/CleanVoice
+  // First batch: no wait, just 30s
+  // Subsequent batches: 61s wait + 30s processing
+  const estimatedSeconds = 30 + ((totalBatches - 1) * (61 + 30));
+  const estimatedMinutes = Math.ceil(estimatedSeconds / 60);
+  
   // Initialize progress bars
   setProcessingProgress({
-    ffmpeg: { current: 0, total: videos.length, status: 'idle', activeVideos: [] },
+    ffmpeg: { current: 0, total: videos.length, status: 'processing', activeVideos: [] },
     whisper: { current: 0, total: videos.length, status: 'idle', activeVideos: [] },
     cleanvoice: { current: 0, total: videos.length, status: 'idle', activeVideos: [] },
-    currentVideoName: ''
+    currentVideoName: '',
+    countdown: 0,
+    estimatedMinutes,
+    successVideos: [],
+    failedVideos: []
   });
-  
-  const BATCH_SIZE = 10;
-  const DELAY_BETWEEN_BATCHES = 58000; // 58 seconds
   
   let ffmpegCompletedCount = 0;
   let whisperCompletedCount = 0;
   let cleanvoiceCompletedCount = 0;
+  
+  const successVideos: string[] = [];
+  const failedVideos: Array<{ videoName: string; error: string }> = [];
   
   // Collect all results
   const resultsMap = new Map<string, any>();
@@ -1976,13 +1997,17 @@ const batchProcessVideosWithWhisper = async (videos: VideoResult[]) => {
   // Process videos in batches for FFmpeg
   let currentIndex = 0;
   let batchNumber = 1;
-  const totalBatches = Math.ceil(videos.length / BATCH_SIZE);
   
   while (currentIndex < videos.length) {
     const batchEnd = Math.min(currentIndex + BATCH_SIZE, videos.length);
     const batchVideos = videos.slice(currentIndex, batchEnd);
     
     console.log(`[Batch Processing] 📦 FFmpeg Batch ${batchNumber}/${totalBatches}: Processing ${batchVideos.length} videos (${currentIndex + 1}-${batchEnd})...`);
+    
+    setProcessingProgress(prev => ({
+      ...prev,
+      currentVideoName: `📦 Batch ${batchNumber}/${totalBatches}: Processing ${batchVideos.length} videos...`
+    }));
     
     // STEP 1: FFmpeg batch - Extract WAV from all videos in this batch (PARALLEL)
     const ffmpegPromises = batchVideos.map(async (video) => {
@@ -2008,7 +2033,7 @@ const batchProcessVideosWithWhisper = async (videos: VideoResult[]) => {
           userId: localCurrentUser.id,
         });
         
-        console.log(`[Batch Processing] ✅ FFmpeg DONE for ${video.videoName}`);
+        console.log(`[Batch Processing] ✅ FFmpeg SUCCESS for ${video.videoName}`);
         
         // Update FFmpeg progress: increment and remove from active list
         ffmpegCompletedCount++;
@@ -2041,6 +2066,13 @@ const batchProcessVideosWithWhisper = async (videos: VideoResult[]) => {
             status: 'processing',
             activeVideos: prev.ffmpeg.activeVideos.filter(v => v !== video.videoName)
           }
+        }));
+        
+        // Add to failed list
+        failedVideos.push({ videoName: video.videoName, error: error.message });
+        setProcessingProgress(prev => ({
+          ...prev,
+          failedVideos: [...prev.failedVideos, { videoName: video.videoName, error: error.message }]
         }));
         
         return {
@@ -2109,7 +2141,7 @@ const batchProcessVideosWithWhisper = async (videos: VideoResult[]) => {
             userId: localCurrentUser.id,
           });
           
-          console.log(`[Batch Processing] ✅ Whisper+CleanVoice DONE for ${video.videoName}`);
+          console.log(`[Batch Processing] ✅ Whisper+CleanVoice SUCCESS for ${video.videoName}`);
           
           // Update Whisper progress
           whisperCompletedCount++;
@@ -2133,6 +2165,13 @@ const batchProcessVideosWithWhisper = async (videos: VideoResult[]) => {
               status: cleanvoiceCompletedCount === videos.length ? 'complete' : 'processing',
               activeVideos: prev.cleanvoice.activeVideos.filter(v => v !== video.videoName)
             }
+          }));
+          
+          // Add to success list
+          successVideos.push(video.videoName);
+          setProcessingProgress(prev => ({
+            ...prev,
+            successVideos: [...prev.successVideos, video.videoName]
           }));
           
           // Store result
@@ -2173,6 +2212,13 @@ const batchProcessVideosWithWhisper = async (videos: VideoResult[]) => {
             }
           }));
           
+          // Add to failed list
+          failedVideos.push({ videoName: video.videoName, error: error.message });
+          setProcessingProgress(prev => ({
+            ...prev,
+            failedVideos: [...prev.failedVideos, { videoName: video.videoName, error: error.message }]
+          }));
+          
           resultsMap.set(video.videoName, {
             videoName: video.videoName,
             success: false,
@@ -2188,29 +2234,55 @@ const batchProcessVideosWithWhisper = async (videos: VideoResult[]) => {
     currentIndex = batchEnd;
     batchNumber++;
     
-    // Wait 58s before next FFmpeg batch (if there are more videos)
+    // Wait 61s before next FFmpeg batch (if there are more videos)
     if (currentIndex < videos.length) {
-      console.log(`[Batch Processing] ⏳ Waiting 58 seconds before FFmpeg batch ${batchNumber}...`);
+      console.log(`[Batch Processing] ⏳ Waiting 61 seconds before FFmpeg batch ${batchNumber}...`);
       
-      // Countdown timer: 58s → 57s → 56s → ... → 1s
-      for (let countdown = 58; countdown > 0; countdown--) {
+      // Countdown timer: 61s → 60s → 59s → ... → 1s
+      for (let countdown = 61; countdown > 0; countdown--) {
         setProcessingProgress(prev => ({
           ...prev,
-          currentVideoName: `⏳ Waiting ${countdown}s before next FFmpeg batch (rate limit)...`
+          countdown,
+          currentVideoName: `⏳ FFmpeg rate limit: waiting ${countdown}s before batch ${batchNumber}/${totalBatches}...`
         }));
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
+      
+      // Reset countdown
+      setProcessingProgress(prev => ({
+        ...prev,
+        countdown: 0
+      }));
     }
   }
   
   console.log('[Batch Processing] 🎉 All FFmpeg batches processed! Waiting for Whisper+CleanVoice to finish...');
   
-  // Wait for all Whisper+CleanVoice processing to complete
+  setProcessingProgress(prev => ({
+    ...prev,
+    currentVideoName: '⏳ Waiting for Whisper + CleanVoice to finish...'
+  }));
+  
+  // Wait for all Whisper+CleanVoice processing to complete (with timeout)
+  const maxWaitTime = 300000; // 5 minutes max
+  const startWaitTime = Date.now();
+  
   while (whisperCompletedCount < videos.length || cleanvoiceCompletedCount < videos.length) {
+    // Check timeout
+    if (Date.now() - startWaitTime > maxWaitTime) {
+      console.error('[Batch Processing] ⚠️ Timeout waiting for Whisper+CleanVoice!');
+      toast.error('⚠️ Timeout: Some videos did not complete processing');
+      break;
+    }
+    
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
   
   console.log('[Batch Processing] 🎉 All processing complete!');
+  
+  const batchDuration = Date.now() - batchStartTime;
+  console.log(`[Batch Processing] ⏱️ BATCH COMPLETE in ${batchDuration}ms (${(batchDuration/1000).toFixed(2)}s)`);
+  console.log(`[Batch Processing] 📊 Success: ${successVideos.length}, Failed: ${failedVideos.length}`);
   
   // Update videoResults with all results
   const updatedResults = videos.map(video => {
@@ -2233,27 +2305,56 @@ const batchProcessVideosWithWhisper = async (videos: VideoResult[]) => {
     };
   });
   
-  setVideoResults(prev => {
-    const newResults = [...prev];
-    updatedResults.forEach(updated => {
-      const index = newResults.findIndex(v => v.videoName === updated.videoName);
-      if (index !== -1) {
-        newResults[index] = updated;
-      }
+  // Capture new state before database save (same pattern as STEP 1)
+  const currentVideoResults = await new Promise<typeof videoResults>((resolve) => {
+    setVideoResults(prev => {
+      const newResults = [...prev];
+      updatedResults.forEach(updated => {
+        const index = newResults.findIndex(v => v.videoName === updated.videoName);
+        if (index !== -1) {
+          newResults[index] = updated;
+        }
+      });
+      resolve(newResults);
+      return newResults;
     });
-    return newResults;
   });
   
-  const batchDuration = Date.now() - batchStartTime;
-  console.log(`[Batch Processing] ⏱️ BATCH COMPLETE in ${batchDuration}ms (${(batchDuration/1000).toFixed(2)}s)`);
+  // Save to database
+  try {
+    await upsertContextSessionMutation.mutateAsync({
+      userId: localCurrentUser.id,
+      sessionId: contextSessionId,
+      videoResults: currentVideoResults,
+    });
+    console.log('[Batch Processing] ✅ Saved to database');
+  } catch (error) {
+    console.error('[Batch Processing] ❌ Failed to save to database:', error);
+  }
   
   setProcessingProgress({
     ffmpeg: { current: videos.length, total: videos.length, status: 'complete', activeVideos: [] },
     whisper: { current: videos.length, total: videos.length, status: 'complete', activeVideos: [] },
     cleanvoice: { current: videos.length, total: videos.length, status: 'complete', activeVideos: [] },
-    currentVideoName: '✅ All processing complete!'
+    currentVideoName: successVideos.length === videos.length 
+      ? '✅ All videos processed successfully!' 
+      : `✅ Complete: ${successVideos.length} success, ${failedVideos.length} failed`,
+    countdown: 0,
+    estimatedMinutes: 0,
+    successVideos,
+    failedVideos
   });
+  
+  // Show toast with summary
+  if (failedVideos.length > 0) {
+    toast.warning(`⚠️ Processing complete: ${successVideos.length} success, ${failedVideos.length} failed`);
+  } else {
+    toast.success(`✅ All ${successVideos.length} videos processed successfully!`);
+  }
+  
+  return resultsMap;
 };
+
 
 
   // Step 9 → Step 10: Merge videos (body + hook variations)
@@ -6191,6 +6292,15 @@ const batchProcessVideosWithWhisper = async (videos: VideoResult[]) => {
         cleanvoiceProgress={processingProgress.cleanvoice}
         currentVideoName={processingProgress.currentVideoName}
         processingStep={processingStep}
+        countdown={processingProgress.countdown}
+        estimatedMinutes={processingProgress.estimatedMinutes}
+        successVideos={processingProgress.successVideos}
+        failedVideos={processingProgress.failedVideos}
+        onRetryFailed={() => {
+          // TODO: Implement retry failed logic
+          console.log('Retry failed videos:', processingProgress.failedVideos);
+          toast.info('🔄 Retry functionality coming soon...');
+        }}
       />
       
       {/* Merge Videos Modal for Step 9 → Step 10 */}

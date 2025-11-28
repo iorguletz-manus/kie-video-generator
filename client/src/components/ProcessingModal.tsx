@@ -10,6 +10,11 @@ interface ProcessingModalProps {
   cleanvoiceProgress: { current: number; total: number; status: 'idle' | 'processing' | 'complete'; activeVideos: string[] };
   currentVideoName: string;
   processingStep: 'download' | 'extract' | 'whisper' | 'cleanvoice' | 'detect' | 'save' | null;
+  countdown?: number;
+  estimatedMinutes?: number;
+  successVideos?: string[];
+  failedVideos?: Array<{ videoName: string; error: string }>;
+  onRetryFailed?: () => void;
 }
 
 export function ProcessingModal({
@@ -18,7 +23,12 @@ export function ProcessingModal({
   whisperProgress,
   cleanvoiceProgress,
   currentVideoName,
-  processingStep
+  processingStep,
+  countdown = 0,
+  estimatedMinutes = 0,
+  successVideos = [],
+  failedVideos = [],
+  onRetryFailed
 }: ProcessingModalProps) {
   const ffmpegPercent = ffmpegProgress.total > 0 ? (ffmpegProgress.current / ffmpegProgress.total) * 100 : 0;
   const whisperPercent = whisperProgress.total > 0 ? (whisperProgress.current / whisperProgress.total) * 100 : 0;
@@ -26,7 +36,7 @@ export function ProcessingModal({
   const totalCompleted = Math.min(ffmpegProgress.current, whisperProgress.current, cleanvoiceProgress.current);
   const totalVideos = ffmpegProgress.total;
   
-  const estimatedMinutes = Math.ceil((totalVideos - totalCompleted) * 15 / 60); // ~15s per video
+  // Use provided estimatedMinutes (calculated in batchProcessVideosWithWhisper)
 
   const getStepLabel = () => {
     switch (processingStep) {
@@ -86,11 +96,47 @@ export function ProcessingModal({
 
           {/* Removed: Current Video and Step labels - batch processing makes this confusing */}
 
-          {/* Estimated Time - Hardcoded */}
-          {totalCompleted < totalVideos && (
+          {/* Countdown Timer (during FFmpeg batch wait) */}
+          {countdown > 0 && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
+              <p className="text-2xl font-bold text-blue-900">{countdown}s</p>
+              <p className="text-xs text-blue-700 mt-1">
+                ⏳ FFmpeg rate limit - waiting before next batch
+              </p>
+            </div>
+          )}
+
+          {/* Estimated Time */}
+          {totalCompleted < totalVideos && countdown === 0 && estimatedMinutes > 0 && (
             <p className="text-xs text-center text-gray-500">
-              ⏱️ Timp estimat rămas: ~30 seconds
+              ⏱️ Timp estimat rămas: ~{estimatedMinutes} {estimatedMinutes === 1 ? 'minute' : 'minutes'}
             </p>
+          )}
+
+          {/* Success/Failed Summary */}
+          {(successVideos.length > 0 || failedVideos.length > 0) && (
+            <div className="space-y-2">
+              {successVideos.length > 0 && (
+                <p className="text-xs text-green-600">
+                  ✅ Success: {successVideos.length}
+                </p>
+              )}
+              {failedVideos.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs text-red-600">
+                    ❌ Failed: {failedVideos.length}
+                  </p>
+                  {onRetryFailed && (
+                    <button
+                      onClick={onRetryFailed}
+                      className="w-full px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors"
+                    >
+                      🔄 Retry Failed Videos
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           )}
 
           {/* Completion Message */}
