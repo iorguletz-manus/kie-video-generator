@@ -3250,8 +3250,25 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         }));
       }
     }
+     console.log('[Trimming] \ud83c\udf89 All batches processed!');
     
-    console.log('[Trimming] 🎉 All batches processed!');
+    // Wait 65s after last batch before merge operations (FFmpeg rate limit)
+    console.log('[Trimming] \u23f3 Waiting 65 seconds before merge operations (FFmpeg rate limit)...');
+    for (let countdown = 65; countdown > 0; countdown--) {
+      setTrimmingProgress(prev => ({
+        ...prev,
+        message: `\u23f3 Waiting ${countdown}s before merge operations (FFmpeg rate limit)...`,
+        status: 'processing',
+        countdown: countdown
+      }));
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    
+    // Reset countdown
+    setTrimmingProgress(prev => ({
+      ...prev,
+      countdown: 0
+    }));
     
     // Get LATEST counts from state using callback
     setTrimmingProgress(prev => {
@@ -5623,12 +5640,80 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             {trimmingProgress.mergeStatus === 'failed' && (
               <div>
                 <p className="text-sm font-medium text-red-700 mb-2">
-                  ❌ Merge failed
+                  \u274c Merge failed
                 </p>
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 space-y-2">
                   <p className="text-xs text-red-600">
                     Videos were trimmed but merge operation failed.
                   </p>
+                  <Button
+                    onClick={async () => {
+                      // Retry final merge
+                      console.log('[Trimming] \ud83d\udd04 Retrying final merge...');
+                      
+                      setTrimmingProgress(prev => ({
+                        ...prev,
+                        status: 'merging',
+                        mergeStatus: 'pending',
+                        message: '\ud83d\udd04 Retrying merge...'
+                      }));
+                      
+                      try {
+                        // Get latest videoResults
+                        let latestVideoResults: typeof videoResults = [];
+                        setVideoResults(current => {
+                          latestVideoResults = current;
+                          return current;
+                        });
+                        
+                        const trimmedVideos = latestVideoResults.filter(v => v.trimmedVideoUrl);
+                        
+                        if (trimmedVideos.length === 0) {
+                          throw new Error('No trimmed videos found');
+                        }
+                        
+                        // Merge all trimmed videos
+                        const mergeResult = await cutAndMergeAllMutation.mutateAsync({
+                          videos: trimmedVideos.map(v => ({
+                            url: v.trimmedVideoUrl!,
+                            name: v.videoName,
+                            startMs: 0,
+                            endMs: 0
+                          })),
+                          ffmpegApiKey: localCurrentUser.ffmpegApiKey || ''
+                        });
+                        
+                        if (!mergeResult.success || !mergeResult.downloadUrl) {
+                          throw new Error('Merge failed');
+                        }
+                        
+                        setTrimmingMergedVideoUrl(mergeResult.downloadUrl);
+                        setLastSampleVideoUrl(mergeResult.downloadUrl);
+                        
+                        setTrimmingProgress(prev => ({
+                          ...prev,
+                          status: 'complete',
+                          mergeStatus: 'success',
+                          message: '\u2705 Merge successful!'
+                        }));
+                        
+                        toast.success('Merge successful!');
+                      } catch (error: any) {
+                        console.error('[Trimming] \u274c Retry merge failed:', error);
+                        setTrimmingProgress(prev => ({
+                          ...prev,
+                          status: 'partial',
+                          mergeStatus: 'failed',
+                          message: `\u274c Merge failed: ${error.message}`
+                        }));
+                        toast.error(`Merge failed: ${error.message}`);
+                      }
+                    }}
+                    className="bg-red-600 hover:bg-red-700 text-white text-xs"
+                    size="sm"
+                  >
+                    \ud83d\udd04 Retry Merge
+                  </Button>
                 </div>
               </div>
             )}
