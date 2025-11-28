@@ -573,6 +573,28 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     status: 'countdown' | 'processing' | 'complete' | 'partial' | 'error';
     message: string;
     countdown?: number;
+    totalMerges?: number;
+    bodyInfo?: {
+      totalVideos: number;
+      totalChunks: number;
+      currentChunk: number;
+      chunkResults: Array<{ chunkNum: number; status: 'success' | 'failed'; url?: string; error?: string }>;
+      finalUrl: string | null;
+      status: 'pending' | 'processing' | 'success' | 'failed';
+    } | null;
+    hookGroups?: Array<{
+      baseName: string;
+      videoCount: number;
+      videoNames: string[];
+      status: 'pending' | 'processing' | 'success' | 'failed';
+      cdnUrl: string | null;
+      error: string | null;
+    }>;
+    failedItems?: Array<{
+      type: 'body_chunk' | 'body_final' | 'hook';
+      name: string;
+      error: string;
+    }>;
     results?: Array<{
       type: 'hook' | 'body';
       name: string;
@@ -581,7 +603,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       cdnUrl?: string;
       error?: string;
     }>;
-  }>({ status: 'countdown', message: '', results: [] });
+  }>({ status: 'countdown', message: '', results: [], failedItems: [] });
   const [bodyMergedVideoUrl, setBodyMergedVideoUrl] = useState<string | null>(null);
   const [hookMergedVideos, setHookMergedVideos] = useState<Record<string, string>>({});
   
@@ -1949,53 +1971,134 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     setImages(prev => prev.filter(img => img.id !== id));
   };
 
-  // Step 8: Batch process videos with Whisper + FFmpeg API (SMART rate limiting)
-  const batchProcessVideosWithWhisper = async (videos: VideoResult[]) => {
-    const batchStartTime = Date.now();
-    console.log('[Batch Processing] ⏱️ BATCH START at', new Date().toISOString());
-    console.log('[Batch Processing] 🚀 Starting SMART processing with', videos.length, 'videos');
-    console.log('[Batch Processing] 📋 Video list:', videos.map(v => v.videoName).join(', '));
+const batchProcessVideosWithWhisper = async (videos: VideoResult[]) => {
+  const batchStartTime = Date.now();
+  console.log('[Batch Processing] ⏱️ BATCH START at', new Date().toISOString());
+  console.log('[Batch Processing] 🚀 Starting FFmpeg batch processing with', videos.length, 'videos');
+  console.log('[Batch Processing] 📋 Video list:', videos.map(v => v.videoName).join(', '));
+  
+  // Initialize progress bars
+  setProcessingProgress({
+    ffmpeg: { current: 0, total: videos.length, status: 'idle', activeVideos: [] },
+    whisper: { current: 0, total: videos.length, status: 'idle', activeVideos: [] },
+    cleanvoice: { current: 0, total: videos.length, status: 'idle', activeVideos: [] },
+    currentVideoName: ''
+  });
+  
+  const BATCH_SIZE = 10;
+  const DELAY_BETWEEN_BATCHES = 58000; // 58 seconds
+  
+  let ffmpegCompletedCount = 0;
+  let whisperCompletedCount = 0;
+  let cleanvoiceCompletedCount = 0;
+  
+  // Collect all results
+  const resultsMap = new Map<string, any>();
+  
+  // Process videos in batches for FFmpeg
+  let currentIndex = 0;
+  let batchNumber = 1;
+  const totalBatches = Math.ceil(videos.length / BATCH_SIZE);
+  
+  while (currentIndex < videos.length) {
+    const batchEnd = Math.min(currentIndex + BATCH_SIZE, videos.length);
+    const batchVideos = videos.slice(currentIndex, batchEnd);
     
-    // Initialize progress bars
-    setProcessingProgress({
-      ffmpeg: { current: 0, total: videos.length, status: 'idle', activeVideos: [] },
-      whisper: { current: 0, total: videos.length, status: 'idle', activeVideos: [] },
-      cleanvoice: { current: 0, total: videos.length, status: 'idle', activeVideos: [] },
-      currentVideoName: ''
+    console.log(`[Batch Processing] 📦 FFmpeg Batch ${batchNumber}/${totalBatches}: Processing ${batchVideos.length} videos (${currentIndex + 1}-${batchEnd})...`);
+    
+    // STEP 1: FFmpeg batch - Extract WAV from all videos in this batch (PARALLEL)
+    const ffmpegPromises = batchVideos.map(async (video) => {
+      try {
+        console.log(`[Batch Processing] 🎬 FFmpeg START for ${video.videoName}`);
+        
+        // Update FFmpeg progress: add to active list
+        setProcessingProgress(prev => ({
+          ...prev,
+          ffmpeg: {
+            ...prev.ffmpeg,
+            status: 'processing',
+            activeVideos: [...prev.ffmpeg.activeVideos, video.videoName]
+          }
+        }));
+        
+        // Extract WAV from video
+        const wavResult = await extractWAVFromVideoMutation.mutateAsync({
+          videoUrl: video.videoUrl!,
+          videoId: parseInt(video.id || '0'),
+          videoName: video.videoName,
+          ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
+          userId: localCurrentUser.id,
+        });
+        
+        console.log(`[Batch Processing] ✅ FFmpeg DONE for ${video.videoName}`);
+        
+        // Update FFmpeg progress: increment and remove from active list
+        ffmpegCompletedCount++;
+        setProcessingProgress(prev => ({
+          ...prev,
+          ffmpeg: {
+            current: ffmpegCompletedCount,
+            total: videos.length,
+            status: ffmpegCompletedCount === videos.length ? 'complete' : 'processing',
+            activeVideos: prev.ffmpeg.activeVideos.filter(v => v !== video.videoName)
+          }
+        }));
+        
+        return {
+          video,
+          wavUrl: wavResult.wavUrl,
+          waveformJson: wavResult.waveformJson,
+          success: true,
+        };
+      } catch (error: any) {
+        console.error(`[Batch Processing] ❌ FFmpeg FAILED for ${video.videoName}:`, error);
+        
+        // Update FFmpeg progress: increment and remove from active list
+        ffmpegCompletedCount++;
+        setProcessingProgress(prev => ({
+          ...prev,
+          ffmpeg: {
+            current: ffmpegCompletedCount,
+            total: videos.length,
+            status: 'processing',
+            activeVideos: prev.ffmpeg.activeVideos.filter(v => v !== video.videoName)
+          }
+        }));
+        
+        return {
+          video,
+          success: false,
+          error: error.message,
+        };
+      }
     });
     
-    let successCount = 0;
-    let failCount = 0;
-    let cleanvoiceCompletedCount = 0;
-    let whisperCompletedCount = 0;
+    // Wait for all FFmpeg extractions in this batch to complete
+    const ffmpegResults = await Promise.all(ffmpegPromises);
     
-    // Collect all results in a Map
-    const resultsMap = new Map<string, any>();
+    console.log(`[Batch Processing] ✅ FFmpeg Batch ${batchNumber} complete!`);
     
-    // NO LIMITS - CleanVoice can handle unlimited concurrent requests
-    
-    // Helper: Process single video with retry
-    const processVideoWithRetry = async (video: VideoResult, retries = 3): Promise<any> => {
-      const videoStartTime = Date.now();
-      for (let attempt = 1; attempt <= retries; attempt++) {
+    // STEP 2: Immediately send WAVs to Whisper + CleanVoice (NO LIMIT, PARALLEL)
+    const audioProcessingPromises = ffmpegResults
+      .filter(r => r.success)
+      .map(async (ffmpegResult) => {
+        const { video, wavUrl, waveformJson } = ffmpegResult;
+        
         try {
-          console.log(`[Batch Processing] ⏱️ ${video.videoName} - START at ${new Date().toISOString()}`);
-          console.log(`[Batch Processing] 🎬 ${video.videoName} - Attempt ${attempt}/${retries}`);
+          console.log(`[Batch Processing] 🎵 Whisper+CleanVoice START for ${video.videoName}`);
           
-          setProcessingStep('cleanvoice');
-          
-          // Add video to CleanVoice and Whisper (they run in parallel)
+          // Update Whisper and CleanVoice progress: add to active lists
           setProcessingProgress(prev => ({
             ...prev,
-            cleanvoice: {
-              ...prev.cleanvoice,
-              status: 'processing',
-              activeVideos: [...prev.cleanvoice.activeVideos, video.videoName]
-            },
             whisper: {
               ...prev.whisper,
               status: 'processing',
               activeVideos: [...prev.whisper.activeVideos, video.videoName]
+            },
+            cleanvoice: {
+              ...prev.cleanvoice,
+              status: 'processing',
+              activeVideos: [...prev.cleanvoice.activeVideos, video.videoName]
             }
           }));
           
@@ -2009,248 +2112,171 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             ? video.text.substring(video.redStart, video.redEnd)
             : '';
           
-          // Calculate red text position from redStart/redEnd (undefined if no red text)
-          // Check if red text is at the END of the original text (not just redStart position)
           const textLength = video.text.length;
           const redTextPosition: 'START' | 'END' | undefined = hasRedText
-            ? ((video.redEnd || 0) >= textLength - 10 ? 'END' : 'START')  // If redEnd is near end of text, it's at END
+            ? ((video.redEnd || 0) >= textLength - 10 ? 'END' : 'START')
             : undefined;
           
-          if (!hasRedText || !redText) {
-            console.log(`[Batch Processing] ⚪ ${video.videoName} - No red text, processing as white-text-only`);
-          }
-          
-          // Process with CleanVoice + Whisper (CleanVoice extracts audio, Whisper transcribes)
-          console.log(`[Batch Processing] 📤 Sending API request for ${video.videoName}:`, {
-            videoUrl: video.videoUrl,
+          // Process WAV with Whisper + CleanVoice
+          const audioResult = await processAudioWithWhisperCleanVoiceMutation.mutateAsync({
+            wavUrl: wavUrl!,
             videoId: parseInt(video.id || '0'),
             videoName: video.videoName,
-            fullText: video.text.substring(0, 50) + '...',
-            redText: redText,
-            redTextPosition: redTextPosition
-          });
-          
-          const result = await processVideoForEditingMutation.mutateAsync({
-            videoUrl: video.videoUrl!,
-            videoId: parseInt(video.id || '0'),
-            videoName: video.videoName,  // Pass video name for unique file naming
             fullText: video.text,
             redText: redText,
             redTextPosition: redTextPosition,
             marginMs: 50,
             userApiKey: localCurrentUser.openaiApiKey || undefined,
-            ffmpegApiKey: localCurrentUser.ffmpegApiKey || undefined,
             cleanvoiceApiKey: localCurrentUser.cleanvoiceApiKey || undefined,
             userId: localCurrentUser.id,
           });
           
-          // CleanVoice and Whisper complete together
+          console.log(`[Batch Processing] ✅ Whisper+CleanVoice DONE for ${video.videoName}`);
           
-          const videoDuration = Date.now() - videoStartTime;
-          console.log(`[Batch Processing] ✅ ${video.videoName} - Success in ${videoDuration}ms (${(videoDuration/1000).toFixed(2)}s)!`);
-          console.log(`[Batch Processing] 📥 Received result for ${video.videoName} (took ${videoDuration}ms):`, {
-            audioUrl: result.audioUrl,
-            cutPoints: result.cutPoints,
-            whisperTranscript: typeof result.whisperTranscript === 'string' 
-              ? result.whisperTranscript.substring(0, 50) + '...'
-              : JSON.stringify(result.whisperTranscript).substring(0, 50) + '...'
-          });
-          
-          // Update CleanVoice progress (audio processing complete) - remove from active list
-          cleanvoiceCompletedCount++;
-          setProcessingProgress(prev => ({ 
-            ...prev,
-            cleanvoice: { 
-              current: cleanvoiceCompletedCount, 
-              total: videos.length,
-              status: cleanvoiceCompletedCount === videos.length ? 'complete' : 'processing',
-              activeVideos: prev.cleanvoice.activeVideos.filter(v => v !== video.videoName)
-            },
-            currentVideoName: video.videoName 
-          }));
-          
-          // Update Whisper progress (transcription complete) - remove from active list
+          // Update Whisper progress
           whisperCompletedCount++;
-          setProcessingProgress(prev => ({ 
+          setProcessingProgress(prev => ({
             ...prev,
-            whisper: { 
-              current: whisperCompletedCount, 
+            whisper: {
+              current: whisperCompletedCount,
               total: videos.length,
               status: whisperCompletedCount === videos.length ? 'complete' : 'processing',
               activeVideos: prev.whisper.activeVideos.filter(v => v !== video.videoName)
-            },
-            currentVideoName: video.videoName 
+            }
           }));
           
-          console.log(`[Batch Processing] 📊 Progress: CleanVoice ${cleanvoiceCompletedCount}/${videos.length}, Whisper ${whisperCompletedCount}/${videos.length}`);
+          // Update CleanVoice progress
+          cleanvoiceCompletedCount++;
+          setProcessingProgress(prev => ({
+            ...prev,
+            cleanvoice: {
+              current: cleanvoiceCompletedCount,
+              total: videos.length,
+              status: cleanvoiceCompletedCount === videos.length ? 'complete' : 'processing',
+              activeVideos: prev.cleanvoice.activeVideos.filter(v => v !== video.videoName)
+            }
+          }));
           
-          // Log CleanVoice result
-          console.log(`[Batch Processing] 🎵 ${video.videoName} - CleanVoice URL:`, result.cleanvoiceAudioUrl || 'NULL (CleanVoice failed or not configured)');
-          
-          return {
+          // Store result
+          resultsMap.set(video.videoName, {
             videoName: video.videoName,
             success: true,
             result: {
-              whisperTranscript: result.whisperTranscript,
-              cutPoints: result.cutPoints,
-              words: result.words,
-              audioUrl: result.audioUrl,
-              waveformData: result.waveformJson,
-              editingDebugInfo: result.editingDebugInfo,
-              cleanvoiceAudioUrl: result.cleanvoiceAudioUrl,
+              whisperTranscript: audioResult.whisperTranscript,
+              cutPoints: audioResult.cutPoints,
+              words: audioResult.words,
+              audioUrl: wavUrl,
+              waveformData: waveformJson,
+              editingDebugInfo: audioResult.editingDebugInfo,
+              cleanvoiceAudioUrl: audioResult.cleanvoiceAudioUrl,
               noCutNeeded: false,
             }
-          };
+          });
+          
         } catch (error: any) {
-          // Error handling
+          console.error(`[Batch Processing] ❌ Whisper+CleanVoice FAILED for ${video.videoName}:`, error);
           
-          console.error(`[Batch Processing] ❌ ${video.videoName} - Attempt ${attempt} failed:`, error.message);
+          // Update progress even on failure
+          whisperCompletedCount++;
+          cleanvoiceCompletedCount++;
+          setProcessingProgress(prev => ({
+            ...prev,
+            whisper: {
+              current: whisperCompletedCount,
+              total: videos.length,
+              status: 'processing',
+              activeVideos: prev.whisper.activeVideos.filter(v => v !== video.videoName)
+            },
+            cleanvoice: {
+              current: cleanvoiceCompletedCount,
+              total: videos.length,
+              status: 'processing',
+              activeVideos: prev.cleanvoice.activeVideos.filter(v => v !== video.videoName)
+            }
+          }));
           
-          // Update progress even on failure (last attempt) - remove from all active lists
-          if (attempt === retries) {
-            cleanvoiceCompletedCount++;
-            whisperCompletedCount++;
-            setProcessingProgress(prev => ({ 
-              ...prev,
-              cleanvoice: { 
-                current: cleanvoiceCompletedCount, 
-                total: videos.length,
-                status: cleanvoiceCompletedCount === videos.length ? 'complete' : 'processing',
-                activeVideos: prev.cleanvoice.activeVideos.filter(v => v !== video.videoName)
-              },
-              whisper: { 
-                current: whisperCompletedCount, 
-                total: videos.length,
-                status: whisperCompletedCount === videos.length ? 'complete' : 'processing',
-                activeVideos: prev.whisper.activeVideos.filter(v => v !== video.videoName)
-              },
-              currentVideoName: video.videoName 
-            }));
-          }
-          
-          if (attempt === retries) {
-            console.error(`[Batch Processing] 🚫 ${video.videoName} - All ${retries} attempts failed`);
-            return {
-              videoName: video.videoName,
-              success: false,
-              error: error.message
-            };
-          }
-          
-          // Wait before retry (exponential backoff)
-          await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
+          resultsMap.set(video.videoName, {
+            videoName: video.videoName,
+            success: false,
+            error: error.message,
+          });
         }
-      }
-    };
+      });
     
-    // PARALLEL PROCESSING - Process ALL videos at once (no limits)
-    const processAllParallel = async (): Promise<any[]> => {
-      console.log(`[Batch Processing] 🚀 Processing ALL ${videos.length} videos in parallel...`);
-      
-      const promises = videos.map((video, index) => 
-        processVideoWithRetry(video)
-          .then(result => ({ index, result }))
-          .catch(error => {
-            console.error(`[Batch Processing] Error processing ${video.videoName}:`, error);
-            return { index, result: null };
-          })
-      );
-      
-      const completedResults = await Promise.all(promises);
-      
-      // Sort results by original index
-      const results = new Array(videos.length);
-      for (const { index, result } of completedResults) {
-        results[index] = result;
-      }
-      
-      console.log('[Batch Processing] 🎉 All videos processed!');
-      return results;
-    };
+    // Don't wait for Whisper+CleanVoice - they run in parallel across all batches
+    // Just start them and move to next FFmpeg batch
     
-    // Start parallel processing
-    setProcessingStep('cleanvoice');
-    const allResults = await processAllParallel();
+    // Move to next batch
+    currentIndex = batchEnd;
+    batchNumber++;
     
-    console.log('[Batch Processing] 🎉 All videos processed!');
-    
-    // Count successes and failures
-    for (const result of allResults) {
-      if (result && result.success) {
-        successCount++;
-        resultsMap.set(result.videoName, result.result);
-      } else {
-        failCount++;
-        if (result) {
-          toast.error(`❌ ${result.videoName}: ${result.error}`);
-        }
+    // Wait 58s before next FFmpeg batch (if there are more videos)
+    if (currentIndex < videos.length) {
+      console.log(`[Batch Processing] ⏳ Waiting 58 seconds before FFmpeg batch ${batchNumber}...`);
+      
+      // Countdown timer: 58s → 57s → 56s → ... → 1s
+      for (let countdown = 58; countdown > 0; countdown--) {
+        setProcessingProgress(prev => ({
+          ...prev,
+          currentVideoName: `⏳ Waiting ${countdown}s before next FFmpeg batch (rate limit)...`
+        }));
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
-    
-    console.log(`[Batch Processing] 🎉 COMPLETE! Success: ${successCount}, Failed: ${failCount}`);
-    
-    if (successCount === 0) {
-      throw new Error('Toate videouri au eșuat la procesare!');
+  }
+  
+  console.log('[Batch Processing] 🎉 All FFmpeg batches processed! Waiting for Whisper+CleanVoice to finish...');
+  
+  // Wait for all Whisper+CleanVoice processing to complete
+  while (whisperCompletedCount < videos.length || cleanvoiceCompletedCount < videos.length) {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+  
+  console.log('[Batch Processing] 🎉 All processing complete!');
+  
+  // Update videoResults with all results
+  const updatedResults = videos.map(video => {
+    const result = resultsMap.get(video.videoName);
+    if (!result || !result.success) {
+      return { ...video, status: 'failed' as const };
     }
     
-    // Apply all results at once to avoid React state closure issues
-    console.log('[Batch Processing] 🔄 Applying all results to state...', {
-      totalResults: resultsMap.size,
-      videoNames: Array.from(resultsMap.keys())
+    return {
+      ...video,
+      status: 'success' as const,
+      audioUrl: result.result.audioUrl,
+      waveformData: result.result.waveformData,
+      cutPoints: result.result.cutPoints,
+      isStartLocked: true,
+      isEndLocked: true,
+      whisperTranscript: result.result.whisperTranscript,
+      editingDebugInfo: result.result.editingDebugInfo,
+      cleanvoiceAudioUrl: result.result.cleanvoiceAudioUrl,
+    };
+  });
+  
+  setVideoResults(prev => {
+    const newResults = [...prev];
+    updatedResults.forEach(updated => {
+      const index = newResults.findIndex(v => v.videoName === updated.videoName);
+      if (index !== -1) {
+        newResults[index] = updated;
+      }
     });
-    
-    setVideoResults(prev => prev.map(v => {
-      const result = resultsMap.get(v.videoName);
-      if (result) {
-        console.log(`[Batch Processing] ✅ Applying result for ${v.videoName}:`, {
-          cutPoints: result.cutPoints,
-          noCutNeeded: result.noCutNeeded
-        });
-        
-        // If video has no red text, set default markers (0 to duration)
-        if (result.noCutNeeded) {
-          return {
-            ...v,
-            whisperTranscript: null,
-            cutPoints: null,
-            words: null,
-            audioUrl: null,
-            waveformData: null,
-            editStatus: 'no_cut_needed',
-            noCutNeeded: true
-          };
-        }
-        
-        // Normal processing with FFMPEG/Whisper
-        // Backend now adds timestamp to filename, so URL is unique
-        return {
-          ...v,
-          whisperTranscript: result.whisperTranscript,
-          cutPoints: result.cutPoints,
-          words: result.words,
-          audioUrl: result.audioUrl,
-          waveformData: result.waveformData,
-          editingDebugInfo: result.editingDebugInfo,
-          cleanvoiceAudioUrl: result.cleanvoiceAudioUrl,
-          editStatus: 'processed',
-          noCutNeeded: false,
-          // Set START and END locked by default
-          isStartLocked: true,
-          isEndLocked: true
-        };
-      }
-      return v;
-    }));
-    
-    const batchTotalDuration = Date.now() - batchStartTime;
-    console.log('[Batch Processing] ✅ All results applied to state!');
-    console.log(`[Batch Processing] ⏱️ BATCH COMPLETE in ${batchTotalDuration}ms (${(batchTotalDuration/1000).toFixed(2)}s)`);
-    console.log(`[Batch Processing] 📈 SUMMARY: ${successCount} success, ${failCount} failed out of ${videos.length} total`);
-    console.log(`[Batch Processing] ⏱️ Average time per video: ${(batchTotalDuration/videos.length/1000).toFixed(2)}s`);
-    
-    // Return resultsMap for onReprocess callback
-    return resultsMap;
-  };
+    return newResults;
+  });
+  
+  const batchDuration = Date.now() - batchStartTime;
+  console.log(`[Batch Processing] ⏱️ BATCH COMPLETE in ${batchDuration}ms (${(batchDuration/1000).toFixed(2)}s)`);
+  
+  setProcessingProgress({
+    ffmpeg: { current: videos.length, total: videos.length, status: 'complete', activeVideos: [] },
+    whisper: { current: videos.length, total: videos.length, status: 'complete', activeVideos: [] },
+    cleanvoice: { current: videos.length, total: videos.length, status: 'complete', activeVideos: [] },
+    currentVideoName: '✅ All processing complete!'
+  });
+};
+
 
   // Step 9 → Step 10: Merge videos (body + hook variations)
   // Step 9 → Step 10: Merge videos (REWRITTEN - simple, manual retry)
