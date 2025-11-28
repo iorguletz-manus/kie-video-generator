@@ -3312,9 +3312,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     // STEP 2: Merge Hooks (B+C+D variations)
     if (localSuccessVideos.length > 0) {
-      console.log('[Trimming] 🎣 Starting Hooks merge (B+C+D)...');
+      console.log('[Trimming] \ud83c\udfa3 Starting Hooks merge (B+C+D)...');
       
-      const trimmedVideos = videoResults.filter(v => 
+      // Get LATEST videoResults using callback to avoid stale state
+      let latestVideoResults: typeof videoResults = [];
+      setVideoResults(current => {
+        latestVideoResults = current;
+        return current;
+      });
+      
+      const trimmedVideos = latestVideoResults.filter(v => 
         localSuccessVideos.some(sv => sv.name === v.videoName)
       );
       
@@ -10387,8 +10394,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     )}
                   </div>
                   
-                  {/* Sample Merge ALL Videos button */}
-                  {videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length > 1 && (
+                  {/* Sample Merge ALL Videos button - HIDDEN */}
+                  {false && videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length > 1 && (
                     <div className="flex flex-col items-end gap-1">
                     <Button
                       onClick={() => {
@@ -10751,8 +10758,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
                         {/* Center buttons group */}
                         <div className="flex flex-row items-center gap-2 flex-nowrap">
-                          {/* Sample Merge Video button - always show if we have approved videos (ignore filter) */}
-                          {videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length > 1 && (
+                          {/* Sample Merge Video button - HIDDEN */}
+                          {false && videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length > 1 && (
                             <div className="flex flex-col items-end gap-1">
                             <Button
                               onClick={() => handleSampleMerge(approvedVideos)}

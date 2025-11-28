@@ -49,7 +49,7 @@ export function ProcessingModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Loader2 className="w-5 h-5 animate-spin text-purple-600" />
-            🎤 CleanVoice și Whisper
+            ✂️ Prepare for Cutting
           </DialogTitle>
           <DialogDescription>
             Procesăm audio și generăm timestamps pentru fiecare video...
@@ -84,10 +84,10 @@ export function ProcessingModal({
 
           {/* Removed: Current Video and Step labels - batch processing makes this confusing */}
 
-          {/* Estimated Time */}
-          {totalCompleted < totalVideos && estimatedMinutes > 0 && (
+          {/* Estimated Time - Hardcoded */}
+          {totalCompleted < totalVideos && (
             <p className="text-xs text-center text-gray-500">
-              ⏱️ Timp estimat rămas: ~{estimatedMinutes} {estimatedMinutes === 1 ? 'minut' : 'minute'}
+              ⏱️ Timp estimat rămas: ~30 seconds
             </p>
           )}
 
