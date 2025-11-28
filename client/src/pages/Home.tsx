@@ -5,6 +5,7 @@ import EditProfileModal from '@/components/EditProfileModal';
 
 import { VideoEditorV2 } from '@/components/VideoEditorV2';
 import { ProcessingModal } from '@/components/ProcessingModal';
+import MergeProgressModal from '@/components/MergeProgressModal';
 import { trpc } from '../lib/trpc';
 import mammoth from 'mammoth';
 import { Button } from "@/components/ui/button";
@@ -4761,6 +4762,390 @@ const handlePrepareForMerge = async () => {
     toast.error(`Merge failed: ${error.message}`);
   }
 };
+  // Retry failed merge items
+  const handleRetryFailedMerge = async () => {
+    const failedItems = mergeStep10Progress.failedItems || [];
+    
+    if (failedItems.length === 0) {
+      toast.info('No failed items to retry!');
+      return;
+    }
+    
+    console.log('[Retry Failed Merge] 🔄 Retrying', failedItems.length, 'failed items...');
+    
+    // Filter trimmed videos again
+    const trimmedVideos = videoResults.filter(v => 
+      v.trimmedVideoUrl &&
+      v.reviewStatus === 'accepted' && 
+      v.status === 'success'
+    );
+    
+    // Reset progress
+    setMergeStep10Progress(prev => ({
+      ...prev,
+      status: 'processing',
+      message: `Retrying ${failedItems.length} failed items...`,
+      failedItems: []
+    }));
+    
+    try {
+      // Separate failed items by type
+      const bodyChunkFailures = failedItems.filter(item => item.type === 'body_chunk');
+      const bodyFinalFailures = failedItems.filter(item => item.type === 'body_final');
+      const hookFailures = failedItems.filter(item => item.type === 'hook');
+      
+      console.log('[Retry] Body chunks:', bodyChunkFailures.length);
+      console.log('[Retry] Body final:', bodyFinalFailures.length);
+      console.log('[Retry] Hooks:', hookFailures.length);
+      
+      // RETRY BODY CHUNKS
+      if (bodyChunkFailures.length > 0 || bodyFinalFailures.length > 0) {
+        console.log('[Retry] 📺 Retrying BODY...');
+        
+        const bodyVideos = trimmedVideos.filter(v => !v.videoName.match(/HOOK\d+[A-Z]?/));
+        const CHUNK_SIZE = 7;
+        const bodyChunks: typeof bodyVideos[] = [];
+        
+        for (let i = 0; i < bodyVideos.length; i += CHUNK_SIZE) {
+          bodyChunks.push(bodyVideos.slice(i, i + CHUNK_SIZE));
+        }
+        
+        const chunkUrls: string[] = [];
+        
+        // Retry failed chunks
+        for (const failure of bodyChunkFailures) {
+          const chunkNum = parseInt(failure.name.replace('Chunk ', ''));
+          const chunk = bodyChunks[chunkNum - 1];
+          
+          if (!chunk) {
+            console.error('[Retry] Chunk not found:', chunkNum);
+            continue;
+          }
+          
+          console.log(`[Retry] 📦 Retrying chunk ${chunkNum}...`);
+          
+          setMergeStep10Progress(prev => ({
+            ...prev,
+            message: `📺 BODY: Retrying Chunk ${chunkNum}/${bodyChunks.length}...`
+          }));
+          
+          try {
+            const extractOriginalUrl = (url: string) => {
+              if (url.startsWith('/api/proxy-video?url=')) {
+                const urlParam = new URLSearchParams(url.split('?')[1]).get('url');
+                return urlParam ? decodeURIComponent(urlParam) : url;
+              }
+              return url;
+            };
+            
+            const chunkVideoUrls = chunk.map(v => extractOriginalUrl(v.trimmedVideoUrl!)).filter(Boolean);
+            const chunkOutputName = `BODY_CHUNK_${chunkNum}_${Date.now()}`;
+            
+            const result = await mergeVideosMutation.mutateAsync({
+              videoUrls: chunkVideoUrls,
+              outputVideoName: chunkOutputName,
+              ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
+              userId: localCurrentUser.id,
+            });
+            
+            console.log(`[Retry] ✅ Chunk ${chunkNum} SUCCESS:`, result.cdnUrl);
+            chunkUrls.push(result.cdnUrl);
+            
+            setMergeStep10Progress(prev => ({
+              ...prev,
+              bodyInfo: prev.bodyInfo ? {
+                ...prev.bodyInfo,
+                chunkResults: prev.bodyInfo.chunkResults.map(cr => 
+                  cr.chunkNum === chunkNum 
+                    ? { ...cr, status: 'success', url: result.cdnUrl, error: undefined }
+                    : cr
+                )
+              } : null
+            }));
+            
+            // Wait 60s before next operation
+            console.log(`[Retry] ⏳ Waiting 60s...`);
+            for (let countdown = 60; countdown > 0; countdown--) {
+              setMergeStep10Progress(prev => ({
+                ...prev,
+                message: `⏳ FFmpeg rate limit: waiting ${countdown}s...`,
+                countdown
+              }));
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+            
+          } catch (error: any) {
+            console.error(`[Retry] ❌ Chunk ${chunkNum} FAILED AGAIN:`, error);
+            
+            setMergeStep10Progress(prev => ({
+              ...prev,
+              failedItems: [
+                ...(prev.failedItems || []),
+                { type: 'body_chunk', name: `Chunk ${chunkNum}`, error: error.message }
+              ]
+            }));
+          }
+        }
+        
+        // Retry final merge if needed
+        if (bodyFinalFailures.length > 0 || chunkUrls.length > 0) {
+          console.log('[Retry] 🔄 Retrying BODY final merge...');
+          
+          // Get all successful chunk URLs
+          const allChunkUrls = mergeStep10Progress.bodyInfo?.chunkResults
+            .filter(cr => cr.status === 'success' && cr.url)
+            .map(cr => cr.url!) || [];
+          
+          if (allChunkUrls.length > 1) {
+            setMergeStep10Progress(prev => ({
+              ...prev,
+              message: `📺 BODY: Final merge (${allChunkUrls.length} chunks)...`
+            }));
+            
+            try {
+              const firstVideoName = bodyVideos[0].videoName;
+              const contextMatch = firstVideoName.match(/^(T\d+_C\d+_E\d+_AD\d+)/);
+              const contextName = contextMatch ? contextMatch[1] : 'MERGED';
+              
+              const nameMatch = firstVideoName.match(/_([ A-Z]+)_([A-Z]+_\d+)$/);
+              const character = nameMatch ? nameMatch[1] : 'TEST';
+              const imageName = nameMatch ? nameMatch[2] : 'ALINA_1';
+              
+              const outputName = `${contextName}_BODY_${character}_${imageName}`;
+              
+              const result = await mergeVideosMutation.mutateAsync({
+                videoUrls: allChunkUrls,
+                outputVideoName: outputName,
+                ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
+                userId: localCurrentUser.id,
+              });
+              
+              console.log('[Retry] ✅ BODY FINAL SUCCESS:', result.cdnUrl);
+              
+              setMergeStep10Progress(prev => ({
+                ...prev,
+                bodyInfo: prev.bodyInfo ? {
+                  ...prev.bodyInfo,
+                  finalUrl: result.cdnUrl,
+                  status: 'success'
+                } : null
+              }));
+              
+              // Save to database
+              setBodyMergedVideoUrl(result.cdnUrl);
+              
+              const currentBodyMergedVideoUrl = await new Promise<string>((resolve) => {
+                setBodyMergedVideoUrl(current => {
+                  resolve(current);
+                  return current;
+                });
+              });
+              
+              await upsertContextSessionMutation.mutateAsync({
+                userId: localCurrentUser.id,
+                tamId: selectedTamId,
+                currentStep,
+                rawTextAd,
+                processedTextAd,
+                adLines,
+                prompts,
+                images,
+                combinations,
+                deletedCombinations,
+                videoResults,
+                reviewHistory,
+                hookMergedVideos,
+                bodyMergedVideoUrl: currentBodyMergedVideoUrl,
+              });
+              
+              console.log('[Retry] 💾 BODY saved to database');
+              
+            } catch (error: any) {
+              console.error('[Retry] ❌ BODY FINAL FAILED AGAIN:', error);
+              
+              setMergeStep10Progress(prev => ({
+                ...prev,
+                bodyInfo: prev.bodyInfo ? {
+                  ...prev.bodyInfo,
+                  status: 'failed'
+                } : null,
+                failedItems: [
+                  ...(prev.failedItems || []),
+                  { type: 'body_final', name: 'BODY Final Merge', error: error.message }
+                ]
+              }));
+            }
+          }
+        }
+      }
+      
+      // RETRY HOOKS
+      if (hookFailures.length > 0) {
+        console.log(`[Retry] 🎣 Retrying ${hookFailures.length} hooks...`);
+        
+        // Wait 60s before hooks
+        console.log(`[Retry] ⏳ Waiting 60s before hooks...`);
+        for (let countdown = 60; countdown > 0; countdown--) {
+          setMergeStep10Progress(prev => ({
+            ...prev,
+            message: `⏳ FFmpeg rate limit: waiting ${countdown}s before hooks...`,
+            countdown
+          }));
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
+        setMergeStep10Progress(prev => ({
+          ...prev,
+          message: `🎣 Retrying ${hookFailures.length} hook groups...`
+        }));
+        
+        const hookVideos = trimmedVideos.filter(v => v.videoName.match(/HOOK\d+[A-Z]?/));
+        const hookGroups: Record<string, typeof hookVideos> = {};
+        
+        hookVideos.forEach(video => {
+          const hookMatch = video.videoName.match(/(.*)(HOOK\d+)[A-Z]?(.*)/);
+          if (hookMatch) {
+            const prefix = hookMatch[1];
+            const hookBase = hookMatch[2];
+            const suffix = hookMatch[3];
+            const groupKey = `${prefix}${hookBase}${suffix}`;
+            
+            if (!hookGroups[groupKey]) {
+              hookGroups[groupKey] = [];
+            }
+            hookGroups[groupKey].push(video);
+          }
+        });
+        
+        // Process failed hooks in parallel
+        const hookPromises = hookFailures.map(async (failure) => {
+          const baseName = failure.name;
+          const videos = hookGroups[baseName];
+          
+          if (!videos || videos.length === 0) {
+            console.error('[Retry] Hook group not found:', baseName);
+            return;
+          }
+          
+          console.log(`[Retry] 🎣 Retrying ${baseName} (${videos.length} videos)...`);
+          
+          setMergeStep10Progress(prev => ({
+            ...prev,
+            hookGroups: prev.hookGroups?.map(g => 
+              g.baseName === baseName ? { ...g, status: 'processing' } : g
+            )
+          }));
+          
+          try {
+            const sortedVideos = videos.sort((a, b) => a.videoName.localeCompare(b.videoName));
+            
+            const extractOriginalUrl = (url: string) => {
+              if (url.startsWith('/api/proxy-video?url=')) {
+                const urlParam = new URLSearchParams(url.split('?')[1]).get('url');
+                return urlParam ? decodeURIComponent(urlParam) : url;
+              }
+              return url;
+            };
+            
+            const videoUrls = sortedVideos.map(v => extractOriginalUrl(v.trimmedVideoUrl!)).filter(Boolean);
+            const outputName = baseName.replace(/(HOOK\d+)/, '$1M');
+            
+            const result = await mergeVideosMutation.mutateAsync({
+              videoUrls,
+              outputVideoName: outputName,
+              ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
+              userId: localCurrentUser.id,
+            });
+            
+            console.log(`[Retry] ✅ ${baseName} SUCCESS:`, result.cdnUrl);
+            
+            setMergeStep10Progress(prev => ({
+              ...prev,
+              hookGroups: prev.hookGroups?.map(g => 
+                g.baseName === baseName 
+                  ? { ...g, status: 'success', cdnUrl: result.cdnUrl, error: null } 
+                  : g
+              )
+            }));
+            
+            // Save hook to local state
+            setHookMergedVideos(prev => ({ ...prev, [baseName]: result.cdnUrl }));
+            
+            const currentHookMergedVideos = await new Promise<typeof hookMergedVideos>((resolve) => {
+              setHookMergedVideos(current => {
+                resolve(current);
+                return current;
+              });
+            });
+            
+            // Save to database
+            await upsertContextSessionMutation.mutateAsync({
+              userId: localCurrentUser.id,
+              tamId: selectedTamId,
+              currentStep,
+              rawTextAd,
+              processedTextAd,
+              adLines,
+              prompts,
+              images,
+              combinations,
+              deletedCombinations,
+              videoResults,
+              reviewHistory,
+              hookMergedVideos: currentHookMergedVideos,
+              bodyMergedVideoUrl,
+            });
+            
+            console.log(`[Retry] 💾 ${baseName} saved to database`);
+            
+          } catch (error: any) {
+            console.error(`[Retry] ❌ ${baseName} FAILED AGAIN:`, error);
+            
+            setMergeStep10Progress(prev => ({
+              ...prev,
+              hookGroups: prev.hookGroups?.map(g => 
+                g.baseName === baseName 
+                  ? { ...g, status: 'failed', error: error.message } 
+                  : g
+              ),
+              failedItems: [
+                ...(prev.failedItems || []),
+                { type: 'hook', name: baseName, error: error.message }
+              ]
+            }));
+          }
+        });
+        
+        await Promise.all(hookPromises);
+      }
+      
+      // Final status
+      const finalFailedCount = (mergeStep10Progress.failedItems?.length || 0);
+      
+      setMergeStep10Progress(prev => ({
+        ...prev,
+        status: finalFailedCount > 0 ? 'partial' : 'complete',
+        message: finalFailedCount > 0 
+          ? `⚠️ Retry complete: ${failedItems.length - finalFailedCount} succeeded, ${finalFailedCount} still failed`
+          : `✅ All ${failedItems.length} retries succeeded!`
+      }));
+      
+      if (finalFailedCount === 0) {
+        toast.success(`✅ All ${failedItems.length} retries succeeded!`);
+      } else {
+        toast.warning(`⚠️ ${failedItems.length - finalFailedCount} succeeded, ${finalFailedCount} still failed`);
+      }
+      
+    } catch (error: any) {
+      console.error('[Retry] ❌ Fatal error:', error);
+      setMergeStep10Progress(prev => ({
+        ...prev,
+        status: 'error',
+        message: `Error: ${error.message}`
+      }));
+      toast.error(`Retry failed: ${error.message}`);
+    }
+  };
 
   // Step 4: Create mappings
   const createMappings = () => {
@@ -6176,171 +6561,29 @@ const handlePrepareForMerge = async () => {
         }}
       />
       
-      {/* Merge Videos Modal for Step 9 → Step 10 */}
-        {/* Merge Progress Modal (Step 9 → Step 10) */}
-        <Dialog open={isMergingStep10} onOpenChange={(open) => {
-          if (!open && mergeStep10Progress.status !== 'processing' && mergeStep10Progress.status !== 'countdown') {
+      {/* Merge Videos Modal for Step 9 → Step 10 - NEW MergeProgressModal */}
+      <MergeProgressModal
+        isOpen={isMergingStep10}
+        status={mergeStep10Progress.status}
+        message={mergeStep10Progress.message}
+        countdown={mergeStep10Progress.countdown}
+        totalMerges={mergeStep10Progress.totalMerges}
+        bodyInfo={mergeStep10Progress.bodyInfo}
+        hookGroups={mergeStep10Progress.hookGroups}
+        failedItems={mergeStep10Progress.failedItems}
+        onRetryFailed={handleRetryFailedMerge}
+        onClose={() => {
+          if (mergeStep10Progress.status !== 'processing' && mergeStep10Progress.status !== 'countdown') {
             setIsMergingStep10(false);
-          }
-        }}>
-          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                {mergeStep10Progress.status === 'countdown' && <Clock className="w-5 h-5 animate-pulse text-blue-600" />}
-                {mergeStep10Progress.status === 'processing' && <Loader2 className="w-5 h-5 animate-spin text-blue-600" />}
-                {mergeStep10Progress.status === 'complete' && <Check className="w-5 h-5 text-green-600" />}
-                {mergeStep10Progress.status === 'partial' && <AlertTriangle className="w-5 h-5 text-yellow-600" />}
-                {mergeStep10Progress.status === 'error' && <X className="w-5 h-5 text-red-600" />}
-                Merging Videos
-              </DialogTitle>
-            </DialogHeader>
             
-            <div className="space-y-4">
-              {/* Status Message */}
-              <div className="text-center py-4">
-                <p className="text-lg font-medium">{mergeStep10Progress.message}</p>
-                {mergeStep10Progress.countdown !== undefined && (
-                  <p className="text-4xl font-bold text-blue-600 mt-2">{mergeStep10Progress.countdown}s</p>
-                )}
-              </div>
-              
-              {/* Results */}
-              {mergeStep10Progress.results && mergeStep10Progress.results.length > 0 && (
-                <div className="space-y-4">
-                  {/* Success List */}
-                  {mergeStep10Progress.results.filter(r => r.status === 'success').length > 0 && (
-                    <div className="border border-green-300 rounded-lg p-4 bg-green-50">
-                      <h3 className="font-bold text-green-900 mb-2 flex items-center gap-2">
-                        <Check className="w-4 h-4" />
-                        ✅ Success ({mergeStep10Progress.results.filter(r => r.status === 'success').length})
-                      </h3>
-                      <ul className="space-y-2">
-                        {mergeStep10Progress.results
-                          .filter(r => r.status === 'success')
-                          .map((result, idx) => (
-                            <li key={idx} className="text-sm text-green-800">
-                              • <strong>{result.name}</strong> ({result.videoCount} videos)
-                            </li>
-                          ))}
-                      </ul>
-                    </div>
-                  )}
-                  
-                  {/* Failed List */}
-                  {mergeStep10Progress.results.filter(r => r.status === 'failed').length > 0 && (
-                    <div className="border border-red-300 rounded-lg p-4 bg-red-50">
-                      <h3 className="font-bold text-red-900 mb-2 flex items-center gap-2">
-                        <X className="w-4 h-4" />
-                        ❌ Failed ({mergeStep10Progress.results.filter(r => r.status === 'failed').length})
-                      </h3>
-                      <ul className="space-y-2">
-                        {mergeStep10Progress.results
-                          .filter(r => r.status === 'failed')
-                          .map((result, idx) => (
-                            <li key={idx} className="text-sm">
-                              <div className="flex items-start gap-2">
-                                {(result as any).status === 'retrying' ? (
-                                  <Loader2 className="w-4 h-4 animate-spin text-blue-600 mt-0.5" />
-                                ) : (
-                                  <X className="w-4 h-4 text-red-600 mt-0.5" />
-                                )}
-                                <div className="flex-1">
-                                  <p className="font-medium text-red-900">
-                                    {result.name} ({result.videoCount} videos)
-                                  </p>
-                                  {result.error && (
-                                    <p className="text-xs text-red-700 mt-1">
-                                      Error: {result.error}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                            </li>
-                          ))}
-                      </ul>
-                    </div>
-                  )}
-                  
-                  {/* Retrying List */}
-                  {mergeStep10Progress.results.filter(r => (r as any).status === 'retrying').length > 0 && (
-                    <div className="border border-blue-300 rounded-lg p-4 bg-blue-50">
-                      <h3 className="font-bold text-blue-900 mb-2 flex items-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        🔄 Retrying ({mergeStep10Progress.results.filter(r => (r as any).status === 'retrying').length})
-                      </h3>
-                      <ul className="space-y-2">
-                        {mergeStep10Progress.results
-                          .filter(r => (r as any).status === 'retrying')
-                          .map((result, idx) => (
-                            <li key={idx} className="text-sm text-blue-800 flex items-center gap-2">
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                              <strong>{result.name}</strong> ({result.videoCount} videos)
-                            </li>
-                          ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
-              
-              {/* Actions */}
-              <div className="flex gap-2 justify-end pt-4 border-t">
-                {/* Skip Countdown Button */}
-                {mergeStep10Progress.status === 'countdown' && (
-                  <Button
-                    onClick={() => {
-                      skipCountdownRef.current = true;
-                      toast.info('⏭️ Skipping countdown...');
-                    }}
-                    className="bg-blue-600 hover:bg-blue-700"
-                  >
-                    <ChevronRight className="w-4 h-4 mr-2" />
-                    Skip Wait
-                  </Button>
-                )}
-                
-                {/* Retry Button */}
-                {mergeStep10Progress.results && 
-                 mergeStep10Progress.results.filter(r => r.status === 'failed').length > 0 &&
-                 mergeStep10Progress.status !== 'processing' && (
-                  <Button
-                    onClick={handleRetryFailedMerges}
-                    className="bg-orange-600 hover:bg-orange-700"
-                  >
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    Retry Failed ({mergeStep10Progress.results.filter(r => r.status === 'failed').length})
-                  </Button>
-                )}
-                
-                {/* Continue Button */}
-                {mergeStep10Progress.status === 'complete' && (
-                  <Button
-                    onClick={() => {
-                      setIsMergingStep10(false);
-                      setCurrentStep(10);
-                      toast.success('✅ Proceeding to Step 10');
-                    }}
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    Continue to Step 10
-                    <ChevronRight className="w-4 h-4 ml-2" />
-                  </Button>
-                )}
-                
-                {/* Close Button */}
-                {mergeStep10Progress.status !== 'processing' && 
-                 mergeStep10Progress.status !== 'countdown' && (
-                  <Button
-                    onClick={() => setIsMergingStep10(false)}
-                    variant="outline"
-                  >
-                    Close
-                  </Button>
-                )}
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+            // If complete with no failures, proceed to Step 10
+            if (mergeStep10Progress.status === 'complete' && (!mergeStep10Progress.failedItems || mergeStep10Progress.failedItems.length === 0)) {
+              setCurrentStep(10);
+              toast.success('✅ Proceeding to Step 10');
+            }
+          }
+        }}
+      />
       
       {/* Merge Final Videos Modal for Step 10 → Step 11 */}
       <Dialog open={isMergingFinalVideos} onOpenChange={(open) => {
