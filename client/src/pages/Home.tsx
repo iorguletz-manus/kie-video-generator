@@ -291,6 +291,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     successVideos: Array<{name: string}>;
     failedVideos: Array<{name: string; error: string; retries: number; status?: 'retrying'}>;
     inProgressVideos: Array<{name: string}>;
+    mergedVideos: Array<{name: string; type: 'hooks' | 'body'}>; // Separate list for hooks/body merged
     currentBatch: number;
     totalBatches: number;
     batchSize: number;
@@ -307,6 +308,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     successVideos: [],
     failedVideos: [],
     inProgressVideos: [],
+    mergedVideos: [],
     currentBatch: 0,
     totalBatches: 0,
     batchSize: 0,
@@ -3437,11 +3439,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             return { ...cleaned, [baseName]: result.cdnUrl };
           });
           
-          // Add to success list and increment progress
+          // Add to merged list (separate from CUT videos) and increment progress
           setTrimmingProgress(prev => ({
             ...prev,
             current: prev.current + 1,
-            successVideos: [...prev.successVideos, { name: `${outputName} (Hooks merged)` }]
+            mergedVideos: [...prev.mergedVideos, { name: outputName, type: 'hooks' }]
           }));
           
           // Save to database
@@ -3541,11 +3543,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           
           setBodyMergedVideoUrl(result.cdnUrl);
           
-          // Add to success list and increment progress
+          // Add to merged list (separate from CUT videos) and increment progress
           setTrimmingProgress(prev => ({
             ...prev,
             current: prev.current + 1,
-            successVideos: [...prev.successVideos, { name: 'BODY (Body merged)' }]
+            mergedVideos: [...prev.mergedVideos, { name: outputName, type: 'body' }]
           }));
           
           // Save to database
@@ -5501,33 +5503,19 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     </p>
                   </div>
                   
-                  {/* FFmpeg Requests Progress */}
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">
-                      FFmpeg API Requests
-                    </p>
-                    <Progress 
-                      value={(trimmingProgress.ffmpegRequestsCurrent / trimmingProgress.ffmpegRequestsTotal) * 100} 
-                      className="h-3 bg-blue-100"
-                    />
-                    <p className="text-center text-sm font-medium text-blue-700">
-                      {trimmingProgress.ffmpegRequestsCurrent}/{trimmingProgress.ffmpegRequestsTotal} requests
-                    </p>
-                    
-                    {/* Countdown Timer */}
-                    {trimmingProgress.countdown > 0 && (
-                      <div className="mt-4 flex items-center justify-center">
-                        <div className="bg-orange-50 border-2 border-orange-300 rounded-lg px-6 py-4">
-                          <p className="text-center text-4xl font-bold text-orange-600 tabular-nums">
-                            ⏳ {trimmingProgress.countdown}s
-                          </p>
-                          <p className="text-center text-xs text-orange-500 mt-2">
-                            Waiting for FFmpeg rate limit...
-                          </p>
-                        </div>
+                  {/* Countdown Timer */}
+                  {trimmingProgress.countdown > 0 && (
+                    <div className="flex items-center justify-center">
+                      <div className="bg-orange-50 border-2 border-orange-300 rounded-lg px-6 py-4">
+                        <p className="text-center text-4xl font-bold text-orange-600 tabular-nums">
+                          \u23f3 {trimmingProgress.countdown}s
+                        </p>
+                        <p className="text-center text-xs text-orange-500 mt-2">
+                          Waiting for FFmpeg rate limit...
+                        </p>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
                 
                 {/* Status message */}
@@ -5603,6 +5591,29 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                             )}
                           </div>
                         </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* Merged Videos List (hooks + body, separate from CUT videos) */}
+            {trimmingProgress.mergedVideos.length > 0 && (
+              <div>
+                <button
+                  onClick={() => setIsTrimmingSuccessLogOpen(!isTrimmingSuccessLogOpen)}
+                  className="w-full flex items-center justify-between text-sm font-medium text-purple-700 mb-2 hover:text-purple-800"
+                >
+                  <span>\ud83d\udd17 Merged ({trimmingProgress.mergedVideos.length})</span>
+                  <span className="text-blue-600 underline text-xs">View log</span>
+                </button>
+                {isTrimmingSuccessLogOpen && (
+                  <div className="max-h-48 overflow-y-auto bg-purple-50 border border-purple-200 rounded-lg p-3 space-y-1">
+                    {trimmingProgress.mergedVideos.map((v, i) => (
+                      <div key={i} className="flex items-center gap-2 text-sm text-purple-700">
+                        <span>\u2713</span>
+                        <span>{v.name} ({v.type === 'hooks' ? 'Hooks merged' : 'Body merged'})</span>
                       </div>
                     ))}
                   </div>
