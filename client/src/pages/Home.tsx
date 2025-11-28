@@ -5826,6 +5826,206 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                   </a>
                 </div>
                 
+                {/* 3-Video Container (prev, current, next) - Live synced */}
+                <div className="bg-purple-50 border-2 border-purple-300 rounded-lg p-4 space-y-3">
+                  <h3 className="text-sm font-semibold text-purple-900 text-center mb-3">
+                    🎬 Video Timeline
+                  </h3>
+                  <div className="grid grid-cols-3 gap-3">
+                    {/* Previous Video */}
+                    <div className="bg-white border border-purple-200 rounded-lg p-3">
+                      <p className="text-xs font-medium text-purple-600 mb-2">← Previous</p>
+                      <p className="text-xs text-gray-700 font-mono break-words">
+                        {(() => {
+                          const currentIdx = trimmingProgress.successVideos.findIndex(
+                            v => v.name === trimmingCurrentVideoName
+                          );
+                          const prevVideo = currentIdx > 0 
+                            ? trimmingProgress.successVideos[currentIdx - 1] 
+                            : null;
+                          return prevVideo?.name || '-';
+                        })()}
+                      </p>
+                      {/* Note textarea for previous video */}
+                      {(() => {
+                        const currentIdx = trimmingProgress.successVideos.findIndex(
+                          v => v.name === trimmingCurrentVideoName
+                        );
+                        const prevVideo = currentIdx > 0 
+                          ? trimmingProgress.successVideos[currentIdx - 1] 
+                          : null;
+                        if (!prevVideo) return null;
+                        const videoData = videoResults.find(v => v.videoName === prevVideo.name);
+                        const note = videoData?.step9Note || '';
+                        return (
+                          <div className="mt-2">
+                            <textarea
+                              value={note}
+                              onChange={(e) => {
+                                const updatedVideoResults = videoResults.map(v =>
+                                  v.videoName === prevVideo.name ? { ...v, step9Note: e.target.value } : v
+                                );
+                                setVideoResults(updatedVideoResults);
+                              }}
+                              onBlur={() => {
+                                if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
+                                  upsertContextSessionMutation.mutate({
+                                    userId: currentUser.id,
+                                    tamId: selectedTamId,
+                                    coreBeliefId: selectedCoreBeliefId,
+                                    emotionalAngleId: selectedEmotionalAngleId,
+                                    adId: selectedAdId,
+                                    characterId: selectedCharacterId,
+                                    currentStep,
+                                    rawTextAd,
+                                    processedTextAd,
+                                    adLines,
+                                    prompts,
+                                    images,
+                                    combinations,
+                                    deletedCombinations,
+                                    videoResults,
+                                    reviewHistory,
+                                    hookMergedVideos,
+                                    bodyMergedVideoUrl,
+                                    finalVideos,
+                                  });
+                                }
+                              }}
+                              className="w-full px-2 py-1 text-xs border border-purple-200 rounded focus:outline-none focus:ring-1 focus:ring-purple-400"
+                              rows={2}
+                              placeholder="Add note..."
+                            />
+                          </div>
+                        );
+                      })()}
+                    </div>
+                    
+                    {/* Current Video */}
+                    <div className="bg-purple-100 border-2 border-purple-400 rounded-lg p-3">
+                      <p className="text-xs font-medium text-purple-700 mb-2">▶️ Current</p>
+                      <p className="text-xs text-purple-900 font-mono font-bold break-words">
+                        {trimmingCurrentVideoName || trimmingProgress.successVideos[0]?.name || 'Loading...'}
+                      </p>
+                      {/* Note textarea for current video */}
+                      {(() => {
+                        const videoData = videoResults.find(v => v.videoName === trimmingCurrentVideoName);
+                        const note = videoData?.step9Note || '';
+                        return (
+                          <div className="mt-2">
+                            <textarea
+                              value={note}
+                              onChange={(e) => {
+                                const updatedVideoResults = videoResults.map(v =>
+                                  v.videoName === trimmingCurrentVideoName ? { ...v, step9Note: e.target.value } : v
+                                );
+                                setVideoResults(updatedVideoResults);
+                              }}
+                              onBlur={() => {
+                                if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
+                                  upsertContextSessionMutation.mutate({
+                                    userId: currentUser.id,
+                                    tamId: selectedTamId,
+                                    coreBeliefId: selectedCoreBeliefId,
+                                    emotionalAngleId: selectedEmotionalAngleId,
+                                    adId: selectedAdId,
+                                    characterId: selectedCharacterId,
+                                    currentStep,
+                                    rawTextAd,
+                                    processedTextAd,
+                                    adLines,
+                                    prompts,
+                                    images,
+                                    combinations,
+                                    deletedCombinations,
+                                    videoResults,
+                                    reviewHistory,
+                                    hookMergedVideos,
+                                    bodyMergedVideoUrl,
+                                    finalVideos,
+                                  });
+                                }
+                              }}
+                              className="w-full px-2 py-1 text-xs border border-purple-300 rounded focus:outline-none focus:ring-1 focus:ring-purple-500"
+                              rows={2}
+                              placeholder="Add note..."
+                            />
+                          </div>
+                        );
+                      })()}
+                    </div>
+                    
+                    {/* Next Video */}
+                    <div className="bg-white border border-purple-200 rounded-lg p-3">
+                      <p className="text-xs font-medium text-purple-600 mb-2">Next →</p>
+                      <p className="text-xs text-gray-700 font-mono break-words">
+                        {(() => {
+                          const currentIdx = trimmingProgress.successVideos.findIndex(
+                            v => v.name === trimmingCurrentVideoName
+                          );
+                          const nextVideo = currentIdx >= 0 && currentIdx < trimmingProgress.successVideos.length - 1
+                            ? trimmingProgress.successVideos[currentIdx + 1] 
+                            : null;
+                          return nextVideo?.name || '-';
+                        })()}
+                      </p>
+                      {/* Note textarea for next video */}
+                      {(() => {
+                        const currentIdx = trimmingProgress.successVideos.findIndex(
+                          v => v.name === trimmingCurrentVideoName
+                        );
+                        const nextVideo = currentIdx >= 0 && currentIdx < trimmingProgress.successVideos.length - 1
+                          ? trimmingProgress.successVideos[currentIdx + 1] 
+                          : null;
+                        if (!nextVideo) return null;
+                        const videoData = videoResults.find(v => v.videoName === nextVideo.name);
+                        const note = videoData?.step9Note || '';
+                        return (
+                          <div className="mt-2">
+                            <textarea
+                              value={note}
+                              onChange={(e) => {
+                                const updatedVideoResults = videoResults.map(v =>
+                                  v.videoName === nextVideo.name ? { ...v, step9Note: e.target.value } : v
+                                );
+                                setVideoResults(updatedVideoResults);
+                              }}
+                              onBlur={() => {
+                                if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
+                                  upsertContextSessionMutation.mutate({
+                                    userId: currentUser.id,
+                                    tamId: selectedTamId,
+                                    coreBeliefId: selectedCoreBeliefId,
+                                    emotionalAngleId: selectedEmotionalAngleId,
+                                    adId: selectedAdId,
+                                    characterId: selectedCharacterId,
+                                    currentStep,
+                                    rawTextAd,
+                                    processedTextAd,
+                                    adLines,
+                                    prompts,
+                                    images,
+                                    combinations,
+                                    deletedCombinations,
+                                    videoResults,
+                                    reviewHistory,
+                                    hookMergedVideos,
+                                    bodyMergedVideoUrl,
+                                    finalVideos,
+                                  });
+                                }
+                              }}
+                              className="w-full px-2 py-1 text-xs border border-purple-200 rounded focus:outline-none focus:ring-1 focus:ring-purple-400"
+                              rows={2}
+                              placeholder="Add note..."
+                            />
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+                
                 {/* Video List with Notes */}
                 <div className="border-t pt-4">
                   <h3 className="text-sm font-semibold text-gray-900 mb-3">Videos in this merge:</h3>
