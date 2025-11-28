@@ -3092,6 +3092,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     // Process videos in batches
     let currentIndex = 0;
     let batchNumber = 1;
+    const localSuccessVideos: Array<{name: string}> = [];  // Track successful videos locally
     
     while (currentIndex < videosToTrim.length) {
       const batchEnd = Math.min(currentIndex + BATCH_SIZE, videosToTrim.length);
@@ -3143,6 +3144,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           
           // SUCCESS
           console.log(`[Trimming] ✅ ${video.videoName} SUCCESS`);
+          
+          // Track locally
+          localSuccessVideos.push({ name: video.videoName });
           
           setTrimmingProgress(prev => ({
             ...prev,
@@ -3257,7 +3261,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     });
     
     // Auto-merge all trimmed videos
-    if (trimmingProgress.successVideos.length > 0) {
+    if (localSuccessVideos.length > 0) {
       console.log('[Trimming] 🔄 Auto-merging trimmed videos...');
       
       setTrimmingProgress(prev => ({
@@ -3276,7 +3280,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         };
         
         const trimmedVideos = videoResults.filter(v => 
-          trimmingProgress.successVideos.some(sv => sv.name === v.videoName)
+          localSuccessVideos.some(sv => sv.name === v.videoName)
         );
         
         const videos = trimmedVideos.map(v => ({
