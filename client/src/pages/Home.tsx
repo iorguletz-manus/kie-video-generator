@@ -3285,6 +3285,21 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       for (const [baseName, videos] of hookGroupsToMerge) {
         console.log(`[Trimming] 🎣 Merging ${baseName} (${videos.length} videos)...`);
         
+        // Check if all videos have trimmedVideoUrl
+        const allHaveTrimmedUrl = videos.every(v => v.trimmedVideoUrl);
+        if (!allHaveTrimmedUrl) {
+          console.log(`[Trimming] ⚠️ Skipping ${baseName} - not all videos have trimmedVideoUrl`);
+          setTrimmingProgress(prev => ({
+            ...prev,
+            failedVideos: [...prev.failedVideos, { 
+              name: `${baseName} (Hooks merge)`, 
+              error: 'Not all videos have been trimmed yet',
+              retries: 0
+            }]
+          }));
+          continue;
+        }
+        
         setTrimmingProgress(prev => ({
           ...prev,
           status: 'merging',
@@ -3322,7 +3337,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             const hookBaseMatch = baseName.match(/(.*HOOK\d+)/);
             const hookBase = hookBaseMatch ? hookBaseMatch[1] : null;
             const cleaned = hookBase 
-              ? Object.fromEntries(Object.entries(prev).filter(([key]) => !key.startsWith(hookBase)))
+              ? Object.fromEntries(Object.entries(prev).filter(([key]) => hookBase && !key.startsWith(hookBase)))
               : prev;
             return { ...cleaned, [baseName]: result.cdnUrl };
           });
@@ -3377,13 +3392,26 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       if (bodyVideos.length > 0) {
         console.log(`[Trimming] 📺 Merging BODY (${bodyVideos.length} videos)...`);
         
-        setTrimmingProgress(prev => ({
-          ...prev,
-          status: 'merging',
-          message: `Merging BODY (${bodyVideos.length} videos)...`
-        }));
-        
-        try {
+        // Check if all videos have trimmedVideoUrl
+        const allHaveTrimmedUrl = bodyVideos.every(v => v.trimmedVideoUrl);
+        if (!allHaveTrimmedUrl) {
+          console.log(`[Trimming] ⚠️ Skipping BODY merge - not all videos have trimmedVideoUrl`);
+          setTrimmingProgress(prev => ({
+            ...prev,
+            failedVideos: [...prev.failedVideos, { 
+              name: 'BODY (Body merge)', 
+              error: 'Not all videos have been trimmed yet',
+              retries: 0
+            }]
+          }));
+        } else {
+          setTrimmingProgress(prev => ({
+            ...prev,
+            status: 'merging',
+            message: `Merging BODY (${bodyVideos.length} videos)...`
+          }));
+          
+          try {
           // Extract original URLs
           const extractOriginalUrl = (url: string) => {
             if (url.startsWith('/api/proxy-video?url=')) {
@@ -3447,16 +3475,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             finalVideos,
           });
           
-        } catch (error: any) {
-          console.error('[Trimming] ❌ BODY merge failed:', error);
-          setTrimmingProgress(prev => ({
-            ...prev,
-            failedVideos: [...prev.failedVideos, { 
-              name: 'BODY (Body merge)', 
-              error: error.message,
-              retries: 0
-            }]
-          }));
+          } catch (error: any) {
+            console.error('[Trimming] ❌ BODY merge failed:', error);
+            setTrimmingProgress(prev => ({
+              ...prev,
+              failedVideos: [...prev.failedVideos, { 
+                name: 'BODY (Body merge)', 
+                error: error.message,
+                retries: 0
+              }]
+            }));
+          }
         }
       }
     }
