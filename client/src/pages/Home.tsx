@@ -3376,8 +3376,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     });
     
     // STEP 2: Merge Hooks (B+C+D variations)
-    if (localSuccessVideos.length > 0) {
+    // Get LATEST successVideos from state (not stale localSuccessVideos)
+    let latestSuccessVideos: typeof localSuccessVideos = [];
+    setTrimmingProgress(current => {
+      latestSuccessVideos = current.successVideos;
+      return current;
+    });
+    
+    if (latestSuccessVideos.length > 0) {
       console.log('[Trimming] \ud83c\udfa3 Starting Hooks merge (B+C+D)...');
+      console.log(`[Trimming] Latest success videos count: ${latestSuccessVideos.length}`);
       
       // Get LATEST videoResults using callback to avoid stale state
       let latestVideoResults: typeof videoResults = [];
@@ -3387,11 +3395,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       });
       
       const trimmedVideos = latestVideoResults.filter(v => 
-        localSuccessVideos.some(sv => sv.name === v.videoName)
+        latestSuccessVideos.some(sv => sv.name === v.videoName)
       );
+      
+      console.log(`[Trimming] Trimmed videos for hooks merge: ${trimmedVideos.length}`);
       
       // Group HOOKS by base name (HOOK3, HOOK3B, HOOK3C → 1 group)
       const hookVideos = trimmedVideos.filter(v => v.videoName.match(/HOOK\d+[A-Z]?/));
+      console.log(`[Trimming] Hook videos found: ${hookVideos.length}`, hookVideos.map(v => v.videoName));
       const hookGroups: Record<string, typeof hookVideos> = {};
       
       hookVideos.forEach(video => {
