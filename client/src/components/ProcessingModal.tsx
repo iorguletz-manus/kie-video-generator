@@ -57,7 +57,16 @@ export function ProcessingModal({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* CleanVoice Progress Bar - FIRST */}
+          {/* FFmpeg Progress Bar - FIRST */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-gray-600">🎬 FFmpeg (WAV Extraction)</p>
+              <p className="text-xs font-medium text-gray-700">{ffmpegProgress.current}/{ffmpegProgress.total}</p>
+            </div>
+            <Progress value={ffmpegPercent} className="h-2" />
+          </div>
+
+          {/* CleanVoice Progress Bar - SECOND */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium text-gray-600">🎤 CleanVoice (Audio Processing)</p>
@@ -66,7 +75,7 @@ export function ProcessingModal({
             <Progress value={cleanvoicePercent} className="h-2" />
           </div>
 
-          {/* Whisper Progress Bar - SECOND */}
+          {/* Whisper Progress Bar - THIRD */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium text-gray-600">📝 Whisper (Transcription)</p>
