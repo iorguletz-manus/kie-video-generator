@@ -2041,6 +2041,30 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     // STEP 1: FFmpeg batch - Extract WAV from all videos in this batch (PARALLEL)
     const ffmpegPromises = batchVideos.map(async (video) => {
       try {
+        // SMART SKIP: Check if FFmpeg already done (video has audioUrl)
+        if (video.audioUrl && video.waveformData) {
+          console.log(`[Batch Processing] ⏭️ FFmpeg SKIP for ${video.videoName} (audioUrl exists)`);
+          
+          setProcessingProgress(prev => ({
+            ...prev,
+            ffmpeg: {
+              current: prev.ffmpeg.current + 1,
+              total: videos.length,
+              status: prev.ffmpeg.current + 1 === videos.length ? 'complete' : 'processing',
+              activeVideos: prev.ffmpeg.activeVideos
+            },
+            ffmpegSuccess: [...prev.ffmpegSuccess, video.videoName]
+          }));
+          
+          return {
+            video,
+            wavUrl: video.audioUrl,  // Use existing WAV
+            waveformJson: video.waveformData,  // Use existing waveform
+            success: true,
+            skipped: true,
+          };
+        }
+        
         console.log(`[Batch Processing] 🎬 FFmpeg START for ${video.videoName}`);
         
         setProcessingProgress(prev => ({
