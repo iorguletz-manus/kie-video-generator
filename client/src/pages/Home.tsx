@@ -7630,22 +7630,55 @@ const handlePrepareForMerge = async () => {
             )}
             
             {/* Action Buttons */}
-            <div className="flex gap-2 mt-6">
-              {/* Go to Step 10 (only if ALL videos succeeded and video player is visible) */}
+            <div className="space-y-4 mt-6">
+              {/* Sample Merge ALL Videos Button (first, double height, only when completed) */}
               {trimmingProgress.status !== 'processing' && 
-               trimmingProgress.failedVideos.length === 0 && 
                trimmingProgress.successVideos.length > 0 && 
-               trimmingMergedVideoUrl && (
+               trimmingProgress.successVideos.some(v => {
+                 const videoData = videoResults.find(vd => vd.videoName === v.name);
+                 return videoData?.trimmedVideoUrl;
+               }) && (
                 <button
                   onClick={() => {
-                    setIsTrimmingModalOpen(false);
-                    setCurrentStep(10);
+                    const videosWithTrimmed = videoResults.filter(v => v.trimmedVideoUrl);
+                    handleSampleMerge(videosWithTrimmed);
                   }}
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-4 rounded-lg text-base font-semibold transition-colors flex items-center justify-center gap-2"
                 >
-                  ➡️ Go to Step 10
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  🎬 Sample Merge ALL Videos
                 </button>
               )}
+              
+              {/* Horizontal Line */}
+              {trimmingProgress.status !== 'processing' && 
+               trimmingProgress.successVideos.length > 0 && 
+               trimmingProgress.successVideos.some(v => {
+                 const videoData = videoResults.find(vd => vd.videoName === v.name);
+                 return videoData?.trimmedVideoUrl;
+               }) && (
+                <hr className="border-gray-300" />
+              )}
+              
+              {/* Other Action Buttons */}
+              <div className="flex gap-2">
+                {/* Go to Step 10 (only if ALL videos succeeded and video player is visible) */}
+                {trimmingProgress.status !== 'processing' && 
+                 trimmingProgress.failedVideos.length === 0 && 
+                 trimmingProgress.successVideos.length > 0 && 
+                 trimmingMergedVideoUrl && (
+                  <button
+                    onClick={() => {
+                      setIsTrimmingModalOpen(false);
+                      setCurrentStep(10);
+                    }}
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    ➡️ Go to Step 10
+                  </button>
+                )}
               
               {/* Retry Failed Button (only if processing complete and has failures) */}
               {trimmingProgress.status !== 'processing' && trimmingProgress.failedVideos.length > 0 && (
@@ -7666,6 +7699,7 @@ const handlePrepareForMerge = async () => {
                   ❌ Close
                 </button>
               )}
+              </div>
             </div>
           </div>
         </DialogContent>
