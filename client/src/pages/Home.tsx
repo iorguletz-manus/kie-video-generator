@@ -616,7 +616,47 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       cdnUrl?: string;
       error?: string;
     }>;
-  }>({ status: 'countdown', message: '', results: [], failedItems: [] });
+    // NEW: Detailed tracking
+    bodySuccessVideos?: Array<{name: string; chunkNum: number}>;
+    bodyFailedVideos?: Array<{name: string; chunkNum: number; error: string; retries: number}>;
+    bodyInProgressVideos?: Array<{name: string; chunkNum: number}>;
+    hookSuccessGroups?: Array<{baseName: string; videoCount: number; batchNum: number}>;
+    hookFailedGroups?: Array<{baseName: string; videoCount: number; error: string; retries: number; batchNum: number}>;
+    hookInProgressGroups?: Array<{baseName: string; videoCount: number; batchNum: number}>;
+    // Progress counters
+    bodyChunksCurrent?: number;
+    bodyChunksTotal?: number;
+    hooksCurrent?: number;
+    hooksTotal?: number;
+    hookBatchesCurrent?: number;
+    hookBatchesTotal?: number;
+    // UI state
+    isBodySuccessLogOpen?: boolean;
+    isBodyFailedLogOpen?: boolean;
+    isHooksSuccessLogOpen?: boolean;
+    isHooksFailedLogOpen?: boolean;
+  }>({ 
+    status: 'countdown', 
+    message: '', 
+    results: [], 
+    failedItems: [],
+    bodySuccessVideos: [],
+    bodyFailedVideos: [],
+    bodyInProgressVideos: [],
+    hookSuccessGroups: [],
+    hookFailedGroups: [],
+    hookInProgressGroups: [],
+    bodyChunksCurrent: 0,
+    bodyChunksTotal: 0,
+    hooksCurrent: 0,
+    hooksTotal: 0,
+    hookBatchesCurrent: 0,
+    hookBatchesTotal: 0,
+    isBodySuccessLogOpen: false,
+    isBodyFailedLogOpen: false,
+    isHooksSuccessLogOpen: false,
+    isHooksFailedLogOpen: false,
+  });
   const [bodyMergedVideoUrl, setBodyMergedVideoUrl] = useState<string | null>(null);
   const [hookMergedVideos, setHookMergedVideos] = useState<Record<string, string>>({});
   
@@ -4604,7 +4644,10 @@ const handlePrepareForMerge = async () => {
             ...prev.bodyInfo,
             currentChunk: chunkNum,
             status: 'processing'
-          } : null
+          } : null,
+          bodyChunksCurrent: chunkNum,
+          bodyChunksTotal: bodyChunks.length,
+          bodyInProgressVideos: chunk.map(v => ({ name: v.videoName, chunkNum }))
         }));
         
         try {
@@ -4643,7 +4686,12 @@ const handlePrepareForMerge = async () => {
                 ...(prev.bodyInfo.chunkResults || []),
                 { chunkNum, status: 'success', url: result.cdnUrl }
               ]
-            } : null
+            } : null,
+            bodySuccessVideos: [
+              ...(prev.bodySuccessVideos || []),
+              ...chunk.map(v => ({ name: v.videoName, chunkNum }))
+            ],
+            bodyInProgressVideos: []
           }));
           
           // Wait 60s AFTER chunk (except for last chunk)
@@ -4676,6 +4724,11 @@ const handlePrepareForMerge = async () => {
               ],
               status: 'failed'
             } : null,
+            bodyFailedVideos: [
+              ...(prev.bodyFailedVideos || []),
+              ...chunk.map(v => ({ name: v.videoName, chunkNum, error: error.message, retries: 0 }))
+            ],
+            bodyInProgressVideos: [],
             failedItems: [
               ...(prev.failedItems || []),
               { type: 'body_chunk', name: `Chunk ${chunkNum}`, error: error.message }
@@ -4813,24 +4866,84 @@ const handlePrepareForMerge = async () => {
       }
     }
     
-    // 9. HOOKS MERGE (all in parallel)
+    // 9. HOOKS MERGE (in batches, max 8 hooks per batch)
     if (hookGroupsToMerge.length > 0) {
       console.log(`[Prepare for Merge] 🎣 Starting HOOKS merge (${hookGroupsToMerge.length} groups)...`);
       
+      // Chunk hook groups (max 8 hooks per batch, keep groups together)
+      const MAX_HOOKS_PER_BATCH = 8;
+      const hookBatches: Array<{batchNum: number; groups: typeof hookGroupsToMerge; totalHooks: number}> = [];
+      let currentBatch: typeof hookGroupsToMerge = [];
+      let currentBatchHookCount = 0;
+      let batchNum = 1;
+      
+      for (const [baseName, videos] of hookGroupsToMerge) {
+        const groupSize = videos.length;
+        
+        // If adding this group would exceed max, start new batch
+        if (currentBatchHookCount + groupSize > MAX_HOOKS_PER_BATCH && currentBatch.length > 0) {
+          hookBatches.push({
+            batchNum,
+            groups: currentBatch,
+            totalHooks: currentBatchHookCount,
+          });
+          batchNum++;
+          currentBatch = [];
+          currentBatchHookCount = 0;
+        }
+        
+        // Add group to current batch
+        currentBatch.push([baseName, videos]);
+        currentBatchHookCount += groupSize;
+      }
+      
+      // Add final batch
+      if (currentBatch.length > 0) {
+        hookBatches.push({
+          batchNum,
+          groups: currentBatch,
+          totalHooks: currentBatchHookCount,
+        });
+      }
+      
+      console.log(`[Prepare for Merge] 📦 Hooks will be processed in ${hookBatches.length} batches`);
+      hookBatches.forEach((batch, idx) => {
+        console.log(`  Batch ${batch.batchNum}: ${batch.totalHooks} hooks in ${batch.groups.length} groups`);
+      });
+      
+      // Update progress with batch info
       setMergeStep10Progress(prev => ({
         ...prev,
-        message: `🎣 Merging ${hookGroupsToMerge.length} hook groups...`
+        message: `🎣 Merging ${hookGroupsToMerge.length} hook groups in ${hookBatches.length} batches...`,
+        hookBatchesTotal: hookBatches.length,
+        hookBatchesCurrent: 0,
+        hooksTotal: hookGroupsToMerge.length,
+        hooksCurrent: 0,
       }));
       
-      // Process all hooks in parallel
-      const hookPromises = hookGroupsToMerge.map(async ([baseName, videos]) => {
+      // Process batches sequentially
+      for (const batch of hookBatches) {
+        console.log(`[Prepare for Merge] 📦 Processing hook batch ${batch.batchNum}/${hookBatches.length} (${batch.totalHooks} hooks in ${batch.groups.length} groups)...`);
+        
+        setMergeStep10Progress(prev => ({
+          ...prev,
+          message: `🎣 HOOKS: Batch ${batch.batchNum}/${hookBatches.length} (${batch.totalHooks} hooks)...`,
+          hookBatchesCurrent: batch.batchNum,
+        }));
+        
+        // Process all groups in this batch in parallel
+        const batchPromises = batch.groups.map(async ([baseName, videos]) => {
         console.log(`[Prepare for Merge] 🎣 Merging ${baseName} (${videos.length} videos)...`);
         
         setMergeStep10Progress(prev => ({
           ...prev,
           hookGroups: prev.hookGroups?.map(g => 
             g.baseName === baseName ? { ...g, status: 'processing' } : g
-          )
+          ),
+          hookInProgressGroups: [
+            ...(prev.hookInProgressGroups || []),
+            { baseName, videoCount: videos.length, batchNum: batch.batchNum }
+          ]
         }));
         
         try {
@@ -4863,7 +4976,13 @@ const handlePrepareForMerge = async () => {
               g.baseName === baseName 
                 ? { ...g, status: 'success', cdnUrl: result.cdnUrl } 
                 : g
-            )
+            ),
+            hookSuccessGroups: [
+              ...(prev.hookSuccessGroups || []),
+              { baseName, videoCount: videos.length, batchNum: batch.batchNum }
+            ],
+            hookInProgressGroups: (prev.hookInProgressGroups || []).filter(g => g.baseName !== baseName),
+            hooksCurrent: (prev.hooksCurrent || 0) + 1
           }));
           
           // Save hook to local state
@@ -4913,6 +5032,11 @@ const handlePrepareForMerge = async () => {
                 ? { ...g, status: 'failed', error: error.message } 
                 : g
             ),
+            hookFailedGroups: [
+              ...(prev.hookFailedGroups || []),
+              { baseName, videoCount: videos.length, error: error.message, retries: 0, batchNum: batch.batchNum }
+            ],
+            hookInProgressGroups: (prev.hookInProgressGroups || []).filter(g => g.baseName !== baseName),
             failedItems: [
               ...(prev.failedItems || []),
               { type: 'hook', name: baseName, error: error.message }
@@ -4923,8 +5047,25 @@ const handlePrepareForMerge = async () => {
         }
       });
       
-      await Promise.all(hookPromises);
+      await Promise.all(batchPromises);
+      
+      // Wait 60s AFTER batch (except last batch)
+      if (batch.batchNum < hookBatches.length) {
+        console.log(`[Prepare for Merge] ⏳ Waiting 60s after hook batch ${batch.batchNum}...`);
+        for (let countdown = 60; countdown >= 0; countdown--) {
+          setMergeStep10Progress(prev => ({
+            ...prev,
+            message: `⏳ FFmpeg rate limit: waiting ${countdown}s before next hook batch...`,
+            countdown
+          }));
+          if (countdown > 0) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
+        console.log(`[Prepare for Merge] ✅ Wait complete, starting next hook batch...`);
+      }
     }
+  }
     
     // 10. Final status
     const failedCount = (mergeStep10Progress.failedItems?.length || 0);
@@ -4977,12 +5118,18 @@ const handlePrepareForMerge = async () => {
       v.status === 'success'
     );
     
-    // Reset progress
+    // Reset progress and tracking arrays
     setMergeStep10Progress(prev => ({
       ...prev,
       status: 'processing',
       message: `Retrying ${failedItems.length} failed items...`,
-      failedItems: []
+      failedItems: [],
+      bodySuccessVideos: [],
+      bodyFailedVideos: [],
+      bodyInProgressVideos: [],
+      hookSuccessGroups: [],
+      hookFailedGroups: [],
+      hookInProgressGroups: []
     }));
     
     try {
@@ -5057,7 +5204,14 @@ const handlePrepareForMerge = async () => {
                     ? { ...cr, status: 'success', url: result.cdnUrl, error: undefined }
                     : cr
                 )
-              } : null
+              } : null,
+              bodySuccessVideos: [
+                ...(prev.bodySuccessVideos || []),
+                ...chunk.map(v => ({ name: v.videoName, chunkNum }))
+              ],
+              bodyFailedVideos: (prev.bodyFailedVideos || []).filter(fv => 
+                !chunk.some(cv => cv.videoName === fv.name)
+              )
             }));
             
             // Wait 60s before next operation
@@ -5079,6 +5233,18 @@ const handlePrepareForMerge = async () => {
               failedItems: [
                 ...(prev.failedItems || []),
                 { type: 'body_chunk', name: `Chunk ${chunkNum}`, error: error.message }
+              ],
+              bodyFailedVideos: [
+                ...(prev.bodyFailedVideos || []),
+                ...chunk.map(v => {
+                  const existingFail = (prev.bodyFailedVideos || []).find(fv => fv.name === v.videoName);
+                  return {
+                    name: v.videoName,
+                    chunkNum,
+                    error: error.message,
+                    retries: (existingFail?.retries || 0) + 1
+                  };
+                })
               ]
             }));
           }
@@ -6864,16 +7030,27 @@ const handlePrepareForMerge = async () => {
         bodyInfo={mergeStep10Progress.bodyInfo}
         hookGroups={mergeStep10Progress.hookGroups}
         failedItems={mergeStep10Progress.failedItems}
+        bodySuccessVideos={mergeStep10Progress.bodySuccessVideos}
+        bodyFailedVideos={mergeStep10Progress.bodyFailedVideos}
+        bodyInProgressVideos={mergeStep10Progress.bodyInProgressVideos}
+        hookSuccessGroups={mergeStep10Progress.hookSuccessGroups}
+        hookFailedGroups={mergeStep10Progress.hookFailedGroups}
+        hookInProgressGroups={mergeStep10Progress.hookInProgressGroups}
+        bodyChunksCurrent={mergeStep10Progress.bodyChunksCurrent}
+        bodyChunksTotal={mergeStep10Progress.bodyChunksTotal}
+        hooksCurrent={mergeStep10Progress.hooksCurrent}
+        hooksTotal={mergeStep10Progress.hooksTotal}
+        hookBatchesCurrent={mergeStep10Progress.hookBatchesCurrent}
+        hookBatchesTotal={mergeStep10Progress.hookBatchesTotal}
         onRetryFailed={handleRetryFailedMerge}
+        onContinue={() => {
+          setIsMergingStep10(false);
+          setCurrentStep(10);
+          toast.success('✅ Proceeding to Step 10');
+        }}
         onClose={() => {
           if (mergeStep10Progress.status !== 'processing' && mergeStep10Progress.status !== 'countdown') {
             setIsMergingStep10(false);
-            
-            // If complete with no failures, proceed to Step 10
-            if (mergeStep10Progress.status === 'complete' && (!mergeStep10Progress.failedItems || mergeStep10Progress.failedItems.length === 0)) {
-              setCurrentStep(10);
-              toast.success('✅ Proceeding to Step 10');
-            }
           }
         }}
       />
