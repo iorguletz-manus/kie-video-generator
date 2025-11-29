@@ -4735,7 +4735,7 @@ const handlePrepareForMerge = async () => {
             ),
             hookSuccessGroups: [
               ...(prev.hookSuccessGroups || []),
-              { baseName, videoCount: videos.length, batchNum: batch.batchNum }
+              { baseName, videoCount: videos.length, videoNames: videos.map(v => v.videoName), batchNum: batch.batchNum }
             ],
             hookInProgressGroups: (prev.hookInProgressGroups || []).filter(g => g.baseName !== baseName),
             hooksCurrent: (prev.hooksCurrent || 0) + 1
@@ -5089,6 +5089,7 @@ const handlePrepareForMerge = async () => {
     setMergeStep10Progress(prev => ({
       ...prev,
       status: failedCount > 0 ? 'partial' : 'complete',
+      countdown: undefined,  // Reset countdown
       message: failedCount > 0 
         ? `⚠️ ${totalMerges - failedCount} succeeded, ${failedCount} failed`
         : `✅ All ${totalMerges} merges complete!`
@@ -5451,7 +5452,7 @@ const handlePrepareForMerge = async () => {
               ),
               hookSuccessGroups: [
                 ...(prev.hookSuccessGroups || []),
-                { baseName, videoCount: videos.length, batchNum: 0 }
+                { baseName, videoCount: videos.length, videoNames: videos.map(v => v.videoName), batchNum: 0 }
               ],
               hookFailedGroups: (prev.hookFailedGroups || []).filter(fg => fg.baseName !== baseName),
               hooksCurrent: (prev.hooksCurrent || 0) + 1

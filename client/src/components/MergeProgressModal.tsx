@@ -32,9 +32,9 @@ interface MergeProgressModalProps {
   bodySuccessVideos?: Array<{name: string; chunkNum: number}>;
   bodyFailedVideos?: Array<{name: string; chunkNum: number; error: string; retries: number}>;
   bodyInProgressVideos?: Array<{name: string; chunkNum: number}>;
-  hookSuccessGroups?: Array<{baseName: string; videoCount: number; batchNum: number}>;
-  hookFailedGroups?: Array<{baseName: string; videoCount: number; error: string; retries: number; batchNum: number}>;
-  hookInProgressGroups?: Array<{baseName: string; videoCount: number; batchNum: number}>;
+  hookSuccessGroups?: Array<{baseName: string; videoCount: number; videoNames: string[]; batchNum: number}>;
+  hookFailedGroups?: Array<{baseName: string; videoCount: number; videoNames: string[]; error: string; retries: number; batchNum: number}>;
+  hookInProgressGroups?: Array<{baseName: string; videoCount: number; videoNames: string[]; batchNum: number}>;
   bodyChunksCurrent?: number;
   bodyChunksTotal?: number;
   hooksCurrent?: number;
@@ -83,12 +83,12 @@ export default function MergeProgressModal({
   const hasFailures = (failedItems?.length || 0) > 0;
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-[9999] p-4 pointer-events-none">
-      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto pointer-events-auto">
+    <div className="fixed inset-0 flex items-center justify-center z-[9999] p-4 bg-black bg-opacity-50">
+      <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[80vh] overflow-y-auto">
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 z-10">
           <div className="flex items-center gap-3">
-            {isProcessing && <Loader2 className="w-6 h-6 animate-spin text-blue-600" />}
+            {isProcessing && <Loader2 className="w-5 h-5 animate-spin text-red-600" />}
             <div>
               <h2 className="text-2xl font-bold text-gray-900">
                 🔗 STEP 2: Prepare for Merge
@@ -107,10 +107,10 @@ export default function MergeProgressModal({
               {bodyChunksTotal > 0 && (
                 <div>
                   <div className="flex justify-between items-center mb-2">
-                    <p className="text-sm font-medium text-gray-700">📺 BODY Chunks</p>
-                    <p className="text-sm text-gray-600">{bodyChunksCurrent}/{bodyChunksTotal}</p>
+                    <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">✂️ BODY Chunks</p>
+                    <p className="text-sm font-medium text-green-700">{bodyChunksCurrent}/{bodyChunksTotal} chunks</p>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                  <div className="w-full bg-green-100 rounded-full h-3 overflow-hidden">
                     <div
                       className="bg-green-600 h-full transition-all duration-300"
                       style={{ width: `${(bodyChunksCurrent / bodyChunksTotal) * 100}%` }}
@@ -123,13 +123,13 @@ export default function MergeProgressModal({
               {hooksTotal > 0 && (
                 <div>
                   <div className="flex justify-between items-center mb-2">
-                    <p className="text-sm font-medium text-gray-700">
-                      🎣 HOOKS Groups
+                    <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+                      🔗 HOOKS Groups
                       {hookBatchesTotal > 1 && ` (Batch ${hookBatchesCurrent}/${hookBatchesTotal})`}
                     </p>
-                    <p className="text-sm text-gray-600">{hooksCurrent}/{hooksTotal}</p>
+                    <p className="text-sm font-medium text-purple-700">{hooksCurrent}/{hooksTotal} groups</p>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                  <div className="w-full bg-purple-100 rounded-full h-3 overflow-hidden">
                     <div
                       className="bg-purple-600 h-full transition-all duration-300"
                       style={{ width: `${(hooksCurrent / hooksTotal) * 100}%` }}
@@ -142,18 +142,14 @@ export default function MergeProgressModal({
 
           {/* Countdown Timer */}
           {countdown !== undefined && countdown > 0 && (
-            <div className="bg-orange-50 border-2 border-orange-300 rounded-lg p-6">
-              <p className="text-4xl font-bold text-orange-600 text-center mb-2">
-                ⏳ {countdown}s
-              </p>
-              <p className="text-sm text-orange-500 text-center">
-                FFmpeg rate limit - waiting before next batch...
-              </p>
-              <div className="mt-3 bg-orange-200 rounded-full h-2 overflow-hidden">
-                <div
-                  className="bg-orange-600 h-full transition-all duration-1000"
-                  style={{ width: `${(countdown / 60) * 100}%` }}
-                />
+            <div className="flex items-center justify-center">
+              <div className="bg-orange-50 border-2 border-orange-300 rounded-lg px-6 py-4">
+                <p className="text-center text-4xl font-bold text-orange-600 tabular-nums">
+                  ⏳ {countdown}s
+                </p>
+                <p className="text-center text-xs text-orange-500 mt-2">
+                  Waiting for FFmpeg rate limit...
+                </p>
               </div>
             </div>
           )}
@@ -184,14 +180,24 @@ export default function MergeProgressModal({
                     {isHooksSuccessOpen && (
                       <div className="mt-2 bg-green-50 border border-green-200 rounded-lg p-3 space-y-1 max-h-48 overflow-y-auto">
                         {hookSuccessGroups.map((g, i) => (
-                          <div key={i} className="flex items-start gap-2 text-sm">
-                            <span className="text-green-600 mt-0.5">✓</span>
-                            <div>
-                              <span className="text-gray-800">{g.baseName}</span>
-                              <span className="text-gray-500 text-xs ml-2">({g.videoCount} videos)</span>
-                              {hookBatchesTotal > 1 && (
-                                <span className="text-gray-500 text-xs ml-2">Batch {g.batchNum}</span>
-                              )}
+                          <div key={i} className="space-y-1">
+                            <div className="flex items-start gap-2 text-sm font-medium text-gray-700">
+                              <span className="text-green-600 mt-0.5">✓</span>
+                              <div>
+                                <span className="text-gray-800">{g.baseName}</span>
+                                <span className="text-gray-500 text-xs ml-2">({g.videoCount} videos)</span>
+                                {hookBatchesTotal > 1 && (
+                                  <span className="text-gray-500 text-xs ml-2">Batch {g.batchNum}</span>
+                                )}
+                              </div>
+                            </div>
+                            {/* Individual videos */}
+                            <div className="ml-6 space-y-0.5">
+                              {g.videoNames.map((vName, vi) => (
+                                <div key={vi} className="text-xs text-gray-600">
+                                  └─ {vName}
+                                </div>
+                              ))}
                             </div>
                           </div>
                         ))}
