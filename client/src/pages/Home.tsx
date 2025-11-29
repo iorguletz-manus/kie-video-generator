@@ -2677,8 +2677,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       const videos = videosToMerge.map(v => ({
         url: extractOriginalUrl(v.videoUrl),
         name: v.videoName,
-        startMs: v.cutPoints?.startKeep || 0,
-        endMs: v.cutPoints?.endKeep || 0,
+        startMs: 0,  // No CUT - merge full videos
+        endMs: 0,    // No CUT - merge full videos
       }));
       
       console.log('[Sample Merge] Videos:', videos);
@@ -12653,8 +12653,8 @@ const handlePrepareForMerge = async () => {
                     )}
                   </div>
                   
-                  {/* Sample Merge ALL Videos button - HIDDEN */}
-                  {false && videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length > 1 && (
+                  {/* Sample Merge ALL Videos button */}
+                  {videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length > 1 && (
                     <div className="flex flex-col items-end gap-1">
                     <Button
                       onClick={() => {
@@ -13011,8 +13011,8 @@ const handlePrepareForMerge = async () => {
 
                         {/* Center buttons group */}
                         <div className="flex flex-row items-center gap-2 flex-nowrap">
-                          {/* Sample Merge Video button - HIDDEN */}
-                          {false && videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length > 1 && (
+                          {/* Sample Merge Video button */}
+                          {videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length > 1 && (
                             <div className="flex flex-col items-end gap-1">
                             <Button
                               onClick={() => handleSampleMerge(approvedVideos)}
