@@ -198,7 +198,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     countdown: 0,
     estimatedMinutes: 0,
     successVideos: [] as string[],
-    failedVideos: [] as Array<{ videoName: string; error: string }>
+    failedVideos: [] as Array<{ videoName: string; error: string }>,
+    // Phase-specific tracking
+    ffmpegSuccess: [] as string[],
+    ffmpegFailed: [] as Array<{ videoName: string; error: string }>,
+    whisperSuccess: [] as string[],
+    whisperFailed: [] as Array<{ videoName: string; error: string }>,
+    cleanvoiceSuccess: [] as string[],
+    cleanvoiceFailed: [] as Array<{ videoName: string; error: string }>
   });
   const [processingStep, setProcessingStep] = useState<'download' | 'extract' | 'whisper' | 'cleanvoice' | 'detect' | 'save' | null>(null);
   
@@ -2000,7 +2007,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     countdown: 0,
     estimatedMinutes,
     successVideos: [],
-    failedVideos: []
+    failedVideos: [],
+    ffmpegSuccess: [],
+    ffmpegFailed: [],
+    whisperSuccess: [],
+    whisperFailed: [],
+    cleanvoiceSuccess: [],
+    cleanvoiceFailed: []
   });
   
   // Track results
@@ -2056,7 +2069,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             total: videos.length,
             status: prev.ffmpeg.current + 1 === videos.length ? 'complete' : 'processing',
             activeVideos: prev.ffmpeg.activeVideos.filter(v => v !== video.videoName)
-          }
+          },
+          ffmpegSuccess: [...prev.ffmpegSuccess, video.videoName]
         }));
         
         return {
@@ -2076,6 +2090,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             status: 'processing',
             activeVideos: prev.ffmpeg.activeVideos.filter(v => v !== video.videoName)
           },
+          ffmpegFailed: [...prev.ffmpegFailed, { videoName: video.videoName, error: error.message }],
           failedVideos: [...prev.failedVideos, { videoName: video.videoName, error: `FFmpeg: ${error.message}` }]
         }));
         
@@ -2183,6 +2198,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               status: prev.cleanvoice.current + 1 === videos.length ? 'complete' : 'processing',
               activeVideos: prev.cleanvoice.activeVideos.filter(v => v !== video.videoName)
             },
+            whisperSuccess: [...prev.whisperSuccess, video.videoName],
+            cleanvoiceSuccess: [...prev.cleanvoiceSuccess, video.videoName],
             successVideos: [...prev.successVideos, video.videoName]
           }));
           
@@ -2218,6 +2235,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               status: 'processing',
               activeVideos: prev.cleanvoice.activeVideos.filter(v => v !== video.videoName)
             },
+            whisperFailed: [...prev.whisperFailed, { videoName: video.videoName, error: error.message }],
+            cleanvoiceFailed: [...prev.cleanvoiceFailed, { videoName: video.videoName, error: error.message }],
             failedVideos: [...prev.failedVideos, { videoName: video.videoName, error: `Whisper/CleanVoice: ${error.message}` }]
           }));
           
@@ -6526,6 +6545,18 @@ const handlePrepareForMerge = async () => {
         estimatedMinutes={processingProgress.estimatedMinutes}
         successVideos={processingProgress.successVideos}
         failedVideos={processingProgress.failedVideos}
+        ffmpegSuccess={processingProgress.ffmpegSuccess}
+        ffmpegFailed={processingProgress.ffmpegFailed}
+        whisperSuccess={processingProgress.whisperSuccess}
+        whisperFailed={processingProgress.whisperFailed}
+        cleanvoiceSuccess={processingProgress.cleanvoiceSuccess}
+        cleanvoiceFailed={processingProgress.cleanvoiceFailed}
+        onClose={() => setShowProcessingModal(false)}
+        onContinue={() => {
+          setShowProcessingModal(false);
+          setCurrentStep(8);
+          toast.success('✅ Proceeding to Step 8');
+        }}
         onRetryFailed={async () => {
           console.log('[Retry Failed] Starting retry for failed videos:', processingProgress.failedVideos);
           
@@ -6552,7 +6583,13 @@ const handlePrepareForMerge = async () => {
             countdown: 0,
             estimatedMinutes: 0,
             successVideos: [],
-            failedVideos: []
+            failedVideos: [],
+            ffmpegSuccess: [],
+            ffmpegFailed: [],
+            whisperSuccess: [],
+            whisperFailed: [],
+            cleanvoiceSuccess: [],
+            cleanvoiceFailed: []
           });
           
           try {
@@ -6565,10 +6602,8 @@ const handlePrepareForMerge = async () => {
             if (stillFailedCount > 0) {
               toast.warning(`⚠️ Retry complete: ${videosToRetry.length - stillFailedCount} success, ${stillFailedCount} still failed`);
             } else {
-              // All retries successful - close modal and go to Step 8
-              setShowProcessingModal(false);
-              setCurrentStep(8);
-              toast.success(`✅ All ${videosToRetry.length} retried videos processed successfully!`);
+              // All retries successful - user can now click "Continue to Step 8"
+              toast.success(`✅ All ${videosToRetry.length} retried videos processed successfully! Click Continue to proceed.`);
             }
           } catch (error: any) {
             console.error('[Retry Failed] Error:', error);
@@ -12041,16 +12076,11 @@ const handlePrepareForMerge = async () => {
                           // Check if there are failed videos
                           const failedCount = processingProgress.failedVideos.length;
                           
-                          // Close modal
-                          setShowProcessingModal(false);
-                          
+                          // Keep modal open - user will click Continue or Retry Failed
                           if (failedCount > 0) {
-                            // Don't redirect if there are failed videos - stay on Step 7
                             toast.warning(`⚠️ Processing complete: ${processingProgress.successVideos.length} success, ${failedCount} failed. Please retry failed videos.`);
                           } else {
-                            // All success - go to Step 8
-                            setCurrentStep(8);
-                            toast.success(`✅ ${videosToProcess.length} videouri procesate cu succes!`);
+                            toast.success(`✅ ${videosToProcess.length} videouri procesate cu succes! Click Continue to proceed.`);
                           }
                         } catch (error: any) {
                           console.error('[Video Editing] Batch processing error:', error);
