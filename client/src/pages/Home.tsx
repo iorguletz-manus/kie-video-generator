@@ -13005,7 +13005,10 @@ const handlePrepareForMerge = async () => {
                       
                       <div className="flex flex-col items-center gap-0">
                       <Button
-                        onClick={handleMergeVideos}
+                        onClick={() => {
+                          setIsMergingStep10(true);
+                          handlePrepareForMerge();
+                        }}
                         className="bg-purple-600 hover:bg-purple-700 px-8 py-8 text-base"
                         disabled={isMergingStep10}
                       >
