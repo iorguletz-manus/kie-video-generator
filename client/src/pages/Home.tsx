@@ -5432,7 +5432,13 @@ const handlePrepareForMerge = async () => {
                 g.baseName === baseName 
                   ? { ...g, status: 'success', cdnUrl: result.cdnUrl, error: null } 
                   : g
-              )
+              ),
+              hookSuccessGroups: [
+                ...(prev.hookSuccessGroups || []),
+                { baseName, videoCount: videos.length, batchNum: 0 }
+              ],
+              hookFailedGroups: (prev.hookFailedGroups || []).filter(fg => fg.baseName !== baseName),
+              hooksCurrent: (prev.hooksCurrent || 0) + 1
             }));
             
             // Save hook to local state
@@ -5479,6 +5485,16 @@ const handlePrepareForMerge = async () => {
                   ? { ...g, status: 'failed', error: error.message } 
                   : g
               ),
+              hookFailedGroups: [
+                ...(prev.hookFailedGroups || []).filter(fg => fg.baseName !== baseName),
+                {
+                  baseName,
+                  videoCount: videos.length,
+                  error: error.message,
+                  retries: ((prev.hookFailedGroups || []).find(fg => fg.baseName === baseName)?.retries || 0) + 1,
+                  batchNum: 0
+                }
+              ],
               failedItems: [
                 ...(prev.failedItems || []),
                 { type: 'hook', name: baseName, error: error.message }
