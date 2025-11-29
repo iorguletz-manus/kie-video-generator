@@ -2221,6 +2221,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         } catch (error: any) {
           console.error(`[Batch Processing] ❌ Whisper+CleanVoice FAILED for ${video.videoName}:`, error);
           
+          // Parse error to determine which phase failed
+          const errorMsg = error.message || String(error);
+          const isCleanVoiceError = errorMsg.includes('CleanVoice failed');
+          const isWhisperError = errorMsg.includes('Whisper failed');
+          
           setProcessingProgress(prev => ({
             ...prev,
             whisper: {
@@ -2235,8 +2240,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               status: 'processing',
               activeVideos: prev.cleanvoice.activeVideos.filter(v => v !== video.videoName)
             },
-            whisperFailed: [...prev.whisperFailed, { videoName: video.videoName, error: error.message }],
-            cleanvoiceFailed: [...prev.cleanvoiceFailed, { videoName: video.videoName, error: error.message }],
+            // Only add to the specific failed array based on error message
+            whisperFailed: isWhisperError || (!isCleanVoiceError && !isWhisperError) 
+              ? [...prev.whisperFailed, { videoName: video.videoName, error: error.message }]
+              : prev.whisperFailed,
+            cleanvoiceFailed: isCleanVoiceError || (!isCleanVoiceError && !isWhisperError)
+              ? [...prev.cleanvoiceFailed, { videoName: video.videoName, error: error.message }]
+              : prev.cleanvoiceFailed,
             failedVideos: [...prev.failedVideos, { videoName: video.videoName, error: `Whisper/CleanVoice: ${error.message}` }]
           }));
           
