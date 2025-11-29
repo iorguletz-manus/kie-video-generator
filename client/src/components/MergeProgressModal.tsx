@@ -1,4 +1,7 @@
-import { Loader2 } from 'lucide-react';
+import { Dialog, DialogContent } from './ui/dialog';
+import { Button } from './ui/button';
+import { Progress } from './ui/progress';
+import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { useState } from 'react';
 
 interface MergeProgressModalProps {
