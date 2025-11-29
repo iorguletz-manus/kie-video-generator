@@ -4690,24 +4690,8 @@ const handlePrepareForMerge = async () => {
             currentFinalVideo: prev.currentFinalVideo + 1
           }));
           
-          // Save to database
-          if (task.type === 'body') {
-            await updateProjectMutation.mutateAsync({
-              id: currentProject!.id,
-              bodyMergedVideoUrl: result.cdnUrl,
-            });
-            console.log(`[STEP 2] 💾 BODY saved to database`);
-          } else {
-            // Hook - update all videos in group
-            for (const video of task.videos) {
-              await updateVideoResultMutation.mutateAsync({
-                id: video.id,
-                hookMergedVideoUrl: result.cdnUrl,
-                bodyMergedVideoUrl: currentProject?.bodyMergedVideoUrl || null,
-              });
-            }
-            console.log(`[STEP 2] 💾 ${task.name} saved to database`);
-          }
+          // Note: Results are saved to database at the end via upsertContextSessionMutation
+          console.log(`[STEP 2] 💾 ${task.name} result stored in state (will be saved to DB at end)`);
           
           return { task, status: 'success', url: result.cdnUrl };
           
