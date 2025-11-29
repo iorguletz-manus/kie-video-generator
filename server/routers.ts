@@ -1986,16 +1986,46 @@ export const appRouter = router({
           
           console.log('[cutAndMergeAllVideos] All videos uploaded to FFmpeg API');
           
-          // 3. Build filter_complex - simple concat without trim
-          // [0:v][0:a][1:v][1:a]...[N:v][N:a]concat=n=N:v=1:a=1[outv][outa]
-          console.log('[cutAndMergeAllVideos] Building simple concat (no trim) for merge-only');
+          // 3. Build filter_complex - with trim if startMs/endMs are specified
+          console.log('[cutAndMergeAllVideos] Building filter_complex...');
           
-          const concatInputs: string[] = [];
-          input.videos.forEach((_, index) => {
-            concatInputs.push(`[${index}:v][${index}:a]`);
-          });
+          // Check if any video needs trimming (startMs > 0 or endMs > 0)
+          const needsTrim = input.videos.some(v => v.startMs > 0 || v.endMs > 0);
           
-          const filterComplex = concatInputs.join('') + `concat=n=${input.videos.length}:v=1:a=1[outv][outa]`;
+          let filterComplex: string;
+          
+          if (needsTrim) {
+            // Build trim + concat
+            console.log('[cutAndMergeAllVideos] Using trim + concat (CUT then MERGE)');
+            const trimFilters: string[] = [];
+            const concatInputs: string[] = [];
+            
+            input.videos.forEach((video, index) => {
+              const startSec = video.startMs / 1000;
+              const endSec = video.endMs / 1000;
+              
+              // Trim video and audio
+              trimFilters.push(
+                `[${index}:v]trim=start=${startSec.toFixed(3)}:end=${endSec.toFixed(3)},setpts=PTS-STARTPTS[v${index}]`
+              );
+              trimFilters.push(
+                `[${index}:a]atrim=start=${startSec.toFixed(3)}:end=${endSec.toFixed(3)},asetpts=PTS-STARTPTS[a${index}]`
+              );
+              
+              concatInputs.push(`[v${index}][a${index}]`);
+            });
+            
+            filterComplex = trimFilters.join(';') + ';' + concatInputs.join('') + `concat=n=${input.videos.length}:v=1:a=1[outv][outa]`;
+          } else {
+            // Simple concat without trim (merge-only)
+            console.log('[cutAndMergeAllVideos] Using simple concat (merge-only, no CUT)');
+            const concatInputs: string[] = [];
+            input.videos.forEach((_, index) => {
+              concatInputs.push(`[${index}:v][${index}:a]`);
+            });
+            
+            filterComplex = concatInputs.join('') + `concat=n=${input.videos.length}:v=1:a=1[outv][outa]`;
+          }
           
           console.log('[cutAndMergeAllVideos] Filter complex:', filterComplex);
           

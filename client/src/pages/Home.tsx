@@ -7641,6 +7641,7 @@ const handlePrepareForMerge = async () => {
                 <button
                   onClick={() => {
                     const videosWithTrimmed = videoResults.filter(v => v.trimmedVideoUrl);
+                    setIsTrimmingModalOpen(false); // Close trimming modal
                     handleSampleMerge(videosWithTrimmed);
                   }}
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-4 rounded-lg text-base font-semibold transition-colors flex items-center justify-center gap-2"
@@ -7841,7 +7842,7 @@ const handlePrepareForMerge = async () => {
                 </div>
                 
                 {/* Video List with Notes */}
-                <div className="border-t pt-4">
+                <div id="sample-merge-notes-section" className="border-t pt-4">
                   <h3 className="text-sm font-semibold text-gray-900 mb-3">Videos in this merge:</h3>
                   <div className="space-y-2">
                     {sampleMergeVideos.map((video) => (
@@ -7879,6 +7880,9 @@ const handlePrepareForMerge = async () => {
                                     setEditingNoteId(null);
                                     setEditingNoteText('');
                                     toast.success('Note saved & status changed to Recut!');
+                                    
+                                    // 4. Auto-switch STEP 8 filter to "With Notes"
+                                    setStep8Filter('with_notes');
                                     
                                     // 4. Save to database in BACKGROUND (no await)
                                     if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
@@ -13875,6 +13879,33 @@ const handlePrepareForMerge = async () => {
         </>
         )}
       </div>
+      
+      {/* Scroll to Top/Bottom Buttons (only for STEP 6-11) */}
+      {currentStep >= 6 && currentStep <= 11 && (
+        <>
+          {/* Scroll to Top - Fixed Bottom Right */}
+          <button
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="fixed bottom-6 right-6 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg transition-all hover:scale-110 z-50"
+            title="Scroll to Top"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+            </svg>
+          </button>
+          
+          {/* Scroll to Bottom - Fixed Bottom Left */}
+          <button
+            onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })}
+            className="fixed bottom-6 left-6 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg transition-all hover:scale-110 z-50"
+            title="Scroll to Bottom"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+            </svg>
+          </button>
+        </>
+      )}
     </div>
   );
 }
