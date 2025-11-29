@@ -358,6 +358,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
   });
   const [mergeProgress, setMergeProgress] = useState<string>('');
+  const [currentCutMergeVideoName, setCurrentCutMergeVideoName] = useState<string>('Loading...');
   const [lastMergedPairHash, setLastMergedPairHash] = useState<string | null>(() => {
     try {
       return localStorage.getItem('lastMergedPairHash') || null;
@@ -512,6 +513,85 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       videoElement.removeEventListener('seeked', handleTimeUpdate);
     };
   }, [sampleMergedVideoUrl, sampleMergeVideos, videoResults]);
+  
+  // Sync current video name with playback time (Cut & Merge Modal)
+  useEffect(() => {
+    if (!mergedVideoUrl || !isMergeModalOpen) return;
+    
+    const videoElement = document.getElementById('cut-merge-video-player') as HTMLVideoElement;
+    if (!videoElement) return;
+    
+    // Get videos from current merge (previous + current + next)
+    const currentVideo = videoResults.find(v => v.videoName === currentVideoName);
+    if (!currentVideo) return;
+    
+    const currentIndex = videoResults.findIndex(v => v.videoName === currentVideoName);
+    const previousVideo = currentIndex > 0 ? videoResults[currentIndex - 1] : null;
+    const nextVideo = currentIndex < videoResults.length - 1 ? videoResults[currentIndex + 1] : null;
+    
+    const videosToMerge = [
+      ...(previousVideo ? [previousVideo] : []),
+      currentVideo,
+      ...(nextVideo ? [nextVideo] : []),
+    ];
+    
+    // Build timeline from video durations
+    const timeline: Array<{ startTime: number; endTime: number; name: string }> = [];
+    let currentTime = 0;
+    
+    videosToMerge.forEach((video) => {
+      let durationSeconds = 0;
+      
+      // Try to get duration from cutPoints (if exists)
+      if (video.cutPoints) {
+        const durationMs = (video.cutPoints.endKeep || 0) - (video.cutPoints.startKeep || 0);
+        durationSeconds = durationMs / 1000;
+      } else if (video.trimmedDuration) {
+        // Use saved trimmed duration if available
+        durationSeconds = video.trimmedDuration;
+      } else {
+        // Fallback: assume 10 seconds per video
+        console.warn(`[Cut & Merge Sync] ⚠️ No duration data for ${video.videoName}, using 10s fallback`);
+        durationSeconds = 10;
+      }
+      
+      timeline.push({
+        startTime: currentTime,
+        endTime: currentTime + durationSeconds,
+        name: video.videoName,
+      });
+      
+      currentTime += durationSeconds;
+    });
+    
+    console.log('[Cut & Merge] Timeline:', timeline);
+    
+    // Update current video name based on playback time
+    const handleTimeUpdate = () => {
+      const currentPlaybackTime = videoElement.currentTime;
+      
+      const currentSegment = timeline.find(
+        seg => currentPlaybackTime >= seg.startTime && currentPlaybackTime < seg.endTime
+      );
+      
+      if (currentSegment) {
+        setCurrentCutMergeVideoName(currentSegment.name);
+      }
+    };
+    
+    videoElement.addEventListener('timeupdate', handleTimeUpdate);
+    videoElement.addEventListener('seeked', handleTimeUpdate);
+    
+    // Set initial video name
+    if (timeline.length > 0) {
+      setCurrentCutMergeVideoName(timeline[0].name);
+    }
+    
+    return () => {
+      videoElement.removeEventListener('timeupdate', handleTimeUpdate);
+      videoElement.removeEventListener('seeked', handleTimeUpdate);
+    };
+  }, [mergedVideoUrl, isMergeModalOpen, currentVideoName, videoResults]);
   
   // Sync current video name with playback time (Trimming Modal)
   useEffect(() => {
@@ -4211,13 +4291,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     // Open modal immediately
     setIsTrimmingModalOpen(true);
     
-    // Check cooldown from last Sample Merge (60 seconds)
+    // Check cooldown from last Sample Merge (90 seconds)
     const now = Date.now();
     let remainingCooldownSeconds = 0;
     
     if (lastSampleMergeTimestamp) {
       const elapsed = now - lastSampleMergeTimestamp;
-      const cooldownMs = 60000; // 60 seconds
+      const cooldownMs = 90000; // 90 seconds
       
       if (elapsed < cooldownMs) {
         const remainingMs = cooldownMs - elapsed;
@@ -7733,11 +7813,19 @@ const handlePrepareForMerge = async () => {
                 </div>
                 
                 <video
+                  id="cut-merge-video-player"
                   src={mergedVideoUrl}
                   controls
                   className="w-full rounded-lg border border-gray-300"
                   style={{ maxHeight: '400px' }}
                 />
+                
+                {/* Current video name below player */}
+                <div className="bg-yellow-100 border border-yellow-300 rounded px-2 py-1 text-center">
+                  <p className="text-xs font-medium text-yellow-900">
+                    {currentCutMergeVideoName}
+                  </p>
+                </div>
                 
                 <p className="text-xs text-gray-500 text-center">
                   💡 This is a temporary preview. Click "TRIM ALL VIDEOS" to save final cuts.
