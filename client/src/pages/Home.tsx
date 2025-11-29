@@ -7750,16 +7750,16 @@ const handlePrepareForMerge = async () => {
                                     );
                                     setSampleMergeVideos(updatedVideos);
                                     
-                                    // 2. Update videoResults INSTANTLY
+                                    // 2. Update videoResults INSTANTLY (note + recutStatus)
                                     const updatedVideoResults = videoResults.map(v =>
-                                      v.videoName === video.name ? { ...v, step9Note: editingNoteText } : v
+                                      v.videoName === video.name ? { ...v, step9Note: editingNoteText, recutStatus: 'recut' } : v
                                     );
                                     setVideoResults(updatedVideoResults);
                                     
                                     // 3. Close editing mode INSTANTLY
                                     setEditingNoteId(null);
                                     setEditingNoteText('');
-                                    toast.success('Note saved!');
+                                    toast.success('Note saved & status changed to Recut!');
                                     
                                     // 4. Save to database in BACKGROUND (no await)
                                     if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
@@ -7782,9 +7782,9 @@ const handlePrepareForMerge = async () => {
                                       });
                                     }
                                   }}
-                                  className="bg-green-600 hover:bg-green-700"
+                                  className="bg-orange-600 hover:bg-orange-700"
                                 >
-                                  Save
+                                  📝 Save & Change Status to 'Recut'
                                 </Button>
                                 <Button
                                   size="sm"
