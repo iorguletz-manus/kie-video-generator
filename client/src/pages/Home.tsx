@@ -14398,10 +14398,10 @@ const handlePrepareForMerge = async () => {
       {/* Scroll to Top/Bottom Buttons (only for STEP 6-11) */}
       {currentStep >= 6 && currentStep <= 11 && (
         <>
-          {/* Scroll to Top - Fixed Bottom Right */}
+          {/* Scroll to Top - Fixed Bottom Left */}
           <button
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="fixed bottom-11 right-6 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg transition-all hover:scale-110 z-50"
+            className="fixed bottom-11 left-6 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg transition-all hover:scale-110 z-50"
             title="Scroll to Top"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -14409,10 +14409,10 @@ const handlePrepareForMerge = async () => {
             </svg>
           </button>
           
-          {/* Scroll to Bottom - Fixed Bottom Left */}
+          {/* Scroll to Bottom - Fixed Bottom Right */}
           <button
             onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })}
-            className="fixed bottom-11 left-6 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg transition-all hover:scale-110 z-50"
+            className="fixed bottom-11 right-6 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg transition-all hover:scale-110 z-50"
             title="Scroll to Bottom"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

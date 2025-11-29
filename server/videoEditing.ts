@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs';
+import * as fs from 'fs';
 import * as path from 'path';
 import { exec as execCallback } from 'child_process';
 import { promisify } from 'util';
@@ -1807,99 +1807,47 @@ export async function mergeVideosWithFFmpegAPI(
     });
     console.log(`========================================\n`);
     
-    // 5. Create concat list file for demuxer
-    const listContent = uploadedFilePaths.map(path => `file '${path}'`).join('\n');
-    const listFileName = `concat_list_${Date.now()}.txt`;
+    // Save to file for debugging
+    fs.writeFileSync('/tmp/ffmpeg_file_paths_debug.txt', 
+      `Directory ID: ${dirId}\n` +
+      `Uploaded video file paths:\n` +
+      uploadedFilePaths.map((p, i) => `  ${i + 1}. ${p}`).join('\n') + '\n',
+      'utf-8'
+    );
+    
+    // 5. Build filter_complex for concat + loudnorm
+    // Build concat filter: [0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a0]
+    // Then apply loudnorm: [a0]loudnorm=I=-14:TP=-1.5:LRA=11[a]
+    const inputStreams = uploadedFilePaths.map((_, i) => `[${i}:v][${i}:a]`).join('');
+    const filterComplex = useLoudnorm
+      ? `${inputStreams}concat=n=${videoUrls.length}:v=1:a=1[v][a0];[a0]loudnorm=I=-14:TP=-1.5:LRA=11[a]`
+      : `${inputStreams}concat=n=${videoUrls.length}:v=1:a=1[v][a]`;
     
     console.log(`\n========================================`);
-    console.log(`[mergeVideosWithFFmpegAPI] 📝 STEP 5: Creating concat list file`);
+    console.log(`[mergeVideosWithFFmpegAPI] 📝 STEP 5: Building filter_complex`);
     console.log(`========================================`);
-    console.log(`[mergeVideosWithFFmpegAPI] File name: ${listFileName}`);
-    console.log(`[mergeVideosWithFFmpegAPI] Directory ID: ${dirId}`);
-    console.log(`[mergeVideosWithFFmpegAPI] List content (${listContent.length} bytes):\n${listContent}`);
+    console.log(`[mergeVideosWithFFmpegAPI] Loudnorm: ${useLoudnorm ? 'ENABLED' : 'DISABLED'}`);
+    console.log(`[mergeVideosWithFFmpegAPI] Filter: ${filterComplex}`);
     console.log(`========================================\n`);
     
-    // Register list.txt file
-    const listFileRes = await fetch(`${FFMPEG_API_BASE}/file`, {
-      method: 'POST',
-      headers: {
-        'Authorization': ffmpegApiKey,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        file_name: listFileName,
-        dir_id: dirId
-      })
-    });
-    
-    if (!listFileRes.ok) {
-      throw new Error(`Failed to register list file: ${listFileRes.statusText}`);
-    }
-    
-    const listFileData = await listFileRes.json();
-    const listFilePath = listFileData.file.file_path;
-    const listUploadUrl = listFileData.upload.url;
-    
-    console.log(`\n========================================`);
-    console.log(`[mergeVideosWithFFmpegAPI] ✅ List file REGISTERED`);
-    console.log(`========================================`);
-    console.log(`[mergeVideosWithFFmpegAPI] File path: ${listFilePath}`);
-    console.log(`[mergeVideosWithFFmpegAPI] Upload URL: ${listUploadUrl}`);
-    console.log(`[mergeVideosWithFFmpegAPI] Upload method: ${listFileData.upload.method}`);
-    console.log(`[mergeVideosWithFFmpegAPI] Upload expires in: ${listFileData.upload.expiresInSeconds}s`);
-    console.log(`[mergeVideosWithFFmpegAPI] Upload headers:`, JSON.stringify(listFileData.upload.headers, null, 2));
-    console.log(`========================================\n`);
-    
-    // Upload list.txt content with headers from response
-    const listBuffer = Buffer.from(listContent, 'utf-8');
-    const uploadHeaders = listFileData.upload.headers || {};
-    
-    const listUploadRes = await fetch(listUploadUrl, {
-      method: 'PUT',
-      body: listBuffer,
-      headers: uploadHeaders  // Use exact headers from /file response
-    });
-    
-    if (!listUploadRes.ok) {
-      const errorText = await listUploadRes.text();
-      console.error(`[mergeVideosWithFFmpegAPI] ❌ Upload failed: ${listUploadRes.status} ${listUploadRes.statusText}`);
-      console.error(`[mergeVideosWithFFmpegAPI] Error body:`, errorText);
-      throw new Error(`Failed to upload list content: ${listUploadRes.statusText}`);
-    }
-    
-    const uploadResponseHeaders = {};
-    listUploadRes.headers.forEach((value, key) => {
-      uploadResponseHeaders[key] = value;
-    });
-    
-    console.log(`\n========================================`);
-    console.log(`[mergeVideosWithFFmpegAPI] ✅ List file UPLOADED`);
-    console.log(`========================================`);
-    console.log(`[mergeVideosWithFFmpegAPI] File path: ${listFilePath}`);
-    console.log(`[mergeVideosWithFFmpegAPI] Upload status: ${listUploadRes.status} ${listUploadRes.statusText}`);
-    console.log(`[mergeVideosWithFFmpegAPI] Upload response headers:`, JSON.stringify(uploadResponseHeaders, null, 2));
-    console.log(`[mergeVideosWithFFmpegAPI] Bytes uploaded: ${listBuffer.length}`);
-    console.log(`========================================\n`);
-    
-    // 6. Prepare task with concat demuxer (NEW METHOD)
+    // 6. Prepare task with filter_complex (STEP 9 METHOD)
     const outputFileName = `${outputVideoName}_${Date.now()}.mp4`;
     
     const task: any = {
-      inputs: [
-        {
-          file_path: listFilePath,
-          options: ['-f', 'concat', '-safe', '0']  // Concat demuxer syntax
-        }
-      ],
+      inputs: uploadedFilePaths.map(path => ({ file_path: path })),
+      filter_complex: filterComplex,
       outputs: [
         {
           file: outputFileName,
+          maps: ['[v]', '[a]'],
           options: [
-            '-c:v', 'copy',  // Video lossless (no re-encode)
+            '-c:v', 'libx264',
+            '-crf', '18',  // High quality (18 = visually lossless)
+            '-preset', 'medium',
             '-c:a', 'aac',
             '-ar', '48000',
-            '-ac', '2',
-            ...(useLoudnorm ? ['-af', 'loudnorm=I=-14:TP=-1.5:LRA=11'] : [])
+            '-ac', '2'
+            // NO -af here! Audio comes from [outa] via maps
           ]
         }
       ]
@@ -1908,13 +1856,10 @@ export async function mergeVideosWithFFmpegAPI(
     console.log(`\n========================================`);
     console.log(`[mergeVideosWithFFmpegAPI] 🎬 STEP 6: Preparing FFmpeg task`);
     console.log(`========================================`);
-    console.log(`[mergeVideosWithFFmpegAPI] Method: concat demuxer`);
-    console.log(`[mergeVideosWithFFmpegAPI] Input: ${listFilePath}`);
+    console.log(`[mergeVideosWithFFmpegAPI] Method: filter_complex concat`);
+    console.log(`[mergeVideosWithFFmpegAPI] Inputs: ${uploadedFilePaths.length} videos`);
     console.log(`[mergeVideosWithFFmpegAPI] Output: ${outputFileName}`);
-    console.log(`[mergeVideosWithFFmpegAPI] Loudnorm: ${useLoudnorm ? 'ENABLED' : 'DISABLED'}`);
-    if (useLoudnorm) {
-      console.log(`[mergeVideosWithFFmpegAPI] Loudnorm params: -af loudnorm=I=-14:TP=-1.5:LRA=11`);
-    }
+    console.log(`[mergeVideosWithFFmpegAPI] Audio normalization: dynaudnorm`);
     console.log(`========================================\n`);
     
     // 7. Send to FFmpeg API
