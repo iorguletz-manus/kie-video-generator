@@ -22,17 +22,22 @@ interface VideoEditorV2Props {
     step9Note?: string | null;  // Note from Step 9
     editingDebugInfo?: any;  // Debug info from Whisper processing
   };
+  previousVideo?: {
+    videoName: string;
+    videoUrl: string;
+    cutPoints: { startKeep: number; endKeep: number };
+  } | null;
   nextVideo?: {
     videoName: string;
     videoUrl: string;
     cutPoints: { startKeep: number; endKeep: number };
   } | null;
   onTrimChange?: (videoId: string, cutPoints: { startKeep: number; endKeep: number }, isStartLocked: boolean, isEndLocked: boolean) => void;
-  onCutAndMerge?: (video1: any, video2: any) => Promise<void>;
+  onCutAndMerge?: (previousVideo: any | null, currentVideo: any, nextVideo: any | null) => Promise<void>;
   onReprocess?: (videoName: string) => void;  // Callback to re-process single video
 }
 
-export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, nextVideo, onTrimChange, onCutAndMerge, onReprocess }: VideoEditorV2Props) {
+export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previousVideo, nextVideo, onTrimChange, onCutAndMerge, onReprocess }: VideoEditorV2Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const zoomviewRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -839,14 +844,13 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, nextVide
           )}
           
           {/* Cut & Merge (test) Button - Right of Notes */}
-          {nextVideo && onCutAndMerge && (
+          {onCutAndMerge && (previousVideo || nextVideo) && (
             <Button
               onClick={async () => {
-                if (!nextVideo) return;
                 setIsMerging(true);
                 setMergeProgress('Starting merge...');
                 try {
-                  await onCutAndMerge(video, nextVideo);
+                  await onCutAndMerge(previousVideo, video, nextVideo);
                 } catch (error) {
                   console.error('[Cut & Merge] Error:', error);
                 } finally {

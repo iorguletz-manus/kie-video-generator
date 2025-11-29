@@ -12431,31 +12431,44 @@ const handlePrepareForMerge = async () => {
                             step9Note: video.step9Note,
                             editingDebugInfo: video.editingDebugInfo,
                             }}
+                            previousVideo={videoIndex > 0 ? {
+                              videoName: approvedVideos[videoIndex - 1].videoName,
+                              videoUrl: approvedVideos[videoIndex - 1].videoUrl!,
+                              cutPoints: approvedVideos[videoIndex - 1].cutPoints || { startKeep: 0, endKeep: 10000 },
+                            } : null}
                             nextVideo={videoIndex < approvedVideos.length - 1 ? {
                               videoName: approvedVideos[videoIndex + 1].videoName,
                               videoUrl: approvedVideos[videoIndex + 1].videoUrl!,
                               cutPoints: approvedVideos[videoIndex + 1].cutPoints || { startKeep: 0, endKeep: 10000 },
                             } : null}
-                            onCutAndMerge={async (video1, video2) => {
-                              console.log('[Cut & Merge] Starting merge:', video1.videoName, '+', video2.videoName);
+                            onCutAndMerge={async (previousVideo, currentVideo, nextVideo) => {
+                              // Collect all videos to merge (previous + current + next)
+                              const videosToMerge = [
+                                previousVideo,
+                                currentVideo,
+                                nextVideo
+                              ].filter(Boolean); // Remove null values
+                              
+                              console.log('[Cut & Merge] Starting merge:', videosToMerge.map(v => v.videoName).join(' + '));
                               
                               setIsMergeModalOpen(true);
                               
                               // Smart cache: check if markers were modified
-                              // Skip if cutPoints is null (videos without red text)
-                              if (!video1.cutPoints || !video2.cutPoints) {
+                              // Skip if any video has no cutPoints
+                              const hasInvalidCutPoints = videosToMerge.some(v => !v.cutPoints);
+                              if (hasInvalidCutPoints) {
                                 toast.error('❌ Cannot merge videos without cut points');
                                 return;
                               }
                               
-                              const currentHash = JSON.stringify({
-                                video1Name: video1.videoName,
-                                video1Start: Math.round(video1.cutPoints.startKeep),
-                                video1End: Math.round(video1.cutPoints.endKeep),
-                                video2Name: video2.videoName,
-                                video2Start: Math.round(video2.cutPoints.startKeep),
-                                video2End: Math.round(video2.cutPoints.endKeep),
-                              });
+                              // Create hash from all videos
+                              const currentHash = JSON.stringify(
+                                videosToMerge.map(v => ({
+                                  name: v.videoName,
+                                  start: Math.round(v.cutPoints.startKeep),
+                                  end: Math.round(v.cutPoints.endKeep),
+                                }))
+                              );
                               
                               console.log('[Cut & Merge] Cache check:');
                               console.log('[Cut & Merge]   Initial hash:', initialPairHash);
@@ -12503,23 +12516,18 @@ const handlePrepareForMerge = async () => {
                                   return proxyUrl;
                                 };
                                 
-                                const video1OriginalUrl = extractOriginalUrl(video1.videoUrl);
-                                const video2OriginalUrl = extractOriginalUrl(video2.videoUrl);
+                                // Prepare all videos for merge
+                                const videos = videosToMerge.map(v => ({
+                                  url: extractOriginalUrl(v.videoUrl),
+                                  name: v.videoName,
+                                  startMs: v.cutPoints.startKeep,
+                                  endMs: v.cutPoints.endKeep,
+                                }));
                                 
-                                console.log('[Cut & Merge] Original URLs:', {
-                                  video1: video1OriginalUrl,
-                                  video2: video2OriginalUrl,
-                                });
+                                console.log('[Cut & Merge] Merging', videos.length, 'videos:', videos.map(v => v.name).join(' + '));
                                 
-                                const result = await cutAndMergeMutation.mutateAsync({
-                                  video1Url: video1OriginalUrl,
-                                  video1Name: video1.videoName,
-                                  video1StartMs: video1.cutPoints.startKeep,
-                                  video1EndMs: video1.cutPoints.endKeep,
-                                  video2Url: video2OriginalUrl,
-                                  video2Name: video2.videoName,
-                                  video2StartMs: video2.cutPoints.startKeep,
-                                  video2EndMs: video2.cutPoints.endKeep,
+                                const result = await cutAndMergeAllMutation.mutateAsync({
+                                  videos,
                                   ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
                                 });
                                 
