@@ -6,6 +6,7 @@ import EditProfileModal from '@/components/EditProfileModal';
 import { VideoEditorV2 } from '@/components/VideoEditorV2';
 import { ProcessingModal } from '@/components/ProcessingModal';
 import MergeProgressModal from '@/components/MergeProgressModal';
+import MergeFinalProgressModal from '@/components/MergeFinalProgressModal';
 import { trpc } from '../lib/trpc';
 import mammoth from 'mammoth';
 import { Button } from "@/components/ui/button";
@@ -700,19 +701,32 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // Step 11: Final Videos
   const [isMergingFinalVideos, setIsMergingFinalVideos] = useState(false);
   const [mergeFinalProgress, setMergeFinalProgress] = useState<{
-    current: number;
-    total: number;
-    currentVideo: string;
-    status: 'processing' | 'complete' | 'error' | 'partial';
+    status: 'countdown' | 'processing' | 'complete' | 'error' | 'partial';
     message: string;
-    failedVideos?: Array<{ name: string; error: string }>;
+    countdown?: number;
+    total: number;
+    current: number;
+    currentBatch: number;
+    totalBatches: number;
+    // Success tracking
+    successVideos: Array<{ name: string; hookName: string; bodyName: string }>;
+    // Failed tracking
+    failedVideos: Array<{ name: string; error: string }>;
+    // In-progress tracking
+    inProgressVideos: Array<{ name: string }>;
+    // Callbacks
+    onSkipCountdown?: () => void;
   }>({
-    current: 0,
-    total: 0,
-    currentVideo: '',
-    status: 'processing',
+    status: 'countdown',
     message: '',
-    failedVideos: []
+    countdown: 0,
+    total: 0,
+    current: 0,
+    currentBatch: 0,
+    totalBatches: 0,
+    successVideos: [],
+    failedVideos: [],
+    inProgressVideos: []
   });
   const [finalVideos, setFinalVideos] = useState<Array<{
     videoName: string;
@@ -2849,23 +2863,54 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     // Initialize progress with countdown
     setMergeFinalProgress({
-      current: 0,
-      total: hookUrls.length,
-      currentVideo: '',
-      status: 'processing',
+      status: 'countdown',
       message: 'Waiting 60s before starting...',
-      failedVideos: []
+      countdown: 60,
+      total: hookUrls.length,
+      current: 0,
+      currentBatch: 0,
+      totalBatches,
+      successVideos: [],
+      failedVideos: [],
+      inProgressVideos: [],
+      onSkipCountdown: undefined // Will be set below
     });
     
-    // INITIAL COUNTDOWN: 60s (same as STEP 2)
+    // INITIAL COUNTDOWN: 60s with Skip button
     console.log('[Step 10→Step 11] ⏳ Initial countdown 60s...');
+    let skipCountdown = false;
+    
+    setMergeFinalProgress(prev => ({
+      ...prev,
+      onSkipCountdown: () => {
+        console.log('[Step 10→Step 11] ⏩ User skipped countdown!');
+        skipCountdown = true;
+      }
+    }));
+    
     for (let countdown = 60; countdown > 0; countdown--) {
+      if (skipCountdown) {
+        console.log('[Step 10→Step 11] ⏩ Countdown skipped!');
+        break;
+      }
+      
       setMergeFinalProgress(prev => ({
         ...prev,
+        countdown,
         message: `Waiting ${countdown}s before starting...`
       }));
+      
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
+    
+    // Clear countdown
+    setMergeFinalProgress(prev => ({
+      ...prev,
+      status: 'processing',
+      countdown: 0,
+      onSkipCountdown: undefined,
+      message: 'Starting merge process...'
+    }));
     
     console.log('[Step 10→Step 11] 🚀 Starting merge...');
     
@@ -2880,15 +2925,22 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       
       console.log(`[Step 10→Step 11] 📦 Processing batch ${batchNum}/${totalBatches} (${batch.length} videos)...`);
       
+      setMergeFinalProgress(prev => ({
+        ...prev,
+        currentBatch: batchNum,
+        message: `Processing batch ${batchNum}/${totalBatches}...`
+      }));
+      
       // Process batch in parallel
       const batchPromises = batch.map(async (hook) => {
         const finalVideoName = hook.name.replace(/(HOOK\d+)M/, '$1');
         
+        console.log(`[Step 10→Step 11] 🔄 Merging ${finalVideoName}...`);
+        
+        // Add to in-progress
         setMergeFinalProgress(prev => ({
           ...prev,
-          current: completedCount,
-          currentVideo: finalVideoName,
-          message: `Merging ${finalVideoName}... (Batch ${batchNum}/${totalBatches})`
+          inProgressVideos: [...prev.inProgressVideos, { name: finalVideoName }]
         }));
         
         try {
@@ -2910,6 +2962,18 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           
           completedCount++;
           console.log(`[Step 10→Step 11] ✅ ${finalVideoName} SUCCESS (${completedCount}/${hookUrls.length})`);
+          
+          // Move from in-progress to success
+          setMergeFinalProgress(prev => ({
+            ...prev,
+            successVideos: [...prev.successVideos, {
+              name: finalVideoName,
+              hookName: hook.name,
+              bodyName: selectedBody || 'body_merged'
+            }],
+            inProgressVideos: prev.inProgressVideos.filter(v => v.name !== finalVideoName),
+            current: prev.current + 1
+          }));
           
           // SAVE TO DATABASE INLINE after each successful merge
           try {
@@ -2944,10 +3008,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           console.error(`[Step 10→Step 11] ❌ ${finalVideoName} FAILED:`, error);
           failedCount++;
           
-          // Track failed video
+          // Move from in-progress to failed
           setMergeFinalProgress(prev => ({
             ...prev,
-            failedVideos: [...(prev.failedVideos || []), { name: finalVideoName, error: error.message }]
+            failedVideos: [...prev.failedVideos, { name: finalVideoName, error: error.message }],
+            inProgressVideos: prev.inProgressVideos.filter(v => v.name !== finalVideoName)
           }));
           
           return { success: false };
@@ -7126,133 +7191,31 @@ const handlePrepareForMerge = async () => {
       />
       
       {/* Merge Final Videos Modal for Step 10 → Step 11 */}
-      <Dialog open={isMergingFinalVideos} onOpenChange={(open) => {
-        if (!open && mergeFinalProgress.status === 'processing') return;
-        setIsMergingFinalVideos(open);
-      }}>
-        <DialogContent className="max-w-md" onInteractOutside={(e) => {
-          if (mergeFinalProgress.status === 'processing') e.preventDefault();
-        }}>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Loader2 className="w-5 h-5 animate-spin text-green-600" />
-              🎬 Merge Final Videos
-            </DialogTitle>
-            <DialogDescription>
-              Merging hooks + body into final video combinations...
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4 py-4">
-            {mergeFinalProgress.status === 'processing' ? (
-              <>
-                <div className="space-y-2">
-                  <Progress 
-                    value={(mergeFinalProgress.current / mergeFinalProgress.total) * 100} 
-                    className="h-3"
-                  />
-                  <p className="text-center text-sm font-medium text-gray-700">
-                    {mergeFinalProgress.current}/{mergeFinalProgress.total} final videos merged
-                  </p>
-                </div>
-                
-                {mergeFinalProgress.current < mergeFinalProgress.total && mergeFinalProgress.currentVideo && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                    <p className="text-sm font-semibold text-green-900 mb-1">
-                      🎬 Current: {mergeFinalProgress.currentVideo}
-                    </p>
-                    <div className="flex items-center gap-2 text-xs text-green-700">
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                      Merging hook + body with FFmpeg...
-                    </div>
-                  </div>
-                )}
-                
-                {mergeFinalProgress.current < mergeFinalProgress.total && (
-                  <p className="text-xs text-center text-gray-500">
-                    ⏱️ Estimated time: ~{Math.ceil((mergeFinalProgress.total - mergeFinalProgress.current) * 10 / 60)} {Math.ceil((mergeFinalProgress.total - mergeFinalProgress.current) * 10 / 60) === 1 ? 'minute' : 'minutes'}
-                  </p>
-                )}
-              </>
-            ) : mergeFinalProgress.status === 'complete' ? (
-              <div className="text-center space-y-3">
-                <div className="flex justify-center">
-                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-                    <Check className="w-8 h-8 text-green-600" />
-                  </div>
-                </div>
-                <p className="text-lg font-semibold text-green-900">
-                  ✅ Merge Complete!
-                </p>
-                <p className="text-sm text-gray-600">
-                  {mergeFinalProgress.current} final videos created successfully
-                </p>
-                <Button
-                  onClick={() => {
-                    setIsMergingFinalVideos(false);
-                    setCurrentStep(11);
-                    toast.success('✅ Proceeding to Step 11');
-                  }}
-                  className="mt-4 w-full bg-green-600 hover:bg-green-700"
-                >
-                  Continue to Step 11 →
-                </Button>
-              </div>
-            ) : mergeFinalProgress.status === 'partial' ? (
-              <div className="space-y-3">
-                <div className="flex justify-center">
-                  <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center">
-                    <AlertCircle className="w-8 h-8 text-yellow-600" />
-                  </div>
-                </div>
-                <p className="text-lg font-semibold text-yellow-900 text-center">
-                  ⚠️ Partial Success
-                </p>
-                <p className="text-sm text-gray-600 text-center">
-                  {mergeFinalProgress.current}/{mergeFinalProgress.total} videos merged successfully
-                </p>
-                
-                {/* Failed Videos List */}
-                {mergeFinalProgress.failedVideos && mergeFinalProgress.failedVideos.length > 0 && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 max-h-48 overflow-y-auto">
-                    <p className="text-sm font-semibold text-red-800 mb-2">
-                      ❌ Failed ({mergeFinalProgress.failedVideos.length}):
-                    </p>
-                    <div className="space-y-1">
-                      {mergeFinalProgress.failedVideos.map((failed, idx) => (
-                        <div key={idx} className="text-xs text-red-700">
-                          <span className="font-mono">{failed.name}</span>
-                          <span className="text-red-500 ml-2">({failed.error})</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
-                <div className="flex gap-2">
-                  <Button
-                    onClick={handleRetryFailedFinalMerge}
-                    variant="outline"
-                    className="flex-1"
-                  >
-                    Retry Failed
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      setIsMergingFinalVideos(false);
-                      setCurrentStep(11);
-                      toast.success('✅ Proceeding to Step 11');
-                    }}
-                    className="flex-1 bg-green-600 hover:bg-green-700"
-                  >
-                    Continue to Step 11 →
-                  </Button>
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <MergeFinalProgressModal
+        open={isMergingFinalVideos}
+        status={mergeFinalProgress.status}
+        message={mergeFinalProgress.message}
+        countdown={mergeFinalProgress.countdown}
+        total={mergeFinalProgress.total}
+        current={mergeFinalProgress.current}
+        currentBatch={mergeFinalProgress.currentBatch}
+        totalBatches={mergeFinalProgress.totalBatches}
+        successVideos={mergeFinalProgress.successVideos}
+        failedVideos={mergeFinalProgress.failedVideos}
+        inProgressVideos={mergeFinalProgress.inProgressVideos}
+        onSkipCountdown={mergeFinalProgress.onSkipCountdown}
+        onRetryFailed={handleRetryFailedFinalMerge}
+        onContinue={() => {
+          setIsMergingFinalVideos(false);
+          setCurrentStep(11);
+          toast.success('✅ Proceeding to Step 11');
+        }}
+        onClose={() => {
+          if (mergeFinalProgress.status !== 'processing' && mergeFinalProgress.status !== 'countdown') {
+            setIsMergingFinalVideos(false);
+          }
+        }}
+      />
       
       {/* Trimming Modal for Step 8 → Step 9 */}
       <Dialog open={isTrimmingModalOpen} onOpenChange={(open) => {
@@ -14438,7 +14401,7 @@ const handlePrepareForMerge = async () => {
           {/* Scroll to Top - Fixed Bottom Right */}
           <button
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="fixed bottom-6 right-6 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg transition-all hover:scale-110 z-50"
+            className="fixed bottom-11 right-6 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg transition-all hover:scale-110 z-50"
             title="Scroll to Top"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -14449,7 +14412,7 @@ const handlePrepareForMerge = async () => {
           {/* Scroll to Bottom - Fixed Bottom Left */}
           <button
             onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })}
-            className="fixed bottom-6 left-6 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg transition-all hover:scale-110 z-50"
+            className="fixed bottom-11 left-6 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg transition-all hover:scale-110 z-50"
             title="Scroll to Bottom"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
