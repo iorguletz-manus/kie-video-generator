@@ -2675,7 +2675,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       };
       
       const videos = videosToMerge.map(v => ({
-        url: extractOriginalUrl(v.videoUrl),
+        url: extractOriginalUrl(v.trimmedVideoUrl || v.videoUrl),  // Use trimmed video if available
         name: v.videoName,
         startMs: 0,  // No CUT - merge full videos
         endMs: 0,    // No CUT - merge full videos
@@ -12474,23 +12474,23 @@ const handlePrepareForMerge = async () => {
                         console.log('[Video Editing] 🔍 Total videos in videoResults:', videoResults.length);
                         console.log('[Video Editing] 🔍 All video names:', videoResults.map(v => v.videoName));
                         
-                        // Filter only approved videos with videoUrl
+                        // Filter only approved videos with trimmedVideoUrl
                         const approvedVideos = videoResults.filter(v => {
                           const isAccepted = v.reviewStatus === 'accepted';
                           const isSuccess = v.status === 'success';
-                          const hasUrl = !!v.videoUrl;
+                          const hasTrimmedUrl = !!v.trimmedVideoUrl;
                           
                           console.log(`[Video Editing] 🔍 ${v.videoName}:`, {
                             reviewStatus: v.reviewStatus,
                             isAccepted,
                             status: v.status,
                             isSuccess,
-                            hasUrl,
-                            videoUrl: v.videoUrl?.substring(0, 50) + '...',
-                            PASSES_FILTER: isAccepted && isSuccess && hasUrl
+                            hasTrimmedUrl,
+                            trimmedVideoUrl: v.trimmedVideoUrl?.substring(0, 50) + '...',
+                            PASSES_FILTER: isAccepted && isSuccess && hasTrimmedUrl
                           });
                           
-                          return isAccepted && isSuccess && hasUrl;
+                          return isAccepted && isSuccess && hasTrimmedUrl;
                         });
                         
                         if (approvedVideos.length === 0) {
@@ -12654,12 +12654,12 @@ const handlePrepareForMerge = async () => {
                   </div>
                   
                   {/* Sample Merge ALL Videos button */}
-                  {videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length > 1 && (
+                  {videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.trimmedVideoUrl).length > 1 && (
                     <div className="flex flex-col items-end gap-1">
                     <Button
                       onClick={() => {
-                        // Get ALL accepted videos (not filtered)
-                        const allAcceptedVideos = videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl);
+                        // Get ALL accepted videos with trimmed videos
+                        const allAcceptedVideos = videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.trimmedVideoUrl);
                         handleSampleMerge(allAcceptedVideos);
                       }}
                       className="bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap"
@@ -12672,7 +12672,7 @@ const handlePrepareForMerge = async () => {
                       <button
                         onClick={() => {
                           // Reopen modal with last sample video
-                          const allAcceptedVideos = videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl);
+                          const allAcceptedVideos = videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.trimmedVideoUrl);
                           const videoList = allAcceptedVideos.map(v => ({
                             name: v.videoName,
                             note: v.step9Note || ''
@@ -13012,7 +13012,7 @@ const handlePrepareForMerge = async () => {
                         {/* Center buttons group */}
                         <div className="flex flex-row items-center gap-2 flex-nowrap">
                           {/* Sample Merge Video button */}
-                          {videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length > 1 && (
+                          {videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.trimmedVideoUrl).length > 1 && (
                             <div className="flex flex-col items-end gap-1">
                             <Button
                               onClick={() => handleSampleMerge(approvedVideos)}
