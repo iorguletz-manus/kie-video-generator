@@ -4152,9 +4152,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
   // STEP 1: Simple Cut - Only cut videos without merge
   const handleSimpleCut = async () => {
-    // Filter videos to cut (same as Trim All Videos)
+    // Filter videos to cut - ONLY non-accepted videos (recut status)
     const videosToTrim = videoResults.filter(v => 
-      v.reviewStatus === 'accepted' && 
+      v.reviewStatus !== 'accepted' &&  // Only videos that need recut
       v.status === 'success' && 
       v.videoUrl
     );
@@ -12693,28 +12693,6 @@ const handlePrepareForMerge = async () => {
 
                         {/* Action buttons - stacked vertically */}
                         <div className="flex flex-col gap-4 items-center mt-4">
-                          {/* Open Last Sample link (above button) */}
-                          {lastSampleVideoUrl && (
-                            <button
-                              onClick={() => {
-                                // Reconstruct video list from localStorage
-                                const videoList = videoResults
-                                  .filter(v => v.reviewStatus === 'accepted' && v.status === 'success')
-                                  .map(v => ({
-                                    name: v.videoName,
-                                    note: v.step9Note || ''
-                                  }));
-                                setSampleMergeVideos(videoList);
-                                setSampleMergedVideoUrl(lastSampleVideoUrl);
-                                setIsSampleMergeModalOpen(true);
-                                setSampleMergeProgress('');
-                              }}
-                              className="text-blue-600 hover:text-blue-800 underline text-sm"
-                            >
-                              🔗 Open Last Sample
-                            </button>
-                          )}
-                          
                           {/* Buton STEP 1: SIMPLE CUT - doar cutting fără merge */}
                           <Button
                             onClick={() => {
@@ -12726,34 +12704,7 @@ const handlePrepareForMerge = async () => {
                             className="bg-blue-600 hover:bg-blue-700 px-8 py-8 text-lg w-full max-w-md"
                           >
                             {(() => {
-                              const count = videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length;
-                              return (
-                                <>
-                                  STEP 1: Simple Cut ({count})
-                                  <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" />
-                                  </svg>
-                                </>
-                              );
-                            })()}
-                          </Button>
-                          <div className="text-center -mt-4">
-                            <span className="text-xs text-blue-600">CUT ONLY - NO MERGE</span>
-                          </div>
-
-                          {/* Buton TRIM ALL VIDEOS - va trimite la FFmpeg API pentru cutting */}
-                          <Button
-                            onClick={() => {
-                              // Open trimming modal
-                              setIsTrimmingModalOpen(true);
-                              // Start trimming process - ALWAYS reprocess ALL videos (ignore recutStatus)
-                              handleTrimAllVideos();
-                            }}
-                            className="bg-red-600 hover:bg-red-700 px-8 py-8 text-lg w-full max-w-md"
-                          >
-                            {(() => {
-                              // Always count ALL accepted videos, ignore recutStatus
-                              const count = videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length;
+                              const count = videoResults.filter(v => v.reviewStatus !== 'accepted' && v.status === 'success' && v.videoUrl).length;
                               return (
                                 <>
                                   Next: Trim All Videos ({count})
@@ -12767,34 +12718,6 @@ const handlePrepareForMerge = async () => {
                           <div className="text-center -mt-4">
                             <span className="text-xs text-red-600">GO TO STEP 9</span>
                           </div>
-
-                          {/* STEP 2: Prepare for Merge button - only show if we have trimmed videos */}
-                          {videoResults.some(v => v.trimmedVideoUrl) && (
-                            <>
-                            <Button
-                              onClick={() => {
-                                setIsMergingStep10(true);
-                                handlePrepareForMerge();
-                              }}
-                              className="bg-purple-600 hover:bg-purple-700 px-8 py-8 text-lg w-full max-w-md"
-                            >
-                              {(() => {
-                                const trimmedCount = videoResults.filter(v => v.trimmedVideoUrl).length;
-                                return (
-                                  <>
-                                    STEP 2: Prepare for Merge ({trimmedCount})
-                                    <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                                    </svg>
-                                  </>
-                                );
-                              })()}
-                            </Button>
-                            <div className="text-center -mt-4">
-                              <span className="text-xs text-purple-600">MERGE HOOKS & BODY</span>
-                            </div>
-                            </>
-                          )}
 
                           {/* Check Videos button - only show if we have trimmed videos */}
                           {videoResults.some(v => v.trimmedVideoUrl) && (
