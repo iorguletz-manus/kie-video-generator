@@ -3687,20 +3687,59 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           throw new Error('Failed to trim video');
         }
         
-        // Update videoResults with trimmed URL
+        // Update videoResults with trimmed URL and success status
         setVideoResults(prev => prev.map(v =>
           v.videoName === video.videoName
             ? { 
                 ...v, 
                 trimmedVideoUrl: result.downloadUrl,
-                recutStatus: 'accepted'
+                recutStatus: 'accepted',
+                status: 'success' as const,
+                error: undefined
               }
             : v
         ));
         
-        // SUCCESS - Move from failed to success list
-        console.log(`[Retry] ✅ ${video.videoName} SUCCESS`);
+        // SUCCESS - Save to database
+        console.log(`[Retry] ✅ ${video.videoName} SUCCESS - Saving to database...`);
         
+        try {
+          const currentVideoResults = await new Promise<typeof videoResults>((resolve) => {
+            setVideoResults(current => {
+              resolve(current);
+              return current;
+            });
+          });
+          
+          await upsertContextSessionMutation.mutateAsync({
+            userId: localCurrentUser.id,
+            tamId: selectedTamId,
+            coreBeliefId: selectedCoreBeliefId,
+            emotionalAngleId: selectedEmotionalAngleId,
+            adId: selectedAdId,
+            characterId: selectedCharacterId,
+            currentStep,
+            rawTextAd,
+            processedTextAd,
+            adLines,
+            prompts,
+            images,
+            combinations,
+            deletedCombinations,
+            videoResults: currentVideoResults,
+            reviewHistory,
+            hookMergedVideos,
+            bodyMergedVideoUrl,
+            finalVideos,
+          });
+          
+          console.log(`[Retry] 💾 ${video.videoName} saved to database`);
+        } catch (dbError: any) {
+          console.error(`[Retry] ❌ Database save failed for ${video.videoName}:`, dbError);
+          // Continue processing even if DB save fails
+        }
+        
+        // Move from failed to success list
         setTrimmingProgress(prev => ({
           ...prev,
           current: prev.current + 1,
@@ -3711,6 +3750,54 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       } catch (error: any) {
         // FAILED AGAIN - Update error message
         console.error(`[Retry] ❌ ${video.videoName} FAILED:`, error);
+        
+        // Update videoResults with failed status
+        setVideoResults(prev => prev.map(v =>
+          v.videoName === video.videoName
+            ? { 
+                ...v, 
+                status: 'failed' as const,
+                error: error.message || 'Unknown error'
+              }
+            : v
+        ));
+        
+        // Save failed status to database
+        try {
+          const currentVideoResults = await new Promise<typeof videoResults>((resolve) => {
+            setVideoResults(current => {
+              resolve(current);
+              return current;
+            });
+          });
+          
+          await upsertContextSessionMutation.mutateAsync({
+            userId: localCurrentUser.id,
+            tamId: selectedTamId,
+            coreBeliefId: selectedCoreBeliefId,
+            emotionalAngleId: selectedEmotionalAngleId,
+            adId: selectedAdId,
+            characterId: selectedCharacterId,
+            currentStep,
+            rawTextAd,
+            processedTextAd,
+            adLines,
+            prompts,
+            images,
+            combinations,
+            deletedCombinations,
+            videoResults: currentVideoResults,
+            reviewHistory,
+            hookMergedVideos,
+            bodyMergedVideoUrl,
+            finalVideos,
+          });
+          
+          console.log(`[Retry] 💾 ${video.videoName} failed status saved to database`);
+        } catch (dbError: any) {
+          console.error(`[Retry] ❌ Database save failed for ${video.videoName}:`, dbError);
+          // Continue processing even if DB save fails
+        }
         
         setTrimmingProgress(prev => ({
           ...prev,
@@ -4254,6 +4341,54 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         } catch (error: any) {
           // FAILED
           console.error(`[Simple Cut] ❌ ${video.videoName} FAILED:`, error);
+          
+          // Update videoResults with failed status
+          setVideoResults(prev => prev.map(v =>
+            v.videoName === video.videoName
+              ? { 
+                  ...v, 
+                  status: 'failed' as const,
+                  error: error.message || 'Unknown error'
+                }
+              : v
+          ));
+          
+          // Save failed status to database
+          try {
+            const currentVideoResults = await new Promise<typeof videoResults>((resolve) => {
+              setVideoResults(current => {
+                resolve(current);
+                return current;
+              });
+            });
+            
+            await upsertContextSessionMutation.mutateAsync({
+              userId: localCurrentUser.id,
+              tamId: selectedTamId,
+              coreBeliefId: selectedCoreBeliefId,
+              emotionalAngleId: selectedEmotionalAngleId,
+              adId: selectedAdId,
+              characterId: selectedCharacterId,
+              currentStep,
+              rawTextAd,
+              processedTextAd,
+              adLines,
+              prompts,
+              images,
+              combinations,
+              deletedCombinations,
+              videoResults: currentVideoResults,
+              reviewHistory,
+              hookMergedVideos,
+              bodyMergedVideoUrl,
+              finalVideos,
+            });
+            
+            console.log(`[Simple Cut] 💾 ${video.videoName} failed status saved to database`);
+          } catch (dbError: any) {
+            console.error(`[Simple Cut] ❌ Database save failed for ${video.videoName}:`, dbError);
+            // Continue processing even if DB save fails
+          }
           
           setTrimmingProgress(prev => ({
             ...prev,
