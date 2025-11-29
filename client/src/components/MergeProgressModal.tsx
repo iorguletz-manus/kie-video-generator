@@ -97,22 +97,6 @@ export function MergeProgressModal({
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {/* Overall Progress */}
-          {totalFinalVideos > 0 && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-gray-700">
-                  📊 Overall Progress {totalBatches > 1 && `(Batch ${currentBatch}/${totalBatches})`}
-                </p>
-                <p className="text-sm font-medium text-gray-600">{currentFinalVideo}/{totalFinalVideos}</p>
-              </div>
-              <Progress 
-                value={totalFinalVideos > 0 ? (currentFinalVideo / totalFinalVideos) * 100 : 0} 
-                className="h-3 bg-gray-100" 
-              />
-            </div>
-          )}
-
           {/* Countdown Timer */}
           {countdown !== undefined && countdown > 0 && (
             <div className="flex flex-col items-center justify-center gap-4">

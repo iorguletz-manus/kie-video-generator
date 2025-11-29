@@ -4664,7 +4664,7 @@ const handlePrepareForMerge = async () => {
           // Call merge API
           const result = await mergeVideosMutation.mutateAsync({
             videoUrls,
-            outputName: task.name,
+            outputVideoName: task.name,
             addTextOverlay: false,
             userId: localCurrentUser.id,
           });
