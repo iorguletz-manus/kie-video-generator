@@ -4211,6 +4211,41 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     // Open modal immediately
     setIsTrimmingModalOpen(true);
     
+    // Check cooldown from last Sample Merge (60 seconds)
+    const now = Date.now();
+    let remainingCooldownSeconds = 0;
+    
+    if (lastSampleMergeTimestamp) {
+      const elapsed = now - lastSampleMergeTimestamp;
+      const cooldownMs = 60000; // 60 seconds
+      
+      if (elapsed < cooldownMs) {
+        const remainingMs = cooldownMs - elapsed;
+        remainingCooldownSeconds = Math.ceil(remainingMs / 1000);
+        console.log(`[Simple Cut] Sample Merge cooldown active! ${remainingCooldownSeconds}s remaining`);
+      }
+    }
+    
+    // If cooldown active, show countdown in modal
+    if (remainingCooldownSeconds > 0) {
+      console.log(`[Simple Cut] ⏳ Waiting ${remainingCooldownSeconds}s cooldown from last Sample Merge...`);
+      
+      // Countdown: remaining seconds → ... → 1s
+      for (let countdown = remainingCooldownSeconds; countdown > 0; countdown--) {
+        setTrimmingProgress(prev => ({
+          ...prev,
+          countdown,
+          status: 'processing',
+          message: `⏳ Cooldown from Sample Merge: ${countdown}s remaining...`
+        }));
+        
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
+      // Reset countdown
+      setTrimmingProgress(prev => ({ ...prev, countdown: 0 }));
+    }
+    
     // Calculate total batches
     const totalBatches = Math.ceil(videosToTrim.length / BATCH_SIZE);
     
@@ -4485,6 +4520,31 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
     
     console.log('[Simple Cut] 🎉 All batches processed!');
+    
+    // Check if last batch had 10 videos
+    const lastBatchSize = videosToTrim.length % BATCH_SIZE || BATCH_SIZE;
+    const needsCooldown = lastBatchSize === BATCH_SIZE; // 10 videos
+    
+    console.log(`[Simple Cut] Last batch size: ${lastBatchSize}, needs cooldown: ${needsCooldown}`);
+    
+    // If last batch = 10 videos, wait 60s before showing completion
+    if (needsCooldown) {
+      console.log('[Simple Cut] ⏳ Last batch = 10 videos, waiting 60s cooldown...');
+      
+      // Countdown: 60s → 59s → ... → 1s
+      for (let countdown = 60; countdown > 0; countdown--) {
+        setTrimmingProgress(prev => ({
+          ...prev,
+          countdown,
+          message: `⏳ Cooldown: ${countdown}s remaining before completion...`
+        }));
+        
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
+      // Reset countdown
+      setTrimmingProgress(prev => ({ ...prev, countdown: 0 }));
+    }
     
     // Get final counts from state
     setTrimmingProgress(prev => {
