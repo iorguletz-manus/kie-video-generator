@@ -4154,7 +4154,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const handleSimpleCut = async () => {
     // Filter videos to cut - ONLY non-accepted videos (recut status)
     const videosToTrim = videoResults.filter(v => 
-      v.reviewStatus !== 'accepted' &&  // Only videos that need recut
+      v.reviewStatus !== 'accepted' &&  // From STEP 6/7: not accepted
+      v.recutStatus !== 'accepted' &&   // From STEP 9: not accepted (includes 'recut' and null)
       v.status === 'success' && 
       v.videoUrl
     );
@@ -12301,7 +12302,7 @@ const handlePrepareForMerge = async () => {
                   </div>
                   
                   {/* Sample Merge ALL Videos button */}
-                  {videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.trimmedVideoUrl).length > 1 && (
+                  {videoResults.some(v => v.trimmedVideoUrl) && (
                     <div className="flex flex-col items-end gap-1">
                     <Button
                       onClick={() => {
@@ -12659,7 +12660,7 @@ const handlePrepareForMerge = async () => {
                         {/* Center buttons group */}
                         <div className="flex flex-row items-center gap-2 flex-nowrap">
                           {/* Sample Merge Video button */}
-                          {videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.trimmedVideoUrl).length > 1 && (
+                          {videoResults.some(v => v.trimmedVideoUrl) && (
                             <div className="flex flex-col items-end gap-1">
                             <Button
                               onClick={() => handleSampleMerge(approvedVideos)}
@@ -12701,10 +12702,10 @@ const handlePrepareForMerge = async () => {
                               // Start simple cut process (no merge)
                               handleSimpleCut();
                             }}
-                            className="bg-blue-600 hover:bg-blue-700 px-8 py-8 text-lg w-full max-w-md"
+                            className="bg-red-600 hover:bg-red-700 px-8 py-8 text-lg w-full max-w-md"
                           >
                             {(() => {
-                              const count = videoResults.filter(v => v.reviewStatus !== 'accepted' && v.status === 'success' && v.videoUrl).length;
+                              const count = videoResults.filter(v => v.reviewStatus !== 'accepted' && v.recutStatus !== 'accepted' && v.status === 'success' && v.videoUrl).length;
                               return (
                                 <>
                                   Next: Trim All Videos ({count})

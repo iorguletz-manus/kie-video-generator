@@ -355,21 +355,25 @@ export function ProcessingModal({
 
           {/* ========== Sample Merge Button ========== */}
           {!isProcessing && totalCompleted === totalVideos && totalVideos > 0 && onSampleMerge && (
-            <div className="border-t pt-4">
-              <button
-                onClick={onSampleMerge}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
-              >
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
-                </svg>
-                🎬 Sample Merge ALL Videos
-              </button>
-            </div>
+            <>
+              <div className="border-t pt-4 pb-2">
+                <button
+                  onClick={onSampleMerge}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-6 rounded-lg text-base font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
+                  </svg>
+                  🎬 Sample Merge ALL Videos
+                </button>
+              </div>
+              {/* Horizontal line separator */}
+              <div className="border-t border-gray-300 my-2"></div>
+            </>
           )}
 
           {/* ========== Action Buttons ========== */}
-          <div className="flex gap-2 border-t pt-4">
+          <div className="flex gap-2 pt-4">
             {/* Continue Button - only if processing complete AND no failures */}
             {!isProcessing && totalCompleted === totalVideos && totalVideos > 0 && failedVideos.length === 0 && onContinue && (
               <button
