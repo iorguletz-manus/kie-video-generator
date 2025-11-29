@@ -2793,20 +2793,43 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       console.log(`[Step 10→Step 11] 🔍 Processing hook: ${hookName}`);
       let hookUrl: string | null = null;
       
-      // Check if this is a merged hook
-      const baseName = Object.keys(hookMergedVideos).find(bn => {
-        const mergedName = bn.replace(/(HOOK\d+)/, '$1M');
-        console.log(`  🔸 Checking merged: ${bn} → ${mergedName} === ${hookName}? ${hookName === mergedName}`);
-        return hookName === mergedName;
-      });
-      
-      if (baseName) {
-        hookUrl = hookMergedVideos[baseName];
-        console.log(`  ✅ Found in hookMergedVideos[${baseName}]: ${hookUrl}`);
+      // PRIORITY 1: Check if hookName contains M (merged hook)
+      if (/HOOK\d+M_/.test(hookName)) {
+        // This is a merged hook name (e.g., T1_C1_E2_AD1_HOOK2M_LIDIA)
+        // Find base name by removing M
+        const baseName = Object.keys(hookMergedVideos).find(bn => {
+          const mergedName = bn.replace(/(HOOK\d+)/, '$1M');
+          console.log(`  🔸 Checking merged: ${bn} → ${mergedName} === ${hookName}? ${hookName === mergedName}`);
+          return hookName === mergedName;
+        });
+        
+        if (baseName) {
+          hookUrl = hookMergedVideos[baseName];
+          console.log(`  ✅ Found in hookMergedVideos[${baseName}]: ${hookUrl}`);
+        }
       } else {
-        const hookVideo = videoResults.find(v => v.videoName === hookName);
-        hookUrl = hookVideo?.trimmedVideoUrl || null;
-        console.log(`  🔸 Searching in videoResults for ${hookName}:`, hookVideo ? `FOUND (trimmedVideoUrl: ${hookUrl})` : 'NOT FOUND');
+        // PRIORITY 2: Check if merged version exists for this hook (even if hookName doesn't have M)
+        // Extract hook pattern: T1_C1_E2_AD1_HOOK2_LIDIA → check if T1_C1_E2_AD1_HOOK2_LIDIA exists in hookMergedVideos
+        const hookMatch = hookName.match(/(.*)(HOOK\d+)(.*)/); 
+        if (hookMatch) {
+          const prefix = hookMatch[1]; // T1_C1_E2_AD1_
+          const hookBase = hookMatch[2]; // HOOK2
+          const suffix = hookMatch[3]; // _LIDIA
+          
+          // Try to find merged version
+          const baseName = `${prefix}${hookBase}${suffix}`;
+          if (hookMergedVideos[baseName]) {
+            hookUrl = hookMergedVideos[baseName];
+            console.log(`  ✅ Found MERGED version in hookMergedVideos[${baseName}]: ${hookUrl}`);
+          }
+        }
+        
+        // PRIORITY 3: If no merged version, use original from videoResults
+        if (!hookUrl) {
+          const hookVideo = videoResults.find(v => v.videoName === hookName);
+          hookUrl = hookVideo?.trimmedVideoUrl || null;
+          console.log(`  🔸 Using ORIGINAL from videoResults for ${hookName}:`, hookVideo ? `FOUND (trimmedVideoUrl: ${hookUrl})` : 'NOT FOUND');
+        }
       }
       
       if (hookUrl) {
