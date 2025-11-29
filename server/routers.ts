@@ -1986,29 +1986,16 @@ export const appRouter = router({
           
           console.log('[cutAndMergeAllVideos] All videos uploaded to FFmpeg API');
           
-          // 3. Build filter_complex for all videos
-          // [0:v]trim=...,setpts=...[v0]; [0:a]atrim=...,asetpts=...[a0];
-          // [1:v]trim=...,setpts=...[v1]; [1:a]atrim=...,asetpts=...[a1];
-          // ...
-          // [v0][a0][v1][a1]...concat=n=N:v=1:a=1[outv][outa]
+          // 3. Build filter_complex - simple concat without trim
+          // [0:v][0:a][1:v][1:a]...[N:v][N:a]concat=n=N:v=1:a=1[outv][outa]
+          console.log('[cutAndMergeAllVideos] Building simple concat (no trim) for merge-only');
           
-          const filterParts: string[] = [];
           const concatInputs: string[] = [];
-          
-          input.videos.forEach((video, index) => {
-            const startSec = (video.startMs / 1000).toFixed(3);
-            const endSec = (video.endMs / 1000).toFixed(3);
-            
-            // Video trim (no text overlay)
-            filterParts.push(`[${index}:v]trim=start=${startSec}:end=${endSec},setpts=PTS-STARTPTS[v${index}]`);
-            
-            // Audio trim
-            filterParts.push(`[${index}:a]atrim=start=${startSec}:end=${endSec},asetpts=PTS-STARTPTS[a${index}]`);
-            
-            concatInputs.push(`[v${index}][a${index}]`);
+          input.videos.forEach((_, index) => {
+            concatInputs.push(`[${index}:v][${index}:a]`);
           });
           
-          const filterComplex = filterParts.join(';') + ';' + concatInputs.join('') + `concat=n=${input.videos.length}:v=1:a=1[outv][outa]`;
+          const filterComplex = concatInputs.join('') + `concat=n=${input.videos.length}:v=1:a=1[outv][outa]`;
           
           console.log('[cutAndMergeAllVideos] Filter complex:', filterComplex);
           
