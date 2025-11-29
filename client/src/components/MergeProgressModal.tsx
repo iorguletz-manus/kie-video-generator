@@ -87,6 +87,14 @@ export default function MergeProgressModal({
   const isComplete = status === 'complete' || status === 'partial';
   const hasFailures = (failedItems?.length || 0) > 0;
 
+  // Calculate progress percentages
+  const hookPercent = hookGroups && hookGroups.length > 0 
+    ? ((hookSuccessGroups.length + hookFailedGroups.length) / hookGroups.length) * 100 
+    : 0;
+  const bodyPercent = bodyInfo && bodyInfo.totalVideos > 0 
+    ? ((bodySuccessVideos.length + bodyFailedVideos.length) / bodyInfo.totalVideos) * 100 
+    : 0;
+
   return (
     <div className="fixed inset-0 flex items-center justify-center z-[9999] p-4 bg-black bg-opacity-50">
       <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[80vh] overflow-y-auto">
