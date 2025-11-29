@@ -2846,6 +2846,18 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     console.log('[Step 10→Step 11] 📊 selectedHooks:', selectedHooks);
     console.log('[Step 10→Step 11] 📊 hookMergedVideos:', hookMergedVideos);
     
+    // DETAILED LOGGING
+    console.log('\n========== DETAILED DEBUG ==========');
+    console.log('selectedHooks.length:', selectedHooks.length);
+    console.log('hookUrls.length:', hookUrls.length);
+    console.log('\nselectedHooks array:');
+    selectedHooks.forEach((h, i) => console.log(`  [${i}] ${h}`));
+    console.log('\nhookUrls array:');
+    hookUrls.forEach((h, i) => console.log(`  [${i}] name: ${h.name}, hookNumber: ${h.hookNumber}, url: ${h.url.substring(0, 50)}...`));
+    console.log('\nhookMergedVideos keys:');
+    Object.keys(hookMergedVideos).forEach((k, i) => console.log(`  [${i}] ${k} → ${k.replace(/(HOOK\d+)/, '$1M')}`));
+    console.log('====================================\n');
+    
     if (hookUrls.length === 0) {
       toast.error('No valid hook URLs found!');
       return;
@@ -2958,7 +2970,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       const batchPromises = batch.map(async (hook) => {
         const finalVideoName = hook.name.replace(/(HOOK\d+)M/, '$1');
         
-        console.log(`[Step 10→Step 11] 🔄 Merging ${finalVideoName}...`);
+        console.log(`\n[Step 10→Step 11] 🔄 Merging ${finalVideoName}...`);
+        console.log(`  Input hook.name: ${hook.name}`);
+        console.log(`  Output finalVideoName: ${finalVideoName}`);
+        console.log(`  Hook URL: ${hook.url.substring(0, 60)}...`);
+        console.log(`  Body URL: ${bodyUrl.substring(0, 60)}...`);
         
         // Add to in-progress
         setMergeFinalProgress(prev => ({
@@ -13686,8 +13702,9 @@ const handlePrepareForMerge = async () => {
                         size="sm"
                         variant="outline"
                         onClick={() => {
-                          // Select ALL displayed hooks (including merged M videos)
-                          // Build allHooks same way as display logic below
+                          // Select ALL displayed hooks:
+                          // - Merged (M) if has variations
+                          // - Original if no variations
                           let hookVideos = videoResults.filter(v => 
                             v.trimmedVideoUrl && 
                             v.videoName.toLowerCase().includes('hook')
@@ -13695,7 +13712,7 @@ const handlePrepareForMerge = async () => {
                           
                           const displayHooks = hookVideos.filter(v => {
                             const hasVariation = /HOOK\d+[A-Z]_/.test(v.videoName);
-                            if (hasVariation) return false;
+                            if (hasVariation) return false; // Hide variations
                             
                             const isBaseHook = /HOOK\d+_/.test(v.videoName) && !/HOOK\d+[A-Z]_/.test(v.videoName);
                             if (isBaseHook) {
@@ -13705,7 +13722,7 @@ const handlePrepareForMerge = async () => {
                                 const hookBase = hookMatch[2];
                                 const suffix = hookMatch[3];
                                 const baseName = `${prefix}${hookBase}${suffix}`;
-                                return !hookMergedVideos[baseName];
+                                return !hookMergedVideos[baseName]; // Hide if merged exists
                               }
                             }
                             return true;
