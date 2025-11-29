@@ -453,10 +453,22 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     sampleMergeVideos.forEach((video) => {
       // Find video data to get duration
       const videoData = videoResults.find(v => v.videoName === video.name);
-      if (!videoData?.cutPoints) return;
+      if (!videoData) return;
       
-      const durationMs = (videoData.cutPoints.endKeep || 0) - (videoData.cutPoints.startKeep || 0);
-      const durationSeconds = durationMs / 1000;
+      let durationSeconds = 0;
+      
+      // Try to get duration from cutPoints (if exists)
+      if (videoData.cutPoints) {
+        const durationMs = (videoData.cutPoints.endKeep || 0) - (videoData.cutPoints.startKeep || 0);
+        durationSeconds = durationMs / 1000;
+      } else if (videoData.trimmedDuration) {
+        // Use saved trimmed duration if available
+        durationSeconds = videoData.trimmedDuration;
+      } else {
+        // Fallback: assume 10 seconds per video (will be inaccurate but better than nothing)
+        console.warn(`[Video Sync] ⚠️ No duration data for ${video.name}, using 10s fallback`);
+        durationSeconds = 10;
+      }
       
       timeline.push({
         startTime: currentTime,
@@ -3045,13 +3057,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             throw new Error('Failed to trim video');
           }
           
-          // Update videoResults with trimmed URL
+          // Calculate trimmed duration
+          const trimmedDurationSeconds = (trimEnd - trimStart) / 1000;
+          
+          // Update videoResults with trimmed URL and duration
           setVideoResults(prev => prev.map(v =>
             v.videoName === video.videoName
               ? { 
                   ...v, 
                   trimmedVideoUrl: result.downloadUrl,
-                  recutStatus: 'accepted'
+                  recutStatus: 'accepted',
+                  trimmedDuration: trimmedDurationSeconds
                 }
               : v
           ));
@@ -3709,7 +3725,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           throw new Error('Failed to trim video');
         }
         
-        // Update videoResults with trimmed URL and success status
+        // Calculate trimmed duration
+        const trimmedDurationSeconds = (trimEnd - trimStart) / 1000;
+        
+        // Update videoResults with trimmed URL, duration, and success status
         setVideoResults(prev => prev.map(v =>
           v.videoName === video.videoName
             ? { 
@@ -3717,7 +3736,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                 trimmedVideoUrl: result.downloadUrl,
                 recutStatus: 'accepted',
                 status: 'success' as const,
-                error: undefined
+                error: undefined,
+                trimmedDuration: trimmedDurationSeconds
               }
             : v
         ));
@@ -4152,10 +4172,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
   // STEP 1: Simple Cut - Only cut videos without merge
   const handleSimpleCut = async () => {
-    // Filter videos to cut - ONLY non-accepted videos (recut status)
+    // Filter videos to cut - ONLY videos that need recut
     const videosToTrim = videoResults.filter(v => 
-      v.reviewStatus !== 'accepted' &&  // From STEP 6/7: not accepted
-      v.recutStatus !== 'accepted' &&   // From STEP 9: not accepted (includes 'recut' and null)
+      v.reviewStatus === 'accepted' &&  // From STEP 6/7: IS accepted
+      v.recutStatus !== 'accepted' &&   // From STEP 9: NOT accepted (includes 'recut' and null)
       v.status === 'success' && 
       v.videoUrl
     );
@@ -4296,13 +4316,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             throw new Error('Failed to trim video');
           }
           
-          // Update videoResults with trimmed URL
+          // Calculate trimmed duration
+          const trimmedDurationSeconds = (trimEnd - trimStart) / 1000;
+          
+          // Update videoResults with trimmed URL and duration
           setVideoResults(prev => prev.map(v =>
             v.videoName === video.videoName
               ? { 
                   ...v, 
                   trimmedVideoUrl: result.downloadUrl,
-                  recutStatus: 'accepted'
+                  recutStatus: 'accepted',
+                  trimmedDuration: trimmedDurationSeconds
                 }
               : v
           ));
@@ -12705,7 +12729,7 @@ const handlePrepareForMerge = async () => {
                             className="bg-red-600 hover:bg-red-700 px-8 py-8 text-lg w-full max-w-md"
                           >
                             {(() => {
-                              const count = videoResults.filter(v => v.reviewStatus !== 'accepted' && v.recutStatus !== 'accepted' && v.status === 'success' && v.videoUrl).length;
+                              const count = videoResults.filter(v => v.reviewStatus === 'accepted' && v.recutStatus !== 'accepted' && v.status === 'success' && v.videoUrl).length;
                               return (
                                 <>
                                   Next: Trim All Videos ({count})
