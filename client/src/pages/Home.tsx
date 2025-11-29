@@ -359,6 +359,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   });
   const [mergeProgress, setMergeProgress] = useState<string>('');
   const [currentCutMergeVideoName, setCurrentCutMergeVideoName] = useState<string>('Loading...');
+  const [cutMergeVideos, setCutMergeVideos] = useState<Array<{ videoName: string; cutPoints?: any; trimmedDuration?: number }>>([]);
+  const [cutMergeCurrentVideo, setCutMergeCurrentVideo] = useState<string>(''); // The video that Cut & Merge button was clicked on
   const [lastMergedPairHash, setLastMergedPairHash] = useState<string | null>(() => {
     try {
       return localStorage.getItem('lastMergedPairHash') || null;
@@ -516,30 +518,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   
   // Sync current video name with playback time (Cut & Merge Modal)
   useEffect(() => {
-    if (!mergedVideoUrl || !isMergeModalOpen) return;
+    if (!mergedVideoUrl || !isMergeModalOpen || cutMergeVideos.length === 0) return;
     
     const videoElement = document.getElementById('cut-merge-video-player') as HTMLVideoElement;
     if (!videoElement) return;
     
-    // Get videos from current merge (previous + current + next)
-    const currentVideo = videoResults.find(v => v.videoName === currentVideoName);
-    if (!currentVideo) return;
-    
-    const currentIndex = videoResults.findIndex(v => v.videoName === currentVideoName);
-    const previousVideo = currentIndex > 0 ? videoResults[currentIndex - 1] : null;
-    const nextVideo = currentIndex < videoResults.length - 1 ? videoResults[currentIndex + 1] : null;
-    
-    const videosToMerge = [
-      ...(previousVideo ? [previousVideo] : []),
-      currentVideo,
-      ...(nextVideo ? [nextVideo] : []),
-    ];
-    
-    // Build timeline from video durations
+    // Build timeline from cutMergeVideos state
     const timeline: Array<{ startTime: number; endTime: number; name: string }> = [];
     let currentTime = 0;
     
-    videosToMerge.forEach((video) => {
+    cutMergeVideos.forEach((video) => {
       let durationSeconds = 0;
       
       // Try to get duration from cutPoints (if exists)
@@ -588,10 +576,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
     
     return () => {
-      videoElement.removeEventListener('timeupdate', handleTimeUpdate);
+       videoElement.removeEventListener('timeupdate', handleTimeUpdate);
       videoElement.removeEventListener('seeked', handleTimeUpdate);
     };
-  }, [mergedVideoUrl, isMergeModalOpen, currentVideoName, videoResults]);
+  }, [mergedVideoUrl, isMergeModalOpen, cutMergeVideos]);
   
   // Sync current video name with playback time (Trimming Modal)
   useEffect(() => {
@@ -715,12 +703,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     current: number;
     total: number;
     currentVideo: string;
-    status: 'idle' | 'processing' | 'complete';
+    status: 'processing' | 'complete' | 'error' | 'partial';
+    message: string;
+    failedVideos?: Array<{ name: string; error: string }>;
   }>({
     current: 0,
     total: 0,
     currentVideo: '',
-    status: 'idle'
+    status: 'processing',
+    message: '',
+    failedVideos: []
   });
   const [finalVideos, setFinalVideos] = useState<Array<{
     videoName: string;
@@ -2673,7 +2665,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     if (lastSampleMergeTimestamp) {
       const elapsed = now - lastSampleMergeTimestamp;
-      const cooldownMs = 58000; // 58 seconds
+      const cooldownMs = 120000; // 120 seconds
       
       if (elapsed < cooldownMs) {
         const remainingMs = cooldownMs - elapsed;
@@ -2841,12 +2833,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     // Start merging
     setIsMergingFinalVideos(true);
-    setMergeFinalProgress({
-      current: 0,
-      total: hookUrls.length,
-      currentVideo: '',
-      status: 'processing'
-    });
     
     const results: Array<{
       videoName: string;
@@ -2855,23 +2841,54 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       bodyName: string;
     }> = [];
     
-    // Batch processing
-    const BATCH_SIZE = 3;
-    const DELAY_BETWEEN_BATCHES = 3000;
+    // Batch processing: Max 10 FINAL videos per batch (same as STEP 2)
+    const BATCH_SIZE = 10;
+    const totalBatches = Math.ceil(hookUrls.length / BATCH_SIZE);
+    
+    console.log(`[Step 10→Step 11] 📊 Batching: ${hookUrls.length} final videos in ${totalBatches} batches (max ${BATCH_SIZE} per batch)`);
+    
+    // Initialize progress with countdown
+    setMergeFinalProgress({
+      current: 0,
+      total: hookUrls.length,
+      currentVideo: '',
+      status: 'processing',
+      message: 'Waiting 60s before starting...',
+      failedVideos: []
+    });
+    
+    // INITIAL COUNTDOWN: 60s (same as STEP 2)
+    console.log('[Step 10→Step 11] ⏳ Initial countdown 60s...');
+    for (let countdown = 60; countdown > 0; countdown--) {
+      setMergeFinalProgress(prev => ({
+        ...prev,
+        message: `Waiting ${countdown}s before starting...`
+      }));
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    
+    console.log('[Step 10→Step 11] 🚀 Starting merge...');
     
     let completedCount = 0;
     let failedCount = 0;
     
-    for (let i = 0; i < hookUrls.length; i += BATCH_SIZE) {
-      const batch = hookUrls.slice(i, Math.min(i + BATCH_SIZE, hookUrls.length));
+    // Process batches sequentially
+    for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+      const batchNum = batchIdx + 1;
+      const startIdx = batchIdx * BATCH_SIZE;
+      const batch = hookUrls.slice(startIdx, Math.min(startIdx + BATCH_SIZE, hookUrls.length));
       
+      console.log(`[Step 10→Step 11] 📦 Processing batch ${batchNum}/${totalBatches} (${batch.length} videos)...`);
+      
+      // Process batch in parallel
       const batchPromises = batch.map(async (hook) => {
         const finalVideoName = hook.name.replace(/(HOOK\d+)M/, '$1');
         
         setMergeFinalProgress(prev => ({
           ...prev,
           current: completedCount,
-          currentVideo: finalVideoName
+          currentVideo: finalVideoName,
+          message: `Merging ${finalVideoName}... (Batch ${batchNum}/${totalBatches})`
         }));
         
         try {
@@ -2881,6 +2898,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
             userId: localCurrentUser.id,
             folder: 'merged',  // Step 11 final videos go to /merged/ folder
+            useLoudnorm: true,  // Enable loudnorm audio normalization for final merge
           });
           
           results.push({
@@ -2891,18 +2909,65 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           });
           
           completedCount++;
+          console.log(`[Step 10→Step 11] ✅ ${finalVideoName} SUCCESS (${completedCount}/${hookUrls.length})`);
+          
+          // SAVE TO DATABASE INLINE after each successful merge
+          try {
+            await upsertContextSessionMutation.mutateAsync({
+              userId: localCurrentUser.id,
+              tamId: selectedTamId,
+              coreBeliefId: selectedCoreBeliefId,
+              emotionalAngleId: selectedEmotionalAngleId,
+              adId: selectedAdId,
+              characterId: selectedCharacterId,
+              currentStep: 11,
+              rawTextAd,
+              processedTextAd,
+              adLines,
+              prompts,
+              images,
+              combinations,
+              deletedCombinations,
+              videoResults,
+              reviewHistory,
+              hookMergedVideos,
+              bodyMergedVideoUrl,
+              finalVideos: results,  // Save current results array
+            });
+            console.log(`[Step 10→Step 11] 💾 DB saved after ${finalVideoName}`);
+          } catch (dbError: any) {
+            console.error(`[Step 10→Step 11] ❌ DB save failed for ${finalVideoName}:`, dbError);
+          }
+          
           return { success: true };
         } catch (error: any) {
-          console.error(`[Step 10→Step 11] ${finalVideoName} failed:`, error);
+          console.error(`[Step 10→Step 11] ❌ ${finalVideoName} FAILED:`, error);
           failedCount++;
+          
+          // Track failed video
+          setMergeFinalProgress(prev => ({
+            ...prev,
+            failedVideos: [...(prev.failedVideos || []), { name: finalVideoName, error: error.message }]
+          }));
+          
           return { success: false };
         }
       });
       
       await Promise.all(batchPromises);
+      console.log(`[Step 10→Step 11] ✅ Batch ${batchNum}/${totalBatches} complete (${completedCount}/${hookUrls.length} total)`);
       
-      if (i + BATCH_SIZE < hookUrls.length) {
-        await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
+      // Wait 60s AFTER batch (except last batch) - same as STEP 2
+      if (batchIdx < totalBatches - 1) {
+        console.log(`[Step 10→Step 11] ⏳ Waiting 60s after batch ${batchNum}...`);
+        for (let countdown = 60; countdown > 0; countdown--) {
+          setMergeFinalProgress(prev => ({
+            ...prev,
+            message: `⏳ Waiting ${countdown}s before next batch...`
+          }));
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        console.log(`[Step 10→Step 11] ✅ Wait complete, starting next batch...`);
       }
     }
     
@@ -2939,16 +3004,177 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     // Update state AFTER database save
     setFinalVideos(results);
     
-    setMergeFinalProgress({
+    // Update final status
+    const finalStatus = failedCount === 0 ? 'complete' : 'partial';
+    setMergeFinalProgress(prev => ({
+      ...prev,
       current: completedCount,
       total: hookUrls.length,
       currentVideo: '',
-      status: 'complete'
-    });
-    setIsMergingFinalVideos(false);
-    setCurrentStep(11);
+      status: finalStatus,
+      message: failedCount === 0 
+        ? `✅ All ${completedCount} videos merged successfully!`
+        : `⚠️ ${completedCount}/${hookUrls.length} videos merged (${failedCount} failed)`
+    }));
     
-    toast.success(`✅ Final merge complete! ${completedCount}/${hookUrls.length} videos created`);
+    // Don't auto-redirect, let user click Continue button
+    // setIsMergingFinalVideos(false);
+    // setCurrentStep(11);
+    
+    if (failedCount === 0) {
+      toast.success(`✅ All ${completedCount} videos merged successfully!`);
+    } else {
+      toast.warning(`⚠️ ${failedCount} videos failed`);
+    }
+  };
+
+  // Retry Failed Final Merge for STEP 10 → STEP 11
+  const handleRetryFailedFinalMerge = async () => {
+    const failedVideos = mergeFinalProgress.failedVideos || [];
+    
+    if (failedVideos.length === 0) {
+      toast.info('No failed videos to retry');
+      return;
+    }
+    
+    console.log(`[Retry Failed Final Merge] Retrying ${failedVideos.length} failed videos...`);
+    
+    // Get body URL (same as handleMergeFinalVideos)
+    let bodyUrl: string | null = null;
+    if (selectedBody === 'body_merged') {
+      bodyUrl = bodyMergedVideoUrl;
+    } else {
+      const bodyVideo = videoResults.find(v => v.videoName === selectedBody);
+      bodyUrl = bodyVideo?.trimmedVideoUrl || null;
+    }
+    
+    if (!bodyUrl) {
+      toast.error('Body video URL not found!');
+      return;
+    }
+    
+    // Reset status to processing
+    setMergeFinalProgress(prev => ({
+      ...prev,
+      status: 'processing',
+      message: `Retrying ${failedVideos.length} failed videos...`,
+      failedVideos: []  // Clear failed list
+    }));
+    
+    let retrySuccessCount = 0;
+    let retryFailedCount = 0;
+    const newFailedVideos: Array<{ name: string; error: string }> = [];
+    
+    // Retry each failed video
+    for (const failed of failedVideos) {
+      const videoName = failed.name;
+      
+      console.log(`[Retry Failed Final Merge] Retrying ${videoName}...`);
+      
+      setMergeFinalProgress(prev => ({
+        ...prev,
+        currentVideo: videoName,
+        message: `Retrying ${videoName}...`
+      }));
+      
+      try {
+        // Find hook URL
+        let hookUrl: string | null = null;
+        
+        // Check if this is a merged hook
+        const baseName = Object.keys(hookMergedVideos).find(bn => {
+          const mergedName = bn.replace(/(HOOK\d+)/, '$1M');
+          return videoName === mergedName || videoName.includes(mergedName);
+        });
+        
+        if (baseName) {
+          hookUrl = hookMergedVideos[baseName];
+        } else {
+          const hookVideo = videoResults.find(v => v.videoName === videoName || videoName.includes(v.videoName));
+          hookUrl = hookVideo?.trimmedVideoUrl || null;
+        }
+        
+        if (!hookUrl) {
+          throw new Error('Hook URL not found');
+        }
+        
+        // Retry merge
+        const result = await mergeVideosMutation.mutateAsync({
+          videoUrls: [hookUrl, bodyUrl],
+          outputVideoName: videoName,
+          ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
+          userId: localCurrentUser.id,
+          folder: 'merged',
+          useLoudnorm: true,
+        });
+        
+        // Add to finalVideos
+        const newFinalVideo = {
+          videoName,
+          cdnUrl: result.cdnUrl,
+          hookName: videoName,
+          bodyName: selectedBody || 'body_merged'
+        };
+        
+        setFinalVideos(prev => [...prev, newFinalVideo]);
+        
+        // Save to database inline
+        try {
+          await upsertContextSessionMutation.mutateAsync({
+            userId: localCurrentUser.id,
+            tamId: selectedTamId,
+            coreBeliefId: selectedCoreBeliefId,
+            emotionalAngleId: selectedEmotionalAngleId,
+            adId: selectedAdId,
+            characterId: selectedCharacterId,
+            currentStep: 11,
+            rawTextAd,
+            processedTextAd,
+            adLines,
+            prompts,
+            images,
+            combinations,
+            deletedCombinations,
+            videoResults,
+            reviewHistory,
+            hookMergedVideos,
+            bodyMergedVideoUrl,
+            finalVideos: [...finalVideos, newFinalVideo],
+          });
+          console.log(`[Retry Failed Final Merge] 💾 DB saved after ${videoName}`);
+        } catch (dbError: any) {
+          console.error(`[Retry Failed Final Merge] ❌ DB save failed for ${videoName}:`, dbError);
+        }
+        
+        retrySuccessCount++;
+        console.log(`[Retry Failed Final Merge] ✅ ${videoName} SUCCESS`);
+        
+      } catch (error: any) {
+        console.error(`[Retry Failed Final Merge] ❌ ${videoName} FAILED:`, error);
+        retryFailedCount++;
+        newFailedVideos.push({ name: videoName, error: error.message });
+      }
+    }
+    
+    // Update final status
+    const totalSuccess = mergeFinalProgress.current + retrySuccessCount;
+    const finalStatus = newFailedVideos.length === 0 ? 'complete' : 'partial';
+    
+    setMergeFinalProgress(prev => ({
+      ...prev,
+      current: totalSuccess,
+      status: finalStatus,
+      failedVideos: newFailedVideos,
+      message: newFailedVideos.length === 0
+        ? `✅ All retries successful! ${totalSuccess} videos merged.`
+        : `⚠️ ${retrySuccessCount} retries succeeded, ${retryFailedCount} still failed`
+    }));
+    
+    if (newFailedVideos.length === 0) {
+      toast.success(`✅ All ${retrySuccessCount} retries successful!`);
+    } else {
+      toast.warning(`⚠️ ${retryFailedCount} videos still failed`);
+    }
   };
 
   // Step 8 → Step 9: Trim all videos using FFMPEG API
@@ -4288,16 +4514,53 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     const BATCH_SIZE = 10;
     const DELAY_BETWEEN_BATCHES = 58000; // 58 seconds
     
-    // Open modal immediately
+    // Calculate total batches and FFmpeg requests FIRST (before opening modal)
+    const totalBatches = Math.ceil(videosToTrim.length / BATCH_SIZE);
+    const videosWithCleanVoice = videosToTrim.filter(v => v.cleanvoiceAudioUrl).length;
+    const videosWithoutCleanVoice = videosToTrim.length - videosWithCleanVoice;
+    const totalFFmpegRequests = 1 + (videosWithCleanVoice * 4) + (videosWithoutCleanVoice * 3);
+    
+    console.log('[Simple Cut] 📊 FFmpeg requests calculation:', {
+      total: totalFFmpegRequests,
+      directory: 1,
+      withCleanVoice: videosWithCleanVoice,
+      withoutCleanVoice: videosWithoutCleanVoice
+    });
+    
+    // Initialize progress with correct totals BEFORE opening modal
+    setTrimmingProgress({
+      current: 0,
+      total: videosToTrim.length,
+      currentVideo: '',
+      status: 'processing',
+      message: `Starting batch processing (${totalBatches} batches)...`,
+      successVideos: [],
+      failedVideos: [],
+      inProgressVideos: [],
+      currentBatch: 0,
+      totalBatches,
+      batchSize: BATCH_SIZE,
+      mergeStatus: 'idle',
+      ffmpegRequestsCurrent: 0,
+      ffmpegRequestsTotal: totalFFmpegRequests,
+      countdown: 0,
+      cuttingCurrent: 0,
+      cuttingTotal: videosToTrim.length,
+      mergingCurrent: 0,
+      mergingTotal: 0,
+      mergedVideos: []
+    });
+    
+    // Open modal immediately (now with correct totals)
     setIsTrimmingModalOpen(true);
     
-    // Check cooldown from last Sample Merge (90 seconds)
+    // Check cooldown from last Sample Merge (120 seconds)
     const now = Date.now();
     let remainingCooldownSeconds = 0;
     
     if (lastSampleMergeTimestamp) {
       const elapsed = now - lastSampleMergeTimestamp;
-      const cooldownMs = 90000; // 90 seconds
+      const cooldownMs = 120000; // 120 seconds
       
       if (elapsed < cooldownMs) {
         const remainingMs = cooldownMs - elapsed;
@@ -4325,44 +4588,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       // Reset countdown
       setTrimmingProgress(prev => ({ ...prev, countdown: 0 }));
     }
-    
-    // Calculate total batches
-    const totalBatches = Math.ceil(videosToTrim.length / BATCH_SIZE);
-    
-    // Calculate total FFmpeg requests
-    const videosWithCleanVoice = videosToTrim.filter(v => v.cleanvoiceAudioUrl).length;
-    const videosWithoutCleanVoice = videosToTrim.length - videosWithCleanVoice;
-    const totalFFmpegRequests = 1 + (videosWithCleanVoice * 4) + (videosWithoutCleanVoice * 3);
-    
-    console.log('[Simple Cut] 📊 FFmpeg requests calculation:', {
-      total: totalFFmpegRequests,
-      directory: 1,
-      withCleanVoice: videosWithCleanVoice,
-      withoutCleanVoice: videosWithoutCleanVoice
-    });
-    
-    setTrimmingProgress({
-      current: 0,
-      total: videosToTrim.length,
-      currentVideo: '',
-      status: 'processing',
-      message: `Starting batch processing (${totalBatches} batches)...`,
-      successVideos: [],
-      failedVideos: [],
-      inProgressVideos: [],
-      currentBatch: 0,
-      totalBatches,
-      batchSize: BATCH_SIZE,
-      mergeStatus: 'idle',
-      ffmpegRequestsCurrent: 0,
-      ffmpegRequestsTotal: totalFFmpegRequests,
-      countdown: 0,
-      cuttingCurrent: 0,
-      cuttingTotal: videosToTrim.length,
-      mergingCurrent: 0,
-      mergingTotal: 0,
-      mergedVideos: []
-    });
     
     // Create shared directory for ALL videos in this batch
     console.log('[Simple Cut] 📁 Creating shared FFmpeg directory...');
@@ -6962,6 +7187,67 @@ const handlePrepareForMerge = async () => {
                 <p className="text-sm text-gray-600">
                   {mergeFinalProgress.current} final videos created successfully
                 </p>
+                <Button
+                  onClick={() => {
+                    setIsMergingFinalVideos(false);
+                    setCurrentStep(11);
+                    toast.success('✅ Proceeding to Step 11');
+                  }}
+                  className="mt-4 w-full bg-green-600 hover:bg-green-700"
+                >
+                  Continue to Step 11 →
+                </Button>
+              </div>
+            ) : mergeFinalProgress.status === 'partial' ? (
+              <div className="space-y-3">
+                <div className="flex justify-center">
+                  <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center">
+                    <AlertCircle className="w-8 h-8 text-yellow-600" />
+                  </div>
+                </div>
+                <p className="text-lg font-semibold text-yellow-900 text-center">
+                  ⚠️ Partial Success
+                </p>
+                <p className="text-sm text-gray-600 text-center">
+                  {mergeFinalProgress.current}/{mergeFinalProgress.total} videos merged successfully
+                </p>
+                
+                {/* Failed Videos List */}
+                {mergeFinalProgress.failedVideos && mergeFinalProgress.failedVideos.length > 0 && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 max-h-48 overflow-y-auto">
+                    <p className="text-sm font-semibold text-red-800 mb-2">
+                      ❌ Failed ({mergeFinalProgress.failedVideos.length}):
+                    </p>
+                    <div className="space-y-1">
+                      {mergeFinalProgress.failedVideos.map((failed, idx) => (
+                        <div key={idx} className="text-xs text-red-700">
+                          <span className="font-mono">{failed.name}</span>
+                          <span className="text-red-500 ml-2">({failed.error})</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleRetryFailedFinalMerge}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    Retry Failed
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setIsMergingFinalVideos(false);
+                      setCurrentStep(11);
+                      toast.success('✅ Proceeding to Step 11');
+                    }}
+                    className="flex-1 bg-green-600 hover:bg-green-700"
+                  >
+                    Continue to Step 11 →
+                  </Button>
+                </div>
               </div>
             ) : null}
           </div>
@@ -7821,8 +8107,16 @@ const handlePrepareForMerge = async () => {
                 />
                 
                 {/* Current video name below player */}
-                <div className="bg-yellow-100 border border-yellow-300 rounded px-2 py-1 text-center">
-                  <p className="text-xs font-medium text-yellow-900">
+                <div className={`rounded px-2 py-1 text-center ${
+                  currentCutMergeVideoName === cutMergeCurrentVideo
+                    ? 'bg-green-100 border border-green-300'
+                    : 'bg-yellow-100 border border-yellow-300'
+                }`}>
+                  <p className={`text-xs font-medium ${
+                    currentCutMergeVideoName === cutMergeCurrentVideo
+                      ? 'text-green-900'
+                      : 'text-yellow-900'
+                  }`}>
                     {currentCutMergeVideoName}
                   </p>
                 </div>
@@ -12444,12 +12738,15 @@ const handlePrepareForMerge = async () => {
 
         {/* STEP 8: Video Editing */}
         {currentStep === 8 && (() => {
-          // Filter approved videos that have videoUrl
-          let approvedVideos = videoResults.filter(v => 
+          // ALL approved videos (for Cut & Merge previous/next lookup - ignore filter)
+          const allApprovedVideos = videoResults.filter(v => 
             v.reviewStatus === 'accepted' && 
             v.status === 'success' && 
             v.videoUrl
           );
+          
+          // Filter approved videos that have videoUrl (for display)
+          let approvedVideos = [...allApprovedVideos];
           
           // Apply Step 8 filter
           if (step8Filter === 'accepted') {
@@ -12596,17 +12893,47 @@ const handlePrepareForMerge = async () => {
                             step9Note: video.step9Note,
                             editingDebugInfo: video.editingDebugInfo,
                             }}
-                            previousVideo={videoIndex > 0 ? {
-                              videoName: approvedVideos[videoIndex - 1].videoName,
-                              videoUrl: approvedVideos[videoIndex - 1].videoUrl!,
-                              cutPoints: approvedVideos[videoIndex - 1].cutPoints || { startKeep: 0, endKeep: 10000 },
-                            } : null}
-                            nextVideo={videoIndex < approvedVideos.length - 1 ? {
-                              videoName: approvedVideos[videoIndex + 1].videoName,
-                              videoUrl: approvedVideos[videoIndex + 1].videoUrl!,
-                              cutPoints: approvedVideos[videoIndex + 1].cutPoints || { startKeep: 0, endKeep: 10000 },
-                            } : null}
+                            previousVideo={(() => {
+                              // Find current video in ALL approved videos (ignore filter)
+                              const currentIndexInAll = allApprovedVideos.findIndex(v => v.videoName === video.videoName);
+                              console.log(`[Cut & Merge] Looking for previous of ${video.videoName}:`, {
+                                currentIndexInAll,
+                                totalVideos: allApprovedVideos.length,
+                                allVideoNames: allApprovedVideos.map(v => v.videoName)
+                              });
+                              if (currentIndexInAll > 0) {
+                                const prev = allApprovedVideos[currentIndexInAll - 1];
+                                console.log(`[Cut & Merge] Found previous:`, prev.videoName);
+                                return {
+                                  videoName: prev.videoName,
+                                  videoUrl: prev.videoUrl!,
+                                  cutPoints: prev.cutPoints || { startKeep: 0, endKeep: 10000 },
+                                };
+                              }
+                              console.log(`[Cut & Merge] No previous video found`);
+                              return null;
+                            })()}
+                            nextVideo={(() => {
+                              // Find current video in ALL approved videos (ignore filter)
+                              const currentIndexInAll = allApprovedVideos.findIndex(v => v.videoName === video.videoName);
+                              if (currentIndexInAll >= 0 && currentIndexInAll < allApprovedVideos.length - 1) {
+                                const next = allApprovedVideos[currentIndexInAll + 1];
+                                return {
+                                  videoName: next.videoName,
+                                  videoUrl: next.videoUrl!,
+                                  cutPoints: next.cutPoints || { startKeep: 0, endKeep: 10000 },
+                                };
+                              }
+                              return null;
+                            })()}
                             onCutAndMerge={async (previousVideo, currentVideo, nextVideo) => {
+                              console.log('[Cut & Merge] Button clicked for:', currentVideo.videoName);
+                              console.log('[Cut & Merge] Received videos:', {
+                                previous: previousVideo?.videoName || 'NULL',
+                                current: currentVideo.videoName,
+                                next: nextVideo?.videoName || 'NULL'
+                              });
+                              
                               // Collect all videos to merge (previous + current + next)
                               const videosToMerge = [
                                 previousVideo,
@@ -12615,6 +12942,16 @@ const handlePrepareForMerge = async () => {
                               ].filter(Boolean); // Remove null values
                               
                               console.log('[Cut & Merge] Starting merge:', videosToMerge.map(v => v.videoName).join(' + '));
+                              
+                              // Save videos for video name sync
+                              setCutMergeVideos(videosToMerge.map(v => ({
+                                videoName: v.videoName,
+                                cutPoints: v.cutPoints,
+                                trimmedDuration: v.trimmedDuration
+                              })));
+                              
+                              // Save current video (the one Cut & Merge was clicked on)
+                              setCutMergeCurrentVideo(currentVideo.videoName);
                               
                               setIsMergeModalOpen(true);
                               
@@ -12938,7 +13275,7 @@ const handlePrepareForMerge = async () => {
                               className="bg-green-600 hover:bg-green-700 px-8 py-8 text-lg w-full max-w-md"
                             >
                               {(() => {
-                                const count = approvedVideos.filter(v => v.trimmedVideoUrl).length;
+                                const count = allApprovedVideos.filter(v => v.trimmedVideoUrl).length;
                                 return (
                                   <>
                                     Next: Check Videos ({count})
@@ -13358,16 +13695,44 @@ const handlePrepareForMerge = async () => {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-semibold text-indigo-900">STEP 1 - Choose Hooks</h3>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 mb-4">
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => {
-                          const hookVideos = videoResults.filter(v => 
+                          // Select ALL displayed hooks (including merged M videos)
+                          // Build allHooks same way as display logic below
+                          let hookVideos = videoResults.filter(v => 
                             v.trimmedVideoUrl && 
                             v.videoName.toLowerCase().includes('hook')
                           );
-                          setSelectedHooks(hookVideos.map(v => v.videoName));
+                          
+                          const displayHooks = hookVideos.filter(v => {
+                            const hasVariation = /HOOK\d+[A-Z]_/.test(v.videoName);
+                            if (hasVariation) return false;
+                            
+                            const isBaseHook = /HOOK\d+_/.test(v.videoName) && !/HOOK\d+[A-Z]_/.test(v.videoName);
+                            if (isBaseHook) {
+                              const hookMatch = v.videoName.match(/(.*)(HOOK\d+)(.*)/); 
+                              if (hookMatch) {
+                                const prefix = hookMatch[1];
+                                const hookBase = hookMatch[2];
+                                const suffix = hookMatch[3];
+                                const baseName = `${prefix}${hookBase}${suffix}`;
+                                return !hookMergedVideos[baseName];
+                              }
+                            }
+                            return true;
+                          });
+                          
+                          const mergedHooksList = Object.entries(hookMergedVideos).map(([baseName, cdnUrl]) => ({
+                            videoName: baseName.replace(/(HOOK\d+)/, '$1M'),
+                            trimmedVideoUrl: cdnUrl,
+                            text: ''
+                          }));
+                          
+                          const allHooks = [...displayHooks, ...mergedHooksList];
+                          setSelectedHooks(allHooks.map(v => v.videoName));
                         }}
                       >
                         Select All
@@ -13379,8 +13744,7 @@ const handlePrepareForMerge = async () => {
                       >
                         Deselect All
                       </Button>
-                    </div>
-                  </div>
+                    </div>                 </div>
                   
                   {(() => {
                     let hookVideos = videoResults.filter(v => 
@@ -13456,6 +13820,24 @@ const handlePrepareForMerge = async () => {
                     });
                     
                     const allHooks = [...displayHooks, ...mergedHooksList];
+                    
+                    // Sort hooks by number (HOOK1, HOOK2, ..., HOOK100)
+                    // Extract hook number from videoName (e.g., HOOK3M → 3, HOOK12A → 12)
+                    allHooks.sort((a, b) => {
+                      const aMatch = a.videoName.match(/HOOK(\d+)[A-Z]?/);
+                      const bMatch = b.videoName.match(/HOOK(\d+)[A-Z]?/);
+                      
+                      if (!aMatch || !bMatch) return 0;
+                      
+                      const aNum = parseInt(aMatch[1], 10);
+                      const bNum = parseInt(bMatch[1], 10);
+                      
+                      // Sort by hook number ascending (HOOK1 first, HOOK100 last)
+                      if (aNum !== bNum) return aNum - bNum;
+                      
+                      // If same number, sort by suffix (A before B before M)
+                      return a.videoName.localeCompare(b.videoName);
+                    });
                     
                     if (allHooks.length === 0) {
                       return (
@@ -13715,10 +14097,51 @@ const handlePrepareForMerge = async () => {
                           const character = characterMatch ? characterMatch[1] : 'TEST';
                           
                         selectedHooks.forEach((hookName) => {
-                          // Use hook name directly, just remove M for merged hooks
-                          // T1_C1_E1_AD1_HOOK3M_TEST_ALINA_1 → T1_C1_E1_AD1_HOOK3_TEST_ALINA_1
-                          const finalName = hookName.replace(/(HOOK\d+)M/, '$1');
-                          combinations.push(finalName);
+                          // If this is a merged hook (contains M), always include it
+                          const isMergedHook = /HOOK\d+M_/.test(hookName);
+                          if (isMergedHook) {
+                            const finalName = hookName.replace(/(HOOK\d+)M/, '$1');
+                            combinations.push(finalName);
+                            return;
+                          }
+                          
+                          // Skip if this is a variation (A, B, C) and merged version exists
+                          const hasVariation = /HOOK\d+[A-Z]_/.test(hookName);
+                          if (hasVariation) {
+                            // Check if merged version exists
+                            const hookMatch = hookName.match(/(.*)(HOOK\d+)[A-Z](.*)/); 
+                            if (hookMatch) {
+                              const prefix = hookMatch[1];
+                              const hookBase = hookMatch[2];
+                              const suffix = hookMatch[3];
+                              const baseName = `${prefix}${hookBase}${suffix}`;
+                              if (baseName in hookMergedVideos) {
+                                // Skip this variation, merged version will be used instead
+                                console.log(`[Final Combinations] Skipping ${hookName} - merged version exists`);
+                                return;
+                              }
+                            }
+                          }
+                          
+                          // Skip if this is a base hook and merged version exists
+                          const isBaseHook = /HOOK\d+_/.test(hookName) && !/HOOK\d+[A-Z]_/.test(hookName);
+                          if (isBaseHook) {
+                            const hookMatch = hookName.match(/(.*)(HOOK\d+)(.*)/); 
+                            if (hookMatch) {
+                              const prefix = hookMatch[1];
+                              const hookBase = hookMatch[2];
+                              const suffix = hookMatch[3];
+                              const baseName = `${prefix}${hookBase}${suffix}`;
+                              if (baseName in hookMergedVideos) {
+                                // Skip this base hook, merged version will be used instead
+                                console.log(`[Final Combinations] Skipping ${hookName} - merged version exists`);
+                                return;
+                              }
+                            }
+                          }
+                          
+                          // Use hook name directly
+                          combinations.push(hookName);
                         });
                         }
                       } else if (referenceVideo) {
@@ -13728,10 +14151,51 @@ const handlePrepareForMerge = async () => {
                         const character = characterMatch ? characterMatch[1] : 'TEST';
                         
                         selectedHooks.forEach((hookName) => {
-                          // Use hook name directly, just remove M for merged hooks
-                          // T1_C1_E1_AD1_HOOK3M_TEST_ALINA_1 → T1_C1_E1_AD1_HOOK3_TEST_ALINA_1
-                          const finalName = hookName.replace(/(HOOK\d+)M/, '$1');
-                          combinations.push(finalName);
+                          // If this is a merged hook (contains M), always include it
+                          const isMergedHook = /HOOK\d+M_/.test(hookName);
+                          if (isMergedHook) {
+                            const finalName = hookName.replace(/(HOOK\d+)M/, '$1');
+                            combinations.push(finalName);
+                            return;
+                          }
+                          
+                          // Skip if this is a variation (A, B, C) and merged version exists
+                          const hasVariation = /HOOK\d+[A-Z]_/.test(hookName);
+                          if (hasVariation) {
+                            // Check if merged version exists
+                            const hookMatch = hookName.match(/(.*)(HOOK\d+)[A-Z](.*)/); 
+                            if (hookMatch) {
+                              const prefix = hookMatch[1];
+                              const hookBase = hookMatch[2];
+                              const suffix = hookMatch[3];
+                              const baseName = `${prefix}${hookBase}${suffix}`;
+                              if (baseName in hookMergedVideos) {
+                                // Skip this variation, merged version will be used instead
+                                console.log(`[Final Combinations] Skipping ${hookName} - merged version exists`);
+                                return;
+                              }
+                            }
+                          }
+                          
+                          // Skip if this is a base hook and merged version exists
+                          const isBaseHook = /HOOK\d+_/.test(hookName) && !/HOOK\d+[A-Z]_/.test(hookName);
+                          if (isBaseHook) {
+                            const hookMatch = hookName.match(/(.*)(HOOK\d+)(.*)/); 
+                            if (hookMatch) {
+                              const prefix = hookMatch[1];
+                              const hookBase = hookMatch[2];
+                              const suffix = hookMatch[3];
+                              const baseName = `${prefix}${hookBase}${suffix}`;
+                              if (baseName in hookMergedVideos) {
+                                // Skip this base hook, merged version will be used instead
+                                console.log(`[Final Combinations] Skipping ${hookName} - merged version exists`);
+                                return;
+                              }
+                            }
+                          }
+                          
+                          // Use hook name directly
+                          combinations.push(hookName);
                         });
                       }
                     }

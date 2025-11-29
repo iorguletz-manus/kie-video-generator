@@ -1679,7 +1679,8 @@ export async function mergeVideosWithFFmpegAPI(
   outputVideoName: string,
   ffmpegApiKey: string,
   userId?: number,  // Optional userId for user-specific folder
-  folder?: string  // Optional folder name (default: 'prepare-for-merge')
+  folder?: string,  // Optional folder name (default: 'prepare-for-merge')
+  useLoudnorm?: boolean  // Enable loudnorm audio normalization for final merge (STEP 10)
 ): Promise<string> {
   try {
     console.log('\n\n========================================');
@@ -1794,8 +1795,25 @@ export async function mergeVideosWithFFmpegAPI(
     
     // 5. Prepare concat filter
     // FFmpeg concat filter: -filter_complex "[0:v][0:a][1:v][1:a][2:v][2:a]concat=n=3:v=1:a=1[outv][outa]"
+    // With loudnorm: -filter_complex "[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a]; [a]loudnorm=I=-14:TP=-1.5:LRA=11[aout]"
     const videoInputs = uploadedFilePaths.map((_, i) => `[${i}:v][${i}:a]`).join('');
-    const concatFilter = `${videoInputs}concat=n=${uploadedFilePaths.length}:v=1:a=1[outv][outa]`;
+    
+    let concatFilter: string;
+    let videoMap: string;
+    let audioMap: string;
+    
+    if (useLoudnorm) {
+      // STEP 10 final merge: Add loudnorm audio normalization
+      concatFilter = `${videoInputs}concat=n=${uploadedFilePaths.length}:v=1:a=1[v][a]; [a]loudnorm=I=-14:TP=-1.5:LRA=11[aout]`;
+      videoMap = '[v]';
+      audioMap = '[aout]';
+      console.log(`[mergeVideosWithFFmpegAPI] 🔊 Using loudnorm audio normalization`);
+    } else {
+      // STEP 2 prepare for merge: No loudnorm
+      concatFilter = `${videoInputs}concat=n=${uploadedFilePaths.length}:v=1:a=1[outv][outa]`;
+      videoMap = '[outv]';
+      audioMap = '[outa]';
+    }
     
     console.log(`[mergeVideosWithFFmpegAPI] Concat filter: ${concatFilter}`);
     
@@ -1811,14 +1829,14 @@ export async function mergeVideosWithFFmpegAPI(
           file: outputFileName,
           options: [
             '-filter_complex', concatFilter,
-            '-map', '[outv]',
-            '-map', '[outa]',
-            '-c:v', 'libx264',
-            '-crf', '23',
-            '-preset', 'medium',
+            '-map', videoMap,
+            '-map', audioMap,
+            '-c:v', useLoudnorm ? 'copy' : 'libx264',  // Use copy for video when using loudnorm to save processing time
+            ...(useLoudnorm ? [] : ['-crf', '23', '-preset', 'medium']),  // Skip encoding params when copying
             '-c:a', 'aac',
             '-b:a', '192k',
-            '-ar', '48000'
+            '-ar', '48000',
+            '-ac', '2'  // Stereo audio
           ]
         }
       ]

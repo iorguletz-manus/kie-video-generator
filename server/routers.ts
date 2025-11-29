@@ -2257,6 +2257,7 @@ export const appRouter = router({
         ffmpegApiKey: z.string(),
         userId: z.number().optional(),
         folder: z.string().optional(),
+        useLoudnorm: z.boolean().optional(), // Enable loudnorm audio normalization for final merge (STEP 10)
       }))
       .mutation(async ({ input }) => {
         try {
@@ -2273,7 +2274,8 @@ export const appRouter = router({
             input.outputVideoName,
             input.ffmpegApiKey,
             input.userId,
-            input.folder
+            input.folder,
+            input.useLoudnorm
           );
           
           console.log(`[mergeVideos] ✅ Merge complete! CDN URL: ${cdnUrl}`);
