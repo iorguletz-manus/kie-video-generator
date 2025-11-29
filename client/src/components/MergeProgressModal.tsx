@@ -47,6 +47,7 @@ interface MergeProgressModalProps {
   onRetryFailed?: () => void;
   onContinue?: () => void;
   onClose?: () => void;
+  onSkipCountdown?: () => void;
 }
 
 export default function MergeProgressModal({
@@ -72,7 +73,8 @@ export default function MergeProgressModal({
   hookBatchesTotal = 0,
   onRetryFailed,
   onContinue,
-  onClose
+  onClose,
+  onSkipCountdown
 }: MergeProgressModalProps) {
   const [isBodySuccessOpen, setIsBodySuccessOpen] = useState(false);
   const [isBodyFailedOpen, setIsBodyFailedOpen] = useState(true); // Auto-open failures
@@ -145,15 +147,23 @@ export default function MergeProgressModal({
 
           {/* Countdown Timer */}
           {countdown !== undefined && countdown > 0 && (
-            <div className="flex items-center justify-center">
+            <div className="flex flex-col items-center justify-center gap-4">
               <div className="bg-orange-50 border-2 border-orange-300 rounded-lg px-6 py-4">
                 <p className="text-center text-4xl font-bold text-orange-600 tabular-nums">
                   ⏳ {countdown}s
                 </p>
                 <p className="text-center text-xs text-orange-500 mt-2">
-                  Waiting for FFmpeg rate limit...
+                  Waiting before starting merge...
                 </p>
               </div>
+              {onSkipCountdown && (
+                <Button
+                  onClick={onSkipCountdown}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2"
+                >
+                  ⏩ Skip Countdown
+                </Button>
+              )}
             </div>
           )}
 

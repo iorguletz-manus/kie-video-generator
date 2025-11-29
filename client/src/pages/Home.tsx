@@ -4619,38 +4619,84 @@ const handlePrepareForMerge = async () => {
     failedItems: []
   });
   
-  console.log('[Prepare for Merge] 🚀 Starting immediately (no initial countdown)...');
+  // INITIAL COUNTDOWN: 60 seconds with Skip button
+  console.log('[Prepare for Merge] ⏳ Starting initial 60s countdown...');
+  let skipCountdown = false;
+  
+  // Add skip callback to progress state
+  setMergeStep10Progress(prev => ({
+    ...prev,
+    status: 'countdown',
+    message: 'Waiting 60s before starting merge...',
+    countdown: 60,
+    onSkipCountdown: () => {
+      console.log('[Prepare for Merge] ⏩ User skipped countdown!');
+      skipCountdown = true;
+    }
+  }));
+  
+  // Countdown loop
+  for (let countdown = 60; countdown > 0; countdown--) {
+    if (skipCountdown) {
+      console.log('[Prepare for Merge] ⏩ Countdown skipped, starting immediately...');
+      break;
+    }
+    
+    setMergeStep10Progress(prev => ({
+      ...prev,
+      countdown,
+      message: `Waiting ${countdown}s before starting merge...`
+    }));
+    
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+  
+  // Clear countdown state
+  setMergeStep10Progress(prev => ({
+    ...prev,
+    status: 'processing',
+    countdown: 0,
+    onSkipCountdown: undefined,
+    message: 'Starting merge process...'
+  }));
+  
+  console.log('[Prepare for Merge] 🚀 Starting merge process...');
   
   try {
     // 9. HOOKS MERGE (in batches, max 8 hooks per batch)
     if (hookGroupsToMerge.length > 0) {
       console.log(`[Prepare for Merge] 🎣 Starting HOOKS merge (${hookGroupsToMerge.length} groups)...`);
       
-      // Chunk hook groups (max 8 hooks per batch, keep groups together)
-      const MAX_HOOKS_PER_BATCH = 8;
-      const hookBatches: Array<{batchNum: number; groups: typeof hookGroupsToMerge; totalHooks: number}> = [];
+      // NEW LOGIC: Batch by FINAL VIDEOS (max 10 final videos per batch)
+      // Each hook group = 1 final video, BODY = 1 final video
+      const MAX_FINAL_VIDEOS_PER_BATCH = 10;
+      const hookBatches: Array<{batchNum: number; groups: typeof hookGroupsToMerge; totalHooks: number; finalVideosCount: number}> = [];
       let currentBatch: typeof hookGroupsToMerge = [];
       let currentBatchHookCount = 0;
+      let currentBatchFinalVideos = 0;
       let batchNum = 1;
       
       for (const [baseName, videos] of hookGroupsToMerge) {
         const groupSize = videos.length;
         
-        // If adding this group would exceed max, start new batch
-        if (currentBatchHookCount + groupSize > MAX_HOOKS_PER_BATCH && currentBatch.length > 0) {
+        // If adding this group would exceed max FINAL VIDEOS, start new batch
+        if (currentBatchFinalVideos + 1 > MAX_FINAL_VIDEOS_PER_BATCH && currentBatch.length > 0) {
           hookBatches.push({
             batchNum,
             groups: currentBatch,
             totalHooks: currentBatchHookCount,
+            finalVideosCount: currentBatchFinalVideos,
           });
           batchNum++;
           currentBatch = [];
           currentBatchHookCount = 0;
+          currentBatchFinalVideos = 0;
         }
         
         // Add group to current batch
         currentBatch.push([baseName, videos]);
         currentBatchHookCount += groupSize;
+        currentBatchFinalVideos += 1; // Each group = 1 final video
       }
       
       // Add final batch
@@ -4659,12 +4705,13 @@ const handlePrepareForMerge = async () => {
           batchNum,
           groups: currentBatch,
           totalHooks: currentBatchHookCount,
+          finalVideosCount: currentBatchFinalVideos,
         });
       }
       
       console.log(`[Prepare for Merge] 📦 Hooks will be processed in ${hookBatches.length} batches`);
       hookBatches.forEach((batch, idx) => {
-        console.log(`  Batch ${batch.batchNum}: ${batch.totalHooks} hooks in ${batch.groups.length} groups`);
+        console.log(`  Batch ${batch.batchNum}: ${batch.finalVideosCount} final videos (${batch.totalHooks} hooks in ${batch.groups.length} groups)`);
       });
       
       // Update progress with batch info
@@ -7081,6 +7128,7 @@ const handlePrepareForMerge = async () => {
           setCurrentStep(10);
           toast.success('✅ Proceeding to Step 10');
         }}
+        onSkipCountdown={mergeStep10Progress.onSkipCountdown}
         onClose={() => {
           if (mergeStep10Progress.status !== 'processing' && mergeStep10Progress.status !== 'countdown') {
             setIsMergingStep10(false);
