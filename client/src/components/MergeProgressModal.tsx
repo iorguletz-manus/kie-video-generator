@@ -1,4 +1,4 @@
-import { Loader2, ChevronDown, ChevronRight } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
 
 interface MergeProgressModalProps {
@@ -156,35 +156,30 @@ export default function MergeProgressModal({
 
           {/* HOOKS Section */}
           {hookGroups && hookGroups.length > 0 && (
-            <div className="border border-gray-300 rounded-lg overflow-hidden">
-              <div className="bg-purple-100 px-4 py-3 border-b border-gray-300">
-                <h3 className="font-semibold text-purple-900">
-                  🎣 HOOKS ({hookGroups.length} groups)
-                  {hookBatchesTotal > 1 && ` → ${hookBatchesTotal} batches`}
-                </h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-gray-700">🎣 HOOKS ({hookGroups.length} groups{hookBatchesTotal > 1 ? ` → ${hookBatchesTotal} batches` : ''})</p>
+                <p className="text-sm font-medium text-gray-600">{hookSuccessGroups.length + hookFailedGroups.length}/{hookGroups.length}</p>
               </div>
-              <div className="p-4 space-y-3">
+              <Progress value={hookPercent} className="h-3 bg-purple-100" />
                 {/* Success Log */}
                 {hookSuccessGroups.length > 0 && (
                   <div>
                     <button
                       onClick={() => setIsHooksSuccessOpen(!isHooksSuccessOpen)}
-                      className="w-full flex justify-between items-center text-sm font-medium text-green-700 hover:text-green-800 transition-colors"
+                      className="w-full flex items-center justify-between text-sm font-medium text-green-700 hover:text-green-800 transition-colors"
                     >
-                      <span className="flex items-center gap-2">
-                        {isHooksSuccessOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                        ✅ Success ({hookSuccessGroups.length})
-                      </span>
+                      <span>✅ Success ({hookSuccessGroups.length})</span>
                       <span className="text-blue-600 underline text-xs">View log</span>
                     </button>
                     {isHooksSuccessOpen && (
-                      <div className="mt-2 bg-green-50 border border-green-200 rounded-lg p-3 space-y-1 max-h-48 overflow-y-auto">
+                      <div className="mt-2 max-h-32 overflow-y-auto bg-green-50 border border-green-200 rounded-lg p-3 space-y-1">
                         {hookSuccessGroups.map((g, i) => (
                           <div key={i} className="space-y-1">
-                            <div className="flex items-start gap-2 text-sm font-medium text-gray-700">
-                              <span className="text-green-600 mt-0.5">✓</span>
+                            <div className="flex items-center gap-2 text-sm text-green-700">
+                              <span className="text-green-600">✓</span>
                               <div>
-                                <span className="text-gray-800">{g.baseName}</span>
+                                <span>{g.baseName}</span>
                                 <span className="text-gray-500 text-xs ml-2">({g.videoCount} videos)</span>
                                 {hookBatchesTotal > 1 && (
                                   <span className="text-gray-500 text-xs ml-2">Batch {g.batchNum}</span>
@@ -211,27 +206,24 @@ export default function MergeProgressModal({
                   <div>
                     <button
                       onClick={() => setIsHooksFailedOpen(!isHooksFailedOpen)}
-                      className="w-full flex justify-between items-center text-sm font-medium text-red-700 hover:text-red-800 transition-colors"
+                      className="w-full flex items-center justify-between text-sm font-medium text-red-700 hover:text-red-800 transition-colors"
                     >
-                      <span className="flex items-center gap-2">
-                        {isHooksFailedOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                        ❌ Failed ({hookFailedGroups.length})
-                      </span>
+                      <span>❌ Failed ({hookFailedGroups.length})</span>
                       <span className="text-blue-600 underline text-xs">View log</span>
                     </button>
                     {isHooksFailedOpen && (
-                      <div className="mt-2 bg-red-50 border border-red-200 rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto">
+                      <div className="mt-2 max-h-32 overflow-y-auto bg-red-50 border border-red-200 rounded-lg p-3 space-y-2">
                         {hookFailedGroups.map((g, i) => (
                           <div key={i} className="text-sm">
                             <div className="flex items-start gap-2">
-                              <span className="text-red-600 mt-0.5">✗</span>
+                              <span className="text-red-600">✗</span>
                               <div className="flex-1">
-                                <div className="font-medium text-gray-800">{g.baseName}</div>
+                                <div className="font-medium text-red-700">{g.baseName}</div>
                                 <div className="text-xs text-gray-500">
                                   {g.videoCount} videos
                                   {hookBatchesTotal > 1 && ` • Batch ${g.batchNum}`}
                                 </div>
-                                <div className="text-xs text-red-600 mt-1">{g.error}</div>
+                                <div className="text-xs text-red-600 mt-0.5">Error: {g.error}</div>
                                 {g.retries > 0 && (
                                   <div className="text-xs text-orange-600 mt-1">Retries: {g.retries}</div>
                                 )}
@@ -247,14 +239,13 @@ export default function MergeProgressModal({
                 {/* In Progress */}
                 {hookInProgressGroups.length > 0 && (
                   <div>
-                    <p className="text-sm font-medium text-blue-700 mb-2 flex items-center gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                    <p className="text-sm font-medium text-blue-700 mb-2">
                       ⏳ Processing ({hookInProgressGroups.length}):
                     </p>
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-1 max-h-32 overflow-y-auto">
+                    <div className="max-h-24 overflow-y-auto bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-1">
                       {hookInProgressGroups.map((g, i) => (
                         <div key={i} className="flex items-center gap-2 text-sm text-blue-700">
-                          <Loader2 className="w-3 h-3 animate-spin" />
+                          <Loader2 className="w-4 h-4 animate-spin" />
                           <span>{g.baseName}</span>
                           <span className="text-xs text-gray-500">({g.videoCount} videos)</span>
                           {hookBatchesTotal > 1 && (
@@ -265,42 +256,33 @@ export default function MergeProgressModal({
                     </div>
                   </div>
                 )}
-              </div>
             </div>
           )}
 
-
           {/* BODY Section */}
           {bodyInfo && (
-            <div className="border border-gray-300 rounded-lg overflow-hidden">
-              <div className="bg-green-100 px-4 py-3 border-b border-gray-300">
-                <h3 className="font-semibold text-green-900">
-                  📺 BODY ({bodyInfo.totalVideos} videos → {bodyInfo.totalChunks} chunks)
-                </h3>
+            <div className="space-y-3 border-t pt-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-gray-700">📺 BODY ({bodyInfo.totalVideos} videos → {bodyInfo.totalChunks} chunks)</p>
+                <p className="text-sm font-medium text-gray-600">{bodySuccessVideos.length + bodyFailedVideos.length}/{bodyInfo.totalVideos}</p>
               </div>
-              <div className="p-4 space-y-3">
+              <Progress value={bodyPercent} className="h-3 bg-green-100" />
                 {/* Success Log */}
                 {bodySuccessVideos.length > 0 && (
                   <div>
                     <button
                       onClick={() => setIsBodySuccessOpen(!isBodySuccessOpen)}
-                      className="w-full flex justify-between items-center text-sm font-medium text-green-700 hover:text-green-800 transition-colors"
+                      className="w-full flex items-center justify-between text-sm font-medium text-green-700 hover:text-green-800 transition-colors"
                     >
-                      <span className="flex items-center gap-2">
-                        {isBodySuccessOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                        ✅ Success ({bodySuccessVideos.length})
-                      </span>
+                      <span>✅ Success ({bodySuccessVideos.length})</span>
                       <span className="text-blue-600 underline text-xs">View log</span>
                     </button>
                     {isBodySuccessOpen && (
-                      <div className="mt-2 bg-green-50 border border-green-200 rounded-lg p-3 space-y-1 max-h-48 overflow-y-auto">
+                      <div className="mt-2 max-h-32 overflow-y-auto bg-green-50 border border-green-200 rounded-lg p-3 space-y-1">
                         {bodySuccessVideos.map((v, i) => (
-                          <div key={i} className="flex items-start gap-2 text-sm">
-                            <span className="text-green-600 mt-0.5">✓</span>
-                            <div>
-                              <span className="text-gray-800">{v.name}</span>
-                              <span className="text-gray-500 text-xs ml-2">(Chunk {v.chunkNum})</span>
-                            </div>
+                          <div key={i} className="flex items-center gap-2 text-sm text-green-700">
+                            <span className="text-green-600">✓</span>
+                            <span>{v.name}</span>
                           </div>
                         ))}
                       </div>
@@ -313,24 +295,20 @@ export default function MergeProgressModal({
                   <div>
                     <button
                       onClick={() => setIsBodyFailedOpen(!isBodyFailedOpen)}
-                      className="w-full flex justify-between items-center text-sm font-medium text-red-700 hover:text-red-800 transition-colors"
+                      className="w-full flex items-center justify-between text-sm font-medium text-red-700 hover:text-red-800 transition-colors"
                     >
-                      <span className="flex items-center gap-2">
-                        {isBodyFailedOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                        ❌ Failed ({bodyFailedVideos.length})
-                      </span>
+                      <span>❌ Failed ({bodyFailedVideos.length})</span>
                       <span className="text-blue-600 underline text-xs">View log</span>
                     </button>
                     {isBodyFailedOpen && (
-                      <div className="mt-2 bg-red-50 border border-red-200 rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto">
+                      <div className="mt-2 max-h-32 overflow-y-auto bg-red-50 border border-red-200 rounded-lg p-3 space-y-2">
                         {bodyFailedVideos.map((v, i) => (
                           <div key={i} className="text-sm">
                             <div className="flex items-start gap-2">
-                              <span className="text-red-600 mt-0.5">✗</span>
+                              <span className="text-red-600">✗</span>
                               <div className="flex-1">
-                                <div className="font-medium text-gray-800">{v.name}</div>
-                                <div className="text-xs text-gray-500">Chunk {v.chunkNum}</div>
-                                <div className="text-xs text-red-600 mt-1">{v.error}</div>
+                                <div className="font-medium text-red-700">{v.name}</div>
+                                <div className="text-xs text-red-600 mt-0.5">Error: {v.error}</div>
                                 {v.retries > 0 && (
                                   <div className="text-xs text-orange-600 mt-1">Retries: {v.retries}</div>
                                 )}
@@ -346,14 +324,13 @@ export default function MergeProgressModal({
                 {/* In Progress */}
                 {bodyInProgressVideos.length > 0 && (
                   <div>
-                    <p className="text-sm font-medium text-blue-700 mb-2 flex items-center gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                    <p className="text-sm font-medium text-blue-700 mb-2">
                       ⏳ Processing ({bodyInProgressVideos.length}):
                     </p>
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-1 max-h-32 overflow-y-auto">
+                    <div className="max-h-24 overflow-y-auto bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-1">
                       {bodyInProgressVideos.map((v, i) => (
                         <div key={i} className="flex items-center gap-2 text-sm text-blue-700">
-                          <Loader2 className="w-3 h-3 animate-spin" />
+                          <Loader2 className="w-4 h-4 animate-spin" />
                           <span>{v.name}</span>
                           <span className="text-xs text-gray-500">(Chunk {v.chunkNum})</span>
                         </div>
@@ -361,7 +338,6 @@ export default function MergeProgressModal({
                     </div>
                   </div>
                 )}
-              </div>
             </div>
           )}
 
