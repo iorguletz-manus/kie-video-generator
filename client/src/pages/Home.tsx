@@ -4657,7 +4657,7 @@ const handlePrepareForMerge = async () => {
         }));
         
         try {
-          const videoUrls = task.videos.map(v => extractOriginalUrl(v.trimmedVideoUrl!)).filter(Boolean);
+          const videoUrls = task.videos.map(v => v.trimmedVideoUrl!).filter(Boolean);
           
           console.log(`[STEP 2] 📹 ${task.name} URLs:`, videoUrls);
           
@@ -6717,6 +6717,7 @@ const handlePrepareForMerge = async () => {
             toast.error(`Eroare la retry: ${error.message}`);
           }
         }}
+        onSampleMerge={handleSampleMerge}
       />
       
       {/* Merge Videos Modal for Step 9 → Step 10 - NEW MergeProgressModal */}
@@ -7719,13 +7720,6 @@ const handlePrepareForMerge = async () => {
                   </p>
                 </div>
                 
-                {/* Current Video Name Display */}
-                <div className="bg-yellow-100 border-2 border-yellow-400 rounded-lg p-3 text-center">
-                  <p className="text-lg font-bold text-yellow-900" id="current-video-name">
-                    🎬 {currentPlayingVideoName || sampleMergeVideos[0]?.name || 'Loading...'}
-                  </p>
-                </div>
-                
                 {/* Video Player */}
                 <video
                   id="sample-merge-video-player"
@@ -7734,6 +7728,13 @@ const handlePrepareForMerge = async () => {
                   className="w-full rounded-lg border border-gray-300"
                   style={{ maxHeight: '400px' }}
                 />
+                
+                {/* Current Video Name Display (below video) */}
+                <div className="bg-yellow-100 border-2 border-yellow-400 rounded-lg p-1.5 text-center">
+                  <p className="text-xs font-bold text-yellow-900" id="current-video-name">
+                    🎬 {currentPlayingVideoName || sampleMergeVideos[0]?.name || 'Loading...'}
+                  </p>
+                </div>
                 
                 {/* Video List with Notes */}
                 <div className="border-t pt-4">
