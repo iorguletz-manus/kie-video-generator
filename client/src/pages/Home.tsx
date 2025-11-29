@@ -11885,6 +11885,7 @@ const handlePrepareForMerge = async () => {
                                   <X className="w-4 h-4" />
                                 </Button>
                               </div>
+                              </div>
                             ) : (
                               <div className="flex items-center gap-2">
                                 <h4 className="font-bold text-green-900 text-lg flex-1">{video.videoName}</h4>
