@@ -83,8 +83,8 @@ export default function MergeProgressModal({
   const hasFailures = (failedItems?.length || 0) > 0;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 flex items-center justify-center z-[9999] p-4 pointer-events-none">
+      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto pointer-events-auto">
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 z-10">
           <div className="flex items-center gap-3">
@@ -154,101 +154,6 @@ export default function MergeProgressModal({
                   className="bg-orange-600 h-full transition-all duration-1000"
                   style={{ width: `${(countdown / 60) * 100}%` }}
                 />
-              </div>
-            </div>
-          )}
-
-          {/* BODY Section */}
-          {bodyInfo && (
-            <div className="border border-gray-300 rounded-lg overflow-hidden">
-              <div className="bg-green-100 px-4 py-3 border-b border-gray-300">
-                <h3 className="font-semibold text-green-900">
-                  📺 BODY ({bodyInfo.totalVideos} videos → {bodyInfo.totalChunks} chunks)
-                </h3>
-              </div>
-              <div className="p-4 space-y-3">
-                {/* Success Log */}
-                {bodySuccessVideos.length > 0 && (
-                  <div>
-                    <button
-                      onClick={() => setIsBodySuccessOpen(!isBodySuccessOpen)}
-                      className="w-full flex justify-between items-center text-sm font-medium text-green-700 hover:text-green-800 transition-colors"
-                    >
-                      <span className="flex items-center gap-2">
-                        {isBodySuccessOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                        ✅ Success ({bodySuccessVideos.length})
-                      </span>
-                      <span className="text-blue-600 underline text-xs">View log</span>
-                    </button>
-                    {isBodySuccessOpen && (
-                      <div className="mt-2 bg-green-50 border border-green-200 rounded-lg p-3 space-y-1 max-h-48 overflow-y-auto">
-                        {bodySuccessVideos.map((v, i) => (
-                          <div key={i} className="flex items-start gap-2 text-sm">
-                            <span className="text-green-600 mt-0.5">✓</span>
-                            <div>
-                              <span className="text-gray-800">{v.name}</span>
-                              <span className="text-gray-500 text-xs ml-2">(Chunk {v.chunkNum})</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Failed Log */}
-                {bodyFailedVideos.length > 0 && (
-                  <div>
-                    <button
-                      onClick={() => setIsBodyFailedOpen(!isBodyFailedOpen)}
-                      className="w-full flex justify-between items-center text-sm font-medium text-red-700 hover:text-red-800 transition-colors"
-                    >
-                      <span className="flex items-center gap-2">
-                        {isBodyFailedOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                        ❌ Failed ({bodyFailedVideos.length})
-                      </span>
-                      <span className="text-blue-600 underline text-xs">View log</span>
-                    </button>
-                    {isBodyFailedOpen && (
-                      <div className="mt-2 bg-red-50 border border-red-200 rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto">
-                        {bodyFailedVideos.map((v, i) => (
-                          <div key={i} className="text-sm">
-                            <div className="flex items-start gap-2">
-                              <span className="text-red-600 mt-0.5">✗</span>
-                              <div className="flex-1">
-                                <div className="font-medium text-gray-800">{v.name}</div>
-                                <div className="text-xs text-gray-500">Chunk {v.chunkNum}</div>
-                                <div className="text-xs text-red-600 mt-1">{v.error}</div>
-                                {v.retries > 0 && (
-                                  <div className="text-xs text-orange-600 mt-1">Retries: {v.retries}</div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* In Progress */}
-                {bodyInProgressVideos.length > 0 && (
-                  <div>
-                    <p className="text-sm font-medium text-blue-700 mb-2 flex items-center gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      ⏳ Processing ({bodyInProgressVideos.length}):
-                    </p>
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-1 max-h-32 overflow-y-auto">
-                      {bodyInProgressVideos.map((v, i) => (
-                        <div key={i} className="flex items-center gap-2 text-sm text-blue-700">
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                          <span>{v.name}</span>
-                          <span className="text-xs text-gray-500">(Chunk {v.chunkNum})</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           )}
@@ -349,6 +254,102 @@ export default function MergeProgressModal({
                           {hookBatchesTotal > 1 && (
                             <span className="text-xs text-gray-500">Batch {g.batchNum}</span>
                           )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+
+          {/* BODY Section */}
+          {bodyInfo && (
+            <div className="border border-gray-300 rounded-lg overflow-hidden">
+              <div className="bg-green-100 px-4 py-3 border-b border-gray-300">
+                <h3 className="font-semibold text-green-900">
+                  📺 BODY ({bodyInfo.totalVideos} videos → {bodyInfo.totalChunks} chunks)
+                </h3>
+              </div>
+              <div className="p-4 space-y-3">
+                {/* Success Log */}
+                {bodySuccessVideos.length > 0 && (
+                  <div>
+                    <button
+                      onClick={() => setIsBodySuccessOpen(!isBodySuccessOpen)}
+                      className="w-full flex justify-between items-center text-sm font-medium text-green-700 hover:text-green-800 transition-colors"
+                    >
+                      <span className="flex items-center gap-2">
+                        {isBodySuccessOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                        ✅ Success ({bodySuccessVideos.length})
+                      </span>
+                      <span className="text-blue-600 underline text-xs">View log</span>
+                    </button>
+                    {isBodySuccessOpen && (
+                      <div className="mt-2 bg-green-50 border border-green-200 rounded-lg p-3 space-y-1 max-h-48 overflow-y-auto">
+                        {bodySuccessVideos.map((v, i) => (
+                          <div key={i} className="flex items-start gap-2 text-sm">
+                            <span className="text-green-600 mt-0.5">✓</span>
+                            <div>
+                              <span className="text-gray-800">{v.name}</span>
+                              <span className="text-gray-500 text-xs ml-2">(Chunk {v.chunkNum})</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Failed Log */}
+                {bodyFailedVideos.length > 0 && (
+                  <div>
+                    <button
+                      onClick={() => setIsBodyFailedOpen(!isBodyFailedOpen)}
+                      className="w-full flex justify-between items-center text-sm font-medium text-red-700 hover:text-red-800 transition-colors"
+                    >
+                      <span className="flex items-center gap-2">
+                        {isBodyFailedOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                        ❌ Failed ({bodyFailedVideos.length})
+                      </span>
+                      <span className="text-blue-600 underline text-xs">View log</span>
+                    </button>
+                    {isBodyFailedOpen && (
+                      <div className="mt-2 bg-red-50 border border-red-200 rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto">
+                        {bodyFailedVideos.map((v, i) => (
+                          <div key={i} className="text-sm">
+                            <div className="flex items-start gap-2">
+                              <span className="text-red-600 mt-0.5">✗</span>
+                              <div className="flex-1">
+                                <div className="font-medium text-gray-800">{v.name}</div>
+                                <div className="text-xs text-gray-500">Chunk {v.chunkNum}</div>
+                                <div className="text-xs text-red-600 mt-1">{v.error}</div>
+                                {v.retries > 0 && (
+                                  <div className="text-xs text-orange-600 mt-1">Retries: {v.retries}</div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* In Progress */}
+                {bodyInProgressVideos.length > 0 && (
+                  <div>
+                    <p className="text-sm font-medium text-blue-700 mb-2 flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      ⏳ Processing ({bodyInProgressVideos.length}):
+                    </p>
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-1 max-h-32 overflow-y-auto">
+                      {bodyInProgressVideos.map((v, i) => (
+                        <div key={i} className="flex items-center gap-2 text-sm text-blue-700">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          <span>{v.name}</span>
+                          <span className="text-xs text-gray-500">(Chunk {v.chunkNum})</span>
                         </div>
                       ))}
                     </div>
