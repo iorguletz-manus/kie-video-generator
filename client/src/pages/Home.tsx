@@ -253,6 +253,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [selectedVideoIndex, setSelectedVideoIndex] = useState<number>(-1);
   const [editingVideoName, setEditingVideoName] = useState<string | null>(null);
   const [editedVideoNameText, setEditedVideoNameText] = useState<string>('');
+  const [editingCategory, setEditingCategory] = useState<string>('');
   const [regenerateMultiple, setRegenerateMultiple] = useState(false);
   const [regenerateVariantCount, setRegenerateVariantCount] = useState(1);
   const [regenerateVariants, setRegenerateVariants] = useState<Array<{
@@ -6514,7 +6515,79 @@ const handlePrepareForMerge = async () => {
         : v
     ));
     toast.success(`Decizie anulată pentru ${videoName}`);
-  }, []);
+  }, [videoResults]);
+
+  const handleCategoryChange = useCallback(async (videoName: string, newSection: string) => {
+    try {
+      // Find video
+      const videoIndex = videoResults.findIndex(v => v.videoName === videoName);
+      if (videoIndex < 0) {
+        toast.error('Video not found');
+        return;
+      }
+      
+      const video = videoResults[videoIndex];
+      
+      // Extract parts from videoName: "T1_C1_E2_AD1_HOOK3_LIDIA"
+      const parts = videoName.split('_');
+      
+      if (parts.length < 6) {
+        toast.error('Invalid video name format');
+        console.error('[Category Change] Invalid videoName:', videoName);
+        return;
+      }
+      
+      // parts[4] = "HOOK3" or "MIRROR1" etc.
+      // Extract number: "HOOK3" → "3"
+      const oldCategoryPart = parts[4];
+      const numberMatch = oldCategoryPart.match(/\d+$/);
+      const categoryNumber = numberMatch ? numberMatch[0] : '1';
+      
+      // Create new videoName: "HOOK3" → "MIRROR3"
+      parts[4] = newSection + categoryNumber;
+      const newVideoName = parts.join('_');
+      
+      console.log('[Category Change]', videoName, '→', newVideoName);
+      console.log('[Category Change] Old section:', video.section, '→ New section:', newSection);
+      
+      // Update videoResults state
+      const updatedVideoResults = videoResults.map(v =>
+        v.videoName === videoName
+          ? { ...v, videoName: newVideoName, section: newSection as any }
+          : v
+      );
+      
+      setVideoResults(updatedVideoResults);
+      
+      // Save to database
+      await upsertContextSessionMutation.mutateAsync({
+        userId: localCurrentUser.id,
+        tamId: selectedTamId,
+        coreBeliefId: selectedCoreBeliefId,
+        emotionalAngleId: selectedEmotionalAngleId,
+        adId: selectedAdId,
+        characterId: selectedCharacterId,
+        currentStep,
+        rawTextAd,
+        processedTextAd,
+        adLines,
+        prompts,
+        images,
+        combinations,
+        deletedCombinations,
+        videoResults: updatedVideoResults,
+        reviewHistory,
+        hookMergedVideos,
+        bodyMergedVideoUrl,
+        finalVideos,
+      });
+      
+      toast.success(`✅ Category changed: ${videoName} → ${newVideoName}`);
+    } catch (error: any) {
+      console.error('[Category Change] Error:', error);
+      toast.error(`Failed to save category: ${error.message}`);
+    }
+  }, [videoResults, localCurrentUser, selectedTamId, selectedCoreBeliefId, selectedEmotionalAngleId, selectedAdId, selectedCharacterId, currentStep, rawTextAd, processedTextAd, adLines, prompts, images, combinations, deletedCombinations, reviewHistory, hookMergedVideos, bodyMergedVideoUrl, finalVideos, upsertContextSessionMutation]);
 
   const undoReview = useCallback(() => {
     if (reviewHistory.length === 0) {
@@ -11700,14 +11773,36 @@ const handlePrepareForMerge = async () => {
                           {/* TITLE */}
                           <div className="mb-2">
                             {editingVideoName === video.videoName ? (
-                              <div className="flex items-center gap-2">
-                                <Input
-                                  type="text"
-                                  value={editedVideoNameText}
-                                  onChange={(e) => setEditedVideoNameText(e.target.value)}
-                                  className="flex-1 text-sm font-bold"
-                                  autoFocus
-                                />
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <Input
+                                    type="text"
+                                    value={editedVideoNameText}
+                                    onChange={(e) => setEditedVideoNameText(e.target.value)}
+                                    className="flex-1 text-sm font-bold"
+                                    autoFocus
+                                  />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <label className="text-sm font-medium text-gray-700 min-w-[80px]">Category:</label>
+                                  <select
+                                    value={editingCategory}
+                                    onChange={(e) => setEditingCategory(e.target.value)}
+                                    className="flex-1 p-2 border border-gray-300 rounded text-sm"
+                                  >
+                                    <option value="HOOKS">HOOKS</option>
+                                    <option value="MIRROR">MIRROR</option>
+                                    <option value="DCS">DCS</option>
+                                    <option value="TRANZITION">TRANZITION</option>
+                                    <option value="NEW_CAUSE">NEW_CAUSE</option>
+                                    <option value="MECHANISM">MECHANISM</option>
+                                    <option value="EMOTIONAL_PROOF">EMOTIONAL_PROOF</option>
+                                    <option value="TRANSFORMATION">TRANSFORMATION</option>
+                                    <option value="CTA">CTA</option>
+                                    <option value="OTHER">OTHER</option>
+                                  </select>
+                                </div>
+                                <div className="flex items-center gap-2">
                                 <Button
                                   size="sm"
                                   onClick={async () => {
@@ -11727,10 +11822,10 @@ const handlePrepareForMerge = async () => {
                                       return;
                                     }
                                     
-                                    // Update local state
+                                    // Update local state (name + category)
                                     setVideoResults(prev => prev.map(v =>
                                       v.videoName === oldVideoName
-                                        ? { ...v, videoName: newVideoName }
+                                        ? { ...v, videoName: newVideoName, section: editingCategory as any }
                                         : v
                                     ));
                                     
@@ -11754,7 +11849,7 @@ const handlePrepareForMerge = async () => {
                                           deletedCombinations,
                                           videoResults: videoResults.map(v =>
                                             v.videoName === oldVideoName
-                                              ? { ...v, videoName: newVideoName }
+                                              ? { ...v, videoName: newVideoName, section: editingCategory as any }
                                               : v
                                           ),
                                           reviewHistory,
@@ -11797,9 +11892,10 @@ const handlePrepareForMerge = async () => {
                                   onClick={() => {
                                     setEditingVideoName(video.videoName);
                                     setEditedVideoNameText(video.videoName);
+                                    setEditingCategory(video.section);
                                   }}
                                   className="text-gray-500 hover:text-green-600 transition-colors"
-                                  title="Editează numele video"
+                                  title="Edit name and category"
                                 >
                                   <FileEdit className="w-4 h-4" />
                                 </button>
