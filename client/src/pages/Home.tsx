@@ -4665,6 +4665,7 @@ const handlePrepareForMerge = async () => {
           const result = await mergeVideosMutation.mutateAsync({
             videoUrls,
             outputVideoName: task.name,
+            ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
             addTextOverlay: false,
             userId: localCurrentUser.id,
           });
