@@ -1535,21 +1535,31 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   
   // Filtered lists pentru STEP 5 (based on step5Filter)
   const step5FilteredVideos = useMemo(() => {
-    if (step5Filter === 'all') return videoResults;
-    if (step5Filter === 'accepted') return acceptedVideos;
-    if (step5Filter === 'regenerate') return regenerateVideos;
-    return videoResults;
+    // Exclude merged results (HOOK2M) from Step 5
+    const filteredResults = videoResults.filter(v => !(v.isMergedResult ?? false));
+    const filteredAccepted = acceptedVideos.filter(v => !(v.isMergedResult ?? false));
+    const filteredRegenerate = regenerateVideos.filter(v => !(v.isMergedResult ?? false));
+    
+    if (step5Filter === 'all') return filteredResults;
+    if (step5Filter === 'accepted') return filteredAccepted;
+    if (step5Filter === 'regenerate') return filteredRegenerate;
+    return filteredResults;
   }, [step5Filter, videoResults, acceptedVideos, regenerateVideos]);
   
   // Filtered lists pentru STEP 6 (based on videoFilter)
   // NOTE: videoResults added to dependencies to update UI immediately after Accept/Regenerate
   // Auto-remove is prevented by keeping filter value constant until user changes it
   const step6FilteredVideos = useMemo(() => {
-    if (videoFilter === 'all') return videoResults;
-    if (videoFilter === 'accepted') return acceptedVideos;
-    if (videoFilter === 'failed') return failedVideos;
-    if (videoFilter === 'no_decision') return videoResults.filter(v => !v.reviewStatus);
-    return videoResults;
+    // Exclude merged results (HOOK2M) from Step 6-8
+    const filteredResults = videoResults.filter(v => !(v.isMergedResult ?? false));
+    const filteredAccepted = acceptedVideos.filter(v => !(v.isMergedResult ?? false));
+    const filteredFailed = failedVideos.filter(v => !(v.isMergedResult ?? false));
+    
+    if (videoFilter === 'all') return filteredResults;
+    if (videoFilter === 'accepted') return filteredAccepted;
+    if (videoFilter === 'failed') return filteredFailed;
+    if (videoFilter === 'no_decision') return filteredResults.filter(v => !v.reviewStatus);
+    return filteredResults;
   }, [videoFilter, videoResults, acceptedVideos, failedVideos]);
   
   // Videos fără decizie (pentru statistici STEP 6)
@@ -3753,6 +3763,31 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             return { ...cleaned, [baseName]: result.cdnUrl };
           });
           
+          // MARK grouped videos and ADD merged video to videoResults
+          const updatedVideoResults = videoResults.map(v => {
+            // Mark videos that were grouped in this merge
+            if (videos.some(gv => gv.videoName === v.videoName)) {
+              return { ...v, isGroupedInMerge: true };
+            }
+            return v;
+          });
+          
+          // Add merged video (HOOK2M) to videoResults
+          const mergedVideo = {
+            videoName: outputName,  // Already has M suffix
+            trimmedVideoUrl: result.cdnUrl,
+            text: videos.map(v => v.text || '').join(' '),  // Concatenate texts
+            section: videos[0]?.section || 'HOOKS',
+            status: 'success' as const,
+            isGroupedInMerge: false,
+            isMergedResult: true,  // Mark as merged result
+          };
+          
+          updatedVideoResults.push(mergedVideo);
+          setVideoResults(updatedVideoResults);
+          
+          console.log(`[Trimming] ✅ Marked ${videos.length} videos as grouped, added ${outputName} to videoResults`);
+          
           // Add to merged list and increment progress
           setTrimmingProgress(prev => ({
             ...prev,
@@ -3777,7 +3812,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             images,
             combinations,
             deletedCombinations,
-            videoResults: videoResults,
+            videoResults: updatedVideoResults,  // Save updated videoResults
             reviewHistory,
             hookMergedVideos: { ...hookMergedVideos, [baseName]: result.cdnUrl },
             bodyMergedVideoUrl: bodyMergedVideoUrl,
@@ -5613,6 +5648,32 @@ const handlePrepareForMerge = async () => {
               });
             });
             
+            // MARK grouped videos and ADD merged video to videoResults
+            const updatedVideoResults = videoResults.map(v => {
+              // Mark videos that were grouped in this merge
+              if (videos.some(gv => gv.videoName === v.videoName)) {
+                return { ...v, isGroupedInMerge: true };
+              }
+              return v;
+            });
+            
+            // Add merged video (HOOK2M) to videoResults
+            const mergedVideoName = baseName.replace(/(HOOK\d+)/, '$1M');
+            const mergedVideo = {
+              videoName: mergedVideoName,
+              trimmedVideoUrl: result.cdnUrl,
+              text: videos.map(v => v.text || '').join(' '),  // Concatenate texts
+              section: videos[0]?.section || 'HOOKS',
+              status: 'success' as const,
+              isGroupedInMerge: false,
+              isMergedResult: true,  // Mark as merged result
+            };
+            
+            updatedVideoResults.push(mergedVideo);
+            setVideoResults(updatedVideoResults);
+            
+            console.log(`[Retry] ✅ Marked ${videos.length} videos as grouped, added ${mergedVideoName} to videoResults`);
+            
             // Save to database
             await upsertContextSessionMutation.mutateAsync({
               userId: localCurrentUser.id,
@@ -5629,7 +5690,7 @@ const handlePrepareForMerge = async () => {
               images,
               combinations,
               deletedCombinations,
-              videoResults,
+              videoResults: updatedVideoResults,  // Save updated videoResults
               reviewHistory,
               hookMergedVideos: currentHookMergedVideos,
               bodyMergedVideoUrl,
@@ -13707,7 +13768,8 @@ const handlePrepareForMerge = async () => {
                           // - Original if no variations
                           let hookVideos = videoResults.filter(v => 
                             v.trimmedVideoUrl && 
-                            v.videoName.toLowerCase().includes('hook')
+                            v.videoName.toLowerCase().includes('hook') &&
+                            !(v.isGroupedInMerge ?? false)  // Exclude grouped videos
                           );
                           
                           const displayHooks = hookVideos.filter(v => {
@@ -13752,7 +13814,8 @@ const handlePrepareForMerge = async () => {
                   {(() => {
                     let hookVideos = videoResults.filter(v => 
                       v.trimmedVideoUrl && 
-                      v.videoName.toLowerCase().includes('hook')
+                      v.videoName.toLowerCase().includes('hook') &&
+                      !(v.isGroupedInMerge ?? false)  // Exclude grouped videos (default false for old videos)
                     );
                                         // Filter out ALL individual variations - show ONLY merged hooks
                     const displayHooks = hookVideos.filter(v => {
