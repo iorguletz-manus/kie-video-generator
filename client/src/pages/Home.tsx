@@ -2904,7 +2904,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       }
     }
     
-    console.log('[Step 10→Step 11] 🎯 hookUrls array:', hookUrls);
+    // Sort hookUrls by hookNumber
+    hookUrls.sort((a, b) => {
+      const aNum = parseInt(a.hookNumber);
+      const bNum = parseInt(b.hookNumber);
+      return aNum - bNum;
+    });
+    
+    console.log('[Step 10→Step 11] 🎯 hookUrls array (sorted):', hookUrls);
     console.log('[Step 10→Step 11] 📊 selectedHooks:', selectedHooks);
     console.log('[Step 10→Step 11] 📊 hookMergedVideos:', hookMergedVideos);
     
