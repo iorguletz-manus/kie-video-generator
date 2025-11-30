@@ -5216,9 +5216,19 @@ const handlePrepareForMerge = async () => {
         }));
         
         try {
+          // Detailed logging for debugging
+          console.log(`[Prepare for Merge] 🔍 ${task.name} task.videos:`, task.videos.map(v => ({
+            videoName: v.videoName,
+            hasTrimmedUrl: !!v.trimmedVideoUrl,
+            trimmedUrlPreview: v.trimmedVideoUrl?.substring(0, 60) + '...',
+            status: v.status,
+            reviewStatus: v.reviewStatus
+          })));
+          
           const videoUrls = task.videos.map(v => v.trimmedVideoUrl!).filter(Boolean);
           
-          console.log(`[Prepare for Merge] 📹 ${task.name} URLs:`, videoUrls);
+          console.log(`[Prepare for Merge] 📹 ${task.name} videoUrls count:`, videoUrls.length);
+          console.log(`[Prepare for Merge] 📹 ${task.name} videoUrls:`, videoUrls.map(url => url.substring(0, 60) + '...'));
           
           // Call merge API
           // For hooks, add M suffix to output name
