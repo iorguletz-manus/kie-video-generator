@@ -929,136 +929,121 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
           </Card>
         </div>
 
-        {/* Character Filter - Global */}
-        <Card className="border-2 border-purple-300">
-          <CardContent className="pt-6">
-            <div className="space-y-3">
-              <Label className="text-purple-900 font-medium text-base">Filter by Character</Label>
-              <div className="relative w-64">
-                <Input
-                  placeholder="Search or select character..."
-                  value={characterFilterQuery}
-                  onChange={(e) => setCharacterFilterQuery(e.target.value)}
-                  onFocus={() => setShowCharacterFilterDropdown(true)}
-                  className="bg-white border-purple-300 focus:border-purple-500 focus:ring-purple-500 h-10"
-                />
-                {showCharacterFilterDropdown && characterFilterQuery && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-purple-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                    {characters
-                      .filter((char) =>
-                        char.toLowerCase().includes(characterFilterQuery.toLowerCase())
-                      )
-                      .map((char) => (
-                        <div
-                          key={char}
-                          onClick={() => {
-                            setSelectedCharacter(char);
-                            setCharacterFilterQuery(char);
-                            setShowCharacterFilterDropdown(false);
-                          }}
-                          className="px-3 py-2 hover:bg-purple-100 cursor-pointer text-purple-900"
-                        >
-                          {char}
-                        </div>
-                      ))}
-                    {characters.filter((char) =>
+        {/* Character Filter + View Options - Direct on background */}
+        <div className="space-y-4 py-4">
+          {/* Filter by Character */}
+          <div className="space-y-2">
+            <Label className="text-purple-900 font-medium text-base">Filter by Character</Label>
+            <div className="relative w-64">
+              <Input
+                placeholder="Search or select character..."
+                value={characterFilterQuery}
+                onChange={(e) => setCharacterFilterQuery(e.target.value)}
+                onFocus={() => setShowCharacterFilterDropdown(true)}
+                className="bg-white border-purple-300 focus:border-purple-500 focus:ring-purple-500 h-10"
+              />
+              {showCharacterFilterDropdown && characterFilterQuery && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-purple-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                  {characters
+                    .filter((char) =>
                       char.toLowerCase().includes(characterFilterQuery.toLowerCase())
-                    ).length === 0 && (
-                      <div className="px-3 py-2 text-gray-500 text-sm">No characters found</div>
-                    )}
-                  </div>
-                )}
-              </div>
-              {selectedCharacter !== "all" && (
-                <div className="flex items-center gap-2">
-                  <p className="text-sm text-purple-600">Filtered: <span className="font-medium">{selectedCharacter}</span></p>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setSelectedCharacter("all");
-                      setCharacterFilterQuery("");
-                    }}
-                    className="text-xs border-purple-300"
-                  >
-                    Show All Characters
-                  </Button>
+                    )
+                    .map((char) => (
+                      <div
+                        key={char}
+                        onClick={() => {
+                          setSelectedCharacter(char);
+                          setCharacterFilterQuery(char);
+                          setShowCharacterFilterDropdown(false);
+                        }}
+                        className="px-3 py-2 hover:bg-purple-100 cursor-pointer text-purple-900"
+                      >
+                        {char}
+                      </div>
+                    ))}
+                  {characters.filter((char) =>
+                    char.toLowerCase().includes(characterFilterQuery.toLowerCase())
+                  ).length === 0 && (
+                    <div className="px-3 py-2 text-gray-500 text-sm">No characters found</div>
+                  )}
                 </div>
               )}
-
-              {/* Search Images */}
-              <div className="mt-4">
-                <Label className="text-purple-900 font-medium text-base mb-2 block">Search Images</Label>
-                <div className="relative w-96">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-purple-400" />
-                  <Input
-                    placeholder="Search images..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 border-purple-300 focus:border-purple-500 h-10"
-                  />
-                </div>
+            </div>
+            {selectedCharacter !== "all" && (
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-purple-600">Filtered: <span className="font-medium">{selectedCharacter}</span></p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setSelectedCharacter("all");
+                    setCharacterFilterQuery("");
+                  }}
+                  className="text-xs border-purple-300"
+                >
+                  Show All Characters
+                </Button>
               </div>
+            )}
+          </div>
 
-              {/* Sort and Grid Controls */}
-              <div className="mt-4">
-                <Label className="text-purple-900 font-medium text-base mb-2 block">View Options</Label>
-                <div className="flex flex-wrap items-center gap-3">
-                  {/* Sort Controls */}
-                  <Select value={sortBy} onValueChange={(value: 'name' | 'date') => setSortBy(value)}>
-                    <SelectTrigger className="w-32 h-10">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="date">Date</SelectItem>
-                      <SelectItem value="name">Name</SelectItem>
-                    </SelectContent>
-                  </Select>
+          {/* View Options */}
+          <div className="space-y-2">
+            <Label className="text-purple-900 font-medium text-base">View Options</Label>
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Sort Controls */}
+              <Select value={sortBy} onValueChange={(value: 'name' | 'date') => setSortBy(value)}>
+                <SelectTrigger className="w-32 h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="date">Date</SelectItem>
+                  <SelectItem value="name">Name</SelectItem>
+                </SelectContent>
+              </Select>
 
-                  <Button
-                    variant="outline"
-                    onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                    className="border-purple-300 h-10 px-3"
-                    title={sortOrder === 'asc' ? 'Ascending' : 'Descending'}
-                  >
-                    <ArrowUpDown className="w-4 h-4" />
-                  </Button>
+              <Button
+                variant="outline"
+                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                className="border-purple-300 h-10 px-3"
+                title={sortOrder === 'asc' ? 'Ascending' : 'Descending'}
+              >
+                <ArrowUpDown className="w-4 h-4" />
+              </Button>
 
-                  {/* Grid Size Toggle */}
-                  <div className="flex gap-1 bg-white border border-purple-300 rounded-lg p-1 h-10">
-                    <Button
-                      size="sm"
-                      variant={gridSize === 'small' ? 'default' : 'ghost'}
-                      onClick={() => setGridSize('small')}
-                      className={`h-8 ${gridSize === 'small' ? 'bg-purple-600 hover:bg-purple-700' : ''}`}
-                      title="Large images"
-                    >
-                      <Grid2x2 className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={gridSize === 'medium' ? 'default' : 'ghost'}
-                      onClick={() => setGridSize('medium')}
-                      className={`h-8 ${gridSize === 'medium' ? 'bg-purple-600 hover:bg-purple-700' : ''}`}
-                      title="Medium images"
-                    >
-                      <Grid3x3 className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={gridSize === 'large' ? 'default' : 'ghost'}
-                      onClick={() => setGridSize('large')}
-                      className={`h-8 ${gridSize === 'large' ? 'bg-purple-600 hover:bg-purple-700' : ''}`}
-                      title="Small images"
-                    >
-                      <LayoutGrid className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
+              {/* Grid Size Toggle */}
+              <div className="flex gap-1 bg-white border border-purple-300 rounded-lg p-1 h-10">
+                <Button
+                  size="sm"
+                  variant={gridSize === 'small' ? 'default' : 'ghost'}
+                  onClick={() => setGridSize('small')}
+                  className={`h-8 ${gridSize === 'small' ? 'bg-purple-600 hover:bg-purple-700' : ''}`}
+                  title="Large images"
+                >
+                  <Grid2x2 className="w-4 h-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant={gridSize === 'medium' ? 'default' : 'ghost'}
+                  onClick={() => setGridSize('medium')}
+                  className={`h-8 ${gridSize === 'medium' ? 'bg-purple-600 hover:bg-purple-700' : ''}`}
+                  title="Medium images"
+                >
+                  <Grid3x3 className="w-4 h-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant={gridSize === 'large' ? 'default' : 'ghost'}
+                  onClick={() => setGridSize('large')}
+                  className={`h-8 ${gridSize === 'large' ? 'bg-purple-600 hover:bg-purple-700' : ''}`}
+                  title="Small images"
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                </Button>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Character Sections with Drag & Drop */}
         {selectedCharacter === "all" ? (
