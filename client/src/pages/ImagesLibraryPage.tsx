@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { ChevronLeft, Upload, Edit2, Trash2, Image as ImageIcon, Loader2, Grid2x2, Grid3x3, LayoutGrid, Search, ArrowUpDown, CheckSquare, Square, Download, Star } from "lucide-react";
+import { ChevronLeft, Upload, Edit2, Trash2, Image as ImageIcon, Loader2, Grid2x2, Grid3x3, LayoutGrid, Search, ArrowUpDown, CheckSquare, Square, Download, Star, Undo2 } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 
 // Romanian female names for auto-generation
@@ -63,6 +63,7 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [previewFiles, setPreviewFiles] = useState<Array<{ file: File; preview: string }>>([]);
   const [selectedImages, setSelectedImages] = useState<Set<number>>(new Set());
+  const [undoHistory, setUndoHistory] = useState<Array<{ type: 'delete' | 'rename' | 'thumbnail'; data: any }>>([]);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [dragOverImageId, setDragOverImageId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -185,6 +186,25 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
     // Apply sorting
     result = [...result].sort((a, b) => {
       if (sortBy === 'name') {
+        // Extract number from image name (e.g., "Lidia_2_CTA" -> 2)
+        const aMatch = a.imageName.match(/_(\d+)(?:_CTA)?$/);
+        const bMatch = b.imageName.match(/_(\d+)(?:_CTA)?$/);
+        const aNum = aMatch ? parseInt(aMatch[1]) : 0;
+        const bNum = bMatch ? parseInt(bMatch[1]) : 0;
+
+        // Sort by number first
+        if (aNum !== bNum) {
+          return sortOrder === 'asc' ? aNum - bNum : bNum - aNum;
+        }
+
+        // If same number, sort by CTA (non-CTA first)
+        const aIsCTA = a.imageName.endsWith('_CTA');
+        const bIsCTA = b.imageName.endsWith('_CTA');
+        if (aIsCTA !== bIsCTA) {
+          return sortOrder === 'asc' ? (aIsCTA ? 1 : -1) : (aIsCTA ? -1 : 1);
+        }
+
+        // Fallback to alphabetical
         const comparison = a.imageName.localeCompare(b.imageName);
         return sortOrder === 'asc' ? comparison : -comparison;
       } else {
@@ -361,7 +381,7 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
             // Get existing images for this character
             const existingImages = allImages.filter(img => img.characterName === finalCharacterName);
             
-            // Extract existing numbers from image names (e.g., "$Alina_1" -> 1, "$Alina_2_CTA" -> 2)
+            // Extract existing numbers from image names (e.g., "Alina_1" -> 1, "Alina_2_CTA" -> 2)
             const existingNumbers = existingImages
               .map(img => {
                 const match = img.imageName.match(/_(\d+)(?:_CTA)?$/);
@@ -372,10 +392,10 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
             // Find next available number
             const nextNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 1;
             
-            // Generate new image name: $CharacterName_Number or $CharacterName_Number_CTA
+            // Generate new image name: CharacterName_Number or CharacterName_Number_CTA (without $)
             const newImageName = isCTA 
-              ? `$${finalCharacterName}_${nextNumber}_CTA`
-              : `$${finalCharacterName}_${nextNumber}`;
+              ? `${finalCharacterName}_${nextNumber}_CTA`
+              : `${finalCharacterName}_${nextNumber}`;
             
             await uploadMutation.mutateAsync({
               userId: currentUser.id,
@@ -398,7 +418,19 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
     refetch();
     setUploadingFiles([]);
     setUploadProgress(0);
-    toast.success(`Uploaded ${files.length} images!`);
+    
+    // Auto-filter to show uploaded character
+    let uploadedCharacterName: string;
+    if (uploadCharacterSelection === "__new__") {
+      uploadedCharacterName = (newCharacterName || "").trim() || "No Character";
+    } else {
+      uploadedCharacterName = uploadCharacterSelection;
+    }
+    
+    setSelectedCharacter(uploadedCharacterName);
+    setCharacterFilterQuery(uploadedCharacterName);
+    
+    toast.success(`Uploaded ${files.length} images to ${uploadedCharacterName}!`);
   };
 
   const handleEditName = (imageId: number) => {
@@ -425,7 +457,19 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
     const confirmed = confirm(`Delete image "${image.imageName}"?`);
     if (!confirmed) return;
 
+    // Save to history before deleting
+    setUndoHistory(prev => [...prev, {
+      type: 'delete',
+      data: {
+        characterName: image.characterName,
+        imageName: image.imageName,
+        imageUrl: image.imageUrl,
+        isThumbnail: image.isThumbnail,
+      }
+    }]);
+
     deleteMutation.mutate({ id: imageId });
+    toast.success('Imagine ștearsă (UNDO disponibil)');
   };
 
   const handleDeleteCharacter = async (characterName: string) => {
@@ -764,9 +808,27 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                         </div>
                       )}
                     </div>
-                    {uploadCharacterSelection && uploadCharacterSelection !== '__new__' && (
-                      <p className="text-sm text-gray-600 mt-1">Selected: <span className="font-medium">{uploadCharacterSelection}</span></p>
-                    )}
+                    {uploadCharacterSelection && uploadCharacterSelection !== '__new__' && (() => {
+                      const selectedCharImages = allImages.filter(img => img.characterName === uploadCharacterSelection);
+                      const thumbnail = selectedCharImages.find(img => img.isThumbnail);
+                      const thumbnailUrl = thumbnail?.imageUrl || selectedCharImages[0]?.imageUrl;
+
+                      return (
+                        <div className="flex items-center gap-2 mt-2 p-2 bg-purple-50 rounded border border-purple-200">
+                          {thumbnailUrl && (
+                            <img
+                              src={thumbnailUrl}
+                              alt={uploadCharacterSelection}
+                              className="w-12 h-12 object-cover rounded"
+                            />
+                          )}
+                          <div>
+                            <p className="text-xs text-gray-500">Selected Character:</p>
+                            <p className="text-sm font-medium text-purple-900">{uploadCharacterSelection}</p>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                   
                   {uploadCharacterSelection === "__new__" && (
@@ -930,9 +992,10 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
         </div>
 
         {/* Character Filter + View Options - Direct on background */}
-        <div className="space-y-4 py-4">
-          {/* Filter by Character */}
-          <div className="space-y-2">
+        <div className="py-4">
+          <div className="flex flex-wrap gap-8">
+            {/* Filter by Character */}
+            <div className="space-y-2 flex-shrink-0">
             <Label className="text-purple-900 font-medium text-base">Filter by Character</Label>
             <div className="relative w-64">
               <Input
@@ -944,11 +1007,16 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
               />
               {showCharacterFilterDropdown && characterFilterQuery && (
                 <div className="absolute z-10 w-full mt-1 bg-white border border-purple-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                  {characters
-                    .filter((char) =>
-                      char.toLowerCase().includes(characterFilterQuery.toLowerCase())
-                    )
-                    .map((char) => (
+                {characters
+                  .filter((char) =>
+                    char.toLowerCase().includes(characterFilterQuery.toLowerCase())
+                  )
+                  .map((char) => {
+                    const charImages = allImages.filter(img => img.characterName === char);
+                    const thumbnail = charImages.find(img => img.isThumbnail);
+                    const thumbnailUrl = thumbnail?.imageUrl || charImages[0]?.imageUrl;
+
+                    return (
                       <div
                         key={char}
                         onClick={() => {
@@ -956,11 +1024,19 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                           setCharacterFilterQuery(char);
                           setShowCharacterFilterDropdown(false);
                         }}
-                        className="px-3 py-2 hover:bg-purple-100 cursor-pointer text-purple-900"
+                        className="px-3 py-2 hover:bg-purple-100 cursor-pointer flex items-center gap-2"
                       >
-                        {char}
+                        {thumbnailUrl && (
+                          <img
+                            src={thumbnailUrl}
+                            alt={char}
+                            className="w-8 h-8 object-cover rounded"
+                          />
+                        )}
+                        <span className="text-purple-900">{char}</span>
                       </div>
-                    ))}
+                    );
+                  })}
                   {characters.filter((char) =>
                     char.toLowerCase().includes(characterFilterQuery.toLowerCase())
                   ).length === 0 && (
@@ -985,10 +1061,38 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                 </Button>
               </div>
             )}
-          </div>
 
-          {/* View Options */}
-          <div className="space-y-2">
+            {/* UNDO Button */}
+            {undoHistory.length > 0 && (
+              <div className="mt-3">
+                <Button
+                  onClick={() => {
+                    const lastAction = undoHistory[undoHistory.length - 1];
+                    if (lastAction.type === 'delete') {
+                      // Re-upload deleted image
+                      uploadMutation.mutate({
+                        characterName: lastAction.data.characterName,
+                        imageName: lastAction.data.imageName,
+                        imageUrl: lastAction.data.imageUrl,
+                        isThumbnail: lastAction.data.isThumbnail,
+                      });
+                      setUndoHistory(prev => prev.slice(0, -1));
+                      toast.success(`Restaurat: ${lastAction.data.imageName}`);
+                    }
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 border-orange-500 text-orange-700 hover:bg-orange-50"
+                >
+                  <Undo2 className="w-4 h-4" />
+                  UNDO ({undoHistory.length} acțiuni)
+                </Button>
+              </div>
+            )}
+            </div>
+
+            {/* View Options */}
+            <div className="space-y-2 flex-shrink-0">
             <Label className="text-purple-900 font-medium text-base">View Options</Label>
             <div className="flex flex-wrap items-center gap-3">
               {/* Sort Controls */}
@@ -1042,6 +1146,7 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                 </Button>
               </div>
             </div>
+            </div>
           </div>
         </div>
 
@@ -1049,9 +1154,42 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
         {selectedCharacter === "all" ? (
           <div className="space-y-8">
             {characters.map((character) => {
-              const characterImages = allImages.filter(
+              let characterImages = allImages.filter(
                 (img) => img.characterName === character
               );
+
+              // Apply sorting
+              characterImages = [...characterImages].sort((a, b) => {
+                if (sortBy === 'name') {
+                  // Extract number from image name (e.g., "Lidia_2_CTA" -> 2)
+                  const aMatch = a.imageName.match(/_(\d+)(?:_CTA)?$/);
+                  const bMatch = b.imageName.match(/_(\d+)(?:_CTA)?$/);
+                  const aNum = aMatch ? parseInt(aMatch[1]) : 0;
+                  const bNum = bMatch ? parseInt(bMatch[1]) : 0;
+
+                  // Sort by number first
+                  if (aNum !== bNum) {
+                    return sortOrder === 'asc' ? aNum - bNum : bNum - aNum;
+                  }
+
+                  // If same number, sort by CTA (non-CTA first)
+                  const aIsCTA = a.imageName.endsWith('_CTA');
+                  const bIsCTA = b.imageName.endsWith('_CTA');
+                  if (aIsCTA !== bIsCTA) {
+                    return sortOrder === 'asc' ? (aIsCTA ? 1 : -1) : (aIsCTA ? -1 : 1);
+                  }
+
+                  // Fallback to alphabetical
+                  const comparison = a.imageName.localeCompare(b.imageName);
+                  return sortOrder === 'asc' ? comparison : -comparison;
+                } else {
+                  // Sort by date (using createdAt timestamp)
+                  const aDate = new Date(a.createdAt || 0).getTime();
+                  const bDate = new Date(b.createdAt || 0).getTime();
+                  const comparison = aDate - bDate;
+                  return sortOrder === 'asc' ? comparison : -comparison;
+                }
+              });
 
               return (
                 <div
