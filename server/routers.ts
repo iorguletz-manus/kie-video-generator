@@ -1498,6 +1498,46 @@ export const appRouter = router({
         return sessions[0] || null;
       }),
 
+    getCharactersWithContextInAd: publicProcedure
+      .input(z.object({ 
+        userId: z.number(),
+        adId: z.number(),
+        excludeCharacterId: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Database not available',
+          });
+        }
+        
+        // Get all sessions for this AD with adLines
+        const sessions = await db.select()
+          .from(contextSessions)
+          .where(eq(contextSessions.adId, input.adId));
+        
+        // Filter sessions that have adLines and exclude current character
+        const charactersWithContext = sessions
+          .filter(session => {
+            if (input.excludeCharacterId && session.characterId === input.excludeCharacterId) {
+              return false;
+            }
+            if (!session.adLines) return false;
+            const adLines = typeof session.adLines === 'string' 
+              ? JSON.parse(session.adLines) 
+              : session.adLines;
+            return Array.isArray(adLines) && adLines.length > 0;
+          })
+          .map(session => ({
+            characterId: session.characterId,
+            adLines: session.adLines,
+          }));
+        
+        return charactersWithContext;
+      }),
+
     upsert: publicProcedure
       .input(z.object({
         userId: z.number(),

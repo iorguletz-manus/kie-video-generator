@@ -279,6 +279,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     newStatus: 'pending' | 'accepted' | 'recut' | null;
   }>>([]);
   
+  // Step 1: Copy context from another character
+  const [showCopyContextDropdown, setShowCopyContextDropdown] = useState(false);
+  
   // Current step - initialize from database if available to prevent Step 1 flash
   const [currentStep, setCurrentStep] = useState(() => {
     // Try to get currentStep from contextSession on initial mount
@@ -829,6 +832,18 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const { data: latestContextSession } = trpc.contextSessions.getLatest.useQuery({
     userId: localCurrentUser.id,
   });
+
+  // Get characters with context in current AD (for copy context feature)
+  const { data: charactersWithContext = [] } = trpc.contextSessions.getCharactersWithContextInAd.useQuery(
+    {
+      userId: localCurrentUser.id,
+      adId: selectedAdId!,
+      excludeCharacterId: selectedCharacterId || undefined,
+    },
+    {
+      enabled: !!(selectedAdId && currentStep === 1),
+    }
+  );
 
   // Context session query - load workflow data for selected context
   const { data: contextSession, refetch: refetchContextSession } = trpc.contextSessions.get.useQuery(
@@ -9066,83 +9081,96 @@ const handlePrepareForMerge = async () => {
                 </div>
               </div>
 
-              {/* COPY CONTEXT Button */}
+              {/* COPY CONTEXT FROM ANOTHER CHARACTER */}
               <div className="mb-6">
                 <Button
-                  onClick={async () => {
-                    // Check if current context has data to copy
-                    if (!rawTextAd || rawTextAd.trim().length === 0) {
-                      toast.error('Current Ad has no data to copy. Please add content first.');
-                      return;
-                    }
-                    
-                    // Find all available target Ads for current context (exclude current Ad)
-                    const targetAds = ads.filter(ad => 
-                      ad.emotionalAngleId === selectedEmotionalAngleId && ad.id !== selectedAdId
-                    );
-                    
-                    if (targetAds.length === 0) {
-                      toast.error('No other Ads available for this Emotional Angle');
-                      return;
-                    }
-                    
-                    // Show selection dialog
-                    const adNames = targetAds.map(ad => `${ad.id}. ${ad.name}`).join('\n');
-                    const selection = prompt(`Copy context TO which Ad?\n\n${adNames}\n\nEnter Ad ID:`);
-                    
-                    if (!selection) return;
-                    
-                    const targetAdId = parseInt(selection);
-                    const targetAd = targetAds.find(ad => ad.id === targetAdId);
-                    
-                    if (!targetAd) {
-                      toast.error('Invalid Ad ID');
-                      return;
-                    }
-                    
-                    // Confirm action
-                    if (!confirm(`Copy context FROM current Ad \"${ads.find(ad => ad.id === selectedAdId)?.name}\" TO \"${targetAd.name}\"?\n\nThis will overwrite Step 1-3 data in the target Ad.`)) {
-                      return;
-                    }
-                    
-                    // Copy Step 1-3 data to target Ad
-                    const updatedSession = {
-                      userId: localCurrentUser.id,
-                      tamId: selectedTamId!,
-                      coreBeliefId: selectedCoreBeliefId!,
-                      emotionalAngleId: selectedEmotionalAngleId!,
-                      adId: targetAdId,
-                      characterId: selectedCharacterId!,
-                      currentStep: 4, // Set to Step 4
-                      rawTextAd,
-                      processedTextAd,
-                      adLines: JSON.stringify(adLines),
-                      prompts: '[]',
-                      images: '[]',
-                      combinations: '[]',
-                      deletedCombinations: '[]',
-                      videoResults: '[]',
-                      reviewHistory: '[]',
-                    };
-                    
-                    upsertContextSessionMutation.mutate(updatedSession, {
-                      onSuccess: () => {
-                        toast.success(`Context copied to \"${targetAd.name}\"!`);
-                      },
-                      onError: (error: any) => {
-                        toast.error(`Failed to copy context: ${error.message}`);
-                      },
-                    });
-                  }}
-                  className="bg-purple-600 hover:bg-purple-700 text-white"
-                  disabled={!selectedAdId || !selectedCharacterId || adLines.length === 0}
+                  onClick={() => setShowCopyContextDropdown(true)}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                  disabled={!selectedAdId || !selectedCharacterId || showCopyContextDropdown || charactersWithContext.length === 0}
                 >
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
-                  COPY CONTEXT TO ANOTHER AD
+                  Copy context from another character
                 </Button>
-                <p className="text-xs text-gray-500 mt-2">Copy Step 1-3 data from current Ad to another Ad with the same character</p>
+                <p className="text-xs text-gray-500 mt-2">
+                  {charactersWithContext.length === 0 
+                    ? 'No other characters with context in this Ad' 
+                    : `${charactersWithContext.length} character(s) available`}
+                </p>
+                
+                {/* Dropdown for character selection */}
+                {showCopyContextDropdown && charactersWithContext.length > 0 && (
+                  <div className="mt-4 p-4 border border-green-300 rounded-lg bg-green-50">
+                    <Label className="text-gray-700 font-medium mb-2 block">Select character to copy from:</Label>
+                    <select
+                      className="w-full p-2 border border-gray-300 rounded mb-3"
+                      onChange={async (e) => {
+                        const selectedCharId = parseInt(e.target.value);
+                        if (!selectedCharId) return;
+                        
+                        const sourceCharacter = categoryCharacters.find(c => c.id === selectedCharId);
+                        const sourceContext = charactersWithContext.find(c => c.characterId === selectedCharId);
+                        
+                        if (!sourceCharacter || !sourceContext) {
+                          toast.error('Character not found');
+                          return;
+                        }
+                        
+                        // Confirm action
+                        if (!confirm(`Copy context from "${sourceCharacter.name}"?\n\nThis will copy extracted lines (Step 2 data) to current character.`)) {
+                          return;
+                        }
+                        
+                        try {
+                          // Parse adLines
+                          const sourceAdLines = typeof sourceContext.adLines === 'string'
+                            ? JSON.parse(sourceContext.adLines)
+                            : sourceContext.adLines;
+                          
+                          // Copy to current context
+                          await upsertContextSessionMutation.mutateAsync({
+                            userId: localCurrentUser.id,
+                            tamId: selectedTamId!,
+                            coreBeliefId: selectedCoreBeliefId!,
+                            emotionalAngleId: selectedEmotionalAngleId!,
+                            adId: selectedAdId!,
+                            characterId: selectedCharacterId!,
+                            currentStep: 2,
+                            adLines: sourceAdLines,
+                          });
+                          
+                          // Update local state
+                          setAdLines(sourceAdLines);
+                          setCurrentStep(2);
+                          setShowCopyContextDropdown(false);
+                          
+                          toast.success(`Context copied from "${sourceCharacter.name}"!`);
+                        } catch (error: any) {
+                          toast.error(`Failed to copy context: ${error.message}`);
+                        }
+                      }}
+                    >
+                      <option value="">-- Select character --</option>
+                      {charactersWithContext.map(ctx => {
+                        const char = categoryCharacters.find(c => c.id === ctx.characterId);
+                        if (!char) return null;
+                        return (
+                          <option key={ctx.characterId} value={ctx.characterId}>
+                            {char.name}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <Button
+                      onClick={() => setShowCopyContextDropdown(false)}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                )}
               </div>
 
               {/* OLD CATEGORIES - TO BE REMOVED */}
