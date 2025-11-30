@@ -5217,18 +5217,21 @@ const handlePrepareForMerge = async () => {
         
         try {
           // Detailed logging for debugging
-          console.log(`[Prepare for Merge] 🔍 ${task.name} task.videos:`, task.videos.map(v => ({
-            videoName: v.videoName,
-            hasTrimmedUrl: !!v.trimmedVideoUrl,
-            trimmedUrlPreview: v.trimmedVideoUrl?.substring(0, 60) + '...',
-            status: v.status,
-            reviewStatus: v.reviewStatus
-          })));
+          console.log(`[Prepare for Merge] 🔍 ${task.name} task.videos:`);
+          task.videos.forEach((v, idx) => {
+            console.log(`  [${idx}] ${v.videoName}:`);
+            console.log(`      trimmedVideoUrl: ${v.trimmedVideoUrl || 'NULL'}`);
+            console.log(`      videoUrl: ${v.videoUrl || 'NULL'}`);
+            console.log(`      status: ${v.status}, reviewStatus: ${v.reviewStatus}`);
+          });
           
           const videoUrls = task.videos.map(v => v.trimmedVideoUrl!).filter(Boolean);
           
           console.log(`[Prepare for Merge] 📹 ${task.name} videoUrls count:`, videoUrls.length);
-          console.log(`[Prepare for Merge] 📹 ${task.name} videoUrls:`, videoUrls.map(url => url.substring(0, 60) + '...'));
+          console.log(`[Prepare for Merge] 📹 ${task.name} videoUrls:`);
+          videoUrls.forEach((url, idx) => {
+            console.log(`  [${idx}] ${url}`);
+          });
           
           // Call merge API
           // For hooks, add M suffix to output name
