@@ -1969,14 +1969,14 @@ export async function mergeVideosWithFilterComplex(
 }
 
 /**
- * Merge videos using concat protocol (lossless, no re-encode)
+ * Merge videos using concat filter with fast re-encode
  * Used for Step 9 (Prepare for Merge)
  * 
- * Requirements:
- * - All videos MUST have identical codecs, resolution, framerate, sample rate
- * - Uses concat protocol: concat:file1.mp4|file2.mp4|file3.mp4
- * - Copy codec (-c copy) for lossless merge
- * - No filter_complex, no loudnorm, no re-encoding
+ * Method:
+ * - Uses concat filter: [0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a]
+ * - Re-encodes with libx264 (preset veryfast, CRF 18) + aac (192k)
+ * - Fast processing, high quality
+ * - No loudnorm (reserved for Step 10)
  * 
  * @param videoUrls - Array of video URLs to merge
  * @param outputVideoName - Name for the output video
@@ -1994,11 +1994,11 @@ export async function mergeVideosSimple(
 ): Promise<string> {
   try {
     console.log(`\n========================================`);
-    console.log(`[mergeVideosSimple] 🚀 Starting SIMPLE merge (lossless, no re-encode)`);
+    console.log(`[mergeVideosSimple] 🚀 Starting SIMPLE merge (fast re-encode)`);
     console.log(`========================================`);
     console.log(`[mergeVideosSimple] Videos to merge: ${videoUrls.length}`);
     console.log(`[mergeVideosSimple] Output name: ${outputVideoName}`);
-    console.log(`[mergeVideosSimple] Method: concat protocol with -c copy`);
+    console.log(`[mergeVideosSimple] Method: concat filter with re-encode (veryfast)`);
     console.log(`========================================\n`);
     
     if (videoUrls.length === 0) {
@@ -2101,32 +2101,41 @@ export async function mergeVideosSimple(
     
     console.log(`[mergeVideosSimple] ✅ All videos uploaded!`);
     
-    // 4. Build concat protocol string
+    // 4. Extract file paths and build concat filter
     const uploadedFilePaths = fileRegistrations.map(({ file }) => file.file_path);
     
     console.log(`\n========================================`);
-    console.log(`[mergeVideosSimple] 📝 STEP 4: Building concat protocol string`);
+    console.log(`[mergeVideosSimple] 📝 STEP 4: Building concat filter`);
     console.log(`========================================`);
+    console.log(`[mergeVideosSimple] Uploaded file paths:`);
+    uploadedFilePaths.forEach((path, i) => {
+      console.log(`[mergeVideosSimple]   ${i + 1}. ${path}`);
+    });
     
-    // Build concat protocol: concat:file1.mp4|file2.mp4|file3.mp4
-    const concatString = `concat:${uploadedFilePaths.join('|')}`;
-    console.log(`[mergeVideosSimple] Concat string: ${concatString}`);
+    // Build concat filter: [0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a]
+    const inputStreams = uploadedFilePaths.map((_, i) => `[${i}:v][${i}:a]`).join('');
+    const filterComplex = `${inputStreams}concat=n=${videoUrls.length}:v=1:a=1[v][a]`;
+    
+    console.log(`[mergeVideosSimple] Filter: ${filterComplex}`);
     console.log(`========================================\n`);
     
-    // 5. Prepare FFmpeg task with concat protocol
+    // 5. Prepare FFmpeg task with concat filter + copy codec
     const outputFileName = `${outputVideoName}_${Date.now()}.mp4`;
     
     const task: any = {
-      inputs: [
-        {
-          file_path: concatString,
-          options: []  // No special options needed for concat protocol
-        }
-      ],
+      inputs: uploadedFilePaths.map(path => ({ file_path: path })),
+      filter_complex: filterComplex,
       outputs: [
         {
           file: outputFileName,
-          options: ['-c', 'copy']  // Copy both video and audio (lossless)
+          maps: ['[v]', '[a]'],
+          options: [
+            '-c:v', 'libx264',
+            '-preset', 'veryfast',
+            '-crf', '18',
+            '-c:a', 'aac',
+            '-b:a', '192k'
+          ]
         }
       ]
     };
@@ -2134,10 +2143,10 @@ export async function mergeVideosSimple(
     console.log(`\n========================================`);
     console.log(`[mergeVideosSimple] 🎬 STEP 5: Preparing FFmpeg task`);
     console.log(`========================================`);
-    console.log(`[mergeVideosSimple] Method: concat protocol`);
-    console.log(`[mergeVideosSimple] Input: ${concatString}`);
+    console.log(`[mergeVideosSimple] Method: concat filter with re-encode`);
+    console.log(`[mergeVideosSimple] Inputs: ${uploadedFilePaths.length} videos`);
     console.log(`[mergeVideosSimple] Output: ${outputFileName}`);
-    console.log(`[mergeVideosSimple] Codec: copy (lossless)`);
+    console.log(`[mergeVideosSimple] Codec: libx264 veryfast CRF18 + aac 192k`);
     console.log(`========================================\n`);
     
     // 6. Send to FFmpeg API
@@ -2201,7 +2210,7 @@ export async function mergeVideosSimple(
     console.log(`[mergeVideosSimple] 🎉 MERGE COMPLETE!`);
     console.log(`========================================`);
     console.log(`[mergeVideosSimple] Final CDN URL: ${cdnUrl}`);
-    console.log(`[mergeVideosSimple] Method: concat protocol (lossless)`);
+    console.log(`[mergeVideosSimple] Method: concat filter (fast re-encode)`);
     console.log(`[mergeVideosSimple] Videos merged: ${videoUrls.length}`);
     console.log(`========================================\n`);
     

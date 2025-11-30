@@ -5246,7 +5246,7 @@ const handlePrepareForMerge = async () => {
             ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
             addTextOverlay: false,
             userId: localCurrentUser.id,
-            useSimpleMerge: true,  // Step 9: Use concat protocol (lossless)
+            useSimpleMerge: true,  // Step 9: Fast re-encode (veryfast preset, no loudnorm)
             useLoudnorm: false,     // Step 9: No loudnorm
           });
           
