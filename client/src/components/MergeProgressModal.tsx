@@ -89,7 +89,7 @@ export function MergeProgressModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {isProcessing && <Loader2 className="w-5 h-5 animate-spin text-purple-600" />}
-            🔗 STEP 2: Prepare for Merge
+            🔗 Prepare for Merge
           </DialogTitle>
           <DialogDescription>
             {message}

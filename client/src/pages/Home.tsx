@@ -1431,8 +1431,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         // Hide base hook if merged exists
         const isBaseHook = /HOOK\d+_/.test(v.videoName) && !/HOOK\d+[A-Z]_/.test(v.videoName);
         if (isBaseHook) {
-          const baseName = v.videoName.replace(/_TEST$/, '');
-          return !hookMergedVideos[baseName + '_TEST'];
+          // Check if this exact base name exists in hookMergedVideos
+          return !hookMergedVideos[v.videoName];
         }
         
         return true;
@@ -1574,6 +1574,58 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     () => videoResults.filter(v => v.reviewStatus === 'accepted' && v.videoUrl),
     [videoResults]
   );
+  
+  // Final combinations count (Step 10)
+  const finalCombinationsCount = useMemo(() => {
+    if (selectedHooks.length === 0 || !selectedBody) return 0;
+    
+    const combinations: string[] = [];
+    
+    selectedHooks.forEach((hookName) => {
+      // If this is a merged hook (contains M), always include it
+      const isMergedHook = /HOOK\d+M_/.test(hookName);
+      if (isMergedHook) {
+        const finalName = hookName.replace(/(HOOK\d+)M/, '$1');
+        combinations.push(finalName);
+        return;
+      }
+      
+      // Skip if this is a variation (A, B, C) and merged version exists
+      const hasVariation = /HOOK\d+[A-Z]_/.test(hookName);
+      if (hasVariation) {
+        const hookMatch = hookName.match(/(.*)(HOOK\d+)[A-Z](.*)/); 
+        if (hookMatch) {
+          const prefix = hookMatch[1];
+          const hookBase = hookMatch[2];
+          const suffix = hookMatch[3];
+          const baseName = `${prefix}${hookBase}${suffix}`;
+          if (baseName in hookMergedVideos) {
+            return; // Skip this variation
+          }
+        }
+      }
+      
+      // Skip if this is a base hook and merged version exists
+      const isBaseHook = /HOOK\d+_/.test(hookName) && !/HOOK\d+[A-Z]_/.test(hookName);
+      if (isBaseHook) {
+        const hookMatch = hookName.match(/(.*)(HOOK\d+)(.*)/); 
+        if (hookMatch) {
+          const prefix = hookMatch[1];
+          const hookBase = hookMatch[2];
+          const suffix = hookMatch[3];
+          const baseName = `${prefix}${hookBase}${suffix}`;
+          if (baseName in hookMergedVideos) {
+            return; // Skip this base hook
+          }
+        }
+      }
+      
+      combinations.push(hookName);
+    });
+    
+    // Deduplicate
+    return Array.from(new Set(combinations)).length;
+  }, [selectedHooks, selectedBody, hookMergedVideos]);
   
   // ========== STEP 1: Process text ad ==========
   const processText = async () => {
@@ -13904,14 +13956,8 @@ const handlePrepareForMerge = async () => {
                             
                             const isBaseHook = /HOOK\d+_/.test(v.videoName) && !/HOOK\d+[A-Z]_/.test(v.videoName);
                             if (isBaseHook) {
-                              const hookMatch = v.videoName.match(/(.*)(HOOK\d+)(.*)/); 
-                              if (hookMatch) {
-                                const prefix = hookMatch[1];
-                                const hookBase = hookMatch[2];
-                                const suffix = hookMatch[3];
-                                const baseName = `${prefix}${hookBase}${suffix}`;
-                                return !hookMergedVideos[baseName]; // Hide if merged exists
-                              }
+                              // Check if this exact base name exists in hookMergedVideos
+                              return !hookMergedVideos[v.videoName];
                             }
                             return true;
                           });
@@ -14423,6 +14469,15 @@ const handlePrepareForMerge = async () => {
                     // Deduplicate combinations (same hook number should appear only once)
                     const uniqueCombinations = Array.from(new Set(combinations));
                     
+                    // Sort by HOOK number
+                    uniqueCombinations.sort((a, b) => {
+                      const aMatch = a.match(/HOOK(\d+)/);
+                      const bMatch = b.match(/HOOK(\d+)/);
+                      const aNum = aMatch ? parseInt(aMatch[1]) : 0;
+                      const bNum = bMatch ? parseInt(bMatch[1]) : 0;
+                      return aNum - bNum;
+                    });
+                    
                     return (
                       <div className="bg-gray-50 p-4 rounded-lg border border-gray-300">
                         <p className="text-xs text-gray-600 mb-2">
@@ -14462,7 +14517,7 @@ const handlePrepareForMerge = async () => {
                       <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>
-                      Next: Merge Final Videos ({selectedHooks.length})
+                      Next: Merge Final Videos ({finalCombinationsCount})
                       <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
