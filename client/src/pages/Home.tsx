@@ -5279,7 +5279,16 @@ const handlePrepareForMerge = async () => {
             const mergedVideo = {
               videoName: outputName,  // Has M suffix
               trimmedVideoUrl: result.cdnUrl,
-              text: task.videos.map(v => v.text || '').join(' '),
+              text: task.videos.map(v => {
+                const text = v.text || '';
+                // Extract white text only (remove red text using redStart/redEnd)
+                if (v.redStart !== undefined && v.redEnd !== undefined && v.redStart >= 0 && v.redEnd > v.redStart) {
+                  const beforeRed = text.substring(0, v.redStart);
+                  const afterRed = text.substring(v.redEnd);
+                  return (beforeRed + afterRed).trim();
+                }
+                return text.trim();
+              }).filter(t => t).join(' '),
               section: task.videos[0]?.section || 'HOOKS',
               status: 'success' as const,
               isGroupedInMerge: false,
