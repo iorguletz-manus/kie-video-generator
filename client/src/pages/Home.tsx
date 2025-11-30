@@ -5038,11 +5038,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     });
   };
 
-// STEP 2: Prepare for Merge - NEW SIMPLE LOGIC
+// Prepare for Merge - NEW SIMPLE LOGIC
 // 1 batch = max 10 FINAL VIDEOS (regardless of input count)
 // BODY = 1 final video, each HOOK group = 1 final video
 const handlePrepareForMerge = async () => {
-  console.log('[STEP 2] 🚀 Starting NEW merge process...');
+  console.log('[Prepare for Merge] 🚀 Starting NEW merge process...');
   
   // 1. Filter trimmed videos
   const trimmedVideos = videoResults.filter(v => 
@@ -5057,7 +5057,7 @@ const handlePrepareForMerge = async () => {
     return;
   }
   
-  console.log('[STEP 2] 📋 Trimmed videos:', trimmedVideos.length);
+  console.log('[Prepare for Merge] 📋 Trimmed videos:', trimmedVideos.length);
   
   // 2. Separate BODY and HOOKS
   const bodyVideos = trimmedVideos.filter(v => !v.videoName.match(/HOOK\d+[A-Z]?/));
@@ -5082,8 +5082,8 @@ const handlePrepareForMerge = async () => {
   
   const hookGroupsToMerge = Object.entries(hookGroups).filter(([_, videos]) => videos.length > 1);
   
-  console.log('[STEP 2] 📺 BODY videos:', bodyVideos.length);
-  console.log('[STEP 2] 🎣 HOOK groups:', hookGroupsToMerge.length);
+  console.log('[Prepare for Merge] 📺 BODY videos:', bodyVideos.length);
+  console.log('[Prepare for Merge] 🎣 HOOK groups:', hookGroupsToMerge.length);
   
   // 4. Create list of ALL merge tasks (BODY + HOOKS)
   interface MergeTask {
@@ -5113,7 +5113,7 @@ const handlePrepareForMerge = async () => {
   });
   
   const totalFinalVideos = mergeTasks.length;
-  console.log('[STEP 2] 📊 Total final videos to create:', totalFinalVideos);
+  console.log('[Prepare for Merge] 📊 Total final videos to create:', totalFinalVideos);
   
   if (totalFinalVideos === 0) {
     toast.info('No videos need merging!');
@@ -5129,7 +5129,7 @@ const handlePrepareForMerge = async () => {
     batches.push(mergeTasks.slice(i, i + MAX_FINAL_VIDEOS_PER_BATCH));
   }
   
-  console.log('[STEP 2] 📦 Batches:', batches.length);
+  console.log('[Prepare for Merge] 📦 Batches:', batches.length);
   batches.forEach((batch, idx) => {
     console.log(`  Batch ${idx + 1}: ${batch.length} final videos (${batch.map(t => t.name).join(', ')})`);
   });
@@ -5153,20 +5153,20 @@ const handlePrepareForMerge = async () => {
   });
   
   // 7. INITIAL COUNTDOWN: 60s with Skip button
-  console.log('[STEP 2] ⏳ Initial countdown 60s...');
+  console.log('[Prepare for Merge] ⏳ Initial countdown 60s...');
   let skipCountdown = false;
   
   setMergeStep10Progress(prev => ({
     ...prev,
     onSkipCountdown: () => {
-      console.log('[STEP 2] ⏩ User skipped countdown!');
+      console.log('[Prepare for Merge] ⏩ User skipped countdown!');
       skipCountdown = true;
     }
   }));
   
   for (let countdown = 60; countdown > 0; countdown--) {
     if (skipCountdown) {
-      console.log('[STEP 2] ⏩ Countdown skipped!');
+      console.log('[Prepare for Merge] ⏩ Countdown skipped!');
       break;
     }
     
@@ -5188,7 +5188,7 @@ const handlePrepareForMerge = async () => {
     message: 'Starting merge process...'
   }));
   
-  console.log('[STEP 2] 🚀 Starting merge...');
+  console.log('[Prepare for Merge] 🚀 Starting merge...');
   
   // 8. Process batches sequentially
   try {
@@ -5196,7 +5196,7 @@ const handlePrepareForMerge = async () => {
       const batch = batches[batchIdx];
       const batchNum = batchIdx + 1;
       
-      console.log(`[STEP 2] 📦 Processing batch ${batchNum}/${batches.length} (${batch.length} final videos)...`);
+      console.log(`[Prepare for Merge] 📦 Processing batch ${batchNum}/${batches.length} (${batch.length} final videos)...`);
       
       setMergeStep10Progress(prev => ({
         ...prev,
@@ -5206,7 +5206,7 @@ const handlePrepareForMerge = async () => {
       
       // Process all tasks in this batch in parallel
       const batchPromises = batch.map(async (task) => {
-        console.log(`[STEP 2] 🔄 Merging ${task.name} (${task.videos.length} videos)...`);
+        console.log(`[Prepare for Merge] 🔄 Merging ${task.name} (${task.videos.length} videos)...`);
         
         // Add to in-progress
         setMergeStep10Progress(prev => ({
@@ -5218,18 +5218,74 @@ const handlePrepareForMerge = async () => {
         try {
           const videoUrls = task.videos.map(v => v.trimmedVideoUrl!).filter(Boolean);
           
-          console.log(`[STEP 2] 📹 ${task.name} URLs:`, videoUrls);
+          console.log(`[Prepare for Merge] 📹 ${task.name} URLs:`, videoUrls);
           
           // Call merge API
+          // For hooks, add M suffix to output name
+          const outputName = task.type === 'hook' 
+            ? task.name.replace(/(HOOK\d+)/, '$1M')
+            : task.name;
+          
           const result = await mergeVideosMutation.mutateAsync({
             videoUrls,
-            outputVideoName: task.name,
+            outputVideoName: outputName,
             ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
             addTextOverlay: false,
             userId: localCurrentUser.id,
           });
           
-          console.log(`[STEP 2] ✅ ${task.name} SUCCESS:`, result.cdnUrl);
+          console.log(`[Prepare for Merge] ✅ ${task.name} SUCCESS:`, result.cdnUrl);
+          
+          // Save to hookMergedVideos and videoResults
+          if (task.type === 'hook') {
+            // Save to hookMergedVideos
+            setHookMergedVideos(prev => ({ ...prev, [task.name]: result.cdnUrl }));
+            console.log(`[Prepare for Merge] 💾 Saved to hookMergedVideos[${task.name}]`);
+            
+            // RESET + MARK grouped videos and REPLACE/ADD merged video to videoResults
+            // Step 1: RESET isGroupedInMerge for videos in this group
+            const resetVideoResults = videoResults.map(v => {
+              if (v.videoName.startsWith(task.name)) {
+                return { ...v, isGroupedInMerge: false };
+              }
+              return v;
+            });
+            
+            // Step 2: MARK videos that are grouped in this merge
+            const updatedVideoResults = resetVideoResults.map(v => {
+              if (task.videos.some(gv => gv.videoName === v.videoName)) {
+                return { ...v, isGroupedInMerge: true };
+              }
+              return v;
+            });
+            
+            // Step 3: REPLACE or ADD merged video (HOOK2M)
+            const mergedVideo = {
+              videoName: outputName,  // Has M suffix
+              trimmedVideoUrl: result.cdnUrl,
+              text: task.videos.map(v => v.text || '').join(' '),
+              section: task.videos[0]?.section || 'HOOKS',
+              status: 'success' as const,
+              isGroupedInMerge: false,
+              isMergedResult: true,
+            };
+            
+            const existingMergedIndex = updatedVideoResults.findIndex(v => v.videoName === outputName);
+            if (existingMergedIndex >= 0) {
+              updatedVideoResults[existingMergedIndex] = mergedVideo;
+              console.log(`[Prepare for Merge] 🔄 REPLACED existing ${outputName} in videoResults`);
+            } else {
+              updatedVideoResults.push(mergedVideo);
+              console.log(`[Prepare for Merge] ✅ ADDED ${outputName} to videoResults`);
+            }
+            
+            setVideoResults(updatedVideoResults);
+            console.log(`[Prepare for Merge] ✅ Marked ${task.videos.length} videos as grouped`);
+          } else if (task.type === 'body') {
+            // Save BODY merged URL
+            setBodyMergedVideoUrl(result.cdnUrl);
+            console.log(`[Prepare for Merge] 💾 Saved bodyMergedVideoUrl`);
+          }
           
           // Move from in-progress to success
           setMergeStep10Progress(prev => ({
@@ -5249,13 +5305,10 @@ const handlePrepareForMerge = async () => {
             currentFinalVideo: prev.currentFinalVideo + 1
           }));
           
-          // Note: Results are saved to database at the end via upsertContextSessionMutation
-          console.log(`[STEP 2] 💾 ${task.name} result stored in state (will be saved to DB at end)`);
-          
           return { task, status: 'success', url: result.cdnUrl };
           
         } catch (error: any) {
-          console.error(`[STEP 2] ❌ ${task.name} FAILED:`, error);
+          console.error(`[Prepare for Merge] ❌ ${task.name} FAILED:`, error);
           
           // Move from in-progress to failed
           setMergeStep10Progress(prev => ({
@@ -5283,7 +5336,7 @@ const handlePrepareForMerge = async () => {
       
       // Wait 60s AFTER batch (except last batch)
       if (batchIdx < batches.length - 1) {
-        console.log(`[STEP 2] ⏳ Waiting 60s after batch ${batchNum}...`);
+        console.log(`[Prepare for Merge] ⏳ Waiting 60s after batch ${batchNum}...`);
         for (let countdown = 60; countdown >= 0; countdown--) {
           setMergeStep10Progress(prev => ({
             ...prev,
@@ -5294,7 +5347,7 @@ const handlePrepareForMerge = async () => {
             await new Promise(resolve => setTimeout(resolve, 1000));
           }
         }
-        console.log(`[STEP 2] ✅ Wait complete, starting next batch...`);
+        console.log(`[Prepare for Merge] ✅ Wait complete, starting next batch...`);
       }
     }
     
@@ -5308,7 +5361,7 @@ const handlePrepareForMerge = async () => {
         : `⚠️ ${totalFinalVideos - failedCount}/${totalFinalVideos} merges complete (${failedCount} failed)`
     }));
     
-    console.log('[STEP 2] 🎉 COMPLETE!');
+    console.log('[Prepare for Merge] 🎉 COMPLETE!');
     
     if (failedCount === 0) {
       toast.success(`✅ All ${totalFinalVideos} merges completed!`);
@@ -5317,7 +5370,7 @@ const handlePrepareForMerge = async () => {
     }
     
   } catch (error: any) {
-    console.error('[STEP 2] ❌ Fatal error:', error);
+    console.error('[Prepare for Merge] ❌ Fatal error:', error);
     
     setMergeStep10Progress(prev => ({
       ...prev,
