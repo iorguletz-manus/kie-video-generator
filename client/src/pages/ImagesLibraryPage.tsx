@@ -10,6 +10,21 @@ import { toast } from "sonner";
 import { ChevronLeft, Upload, Edit2, Trash2, Image as ImageIcon, Loader2, Grid2x2, Grid3x3, LayoutGrid, Search, ArrowUpDown, CheckSquare, Square, Download, Star } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 
+// Romanian female names for auto-generation
+const ROMANIAN_FEMALE_NAMES = [
+  'Alina', 'Alexandra', 'Ana', 'Andreea', 'Adriana', 'Anca', 'Antonia',
+  'Bianca', 'Camelia', 'Carmen', 'Claudia', 'Cosmina', 'Cristina',
+  'Dana', 'Daniela', 'Daria', 'Diana', 'Doina', 'Dora',
+  'Elena', 'Eliza', 'Emanuela', 'Emilia', 'Eva',
+  'Florentina', 'Florina', 'Gabriela', 'Georgiana', 'Gina',
+  'Ileana', 'Ilinca', 'Ioana', 'Ionela', 'Irina', 'Isabella', 'Iulia',
+  'Laura', 'Lavinia', 'Larisa', 'Lidia', 'Liliana', 'Loredana', 'Lucia',
+  'Madalina', 'Manuela', 'Maria', 'Mariana', 'Mihaela', 'Mirela', 'Monica',
+  'Natalia', 'Nicoleta', 'Oana', 'Otilia', 'Paula', 'Petra', 'Raluca',
+  'Ramona', 'Roxana', 'Sabina', 'Simona', 'Sofia', 'Stefania',
+  'Tamara', 'Teodora', 'Valentina', 'Valeria', 'Vasilica', 'Veronica', 'Victoria'
+];
+
 interface ImagesLibraryPageProps {
   currentUser: {
     id: number;
@@ -31,7 +46,9 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
   }
   const [selectedCharacter, setSelectedCharacter] = useState<string>("all");
   const [uploadCharacterSelection, setUploadCharacterSelection] = useState<string>("__new__");
+  const [characterSearchQuery, setCharacterSearchQuery] = useState("");
   const [newCharacterName, setNewCharacterName] = useState("");
+  const [newCharacterNameError, setNewCharacterNameError] = useState("");
   const [uploadingFiles, setUploadingFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [editingImageId, setEditingImageId] = useState<number | null>(null);
@@ -299,10 +316,17 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
       if (trimmedName && trimmedName !== "No Character") {
         const isDuplicate = characters.some(char => char.toLowerCase() === trimmedName.toLowerCase());
         if (isDuplicate) {
+          setNewCharacterNameError(`Character "${trimmedName}" already exists!`);
           toast.error(`Character "${trimmedName}" already exists!`);
           return;
         }
       }
+    }
+    
+    // Prevent upload if there's an error
+    if (newCharacterNameError) {
+      toast.error('Please fix errors before uploading');
+      return;
     }
 
     setUploadProgress(0);
@@ -326,10 +350,33 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
               finalCharacterName = uploadCharacterSelection;
             }
             
+            // Auto-rename logic: $Nume_1, $Nume_1_CTA, $Nume_2, etc.
+            const originalFileName = file.name.replace(/\.[^/.]+$/, ""); // Remove extension
+            const isCTA = originalFileName.toLowerCase().includes('cta');
+            
+            // Get existing images for this character
+            const existingImages = allImages.filter(img => img.characterName === finalCharacterName);
+            
+            // Extract existing numbers from image names (e.g., "$Alina_1" -> 1, "$Alina_2_CTA" -> 2)
+            const existingNumbers = existingImages
+              .map(img => {
+                const match = img.imageName.match(/_(\d+)(?:_CTA)?$/);
+                return match ? parseInt(match[1]) : 0;
+              })
+              .filter(n => n > 0);
+            
+            // Find next available number
+            const nextNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 1;
+            
+            // Generate new image name: $CharacterName_Number or $CharacterName_Number_CTA
+            const newImageName = isCTA 
+              ? `$${finalCharacterName}_${nextNumber}_CTA`
+              : `$${finalCharacterName}_${nextNumber}`;
+            
             await uploadMutation.mutateAsync({
               userId: currentUser.id,
               characterName: finalCharacterName,
-              imageName: file.name.replace(/\.[^/.]+$/, ""), // Remove extension
+              imageName: newImageName,
               imageData: base64,
             });
           } catch (error) {
@@ -665,7 +712,7 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
             {!isSelectionMode && (
             <div className="flex flex-wrap gap-3">
               {/* Search Bar */}
-              <div className="relative flex-1 min-w-[200px] max-w-md">
+              <div className="relative" style={{ width: '50%' }}>
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-purple-400" />
                 <Input
                   placeholder="Search images..."
@@ -726,38 +773,7 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                 </Button>
               </div>
 
-              {/* Character Filter */}
-              <Select value={selectedCharacter} onValueChange={setSelectedCharacter}>
-                <SelectTrigger className="w-48 h-10">
-                  <SelectValue placeholder="Filter by character" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Characters</SelectItem>
-                  {characters
-                    .filter((char) => char && char.trim() !== "") // Filter empty strings
-                    .map((char) => {
-                      const thumbnail = getCharacterThumbnail(char);
-                      return (
-                        <SelectItem key={char} value={char}>
-                          <div className="flex items-center gap-2">
-                            {thumbnail ? (
-                              <img 
-                                src={thumbnail} 
-                                alt={char} 
-                                className="w-6 h-6 rounded-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-6 h-6 rounded-full bg-purple-200 flex items-center justify-center text-xs font-semibold text-purple-700">
-                                {char.charAt(0).toUpperCase()}
-                              </div>
-                            )}
-                            <span>{char}</span>
-                          </div>
-                        </SelectItem>
-                      );
-                    })}
-                </SelectContent>
-              </Select>
+              {/* REMOVED: Character Filter select - using search instead */}
             </div>
             )}
           </div>
@@ -770,18 +786,33 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                 <div className="space-y-3">
                   <div>
                     <Label className="text-purple-900 font-medium mb-2 block">Select Character</Label>
-                    <Select value={uploadCharacterSelection} onValueChange={setUploadCharacterSelection}>
-                      <SelectTrigger className="bg-white border-purple-300 h-10">
-                        <SelectValue />
-                      </SelectTrigger>
-                       <SelectContent>
-                        {characters
-                          .filter((char) => char && char.trim() !== "" && char !== "No Character")
-                          .map((char) => {
-                            const thumbnail = getCharacterThumbnail(char);
-                            return (
-                              <SelectItem key={char} value={char}>
-                                <div className="flex items-center gap-2">
+                    <div className="relative w-64">
+                      <Input
+                        placeholder="Search or select character..."
+                        value={characterSearchQuery}
+                        onChange={(e) => setCharacterSearchQuery(e.target.value)}
+                        className="bg-white border-purple-300 focus:border-purple-500 focus:ring-purple-500 h-10"
+                      />
+                      {characterSearchQuery && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-purple-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                          {characters
+                            .filter((char) => 
+                              char && 
+                              char.trim() !== "" && 
+                              char !== "No Character" &&
+                              char.toLowerCase().includes(characterSearchQuery.toLowerCase())
+                            )
+                            .map((char) => {
+                              const thumbnail = getCharacterThumbnail(char);
+                              return (
+                                <div
+                                  key={char}
+                                  onClick={() => {
+                                    setUploadCharacterSelection(char);
+                                    setCharacterSearchQuery('');
+                                  }}
+                                  className="flex items-center gap-2 px-3 py-2 hover:bg-purple-100 cursor-pointer"
+                                >
                                   {thumbnail ? (
                                     <img 
                                       src={thumbnail} 
@@ -795,24 +826,82 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                                   )}
                                   <span>{char}</span>
                                 </div>
-                              </SelectItem>
-                            );
-                          })}
-                        <SelectItem value="__new__">+ New Character</SelectItem>
-                       </SelectContent>
-                    </Select>
+                              );
+                            })}
+                          <div
+                            onClick={() => {
+                              setUploadCharacterSelection('__new__');
+                              setCharacterSearchQuery('');
+                            }}
+                            className="flex items-center gap-2 px-3 py-2 hover:bg-purple-100 cursor-pointer border-t border-purple-200"
+                          >
+                            <span className="text-purple-600 font-medium">+ New Character</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {uploadCharacterSelection && uploadCharacterSelection !== '__new__' && (
+                      <p className="text-sm text-gray-600 mt-1">Selected: <span className="font-medium">{uploadCharacterSelection}</span></p>
+                    )}
                   </div>
                   
                   {uploadCharacterSelection === "__new__" && (
                     <div>
                       <Label className="text-purple-900 font-medium mb-2 block">New Character Name</Label>
-                      <Input
-                        placeholder="e.g., Alina, Maria"
-                        value={newCharacterName}
-                        onChange={(e) => setNewCharacterName(e.target.value)}
-                        className="bg-white border-purple-300 focus:border-purple-500 focus:ring-purple-500 h-10 max-w-md"
-                        autoFocus
-                      />
+                      <div className="flex items-center gap-2">
+                        <Input
+                          placeholder="e.g., Alina, Maria"
+                          value={newCharacterName}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setNewCharacterName(value);
+                            
+                            // Validate for duplicates
+                            if (value.trim()) {
+                              const isDuplicate = characters.some(char => char.toLowerCase() === value.trim().toLowerCase());
+                              if (isDuplicate) {
+                                setNewCharacterNameError(`Character "${value.trim()}" already exists!`);
+                              } else {
+                                setNewCharacterNameError('');
+                              }
+                            } else {
+                              setNewCharacterNameError('');
+                            }
+                          }}
+                          className={`bg-white focus:border-purple-500 focus:ring-purple-500 h-10 w-64 ${
+                            newCharacterNameError ? 'border-red-500' : 'border-purple-300'
+                          }`}
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => {
+                            // Generate unique Romanian female name
+                            let attempts = 0;
+                            let generatedName = '';
+                            while (attempts < 100) {
+                              const randomName = ROMANIAN_FEMALE_NAMES[Math.floor(Math.random() * ROMANIAN_FEMALE_NAMES.length)];
+                              const isDuplicate = characters.some(char => char.toLowerCase() === randomName.toLowerCase());
+                              if (!isDuplicate) {
+                                generatedName = randomName;
+                                break;
+                              }
+                              attempts++;
+                            }
+                            if (generatedName) {
+                              setNewCharacterName(generatedName);
+                              setNewCharacterNameError('');
+                            } else {
+                              toast.error('Could not generate unique name. Please enter manually.');
+                            }
+                          }}
+                          className="text-blue-600 underline text-sm hover:text-blue-800 whitespace-nowrap"
+                        >
+                          Fill
+                        </button>
+                      </div>
+                      {newCharacterNameError && (
+                        <p className="text-red-500 text-sm mt-1">{newCharacterNameError}</p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1088,30 +1177,9 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                   dragOverImageId === image.id ? 'ring-2 ring-purple-600' : ''
                 }`}
               >
-                {/* Image Thumbnail */}
-                <div 
-                  className="relative aspect-[9/16] bg-gray-100 rounded overflow-hidden"
-                  onClick={() => isSelectionMode && toggleImageSelection(image.id)}
-                >
-                  <img
-                    src={image.imageUrl}
-                    alt={image.imageName}
-                    className="w-full h-full object-cover"
-                  />
-                  {isSelectionMode && (
-                    <div className="absolute top-1 left-1">
-                      {selectedImages.has(image.id) ? (
-                        <CheckSquare className="w-6 h-6 text-purple-600 bg-white rounded" />
-                      ) : (
-                        <Square className="w-6 h-6 text-gray-400 bg-white rounded" />
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Image name and icons below */}
+                {/* Image name and edit icon ABOVE thumbnail */}
                 {editingImageId === image.id ? (
-                  <div className="mt-1 space-y-1">
+                  <div className="mb-1 space-y-1">
                     <Input
                       value={editImageName}
                       onChange={(e) => setEditImageName(e.target.value)}
@@ -1136,41 +1204,65 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-1 flex items-center justify-between gap-1">
+                  <div className="mb-1 flex items-center justify-between gap-1">
                     <p className="text-xs text-purple-900 truncate flex-1">
                       {image.imageName}
                     </p>
-                    <div className="flex gap-0.5 flex-shrink-0">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleSetThumbnail(image.id)}
-                        className="w-5 h-5 p-0 hover:bg-yellow-100"
-                        title="Set as Character Thumbnail"
-                      >
-                        <Star className="w-3 h-3 text-yellow-600" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleEditName(image.id)}
-                        className="w-5 h-5 p-0 hover:bg-blue-100"
-                      >
-                        <Edit2 className="w-3 h-3 text-blue-600" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDelete(image.id)}
-                        disabled={isImageUsedInGeneratedVideos(image.imageUrl)}
-                        className="w-5 h-5 p-0 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={isImageUsedInGeneratedVideos(image.imageUrl) ? "Nu poți șterge această imagine pentru că are videouri generate. Șterge mai întâi AD-urile cu videouri." : "Șterge imaginea"}
-                      >
-                        <Trash2 className="w-3 h-3 text-red-600" />
-                      </Button>
-                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleEditName(image.id)}
+                      className="w-5 h-5 p-0 hover:bg-blue-100 flex-shrink-0"
+                      title="Edit name"
+                    >
+                      <Edit2 className="w-3 h-3 text-blue-600" />
+                    </Button>
                   </div>
                 )}
+
+                {/* Image Thumbnail */}
+                <div 
+                  className="relative aspect-[9/16] bg-gray-100 rounded overflow-hidden"
+                  onClick={() => isSelectionMode && toggleImageSelection(image.id)}
+                >
+                  <img
+                    src={image.imageUrl}
+                    alt={image.imageName}
+                    className="w-full h-full object-cover"
+                  />
+                  {isSelectionMode && (
+                    <div className="absolute top-1 left-1">
+                      {selectedImages.has(image.id) ? (
+                        <CheckSquare className="w-6 h-6 text-purple-600 bg-white rounded" />
+                      ) : (
+                        <Square className="w-6 h-6 text-gray-400 bg-white rounded" />
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Delete and Star icons BELOW thumbnail */}
+                <div className="mt-1 flex gap-0.5 justify-end">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleSetThumbnail(image.id)}
+                    className="w-5 h-5 p-0 hover:bg-yellow-100"
+                    title="Set as Character Thumbnail"
+                  >
+                    <Star className="w-3 h-3 text-yellow-600" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleDelete(image.id)}
+                    disabled={isImageUsedInGeneratedVideos(image.imageUrl)}
+                    className="w-5 h-5 p-0 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={isImageUsedInGeneratedVideos(image.imageUrl) ? "Nu poți șterge această imagine pentru că are videouri generate. Șterge mai întâi AD-urile cu videouri." : "Șterge imaginea"}
+                  >
+                    <Trash2 className="w-3 h-3 text-red-600" />
+                  </Button>
+                </div>
               </div>
             ))}
             </div>
