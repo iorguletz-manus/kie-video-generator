@@ -2999,7 +2999,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
             userId: localCurrentUser.id,
             folder: 'merged',  // Step 11 final videos go to /merged/ folder
-            useLoudnorm: true,  // Enable loudnorm audio normalization for final merge
+            useSimpleMerge: false,  // Step 10: Use filter_complex (re-encode)
+            useLoudnorm: true,  // Step 10: Enable loudnorm audio normalization
           });
           
           // REPLACE or ADD final video
@@ -5245,6 +5246,8 @@ const handlePrepareForMerge = async () => {
             ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
             addTextOverlay: false,
             userId: localCurrentUser.id,
+            useSimpleMerge: true,  // Step 9: Use concat demuxer (lossless)
+            useLoudnorm: false,     // Step 9: No loudnorm
           });
           
           console.log(`[Prepare for Merge] ✅ ${task.name} SUCCESS:`, result.cdnUrl);

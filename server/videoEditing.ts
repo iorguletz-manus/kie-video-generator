@@ -1667,27 +1667,41 @@ export function calculateCutPointsNew(
 }
 
 // ============================================================================
-// 8. VIDEO MERGING FUNCTION (STEP 10)
+// 8. VIDEO MERGING FUNCTIONS
 // ============================================================================
 
 /**
- * Merge multiple videos using FFmpeg API concat filter
- * Returns download URL for the merged video
+ * Merge videos using filter_complex (with re-encoding)
+ * Used for Step 10 (Merge Final Videos)
+ * 
+ * Features:
+ * - Uses filter_complex with concat filter
+ * - Re-encodes video (libx264 CRF 18)
+ * - Re-encodes audio (aac)
+ * - Optional loudnorm audio normalization
+ * 
+ * @param videoUrls - Array of video URLs to merge
+ * @param outputVideoName - Name for the output video
+ * @param ffmpegApiKey - FFmpeg API key
+ * @param userId - User ID for CDN upload
+ * @param folder - Folder name for CDN upload (default: 'merged-final-videos')
+ * @param useLoudnorm - Enable loudnorm audio normalization
+ * @returns CDN URL of the merged video
  */
-export async function mergeVideosWithFFmpegAPI(
+export async function mergeVideosWithFilterComplex(
   videoUrls: string[],
   outputVideoName: string,
   ffmpegApiKey: string,
-  userId?: number,  // Optional userId for user-specific folder
-  folder?: string,  // Optional folder name (default: 'prepare-for-merge')
-  useLoudnorm?: boolean  // Enable loudnorm audio normalization for final merge (STEP 10)
+  userId?: number,
+  folder: string = 'merged-final-videos',
+  useLoudnorm: boolean = true
 ): Promise<string> {
   try {
     console.log('\n\n========================================');
-    console.log('[mergeVideosWithFFmpegAPI] 🚀 MERGE STARTED');
-    console.log(`[mergeVideosWithFFmpegAPI] Output name: ${outputVideoName}`);
-    console.log(`[mergeVideosWithFFmpegAPI] Video count: ${videoUrls.length}`);
-    console.log(`[mergeVideosWithFFmpegAPI] Video URLs:`, videoUrls);
+    console.log('[mergeVideosWithFilterComplex] 🚀 MERGE STARTED');
+    console.log(`[mergeVideosWithFilterComplex] Output name: ${outputVideoName}`);
+    console.log(`[mergeVideosWithFilterComplex] Video count: ${videoUrls.length}`);
+    console.log(`[mergeVideosWithFilterComplex] Video URLs:`, videoUrls);
     console.log('========================================\n');
     
     if (!ffmpegApiKey) {
@@ -1699,12 +1713,12 @@ export async function mergeVideosWithFFmpegAPI(
     }
     
     if (videoUrls.length === 1) {
-      console.log(`[mergeVideosWithFFmpegAPI] Only 1 video, returning original URL`);
+      console.log(`[mergeVideosWithFilterComplex] Only 1 video, returning original URL`);
       return videoUrls[0];
     }
     
     // 1. BATCH PROCESSING: Create directory and register all files first
-    console.log(`[mergeVideosWithFFmpegAPI] 📁 Step 1: Creating directory...`);
+    console.log(`[mergeVideosWithFilterComplex] 📁 Step 1: Creating directory...`);
     const dirRes = await fetch(`${FFMPEG_API_BASE}/directory`, {
       method: 'POST',
       headers: {
@@ -1719,10 +1733,10 @@ export async function mergeVideosWithFFmpegAPI(
     
     const dirData = await dirRes.json();
     const dirId = dirData.directory.id;
-    console.log(`[mergeVideosWithFFmpegAPI] ✅ Created directory: ${dirId}`);
+    console.log(`[mergeVideosWithFilterComplex] ✅ Created directory: ${dirId}`);
     
     // 2. Register ALL files at once (fast, ~100ms each)
-    console.log(`[mergeVideosWithFFmpegAPI] 📝 Step 2: Registering ${videoUrls.length} files...`);
+    console.log(`[mergeVideosWithFilterComplex] 📝 Step 2: Registering ${videoUrls.length} files...`);
     const batchTimestamp = Date.now();
     
     const fileRegistrations = await Promise.all(
@@ -1746,7 +1760,7 @@ export async function mergeVideosWithFFmpegAPI(
         }
         
         const fileData = await fileRes.json();
-        console.log(`[mergeVideosWithFFmpegAPI] ✅ Registered ${i + 1}/${videoUrls.length}: ${fileData.file.file_path}`);
+        console.log(`[mergeVideosWithFilterComplex] ✅ Registered ${i + 1}/${videoUrls.length}: ${fileData.file.file_path}`);
         
         return {
           file: fileData.file,
@@ -1756,14 +1770,14 @@ export async function mergeVideosWithFFmpegAPI(
       })
     );
     
-    console.log(`[mergeVideosWithFFmpegAPI] ✅ All files registered!`);
+    console.log(`[mergeVideosWithFilterComplex] ✅ All files registered!`);
     
     // 3. Download from Bunny CDN and upload to FFmpeg API (S3) in parallel
-    console.log(`[mergeVideosWithFFmpegAPI] 📤 Step 3: Uploading ${videoUrls.length} videos to FFmpeg API...`);
+    console.log(`[mergeVideosWithFilterComplex] 📤 Step 3: Uploading ${videoUrls.length} videos to FFmpeg API...`);
     
     await Promise.all(
       fileRegistrations.map(async ({ upload, videoUrl, file }, i) => {
-        console.log(`[mergeVideosWithFFmpegAPI] ⬇️ Downloading ${i + 1}/${videoUrls.length} from Bunny CDN...`);
+        console.log(`[mergeVideosWithFilterComplex] ⬇️ Downloading ${i + 1}/${videoUrls.length} from Bunny CDN...`);
         
         const videoRes = await fetch(videoUrl);
         if (!videoRes.ok) {
@@ -1772,9 +1786,9 @@ export async function mergeVideosWithFFmpegAPI(
         
         const videoBuffer = await videoRes.arrayBuffer();
         const videoSizeMB = (videoBuffer.byteLength / (1024 * 1024)).toFixed(2);
-        console.log(`[mergeVideosWithFFmpegAPI] ✅ Downloaded ${i + 1}/${videoUrls.length}: ${videoSizeMB} MB`);
+        console.log(`[mergeVideosWithFilterComplex] ✅ Downloaded ${i + 1}/${videoUrls.length}: ${videoSizeMB} MB`);
         
-        console.log(`[mergeVideosWithFFmpegAPI] ⬆️ Uploading ${i + 1}/${videoUrls.length} to FFmpeg API (S3)...`);
+        console.log(`[mergeVideosWithFilterComplex] ⬆️ Uploading ${i + 1}/${videoUrls.length} to FFmpeg API (S3)...`);
         
         // Use headers from /file response if provided
         const uploadHeaders = upload.headers || {};
@@ -1789,21 +1803,21 @@ export async function mergeVideosWithFFmpegAPI(
           throw new Error(`Failed to upload video ${i}: ${uploadRes.statusText}`);
         }
         
-        console.log(`[mergeVideosWithFFmpegAPI] ✅ Uploaded ${i + 1}/${videoUrls.length}: ${file.file_path}`);
+        console.log(`[mergeVideosWithFilterComplex] ✅ Uploaded ${i + 1}/${videoUrls.length}: ${file.file_path}`);
       })
     );
     
-    console.log(`[mergeVideosWithFFmpegAPI] ✅ All videos uploaded!`);
+    console.log(`[mergeVideosWithFilterComplex] ✅ All videos uploaded!`);
     
     // 4. Extract file paths for processing
     const uploadedFilePaths = fileRegistrations.map(({ file }) => file.file_path);
     
     console.log(`\n========================================`);
-    console.log(`[mergeVideosWithFFmpegAPI] 📝 STEP 4: Extracted file paths`);
+    console.log(`[mergeVideosWithFilterComplex] 📝 STEP 4: Extracted file paths`);
     console.log(`========================================`);
-    console.log(`[mergeVideosWithFFmpegAPI] Uploaded video file paths:`);
+    console.log(`[mergeVideosWithFilterComplex] Uploaded video file paths:`);
     uploadedFilePaths.forEach((path, i) => {
-      console.log(`[mergeVideosWithFFmpegAPI]   ${i + 1}. ${path}`);
+      console.log(`[mergeVideosWithFilterComplex]   ${i + 1}. ${path}`);
     });
     console.log(`========================================\n`);
     
@@ -1824,10 +1838,10 @@ export async function mergeVideosWithFFmpegAPI(
       : `${inputStreams}concat=n=${videoUrls.length}:v=1:a=1[v][a]`;
     
     console.log(`\n========================================`);
-    console.log(`[mergeVideosWithFFmpegAPI] 📝 STEP 5: Building filter_complex`);
+    console.log(`[mergeVideosWithFilterComplex] 📝 STEP 5: Building filter_complex`);
     console.log(`========================================`);
-    console.log(`[mergeVideosWithFFmpegAPI] Loudnorm: ${useLoudnorm ? 'ENABLED' : 'DISABLED'}`);
-    console.log(`[mergeVideosWithFFmpegAPI] Filter: ${filterComplex}`);
+    console.log(`[mergeVideosWithFilterComplex] Loudnorm: ${useLoudnorm ? 'ENABLED' : 'DISABLED'}`);
+    console.log(`[mergeVideosWithFilterComplex] Filter: ${filterComplex}`);
     console.log(`========================================\n`);
     
     // 6. Prepare task with filter_complex (STEP 9 METHOD)
@@ -1854,19 +1868,19 @@ export async function mergeVideosWithFFmpegAPI(
     };
     
     console.log(`\n========================================`);
-    console.log(`[mergeVideosWithFFmpegAPI] 🎬 STEP 6: Preparing FFmpeg task`);
+    console.log(`[mergeVideosWithFilterComplex] 🎬 STEP 6: Preparing FFmpeg task`);
     console.log(`========================================`);
-    console.log(`[mergeVideosWithFFmpegAPI] Method: filter_complex concat`);
-    console.log(`[mergeVideosWithFFmpegAPI] Inputs: ${uploadedFilePaths.length} videos`);
-    console.log(`[mergeVideosWithFFmpegAPI] Output: ${outputFileName}`);
-    console.log(`[mergeVideosWithFFmpegAPI] Audio normalization: dynaudnorm`);
+    console.log(`[mergeVideosWithFilterComplex] Method: filter_complex concat`);
+    console.log(`[mergeVideosWithFilterComplex] Inputs: ${uploadedFilePaths.length} videos`);
+    console.log(`[mergeVideosWithFilterComplex] Output: ${outputFileName}`);
+    console.log(`[mergeVideosWithFilterComplex] Audio normalization: dynaudnorm`);
     console.log(`========================================\n`);
     
     // 7. Send to FFmpeg API
-    console.log(`[mergeVideosWithFFmpegAPI] Sending merge task to FFmpeg API...`);
-    console.log(`[mergeVideosWithFFmpegAPI] 📋 Task details:`, JSON.stringify(task, null, 2));
-    console.log(`[mergeVideosWithFFmpegAPI] 📊 Inputs count: ${task.inputs.length}`);
-    console.log(`[mergeVideosWithFFmpegAPI] 🎯 Output file: ${outputFileName}`);
+    console.log(`[mergeVideosWithFilterComplex] Sending merge task to FFmpeg API...`);
+    console.log(`[mergeVideosWithFilterComplex] 📋 Task details:`, JSON.stringify(task, null, 2));
+    console.log(`[mergeVideosWithFilterComplex] 📊 Inputs count: ${task.inputs.length}`);
+    console.log(`[mergeVideosWithFilterComplex] 🎯 Output file: ${outputFileName}`);
     
     const processRes = await fetch(`${FFMPEG_API_BASE}/ffmpeg/process`, {
       method: 'POST',
@@ -1904,11 +1918,11 @@ export async function mergeVideosWithFFmpegAPI(
     
     const mergedFile = result.result[0];
     const downloadUrl = mergedFile.download_url;
-    console.log(`[mergeVideosWithFFmpegAPI] Merge successful: ${mergedFile.file_name}`);
-    console.log(`[mergeVideosWithFFmpegAPI] Download URL: ${downloadUrl}`);
+    console.log(`[mergeVideosWithFilterComplex] Merge successful: ${mergedFile.file_name}`);
+    console.log(`[mergeVideosWithFilterComplex] Download URL: ${downloadUrl}`);
     
     // 8. Download merged video (pre-signed URL, no auth needed)
-    console.log(`[mergeVideosWithFFmpegAPI] Downloading merged video from: ${downloadUrl}`);
+    console.log(`[mergeVideosWithFilterComplex] Downloading merged video from: ${downloadUrl}`);
     const downloadRes = await fetch(downloadUrl);
     
     if (!downloadRes.ok) {
@@ -1916,7 +1930,7 @@ export async function mergeVideosWithFFmpegAPI(
     }
     
     const videoBuffer = Buffer.from(await downloadRes.arrayBuffer());
-    console.log(`[mergeVideosWithFFmpegAPI] Downloaded ${videoBuffer.length} bytes`);
+    console.log(`[mergeVideosWithFilterComplex] Downloaded ${videoBuffer.length} bytes`);
     
     // 9. Upload to Bunny CDN (use same credentials as uploadToBunnyCDN function)
     const BUNNYCDN_STORAGE_PASSWORD = '4c9257d6-aede-4ff1-bb0f9fc95279-997e-412b';
@@ -1928,7 +1942,7 @@ export async function mergeVideosWithFFmpegAPI(
     const mergedPath = userId ? `user-${userId}/videos/${targetFolder}/${bunnyFileName}` : `videos/${targetFolder}/${bunnyFileName}`;
     const storageUrl = `https://storage.bunnycdn.com/${BUNNYCDN_STORAGE_ZONE}/${mergedPath}`;
     
-    console.log(`[mergeVideosWithFFmpegAPI] Uploading to Bunny CDN: merged-videos/${bunnyFileName}`);
+    console.log(`[mergeVideosWithFilterComplex] Uploading to Bunny CDN: merged-videos/${bunnyFileName}`);
     
     const uploadResponse = await fetch(storageUrl, {
       method: 'PUT',
@@ -1945,11 +1959,293 @@ export async function mergeVideosWithFFmpegAPI(
     }
     
     const cdnUrl = `${BUNNYCDN_PULL_ZONE_URL}/${mergedPath}`;
-    console.log(`[mergeVideosWithFFmpegAPI] ✅ Merge complete: ${cdnUrl}`);
+    console.log(`[mergeVideosWithFilterComplex] ✅ Merge complete: ${cdnUrl}`);
     
     return cdnUrl;
   } catch (error) {
-    console.error(`[mergeVideosWithFFmpegAPI] Error:`, error);
+    console.error(`[mergeVideosWithFilterComplex] Error:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Merge videos using concat demuxer (lossless, no re-encode)
+ * Used for Step 9 (Prepare for Merge)
+ * 
+ * Requirements:
+ * - All videos MUST have identical codecs, resolution, framerate, sample rate
+ * - Uses concat demuxer with -c copy (lossless)
+ * - No filter_complex, no loudnorm, no re-encoding
+ * 
+ * @param videoUrls - Array of video URLs to merge
+ * @param outputVideoName - Name for the output video
+ * @param ffmpegApiKey - FFmpeg API key
+ * @param userId - User ID for CDN upload
+ * @param folder - Folder name for CDN upload (default: 'prepare-for-merge')
+ * @returns CDN URL of the merged video
+ */
+export async function mergeVideosSimple(
+  videoUrls: string[],
+  outputVideoName: string,
+  ffmpegApiKey: string,
+  userId?: number,
+  folder: string = 'prepare-for-merge'
+): Promise<string> {
+  try {
+    console.log(`\n========================================`);
+    console.log(`[mergeVideosSimple] 🚀 Starting SIMPLE merge (lossless, no re-encode)`);
+    console.log(`========================================`);
+    console.log(`[mergeVideosSimple] Videos to merge: ${videoUrls.length}`);
+    console.log(`[mergeVideosSimple] Output name: ${outputVideoName}`);
+    console.log(`[mergeVideosSimple] Method: concat demuxer with -c copy`);
+    console.log(`========================================\n`);
+    
+    if (videoUrls.length === 0) {
+      throw new Error('No videos provided');
+    }
+    
+    if (videoUrls.length === 1) {
+      console.log(`[mergeVideosSimple] Only 1 video, returning original URL`);
+      return videoUrls[0];
+    }
+    
+    // 1. Create directory
+    console.log(`[mergeVideosSimple] 📁 Step 1: Creating directory...`);
+    const dirRes = await fetch(`${FFMPEG_API_BASE}/directory`, {
+      method: 'POST',
+      headers: {
+        'Authorization': ffmpegApiKey,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!dirRes.ok) {
+      throw new Error(`Failed to create directory: ${dirRes.statusText}`);
+    }
+    
+    const dirData = await dirRes.json();
+    const dirId = dirData.directory.id;
+    console.log(`[mergeVideosSimple] ✅ Created directory: ${dirId}`);
+    
+    // 2. Register ALL video files
+    console.log(`[mergeVideosSimple] 📝 Step 2: Registering ${videoUrls.length} video files...`);
+    const batchTimestamp = Date.now();
+    
+    const fileRegistrations = await Promise.all(
+      videoUrls.map(async (videoUrl, i) => {
+        const fileName = `merge_input_${i}_${batchTimestamp}.mp4`;
+        
+        const fileRes = await fetch(`${FFMPEG_API_BASE}/file`, {
+          method: 'POST',
+          headers: {
+            'Authorization': ffmpegApiKey,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            file_name: fileName,
+            dir_id: dirId
+          })
+        });
+        
+        if (!fileRes.ok) {
+          throw new Error(`Failed to register file ${i}: ${fileRes.statusText}`);
+        }
+        
+        const fileData = await fileRes.json();
+        console.log(`[mergeVideosSimple] ✅ Registered ${i + 1}/${videoUrls.length}: ${fileData.file.file_path}`);
+        
+        return {
+          file: fileData.file,
+          upload: fileData.upload,
+          videoUrl
+        };
+      })
+    );
+    
+    console.log(`[mergeVideosSimple] ✅ All video files registered!`);
+    
+    // 3. Upload videos to FFmpeg API
+    console.log(`[mergeVideosSimple] 📤 Step 3: Uploading ${videoUrls.length} videos...`);
+    
+    await Promise.all(
+      fileRegistrations.map(async ({ upload, videoUrl, file }, i) => {
+        console.log(`[mergeVideosSimple] ⬇️ Downloading ${i + 1}/${videoUrls.length} from CDN...`);
+        
+        const videoRes = await fetch(videoUrl);
+        if (!videoRes.ok) {
+          throw new Error(`Failed to download video ${i}: ${videoRes.statusText}`);
+        }
+        
+        const videoBuffer = await videoRes.arrayBuffer();
+        const videoSizeMB = (videoBuffer.byteLength / (1024 * 1024)).toFixed(2);
+        console.log(`[mergeVideosSimple] ✅ Downloaded ${i + 1}/${videoUrls.length}: ${videoSizeMB} MB`);
+        
+        console.log(`[mergeVideosSimple] ⬆️ Uploading ${i + 1}/${videoUrls.length} to FFmpeg API...`);
+        
+        const uploadHeaders = upload.headers || {};
+        
+        const uploadRes = await fetch(upload.url, {
+          method: 'PUT',
+          body: videoBuffer,
+          headers: uploadHeaders
+        });
+        
+        if (!uploadRes.ok) {
+          throw new Error(`Failed to upload video ${i}: ${uploadRes.statusText}`);
+        }
+        
+        console.log(`[mergeVideosSimple] ✅ Uploaded ${i + 1}/${videoUrls.length}: ${file.file_path}`);
+      })
+    );
+    
+    console.log(`[mergeVideosSimple] ✅ All videos uploaded!`);
+    
+    // 4. Create concat list file
+    const uploadedFilePaths = fileRegistrations.map(({ file }) => file.file_path);
+    
+    console.log(`\n========================================`);
+    console.log(`[mergeVideosSimple] 📝 STEP 4: Creating concat list file`);
+    console.log(`========================================`);
+    
+    // Build list.txt content
+    const listContent = uploadedFilePaths.map(path => `file '${path}'`).join('\n');
+    console.log(`[mergeVideosSimple] List content:\n${listContent}`);
+    
+    // Register list.txt file
+    const listFileName = `concat_list_${batchTimestamp}.txt`;
+    console.log(`[mergeVideosSimple] Registering list file: ${listFileName}`);
+    
+    const listFileRes = await fetch(`${FFMPEG_API_BASE}/file`, {
+      method: 'POST',
+      headers: {
+        'Authorization': ffmpegApiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        file_name: listFileName,
+        dir_id: dirId
+      })
+    });
+    
+    if (!listFileRes.ok) {
+      throw new Error(`Failed to register list file: ${listFileRes.statusText}`);
+    }
+    
+    const listFileData = await listFileRes.json();
+    console.log(`[mergeVideosSimple] ✅ List file registered: ${listFileData.file.file_path}`);
+    
+    // Upload list.txt content
+    console.log(`[mergeVideosSimple] Uploading list file content...`);
+    const listUploadHeaders = listFileData.upload.headers || {};
+    
+    const listUploadRes = await fetch(listFileData.upload.url, {
+      method: 'PUT',
+      body: Buffer.from(listContent, 'utf-8'),
+      headers: listUploadHeaders
+    });
+    
+    if (!listUploadRes.ok) {
+      throw new Error(`Failed to upload list file: ${listUploadRes.statusText}`);
+    }
+    
+    console.log(`[mergeVideosSimple] ✅ List file uploaded!`);
+    console.log(`========================================\n`);
+    
+    // 5. Prepare FFmpeg task with concat demuxer
+    const outputFileName = `${outputVideoName}_${Date.now()}.mp4`;
+    
+    const task: any = {
+      inputs: [
+        {
+          file_path: listFileData.file.file_path,
+          options: ['-f', 'concat', '-safe', '0']
+        }
+      ],
+      outputs: [
+        {
+          file: outputFileName,
+          options: ['-c', 'copy']  // Copy both video and audio (lossless)
+        }
+      ]
+    };
+    
+    console.log(`\n========================================`);
+    console.log(`[mergeVideosSimple] 🎬 STEP 5: Preparing FFmpeg task`);
+    console.log(`========================================`);
+    console.log(`[mergeVideosSimple] Method: concat demuxer`);
+    console.log(`[mergeVideosSimple] Input: ${listFileData.file.file_path}`);
+    console.log(`[mergeVideosSimple] Output: ${outputFileName}`);
+    console.log(`[mergeVideosSimple] Codec: copy (lossless)`);
+    console.log(`========================================\n`);
+    
+    // 6. Send to FFmpeg API
+    console.log(`[mergeVideosSimple] Sending task to FFmpeg API...`);
+    console.log(`[mergeVideosSimple] 📋 Task:`, JSON.stringify(task, null, 2));
+    
+    const processRes = await fetch(`${FFMPEG_API_BASE}/ffmpeg/process`, {
+      method: 'POST',
+      headers: {
+        'Authorization': ffmpegApiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ task }),
+    });
+    
+    if (!processRes.ok) {
+      const errorText = await processRes.text();
+      console.error('[mergeVideosSimple] ❌ FFmpeg API error:', errorText.substring(0, 500));
+      throw new Error(`FFmpeg API failed: ${processRes.statusText} - ${errorText.substring(0, 200)}`);
+    }
+    
+    const responseText = await processRes.text();
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch (e) {
+      console.error('[mergeVideosSimple] Invalid JSON:', responseText.substring(0, 500));
+      throw new Error(`FFmpeg API returned invalid JSON`);
+    }
+    
+    if (!result.ok || !result.result || result.result.length === 0) {
+      throw new Error(`FFmpeg API returned no result`);
+    }
+    
+    const downloadUrl = result.result[0].download_url;
+    console.log(`[mergeVideosSimple] ✅ FFmpeg processing complete!`);
+    console.log(`[mergeVideosSimple] Download URL: ${downloadUrl}`);
+    
+    // 7. Upload to BunnyCDN
+    console.log(`[mergeVideosSimple] 📤 Step 6: Uploading to BunnyCDN...`);
+    
+    const videoRes = await fetch(downloadUrl);
+    if (!videoRes.ok) {
+      throw new Error(`Failed to download from FFmpeg API: ${videoRes.statusText}`);
+    }
+    
+    const videoBuffer = await videoRes.arrayBuffer();
+    const videoSizeMB = (videoBuffer.byteLength / (1024 * 1024)).toFixed(2);
+    console.log(`[mergeVideosSimple] Downloaded merged video: ${videoSizeMB} MB`);
+    
+    const cdnUrl = await uploadToBunnyCDN(
+      Buffer.from(videoBuffer),
+      outputFileName,
+      userId,
+      folder
+    );
+    
+    console.log(`[mergeVideosSimple] ✅ Uploaded to BunnyCDN: ${cdnUrl}`);
+    
+    console.log(`\n========================================`);
+    console.log(`[mergeVideosSimple] 🎉 MERGE COMPLETE!`);
+    console.log(`========================================`);
+    console.log(`[mergeVideosSimple] Final CDN URL: ${cdnUrl}`);
+    console.log(`[mergeVideosSimple] Method: concat demuxer (lossless)`);
+    console.log(`[mergeVideosSimple] Videos merged: ${videoUrls.length}`);
+    console.log(`========================================\n`);
+    
+    return cdnUrl;
+  } catch (error) {
+    console.error(`[mergeVideosSimple] ❌ Error:`, error);
     throw error;
   }
 }

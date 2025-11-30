@@ -2249,7 +2249,9 @@ export const appRouter = router({
         }
       }),
 
-    // Merge videos (Step 10) - merge only, no cutting
+    // Merge videos (Step 9 & Step 10)
+    // Step 9: useSimpleMerge=true (concat demuxer, lossless)
+    // Step 10: useSimpleMerge=false (filter_complex, re-encode + loudnorm)
     mergeVideos: publicProcedure
       .input(z.object({
         videoUrls: z.array(z.string()),
@@ -2257,7 +2259,8 @@ export const appRouter = router({
         ffmpegApiKey: z.string(),
         userId: z.number().optional(),
         folder: z.string().optional(),
-        useLoudnorm: z.boolean().optional(), // Enable loudnorm audio normalization for final merge (STEP 10)
+        useSimpleMerge: z.boolean().optional(), // true = Step 9 (concat demuxer), false = Step 10 (filter_complex)
+        useLoudnorm: z.boolean().optional(), // Enable loudnorm audio normalization for Step 10
       }))
       .mutation(async ({ input }) => {
         try {
@@ -2265,18 +2268,37 @@ export const appRouter = router({
           console.log(`[mergeVideos] 📺 Videos to merge: ${input.videoUrls.length}`);
           console.log(`[mergeVideos] 🎯 Output name: ${input.outputVideoName}`);
           console.log(`[mergeVideos] 🔗 Video URLs:`, input.videoUrls);
+          console.log(`[mergeVideos] 🔧 Method: ${input.useSimpleMerge ? 'SIMPLE (concat demuxer)' : 'COMPLEX (filter_complex)'}`);
+          console.log(`[mergeVideos] 🔊 Loudnorm: ${input.useLoudnorm ? 'YES' : 'NO'}`);
           
-          const { mergeVideosWithFFmpegAPI } = await import('./videoEditing.js');
-          console.log(`[mergeVideos] 📤 Calling mergeVideosWithFFmpegAPI...`);
+          let cdnUrl: string;
           
-          const cdnUrl = await mergeVideosWithFFmpegAPI(
-            input.videoUrls,
-            input.outputVideoName,
-            input.ffmpegApiKey,
-            input.userId,
-            input.folder,
-            input.useLoudnorm
-          );
+          if (input.useSimpleMerge) {
+            // Step 9: Simple merge (concat demuxer, lossless)
+            const { mergeVideosSimple } = await import('./videoEditing.js');
+            console.log(`[mergeVideos] 📤 Calling mergeVideosSimple (Step 9)...`);
+            
+            cdnUrl = await mergeVideosSimple(
+              input.videoUrls,
+              input.outputVideoName,
+              input.ffmpegApiKey,
+              input.userId,
+              input.folder || 'prepare-for-merge'
+            );
+          } else {
+            // Step 10: Complex merge (filter_complex, re-encode + loudnorm)
+            const { mergeVideosWithFilterComplex } = await import('./videoEditing.js');
+            console.log(`[mergeVideos] 📤 Calling mergeVideosWithFilterComplex (Step 10)...`);
+            
+            cdnUrl = await mergeVideosWithFilterComplex(
+              input.videoUrls,
+              input.outputVideoName,
+              input.ffmpegApiKey,
+              input.userId,
+              input.folder || 'merged-final-videos',
+              input.useLoudnorm ?? true
+            );
+          }
           
           console.log(`[mergeVideos] ✅ Merge complete! CDN URL: ${cdnUrl}`);
           
