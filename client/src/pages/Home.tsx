@@ -3002,12 +3002,24 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             useLoudnorm: true,  // Enable loudnorm audio normalization for final merge
           });
           
-          results.push({
+          // REPLACE or ADD final video
+          const existingFinalIndex = results.findIndex(v => v.videoName === finalVideoName);
+          const finalVideoEntry = {
             videoName: finalVideoName,
             cdnUrl: result.cdnUrl,
             hookName: hook.name,
             bodyName: selectedBody || 'body_merged'
-          });
+          };
+          
+          if (existingFinalIndex >= 0) {
+            // REPLACE existing final video
+            results[existingFinalIndex] = finalVideoEntry;
+            console.log(`[Step 10→Step 11] 🔄 REPLACED existing ${finalVideoName}`);
+          } else {
+            // ADD new final video
+            results.push(finalVideoEntry);
+            console.log(`[Step 10→Step 11] ➕ ADDED ${finalVideoName}`);
+          }
           
           completedCount++;
           console.log(`[Step 10→Step 11] ✅ ${finalVideoName} SUCCESS (${completedCount}/${hookUrls.length})`);
@@ -3763,16 +3775,25 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             return { ...cleaned, [baseName]: result.cdnUrl };
           });
           
-          // MARK grouped videos and ADD merged video to videoResults
-          const updatedVideoResults = videoResults.map(v => {
-            // Mark videos that were grouped in this merge
+          // RESET + MARK grouped videos and REPLACE/ADD merged video to videoResults
+          // Step 1: RESET isGroupedInMerge for videos in this group
+          const resetVideoResults = videoResults.map(v => {
+            // Reset if video belongs to this group (same baseName prefix)
+            if (v.videoName.startsWith(baseName)) {
+              return { ...v, isGroupedInMerge: false };
+            }
+            return v;
+          });
+          
+          // Step 2: MARK videos that are grouped in this merge
+          const updatedVideoResults = resetVideoResults.map(v => {
             if (videos.some(gv => gv.videoName === v.videoName)) {
               return { ...v, isGroupedInMerge: true };
             }
             return v;
           });
           
-          // Add merged video (HOOK2M) to videoResults
+          // Step 3: REPLACE or ADD merged video (HOOK2M)
           const mergedVideo = {
             videoName: outputName,  // Already has M suffix
             trimmedVideoUrl: result.cdnUrl,
@@ -3783,10 +3804,19 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             isMergedResult: true,  // Mark as merged result
           };
           
-          updatedVideoResults.push(mergedVideo);
-          setVideoResults(updatedVideoResults);
+          const existingMergedIndex = updatedVideoResults.findIndex(v => v.videoName === outputName);
+          if (existingMergedIndex >= 0) {
+            // REPLACE existing merged video
+            updatedVideoResults[existingMergedIndex] = mergedVideo;
+            console.log(`[Trimming] 🔄 REPLACED existing ${outputName} in videoResults`);
+          } else {
+            // ADD new merged video
+            updatedVideoResults.push(mergedVideo);
+            console.log(`[Trimming] ✅ ADDED ${outputName} to videoResults`);
+          }
           
-          console.log(`[Trimming] ✅ Marked ${videos.length} videos as grouped, added ${outputName} to videoResults`);
+          setVideoResults(updatedVideoResults);
+          console.log(`[Trimming] ✅ Marked ${videos.length} videos as grouped`);
           
           // Add to merged list and increment progress
           setTrimmingProgress(prev => ({
@@ -5648,16 +5678,25 @@ const handlePrepareForMerge = async () => {
               });
             });
             
-            // MARK grouped videos and ADD merged video to videoResults
-            const updatedVideoResults = videoResults.map(v => {
-              // Mark videos that were grouped in this merge
+            // RESET + MARK grouped videos and REPLACE/ADD merged video to videoResults
+            // Step 1: RESET isGroupedInMerge for videos in this group
+            const resetVideoResults = videoResults.map(v => {
+              // Reset if video belongs to this group (same baseName prefix)
+              if (v.videoName.startsWith(baseName)) {
+                return { ...v, isGroupedInMerge: false };
+              }
+              return v;
+            });
+            
+            // Step 2: MARK videos that are grouped in this merge
+            const updatedVideoResults = resetVideoResults.map(v => {
               if (videos.some(gv => gv.videoName === v.videoName)) {
                 return { ...v, isGroupedInMerge: true };
               }
               return v;
             });
             
-            // Add merged video (HOOK2M) to videoResults
+            // Step 3: REPLACE or ADD merged video (HOOK2M)
             const mergedVideoName = baseName.replace(/(HOOK\d+)/, '$1M');
             const mergedVideo = {
               videoName: mergedVideoName,
@@ -5669,10 +5708,19 @@ const handlePrepareForMerge = async () => {
               isMergedResult: true,  // Mark as merged result
             };
             
-            updatedVideoResults.push(mergedVideo);
-            setVideoResults(updatedVideoResults);
+            const existingMergedIndex = updatedVideoResults.findIndex(v => v.videoName === mergedVideoName);
+            if (existingMergedIndex >= 0) {
+              // REPLACE existing merged video
+              updatedVideoResults[existingMergedIndex] = mergedVideo;
+              console.log(`[Retry] 🔄 REPLACED existing ${mergedVideoName} in videoResults`);
+            } else {
+              // ADD new merged video
+              updatedVideoResults.push(mergedVideo);
+              console.log(`[Retry] ✅ ADDED ${mergedVideoName} to videoResults`);
+            }
             
-            console.log(`[Retry] ✅ Marked ${videos.length} videos as grouped, added ${mergedVideoName} to videoResults`);
+            setVideoResults(updatedVideoResults);
+            console.log(`[Retry] ✅ Marked ${videos.length} videos as grouped`);
             
             // Save to database
             await upsertContextSessionMutation.mutateAsync({
