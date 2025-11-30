@@ -2250,7 +2250,7 @@ export const appRouter = router({
       }),
 
     // Merge videos (Step 9 & Step 10)
-    // Step 9: useSimpleMerge=true (concat demuxer, lossless)
+    // Step 9: useSimpleMerge=true (concat protocol, lossless)
     // Step 10: useSimpleMerge=false (filter_complex, re-encode + loudnorm)
     mergeVideos: publicProcedure
       .input(z.object({
@@ -2259,7 +2259,7 @@ export const appRouter = router({
         ffmpegApiKey: z.string(),
         userId: z.number().optional(),
         folder: z.string().optional(),
-        useSimpleMerge: z.boolean().optional(), // true = Step 9 (concat demuxer), false = Step 10 (filter_complex)
+        useSimpleMerge: z.boolean().optional(), // true = Step 9 (concat protocol), false = Step 10 (filter_complex)
         useLoudnorm: z.boolean().optional(), // Enable loudnorm audio normalization for Step 10
       }))
       .mutation(async ({ input }) => {
@@ -2268,7 +2268,7 @@ export const appRouter = router({
           console.log(`[mergeVideos] 📺 Videos to merge: ${input.videoUrls.length}`);
           console.log(`[mergeVideos] 🎯 Output name: ${input.outputVideoName}`);
           console.log(`[mergeVideos] 🔗 Video URLs:`, input.videoUrls);
-          console.log(`[mergeVideos] 🔧 Method: ${input.useSimpleMerge ? 'SIMPLE (concat demuxer)' : 'COMPLEX (filter_complex)'}`);
+          console.log(`[mergeVideos] 🔧 Method: ${input.useSimpleMerge ? 'SIMPLE (concat protocol)' : 'COMPLEX (filter_complex)'}`);
           console.log(`[mergeVideos] 🔊 Loudnorm: ${input.useLoudnorm ? 'YES' : 'NO'}`);
           
           let cdnUrl: string;
