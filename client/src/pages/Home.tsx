@@ -825,6 +825,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     userId: localCurrentUser.id,
   });
 
+  // Get latest context session for restoring selections on mount
+  const { data: latestContextSession } = trpc.contextSessions.getLatest.useQuery({
+    userId: localCurrentUser.id,
+  });
+
   // Context session query - load workflow data for selected context
   const { data: contextSession, refetch: refetchContextSession } = trpc.contextSessions.get.useQuery(
     {
@@ -1277,7 +1282,26 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // AUTO-SAVE REMOVED: Explicit saves added to Next buttons and major actions
   // This eliminates race conditions when loading data from database
   
-  // Auto-select first TAM when TAMs are loaded
+  // Restore selections from latest context session on mount (ONE SOURCE OF TRUTH)
+  useEffect(() => {
+    if (!latestContextSession) return;
+    
+    console.log('[Context Restore] Restoring selections from database:', {
+      tamId: latestContextSession.tamId,
+      coreBeliefId: latestContextSession.coreBeliefId,
+      emotionalAngleId: latestContextSession.emotionalAngleId,
+      adId: latestContextSession.adId,
+      characterId: latestContextSession.characterId,
+    });
+    
+    if (latestContextSession.tamId) setSelectedTamId(latestContextSession.tamId);
+    if (latestContextSession.coreBeliefId) setSelectedCoreBeliefId(latestContextSession.coreBeliefId);
+    if (latestContextSession.emotionalAngleId) setSelectedEmotionalAngleId(latestContextSession.emotionalAngleId);
+    if (latestContextSession.adId) setSelectedAdId(latestContextSession.adId);
+    if (latestContextSession.characterId) setSelectedCharacterId(latestContextSession.characterId);
+  }, [latestContextSession]);
+
+  // Auto-select first TAM when TAMs are loaded (ONLY if no selection exists)
   useEffect(() => {
     if (tams.length > 0 && !selectedTamId) {
       console.log('[Auto-select] Setting first TAM:', tams[0].name);
@@ -1285,29 +1309,30 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
   }, [tams, selectedTamId]);
   
+  // DISABLED: Auto-select logic - using database as single source of truth
   // Auto-select first Core Belief when Core Beliefs are loaded
-  useEffect(() => {
-    if (coreBeliefs.length > 0 && !selectedCoreBeliefId) {
-      console.log('[Auto-select] Setting first Core Belief:', coreBeliefs[0].name);
-      setSelectedCoreBeliefId(coreBeliefs[0].id);
-    }
-  }, [coreBeliefs, selectedCoreBeliefId]);
+  // useEffect(() => {
+  //   if (coreBeliefs.length > 0 && !selectedCoreBeliefId) {
+  //     console.log('[Auto-select] Setting first Core Belief:', coreBeliefs[0].name);
+  //     setSelectedCoreBeliefId(coreBeliefs[0].id);
+  //   }
+  // }, [coreBeliefs, selectedCoreBeliefId]);
   
   // Auto-select first Emotional Angle when Emotional Angles are loaded
-  useEffect(() => {
-    if (emotionalAngles.length > 0 && !selectedEmotionalAngleId) {
-      console.log('[Auto-select] Setting first Emotional Angle:', emotionalAngles[0].name);
-      setSelectedEmotionalAngleId(emotionalAngles[0].id);
-    }
-  }, [emotionalAngles, selectedEmotionalAngleId]);
+  // useEffect(() => {
+  //   if (emotionalAngles.length > 0 && !selectedEmotionalAngleId) {
+  //     console.log('[Auto-select] Setting first Emotional Angle:', emotionalAngles[0].name);
+  //     setSelectedEmotionalAngleId(emotionalAngles[0].id);
+  //   }
+  // }, [emotionalAngles, selectedEmotionalAngleId]);
   
   // Auto-select first Ad when Ads are loaded
-  useEffect(() => {
-    if (ads.length > 0 && !selectedAdId) {
-      console.log('[Auto-select] Setting first Ad:', ads[0].name);
-      setSelectedAdId(ads[0].id);
-    }
-  }, [ads, selectedAdId]);
+  // useEffect(() => {
+  //   if (ads.length > 0 && !selectedAdId) {
+  //     console.log('[Auto-select] Setting first Ad:', ads[0].name);
+  //     setSelectedAdId(ads[0].id);
+  //   }
+  // }, [ads, selectedAdId]);
   
   // Auto-filter library images by selected character in Step 4
   useEffect(() => {
@@ -1364,24 +1389,24 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   }, [selectedAdId, selectedCharacterId, allContextSessions]);
 
   // Save all selection IDs to localStorage for persistence across refresh
-  // TAM, CoreBelief, EmotionalAngle are NOT saved to localStorage
-  // They are auto-selected on page load based on available data
+  // DISABLED: localStorage for selections - using database as single source of truth
+  // TAM, CoreBelief, EmotionalAngle, Ad, Character are all restored from database on mount
 
-  useEffect(() => {
-    if (selectedAdId) {
-      localStorage.setItem('selectedAdId', selectedAdId.toString());
-    } else {
-      localStorage.removeItem('selectedAdId');
-    }
-  }, [selectedAdId]);
+  // useEffect(() => {
+  //   if (selectedAdId) {
+  //     localStorage.setItem('selectedAdId', selectedAdId.toString());
+  //   } else {
+  //     localStorage.removeItem('selectedAdId');
+  //   }
+  // }, [selectedAdId]);
 
-  useEffect(() => {
-    if (selectedCharacterId) {
-      localStorage.setItem('selectedCharacterId', selectedCharacterId.toString());
-    } else {
-      localStorage.removeItem('selectedCharacterId');
-    }
-  }, [selectedCharacterId]);
+  // useEffect(() => {
+  //   if (selectedCharacterId) {
+  //     localStorage.setItem('selectedCharacterId', selectedCharacterId.toString());
+  //   } else {
+  //     localStorage.removeItem('selectedCharacterId');
+  //   }
+  // }, [selectedCharacterId]);
   
   // Clear videoResults when Character changes (context switch)
   // This forces re-loading from database for the new context

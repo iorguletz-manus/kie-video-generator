@@ -18,7 +18,7 @@ import { parseAdDocument, parsePromptDocument, replaceInsertText, parseAdDocumen
 import { processAdDocument, addRedOnLine1 } from "./text-processor";
 import { createAppUser, getAppUserByUsername, getAppUserById, updateAppUser, createAppSession, getAppSessionsByUserId, updateAppSession, deleteAppSession, createUserImage, getUserImagesByUserId, getUserImagesByCharacter, updateUserImage, deleteUserImage, getUniqueCharacterNames, createUserPrompt, getUserPromptsByUserId, getUserPromptById, updateUserPrompt, deleteUserPrompt, createTam, getTamsByUserId, getTamById, updateTam, deleteTam, createCoreBelief, getCoreBeliefsByUserId, getCoreBeliefsByTamId, getCoreBeliefById, updateCoreBelief, deleteCoreBelief, createEmotionalAngle, getEmotionalAnglesByUserId, getEmotionalAnglesByCoreBeliefId, getEmotionalAngleById, updateEmotionalAngle, deleteEmotionalAngle, createAd, getAdsByUserId, getAdsByEmotionalAngleId, getAdById, updateAd, deleteAd, createCharacter, getCharactersByUserId, getCharacterById, updateCharacter, deleteCharacter, getContextSession, upsertContextSession, deleteContextSession, getDb } from "./db";
 import { contextSessions } from "../drizzle/schema";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { seedDefaultPromptsForUser } from "./seedDefaultPrompts";
 
 export const appRouter = router({
@@ -1476,6 +1476,26 @@ export const appRouter = router({
       }))
       .query(async ({ input }) => {
         return await getContextSession(input);
+      }),
+
+    getLatest: publicProcedure
+      .input(z.object({ userId: z.number() }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Database not available',
+          });
+        }
+        // Get latest context session by updatedAt
+        const sessions = await db.select()
+          .from(contextSessions)
+          .where(eq(contextSessions.userId, input.userId))
+          .orderBy(desc(contextSessions.updatedAt))
+          .limit(1);
+        
+        return sessions[0] || null;
       }),
 
     upsert: publicProcedure
