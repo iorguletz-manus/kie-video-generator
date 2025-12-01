@@ -1090,6 +1090,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       const sessions = getSavedSessions();
       const session = sessions.find(s => s.id === sessionId);
       
+      console.log('[Session Loading] 🔍 Found session:', {
+        sessionId,
+        hasSession: !!session,
+        hasVideoResults: session?.videoResults ? true : false,
+        videoResultsCount: session?.videoResults?.length || 0
+      });
+      
       if (!session) {
         toast.error('Sesiune negăsită');
         return;
@@ -1102,6 +1109,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       if (session.images) setImages(session.images);
       if (session.combinations) setCombinations(session.combinations);
       if (session.deletedCombinations) setDeletedCombinations(session.deletedCombinations);
+      
+      console.log('[Session Loading] 📦 Checking videoResults:', {
+        hasVideoResults: !!session.videoResults,
+        videoResultsLength: session.videoResults?.length || 0
+      });
+      
       if (session.videoResults) {
         setVideoResults(session.videoResults);
         
