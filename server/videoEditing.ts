@@ -1038,33 +1038,43 @@ function buildDrawtextFilter(settings: {
   const fontWeight = settings.bold ? 'Bold' : '';
   const fontStyle = settings.italic ? 'Italic' : '';
   
-  // Scale fontSize for FFmpeg to match player display
-  // If scaleFactor is provided, use it to scale fontSize
-  // Otherwise, use fontSize as-is (backward compatibility)
-  const scaledFontSize = settings.scaleFactor 
-    ? Math.round(settings.fontSize * settings.scaleFactor)
-    : settings.fontSize;
+  // Get scaleFactor (default 1 if not provided for backward compatibility)
+  const scaleFactor = settings.scaleFactor || 1;
   
-  console.log(`[buildDrawtextFilter] 📐 fontSize: ${settings.fontSize}, scaleFactor: ${settings.scaleFactor}, scaledFontSize: ${scaledFontSize}`);
+  // Scale fontSize, padding, and lineSpacing for FFmpeg to match player display
+  const scaledFontSize = Math.round(settings.fontSize * scaleFactor);
+  const scaledPadding = Math.round(settings.padding * scaleFactor);
+  const scaledLineSpacing = Math.round(settings.lineSpacing * scaleFactor);
+  
+  // Detailed logging
+  console.log(`[buildDrawtextFilter] 📐 Scaling factors:`);
+  console.log(`  - fontSize: ${settings.fontSize} → ${scaledFontSize} (×${scaleFactor})`);
+  console.log(`  - padding: ${settings.padding} → ${scaledPadding} (×${scaleFactor})`);
+  console.log(`  - lineSpacing: ${settings.lineSpacing} → ${scaledLineSpacing} (×${scaleFactor})`);
+  console.log(`  - position: ${settings.x}%, ${settings.y}% → ${xPos}px, ${yPos}px (video: ${VIDEO_W}x${VIDEO_H})`);
+  console.log(`  - bold: ${settings.bold}, italic: ${settings.italic}`);
   
   // Build drawtext filter for each line
   const drawtextFilters = lines.map((line, index) => {
     const escapedLine = escapeText(line || ' ');
     
-    // Calculate Y offset for each line (based on line spacing)
-    const lineYOffset = index * (scaledFontSize + settings.lineSpacing);
+    // Calculate Y offset for each line (based on SCALED line spacing)
+    const lineYOffset = index * (scaledFontSize + scaledLineSpacing);
     const finalY = yPos + lineYOffset;
+    
+    // ALWAYS center text horizontally (ignore X position from settings)
+    const xExpression = '(w-text_w)/2';
     
     // Build drawtext parameters
     const params = [
       `text='${escapedLine}'`,
       `fontsize=${scaledFontSize}`,
-      `fontcolor=#${hexColor(settings.textColor)}`,
-      `x=${xPos}`,
+      `fontcolor=${hexColor(settings.textColor)}`,
+      `x=${xExpression}`,
       `y=${finalY}`,
       `box=1`,
-      `boxcolor=#${hexColor(settings.backgroundColor)}@${settings.opacity}`,
-      `boxborderw=${settings.padding}`,
+      `boxcolor=${hexColor(settings.backgroundColor)}@${settings.opacity}`,
+      `boxborderw=${scaledPadding}`,
       // Note: FFmpeg doesn't support border-radius in drawtext, we'll skip it
     ];
     
