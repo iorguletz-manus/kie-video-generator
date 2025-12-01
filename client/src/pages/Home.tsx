@@ -864,6 +864,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
   );
 
+  // Flag to control auto-loading of context (disabled on page refresh)
+  const [shouldAutoLoadContext, setShouldAutoLoadContext] = useState(false);
+  
   // Context session query - load workflow data for selected context
   const { data: contextSession, refetch: refetchContextSession } = trpc.contextSessions.get.useQuery(
     {
@@ -874,7 +877,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       characterId: selectedCharacterId!,
     },
     {
-      enabled: !!(selectedTamId && selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId),
+      // Disable auto-loading on page refresh - only load when user manually selects context
+      enabled: shouldAutoLoadContext && !!(selectedTamId && selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId),
     }
   );
 
@@ -8930,6 +8934,8 @@ const handlePrepareForMerge = async () => {
                     // Simply update character selection without auto-duplicate
                     setSelectedCharacterId(newCharacterId);
                     previousCharacterIdRef.current = newCharacterId;
+                    // Enable auto-loading when user manually selects context
+                    setShouldAutoLoadContext(true);
                   }
                 }}
               >
