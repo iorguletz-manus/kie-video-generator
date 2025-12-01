@@ -1842,6 +1842,9 @@ export const appRouter = router({
           padding: z.number(),
           cornerRadius: z.number(),
           lineSpacing: z.number(),
+          videoWidth: z.number().optional(),  // Native video width
+          videoHeight: z.number().optional(),  // Native video height
+          scaleFactor: z.number().optional(),  // Scale factor for fontSize (videoWidth / playerWidth)
         }).optional(),  // Optional: overlay settings for HOOK videos
       }))
       .mutation(async ({ input }) => {
