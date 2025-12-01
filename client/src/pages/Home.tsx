@@ -1392,13 +1392,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     if (latestContextSession.characterId) setSelectedCharacterId(latestContextSession.characterId);
   }, [latestContextSession]);
 
-  // Auto-select first TAM when TAMs are loaded (ONLY if no selection exists)
-  useEffect(() => {
-    if (tams.length > 0 && !selectedTamId) {
-      console.log('[Auto-select] Setting first TAM:', tams[0].name);
-      setSelectedTamId(tams[0].id);
-    }
-  }, [tams, selectedTamId]);
+  // DISABLED: Auto-select first TAM - require manual selection
+  // useEffect(() => {
+  //   if (tams.length > 0 && !selectedTamId) {
+  //     console.log('[Auto-select] Setting first TAM:', tams[0].name);
+  //     setSelectedTamId(tams[0].id);
+  //   }
+  // }, [tams, selectedTamId]);
   
   // DISABLED: Auto-select logic - using database as single source of truth
   // Auto-select first Core Belief when Core Beliefs are loaded
@@ -1467,16 +1467,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       }
     }
     
-    // Auto-select ONLY if there's exactly ONE character with videos
-    if (charactersWithVideos.size === 1) {
-      const singleCharacterId = Array.from(charactersWithVideos)[0];
-      console.log('[Auto-select] Setting SINGLE character with videos for AD:', singleCharacterId);
-      setSelectedCharacterId(singleCharacterId);
-    } else if (charactersWithVideos.size > 1) {
-      console.log('[Auto-select] Multiple characters with videos found, not auto-selecting');
-    } else {
-      console.log('[Auto-select] No characters with videos found, leaving as "Select Character"');
-    }
+    // DISABLED: Auto-select character - require manual selection
+    // if (charactersWithVideos.size === 1) {
+    //   const singleCharacterId = Array.from(charactersWithVideos)[0];
+    //   console.log('[Auto-select] Setting SINGLE character with videos for AD:', singleCharacterId);
+    //   setSelectedCharacterId(singleCharacterId);
+    // } else if (charactersWithVideos.size > 1) {
+    //   console.log('[Auto-select] Multiple characters with videos found, not auto-selecting');
+    // } else {
+    //   console.log('[Auto-select] No characters with videos found, leaving as "Select Character"');
+    // }
   }, [selectedAdId, selectedCharacterId, allContextSessions]);
 
   // Save all selection IDs to localStorage for persistence across refresh
