@@ -4443,12 +4443,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         // FAILED AGAIN - Update error message
         console.error(`[Retry] ❌ ${video.videoName} FAILED:`, error);
         
-        // Update videoResults with failed status
+        // Update videoResults with error message ONLY (preserve original status)
         setVideoResults(prev => prev.map(v =>
           v.videoName === video.videoName
             ? { 
                 ...v, 
-                status: 'failed' as const,
+                // DO NOT change status! Keep original 'success' from Step 6
                 error: error.message || 'Unknown error'
               }
             : v
@@ -5074,12 +5074,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           // FAILED
           console.error(`[Simple Cut] ❌ ${video.videoName} FAILED:`, error);
           
-          // Update videoResults with failed status
+          // Update videoResults with error message ONLY (preserve original status)
+          // status should remain 'success' (from Step 6) so video stays visible in Step 8
           setVideoResults(prev => prev.map(v =>
             v.videoName === video.videoName
               ? { 
                   ...v, 
-                  status: 'failed' as const,
+                  // DO NOT change status! Keep original 'success' from Step 6
                   error: error.message || 'Unknown error'
                 }
               : v
