@@ -14,6 +14,7 @@ import { promisify } from 'util';
 const execAsync = promisify(exec);
 import { saveVideoTask, updateVideoTask } from "./videoCache";
 import { processVideoForEditing, extractWAVFromVideo, processAudioWithWhisperCleanVoice, cutVideoWithFFmpegAPI, WhisperWord, CutPoints } from "./videoEditing";
+import { generateScreenshotPath } from "./storageHelpers";
 import { parseAdDocument, parsePromptDocument, replaceInsertText, parseAdDocumentWithSections, PromptType } from "./documentParser";
 import { processAdDocument, addRedOnLine1 } from "./text-processor";
 import { createAppUser, getAppUserByUsername, getAppUserById, updateAppUser, createAppSession, getAppSessionsByUserId, updateAppSession, deleteAppSession, createUserImage, getUserImagesByUserId, getUserImagesByCharacter, updateUserImage, deleteUserImage, getUniqueCharacterNames, createUserPrompt, getUserPromptsByUserId, getUserPromptById, updateUserPrompt, deleteUserPrompt, createTam, getTamsByUserId, getTamById, updateTam, deleteTam, createCoreBelief, getCoreBeliefsByUserId, getCoreBeliefsByTamId, getCoreBeliefById, updateCoreBelief, deleteCoreBelief, createEmotionalAngle, getEmotionalAnglesByUserId, getEmotionalAnglesByCoreBeliefId, getEmotionalAngleById, updateEmotionalAngle, deleteEmotionalAngle, createAd, getAdsByUserId, getAdsByEmotionalAngleId, getAdById, updateAd, deleteAd, createCharacter, getCharactersByUserId, getCharacterById, updateCharacter, deleteCharacter, getContextSession, upsertContextSession, deleteContextSession, getDb } from "./db";
@@ -252,13 +253,11 @@ export const appRouter = router({
           const base64Data = input.imageData.replace(/^data:image\/\w+;base64,/, "");
           const buffer = Buffer.from(base64Data, 'base64');
           
-          // Generează nume unic pentru imagine
-          const randomSuffix = Math.random().toString(36).substring(2, 15);
+          // Generate screenshot path using storageHelpers
           const timestamp = Date.now();
-          // Organizare în subfoldere: {userId}/{sessionId}/{timestamp}.png
-          const userFolder = input.userId ? `user-${input.userId}` : 'default';
-          const sessionFolder = input.sessionId || 'default';
-          const fileName = `${userFolder}/${sessionFolder}/${timestamp}-${randomSuffix}.png`;
+          const fileName = input.userId 
+            ? generateScreenshotPath(input.userId, input.sessionId || 'default', 'screenshot', timestamp)
+            : `default/${input.sessionId || 'default'}/screenshot-${timestamp}.png`;
           
           // BunnyCDN configuration (hardcoded)
           const BUNNYCDN_STORAGE_PASSWORD = '4c9257d6-aede-4ff1-bb0f9fc95279-997e-412b'; // Storage Password (Read-Write)

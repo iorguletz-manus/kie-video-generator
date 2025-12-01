@@ -77,7 +77,7 @@ export function generateAudioPath(
 
 /**
  * Generate path for trimmed videos
- * Pattern: user-{userId}/trimmed-videos/{videoName}-{timestamp}.mp4
+ * Pattern: user-{userId}/videos/trimmed/{videoName}-{timestamp}.mp4
  */
 export function generateTrimmedVideoPath(
   userId: number,
@@ -87,7 +87,53 @@ export function generateTrimmedVideoPath(
   const sanitizedVideoName = sanitizePathSegment(videoName);
   const randomSuffix = Math.random().toString(36).substring(2, 15);
   
-  return `user-${userId}/trimmed-videos/${sanitizedVideoName}-${timestamp}-${randomSuffix}.mp4`;
+  return `user-${userId}/videos/trimmed/${sanitizedVideoName}-${timestamp}-${randomSuffix}.mp4`;
+}
+
+/**
+ * Generate path for merged videos
+ * Pattern: user-{userId}/videos/merged/{videoName}-{timestamp}.mp4
+ */
+export function generateMergedVideoPath(
+  userId: number,
+  videoName: string,
+  timestamp: number = Date.now()
+): string {
+  const sanitizedVideoName = sanitizePathSegment(videoName);
+  const randomSuffix = Math.random().toString(36).substring(2, 15);
+  
+  return `user-${userId}/videos/merged/${sanitizedVideoName}-${timestamp}-${randomSuffix}.mp4`;
+}
+
+/**
+ * Generate path for prepare-for-merge videos
+ * Pattern: user-{userId}/videos/prepare-for-merge/{videoName}-{timestamp}.mp4
+ */
+export function generatePrepareForMergeVideoPath(
+  userId: number,
+  videoName: string,
+  timestamp: number = Date.now()
+): string {
+  const sanitizedVideoName = sanitizePathSegment(videoName);
+  const randomSuffix = Math.random().toString(36).substring(2, 15);
+  
+  return `user-${userId}/videos/prepare-for-merge/${sanitizedVideoName}-${timestamp}-${randomSuffix}.mp4`;
+}
+
+/**
+ * Generate path for screenshot images
+ * Pattern: user-{userId}/images/screenshots/{sessionId}/{fileName}-{timestamp}.png
+ */
+export function generateScreenshotPath(
+  userId: number,
+  sessionId: string,
+  fileName: string,
+  timestamp: number = Date.now()
+): string {
+  const sanitizedFileName = sanitizePathSegment(fileName);
+  const randomSuffix = Math.random().toString(36).substring(2, 15);
+  
+  return `user-${userId}/images/screenshots/${sessionId}/${sanitizedFileName}-${timestamp}-${randomSuffix}.png`;
 }
 
 /**
