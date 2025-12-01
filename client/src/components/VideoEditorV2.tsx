@@ -128,6 +128,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
     isLocked: false, // Unlocked by default
     videoWidth: undefined, // Will be set from video element
     videoHeight: undefined, // Will be set from video element
+    scaleFactor: undefined, // Will be calculated from player vs native dimensions
   };
   
   // Merge props with defaults (props override defaults)
@@ -716,13 +717,18 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
             onTimeUpdate={handleVideoTimeUpdate}
             onLoadedMetadata={(e) => {
               const videoElement = e.currentTarget;
-              // Update overlay settings with actual video dimensions
+              // Calculate scale factor between displayed size and native size
+              const scaleFactor = videoElement.videoWidth / videoElement.clientWidth;
+              console.log('[VideoEditorV2] 📐 Player dimensions (displayed):', videoElement.clientWidth, 'x', videoElement.clientHeight);
+              console.log('[VideoEditorV2] 📐 Video dimensions (native):', videoElement.videoWidth, 'x', videoElement.videoHeight);
+              console.log('[VideoEditorV2] 📐 Scale factor:', scaleFactor);
+              // Update overlay settings with actual video dimensions and scale factor
               setLocalOverlaySettings(prev => ({
                 ...prev,
                 videoWidth: videoElement.videoWidth,
                 videoHeight: videoElement.videoHeight,
+                scaleFactor: scaleFactor,  // Store for FFmpeg fontSize calculation
               }));
-              console.log('[VideoEditorV2] Video dimensions:', videoElement.videoWidth, 'x', videoElement.videoHeight);
             }}
           />
           

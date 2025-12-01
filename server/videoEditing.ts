@@ -1038,18 +1038,27 @@ function buildDrawtextFilter(settings: {
   const fontWeight = settings.bold ? 'Bold' : '';
   const fontStyle = settings.italic ? 'Italic' : '';
   
+  // Scale fontSize for FFmpeg to match player display
+  // If scaleFactor is provided, use it to scale fontSize
+  // Otherwise, use fontSize as-is (backward compatibility)
+  const scaledFontSize = settings.scaleFactor 
+    ? Math.round(settings.fontSize * settings.scaleFactor)
+    : settings.fontSize;
+  
+  console.log(`[buildDrawtextFilter] 📐 fontSize: ${settings.fontSize}, scaleFactor: ${settings.scaleFactor}, scaledFontSize: ${scaledFontSize}`);
+  
   // Build drawtext filter for each line
   const drawtextFilters = lines.map((line, index) => {
     const escapedLine = escapeText(line || ' ');
     
     // Calculate Y offset for each line (based on line spacing)
-    const lineYOffset = index * (settings.fontSize + settings.lineSpacing);
+    const lineYOffset = index * (scaledFontSize + settings.lineSpacing);
     const finalY = yPos + lineYOffset;
     
     // Build drawtext parameters
     const params = [
       `text='${escapedLine}'`,
-      `fontsize=${settings.fontSize}`,
+      `fontsize=${scaledFontSize}`,
       `fontcolor=#${hexColor(settings.textColor)}`,
       `x=${xPos}`,
       `y=${finalY}`,
