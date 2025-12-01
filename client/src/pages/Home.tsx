@@ -13507,6 +13507,14 @@ const handlePrepareForMerge = async () => {
                             });
                           }}
                           overlaySettings={overlaySettings[video.videoName]}
+                          previousVideoOverlaySettings={(() => {
+                            const currentIndexInAll = allApprovedVideos.findIndex(v => v.videoName === video.videoName);
+                            if (currentIndexInAll > 0) {
+                              const prev = allApprovedVideos[currentIndexInAll - 1];
+                              return overlaySettings[prev.videoName];
+                            }
+                            return undefined;
+                          })()}
                           onOverlaySettingsChange={(videoName, settings) => {
                             console.log('[Overlay Settings] Updating settings for:', videoName, settings);
                             

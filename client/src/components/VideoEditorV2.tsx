@@ -53,9 +53,25 @@ interface VideoEditorV2Props {
     lineSpacing: number;
   };
   onOverlaySettingsChange?: (videoName: string, settings: any) => void;
+  previousVideoOverlaySettings?: {
+    enabled: boolean;
+    text: string;
+    x: number;
+    y: number;
+    fontFamily: string;
+    fontSize: number;
+    bold: boolean;
+    italic: boolean;
+    textColor: string;
+    backgroundColor: string;
+    opacity: number;
+    padding: number;
+    cornerRadius: number;
+    lineSpacing: number;
+  };
 }
 
-export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previousVideo, nextVideo, onTrimChange, onCutAndMerge, onReprocess, overlaySettings, onOverlaySettingsChange }: VideoEditorV2Props) {
+export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previousVideo, nextVideo, onTrimChange, onCutAndMerge, onReprocess, overlaySettings, onOverlaySettingsChange, previousVideoOverlaySettings }: VideoEditorV2Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const zoomviewRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -83,7 +99,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
   const [isLogVisible, setIsLogVisible] = useState(false);
   
   // Overlay Settings dropdown state (only for HOOK videos)
-  const [isOverlaySettingsVisible, setIsOverlaySettingsVisible] = useState(false);
+  const [isOverlaySettingsVisible, setIsOverlaySettingsVisible] = useState(true); // Open by default
   const isHookVideo = video.videoName.toLowerCase().includes('hook');
   
   // Snap guides state
@@ -105,7 +121,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
     opacity: 1.0, // 100% opacity (will be 0-1 for ffmpeg)
     padding: 5, // 5px padding
     cornerRadius: 5, // 5px corner radius
-    lineSpacing: -16 // -16px line spacing (very tight)
+    lineSpacing: -10 // -10px line spacing (tight)
   });
   
   // Fine-tune controls state
@@ -849,7 +865,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
             onClick={() => setIsOverlaySettingsVisible(!isOverlaySettingsVisible)}
             className="text-purple-600 hover:text-purple-800 underline text-sm font-medium"
           >
-            {isOverlaySettingsVisible ? 'Hide Overlay Settings' : 'Overlay Settings'}
+            {isOverlaySettingsVisible ? '- Overlay Settings' : '+ Overlay Settings'}
           </button>
         </div>
       )}
@@ -1091,6 +1107,43 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
                 />
               </div>
             </div>
+            
+            {/* Copy Settings from Above */}
+            {previousVideo && previousVideoOverlaySettings && (
+              <div className="mt-2">
+                <label className="flex items-center gap-1 text-[10px] text-gray-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    onChange={(e) => {
+                      if (e.target.checked && previousVideoOverlaySettings) {
+                        // Copy all settings EXCEPT text
+                        const newSettings = {
+                          ...localOverlaySettings,
+                          x: previousVideoOverlaySettings.x,
+                          y: previousVideoOverlaySettings.y,
+                          fontFamily: previousVideoOverlaySettings.fontFamily,
+                          fontSize: previousVideoOverlaySettings.fontSize,
+                          bold: previousVideoOverlaySettings.bold,
+                          italic: previousVideoOverlaySettings.italic,
+                          textColor: previousVideoOverlaySettings.textColor,
+                          backgroundColor: previousVideoOverlaySettings.backgroundColor,
+                          opacity: previousVideoOverlaySettings.opacity,
+                          padding: previousVideoOverlaySettings.padding,
+                          cornerRadius: previousVideoOverlaySettings.cornerRadius,
+                          lineSpacing: previousVideoOverlaySettings.lineSpacing
+                        };
+                        setLocalOverlaySettings(newSettings);
+                        onOverlaySettingsChange?.(video.videoName, newSettings);
+                        // Uncheck after copy
+                        e.target.checked = false;
+                      }
+                    }}
+                    className="w-3 h-3"
+                  />
+                  <span>Copy settings from above</span>
+                </label>
+              </div>
+            )}
             
             {/* Position Display */}
             <div className="text-[10px] text-gray-600">
