@@ -7516,7 +7516,6 @@ const handlePrepareForMerge = async () => {
             toast.error(`Eroare la retry: ${error.message}`);
           }
         }}
-        onSampleMerge={handleSampleMerge}
       />
       
       {/* Merge Videos Modal for Step 9 → Step 10 - NEW MergeProgressModal */}
@@ -13646,6 +13645,24 @@ const handlePrepareForMerge = async () => {
                           <div className="text-center -mt-4">
                             <span className="text-xs text-red-600">GO TO STEP 9</span>
                           </div>
+
+                          {/* Sample Merge ALL Videos button - only show if we have trimmed videos */}
+                          {videoResults.some(v => v.trimmedVideoUrl) && (
+                            <>
+                            <Button
+                              onClick={() => {
+                                const allAcceptedVideos = videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.trimmedVideoUrl);
+                                handleSampleMerge(allAcceptedVideos);
+                              }}
+                              className="bg-blue-600 hover:bg-blue-700 px-8 py-6 text-base w-full max-w-md"
+                            >
+                              🎬 Sample Merge ALL Videos
+                            </Button>
+                            <div className="text-center -mt-4">
+                              <span className="text-xs text-blue-600">Preview all videos merged</span>
+                            </div>
+                            </>
+                          )}
 
                           {/* Check Videos button - only show if we have trimmed videos */}
                           {videoResults.some(v => v.trimmedVideoUrl) && (
