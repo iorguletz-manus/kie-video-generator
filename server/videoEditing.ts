@@ -1072,6 +1072,8 @@ function buildDrawtextFilter(settings: {
       `fontcolor=${hexColor(settings.textColor)}`,
       `x=${xExpression}`,
       `y=${finalY}`,
+      `text_align=center`,  // Internal text alignment (required for proper centering)
+      `line_align=center`,  // Multi-line alignment
       `box=1`,
       `boxcolor=${hexColor(settings.backgroundColor)}@${settings.opacity}`,
       `boxborderw=${scaledPadding}`,
