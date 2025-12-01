@@ -22,6 +22,9 @@ const getOpenAIClient = (userApiKey?: string) => {
   });
 };
 
+// OVERLAY FEATURE FLAG - Set to false to disable overlay completely
+const OVERLAY_ENABLED = false;
+
 // FFMPEG API configuration (API key passed as parameter from user settings)
 const FFMPEG_API_BASE = 'https://api.ffmpeg-api.com';
 
@@ -1198,7 +1201,7 @@ export async function cutVideoWithFFmpegAPI(
     };
     
     // Check if overlay is enabled for HOOK videos
-    const hasOverlay = overlaySettings?.enabled && overlaySettings?.text && videoName.toLowerCase().includes('hook');
+    const hasOverlay = OVERLAY_ENABLED && overlaySettings?.enabled && overlaySettings?.text && videoName.toLowerCase().includes('hook');
     
     if (hasOverlay) {
       console.log(`[cutVideoWithFFmpegAPI] 🎨 Overlay enabled for HOOK video: ${videoName}`);

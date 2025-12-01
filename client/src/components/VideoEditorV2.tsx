@@ -1,8 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import Peaks, { PeaksInstance, Segment } from 'peaks.js';
 import { Button } from './ui/button';
 import { Play, Pause, ZoomIn, ZoomOut, Lock, Unlock } from 'lucide-react';
 import { WaveSurferEditor } from './WaveSurferEditor';
+
+// OVERLAY FEATURE FLAG - Set to false to disable overlay completely
+const OVERLAY_ENABLED = false;
 
 interface VideoEditorV2Props {
   video: {
@@ -749,7 +752,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
           )}
           
           {/* Draggable Overlay Preview - Only for HOOK videos with enabled overlay */}
-          {isHookVideo && localOverlaySettings.enabled && (
+          {OVERLAY_ENABLED && isHookVideo && localOverlaySettings.enabled && (
             <div
               className="absolute cursor-move select-none"
               style={{
@@ -887,7 +890,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
       )}
 
       {/* Overlay Settings Link - Only for HOOK videos */}
-      {isHookVideo && (
+      {OVERLAY_ENABLED && isHookVideo && (
         <div className="mb-2 text-center flex items-center justify-center gap-4">
           <button
             onClick={() => setIsOverlaySettingsVisible(!isOverlaySettingsVisible)}
@@ -953,7 +956,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
       )}
 
       {/* Overlay Settings Dropdown - Only for HOOK videos */}
-      {isHookVideo && isOverlaySettingsVisible && (
+      {OVERLAY_ENABLED && isHookVideo && isOverlaySettingsVisible && (
         <div className="mb-3 p-2 bg-purple-50 border border-purple-300 rounded text-xs mx-auto" style={{ width: '30%' }}>
           <div className="space-y-2">
             {/* Text Input */}
