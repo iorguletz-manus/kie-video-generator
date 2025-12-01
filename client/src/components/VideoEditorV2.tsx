@@ -876,10 +876,8 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
             onClick={() => {
               const newSettings = { ...localOverlaySettings, isLocked: !localOverlaySettings.isLocked };
               setLocalOverlaySettings(newSettings);
-              // Save to DB when locking
-              if (!localOverlaySettings.isLocked) {
-                onOverlaySettingsChange?.(video.videoName, newSettings);
-              }
+              // Save to DB on both lock and unlock
+              onOverlaySettingsChange?.(video.videoName, newSettings);
             }}
             className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
               localOverlaySettings.isLocked
@@ -944,7 +942,6 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
                   const newSettings = { ...localOverlaySettings, text: e.target.value };
                   setLocalOverlaySettings(newSettings);
                 }}
-                onBlur={() => onOverlaySettingsChange?.(video.videoName, localOverlaySettings)}
                 placeholder="Lorem ipsum generator&#10;Lorem ipsum"
                 className="w-full px-2 py-1 border border-gray-300 rounded text-xs disabled:bg-gray-100 disabled:cursor-not-allowed"
                 rows={3}
@@ -963,7 +960,6 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
                   onChange={(e) => {
                     const newSettings = { ...localOverlaySettings, fontFamily: e.target.value };
                     setLocalOverlaySettings(newSettings);
-                    onOverlaySettingsChange?.(video.videoName, newSettings);
                   }}
                   className="w-full px-2 py-1 border border-gray-300 rounded text-xs disabled:bg-gray-100 disabled:cursor-not-allowed"
                   disabled={localOverlaySettings.isLocked}
@@ -987,7 +983,6 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
                     const newSettings = { ...localOverlaySettings, fontSize: parseInt(e.target.value) };
                     setLocalOverlaySettings(newSettings);
                   }}
-                  onMouseUp={() => onOverlaySettingsChange?.(video.videoName, localOverlaySettings)}
                   className="w-full h-1 disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={localOverlaySettings.isLocked}
                 />
@@ -1003,7 +998,6 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
                   onChange={(e) => {
                     const newSettings = { ...localOverlaySettings, bold: e.target.checked };
                     setLocalOverlaySettings(newSettings);
-                    onOverlaySettingsChange?.(video.videoName, newSettings);
                   }}
                   className="w-3 h-3 disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={localOverlaySettings.isLocked}
@@ -1017,7 +1011,6 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
                   onChange={(e) => {
                     const newSettings = { ...localOverlaySettings, italic: e.target.checked };
                     setLocalOverlaySettings(newSettings);
-                    onOverlaySettingsChange?.(video.videoName, newSettings);
                   }}
                   className="w-3 h-3 disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={localOverlaySettings.isLocked}
@@ -1038,7 +1031,6 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
                   onChange={(e) => {
                     const newSettings = { ...localOverlaySettings, textColor: e.target.value };
                     setLocalOverlaySettings(newSettings);
-                    onOverlaySettingsChange?.(video.videoName, newSettings);
                   }}
                   className="w-full h-6 border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={localOverlaySettings.isLocked}
@@ -1054,7 +1046,6 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
                   onChange={(e) => {
                     const newSettings = { ...localOverlaySettings, backgroundColor: e.target.value };
                     setLocalOverlaySettings(newSettings);
-                    onOverlaySettingsChange?.(video.videoName, newSettings);
                   }}
                   className="w-full h-6 border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={localOverlaySettings.isLocked}
@@ -1077,7 +1068,6 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
                   const newSettings = { ...localOverlaySettings, opacity: parseFloat(e.target.value) };
                   setLocalOverlaySettings(newSettings);
                 }}
-                onMouseUp={() => onOverlaySettingsChange?.(video.videoName, localOverlaySettings)}
                 className="w-full h-1 disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={localOverlaySettings.isLocked}
                   />
@@ -1098,7 +1088,6 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
                     const newSettings = { ...localOverlaySettings, padding: parseInt(e.target.value) };
                     setLocalOverlaySettings(newSettings);
                   }}
-                  onMouseUp={() => onOverlaySettingsChange?.(video.videoName, localOverlaySettings)}
                   className="w-full h-1 disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={localOverlaySettings.isLocked}
                 />
@@ -1116,7 +1105,6 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
                     const newSettings = { ...localOverlaySettings, cornerRadius: parseInt(e.target.value) };
                     setLocalOverlaySettings(newSettings);
                   }}
-                  onMouseUp={() => onOverlaySettingsChange?.(video.videoName, localOverlaySettings)}
                   className="w-full h-1 disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={localOverlaySettings.isLocked}
                 />
@@ -1134,7 +1122,6 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
                     const newSettings = { ...localOverlaySettings, lineSpacing: parseInt(e.target.value) };
                     setLocalOverlaySettings(newSettings);
                   }}
-                  onMouseUp={() => onOverlaySettingsChange?.(video.videoName, localOverlaySettings)}
                   className="w-full h-1 disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={localOverlaySettings.isLocked}
                 />
