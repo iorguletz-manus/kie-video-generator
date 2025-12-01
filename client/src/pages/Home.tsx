@@ -1267,6 +1267,26 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           }
         });
         setVideoResults(loadedVideoResults);
+        
+        // Load overlay settings from videoResults
+        console.log('[Overlay Settings] 🔄 Loading from DB... Total videos:', loadedVideoResults.length);
+        const loadedOverlaySettings: Record<string, any> = {};
+        loadedVideoResults.forEach((v: any) => {
+          console.log(`[Overlay Settings] 🔍 Checking ${v.videoName}:`, {
+            hasOverlaySettings: !!v.overlaySettings,
+            overlaySettings: v.overlaySettings
+          });
+          if (v.overlaySettings) {
+            loadedOverlaySettings[v.videoName] = v.overlaySettings;
+          }
+        });
+        console.log('[Overlay Settings] 📊 Loaded overlay settings count:', Object.keys(loadedOverlaySettings).length);
+        if (Object.keys(loadedOverlaySettings).length > 0) {
+          setOverlaySettings(loadedOverlaySettings);
+          console.log('[Overlay Settings] ✅ Loaded from DB:', loadedOverlaySettings);
+        } else {
+          console.log('[Overlay Settings] ⚠️ No overlay settings found in DB!');
+        }
       } else {
         console.log('[Context Session] ⏭️ SKIPPING videoResults reload - already loaded', {
           currentCount: videoResults.length,
