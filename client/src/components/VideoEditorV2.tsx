@@ -94,8 +94,8 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
   const [localOverlaySettings, setLocalOverlaySettings] = useState(overlaySettings || {
     enabled: true, // Always enabled for HOOK videos
     text: '',
-    x: 6.3, // 68px / 1080px * 100 = 6.3%
-    y: 23.2, // 445px / 1920px * 100 = 23.2%
+    x: 50.0, // Centered horizontally
+    y: 75.5, // Lower third position
     fontFamily: "'Inter', system-ui, sans-serif", // Inter font (META)
     fontSize: 20, // Default 20px
     bold: true, // Bold ON by default
@@ -103,9 +103,9 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
     textColor: '#000000', // Black text
     backgroundColor: '#ffffff', // White background
     opacity: 1.0, // 100% opacity (will be 0-1 for ffmpeg)
-    padding: 7, // 7px padding
-    cornerRadius: 10, // 10px corner radius
-    lineSpacing: -8 // -8px line spacing (negative = tight)
+    padding: 5, // 5px padding
+    cornerRadius: 5, // 5px corner radius
+    lineSpacing: -16 // -16px line spacing (very tight)
   });
   
   // Fine-tune controls state
@@ -772,7 +772,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
                       marginBottom: idx < arr.length - 1 ? `${localOverlaySettings.lineSpacing}px` : '0',
                       whiteSpace: 'nowrap',
                       position: 'relative',
-                      zIndex: arr.length - idx
+                      zIndex: idx + 1
                     }}
                   >
                     {line || ' '}
@@ -893,7 +893,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
 
       {/* Overlay Settings Dropdown - Only for HOOK videos */}
       {isHookVideo && isOverlaySettingsVisible && (
-        <div className="mb-3 p-2 bg-purple-50 border border-purple-300 rounded text-xs">
+        <div className="mb-3 p-2 bg-purple-50 border border-purple-300 rounded text-xs mx-auto" style={{ width: '30%' }}>
           <div className="space-y-2">
             {/* Text Input */}
             <div>
@@ -907,9 +907,9 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
                   setLocalOverlaySettings(newSettings);
                 }}
                 onBlur={() => onOverlaySettingsChange?.(video.videoName, localOverlaySettings)}
-                placeholder="Multi-line text..."
+                placeholder="Lorem ipsum generator&#10;Lorem ipsum"
                 className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
-                rows={2}
+                rows={3}
               />
             </div>
 
@@ -1041,7 +1041,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
             <div className="grid grid-cols-3 gap-2">
               <div>
                 <label className="block text-[10px] font-medium text-gray-700 mb-0.5">
-                  Pad: {localOverlaySettings.padding}px
+                  Padding: {localOverlaySettings.padding}px
                 </label>
                 <input
                   type="range"
@@ -1058,7 +1058,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
               </div>
               <div>
                 <label className="block text-[10px] font-medium text-gray-700 mb-0.5">
-                  Rad: {localOverlaySettings.cornerRadius}px
+                  Radius: {localOverlaySettings.cornerRadius}px
                 </label>
                 <input
                   type="range"
