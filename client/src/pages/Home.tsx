@@ -777,6 +777,24 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [editingLineRedStart, setEditingLineRedStart] = useState<number>(-1);
   const [editingLineRedEnd, setEditingLineRedEnd] = useState<number>(-1);
 
+  // Step 8: Overlay Settings for HOOK videos
+  const [overlaySettings, setOverlaySettings] = useState<Record<string, {
+    enabled: boolean;
+    text: string;
+    x: number;
+    y: number;
+    fontFamily: string;
+    fontSize: number;
+    bold: boolean;
+    italic: boolean;
+    textColor: string;
+    backgroundColor: string;
+    opacity: number;
+    padding: number;
+    cornerRadius: number;
+    lineSpacing: number;
+  }>>({});
+
   // Queries
   const { data: libraryImages = [] } = trpc.imageLibrary.list.useQuery({
     userId: localCurrentUser.id,
@@ -12927,23 +12945,23 @@ const handlePrepareForMerge = async () => {
                         console.log('[Video Editing] 🔍 Total videos in videoResults:', videoResults.length);
                         console.log('[Video Editing] 🔍 All video names:', videoResults.map(v => v.videoName));
                         
-                        // Filter only approved videos with trimmedVideoUrl
+                        // Filter only approved videos with videoUrl (original from Step 3-6)
                         const approvedVideos = videoResults.filter(v => {
                           const isAccepted = v.reviewStatus === 'accepted';
                           const isSuccess = v.status === 'success';
-                          const hasTrimmedUrl = !!v.trimmedVideoUrl;
+                          const hasVideoUrl = !!v.videoUrl;
                           
                           console.log(`[Video Editing] 🔍 ${v.videoName}:`, {
                             reviewStatus: v.reviewStatus,
                             isAccepted,
                             status: v.status,
                             isSuccess,
-                            hasTrimmedUrl,
-                            trimmedVideoUrl: v.trimmedVideoUrl?.substring(0, 50) + '...',
-                            PASSES_FILTER: isAccepted && isSuccess && hasTrimmedUrl
+                            hasVideoUrl,
+                            videoUrl: v.videoUrl?.substring(0, 50) + '...',
+                            PASSES_FILTER: isAccepted && isSuccess && hasVideoUrl
                           });
                           
-                          return isAccepted && isSuccess && hasTrimmedUrl;
+                          return isAccepted && isSuccess && hasVideoUrl;
                         });
                         
                         if (approvedVideos.length === 0) {
@@ -13487,6 +13505,43 @@ const handlePrepareForMerge = async () => {
                               
                               return updatedVideoResults;
                             });
+                          }}
+                          overlaySettings={overlaySettings[video.videoName]}
+                          onOverlaySettingsChange={(videoName, settings) => {
+                            console.log('[Overlay Settings] Updating settings for:', videoName, settings);
+                            
+                            // Update local state
+                            setOverlaySettings(prev => ({
+                              ...prev,
+                              [videoName]: settings
+                            }));
+                            
+                            // Save to database
+                            if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
+                              const updatedVideoResults = videoResults.map(v =>
+                                v.videoName === videoName
+                                  ? { ...v, overlaySettings: settings }
+                                  : v
+                              );
+                              
+                              upsertContextSessionMutation.mutate({
+                                userId: currentUser.id,
+                                coreBeliefId: selectedCoreBeliefId,
+                                emotionalAngleId: selectedEmotionalAngleId,
+                                adId: selectedAdId,
+                                characterId: selectedCharacterId,
+                                currentStep,
+                                rawTextAd,
+                                processedTextAd,
+                                adLines,
+                                prompts,
+                                images,
+                                combinations,
+                                deletedCombinations,
+                                videoResults: updatedVideoResults,
+                                reviewHistory,
+                              });
+                            }
                           }}
                           />
                         </div>

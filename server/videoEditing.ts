@@ -983,6 +983,85 @@ export async function processAudioWithWhisperCleanVoice(
 // ============================================================================
 
 /**
+ * Build FFmpeg drawtext filter string from overlay settings
+ * Supports multi-line text with separate bubbles per line
+ */
+function buildDrawtextFilter(settings: {
+  text: string;
+  x: number;
+  y: number;
+  fontFamily: string;
+  fontSize: number;
+  bold: boolean;
+  italic: boolean;
+  textColor: string;
+  backgroundColor: string;
+  opacity: number;
+  padding: number;
+  cornerRadius: number;
+  lineSpacing: number;
+}): string {
+  // Escape text for FFmpeg drawtext filter
+  const escapeText = (text: string): string => {
+    return text
+      .replace(/\\/g, '\\\\')  // Escape backslashes
+      .replace(/:/g, '\\:')      // Escape colons
+      .replace(/'/g, "\\'")      // Escape single quotes
+      .replace(/\n/g, '\\n');    // Convert newlines to \\n
+  };
+  
+  // Convert hex color to FFmpeg format (remove #)
+  const hexColor = (color: string) => color.replace('#', '');
+  
+  // Split text into lines
+  const lines = settings.text.split('\n');
+  
+  // Video dimensions (9:16 aspect ratio, common: 1080x1920)
+  const VIDEO_W = 1080;
+  const VIDEO_H = 1920;
+  
+  // Convert percentage position to pixels
+  const xPos = Math.round((settings.x / 100) * VIDEO_W);
+  const yPos = Math.round((settings.y / 100) * VIDEO_H);
+  
+  // Font weight (bold)
+  const fontWeight = settings.bold ? 'Bold' : '';
+  const fontStyle = settings.italic ? 'Italic' : '';
+  
+  // Build drawtext filter for each line
+  const drawtextFilters = lines.map((line, index) => {
+    const escapedLine = escapeText(line || ' ');
+    
+    // Calculate Y offset for each line (based on line spacing)
+    const lineYOffset = index * (settings.fontSize + settings.lineSpacing);
+    const finalY = yPos + lineYOffset;
+    
+    // Build drawtext parameters
+    const params = [
+      `text='${escapedLine}'`,
+      `fontsize=${settings.fontSize}`,
+      `fontcolor=#${hexColor(settings.textColor)}`,
+      `x=${xPos}`,
+      `y=${finalY}`,
+      `box=1`,
+      `boxcolor=#${hexColor(settings.backgroundColor)}@${settings.opacity}`,
+      `boxborderw=${settings.padding}`,
+      // Note: FFmpeg doesn't support border-radius in drawtext, we'll skip it
+    ];
+    
+    // Add font family if not default
+    if (settings.fontFamily && settings.fontFamily !== 'Arial') {
+      params.push(`font=${settings.fontFamily}${fontWeight}${fontStyle}`);
+    }
+    
+    return `drawtext=${params.join(':')}`;
+  });
+  
+  // Join all drawtext filters with comma (chain filters)
+  return drawtextFilters.join(',');
+}
+
+/**
  * Cut video using FFmpeg API with start/end timestamps
  * Returns download URL for the trimmed video
  */
@@ -994,7 +1073,23 @@ export async function cutVideoWithFFmpegAPI(
   ffmpegApiKey: string,
   cleanVoiceAudioUrl?: string,  // Optional CleanVoice audio URL
   userId?: number,  // Optional userId for user-specific folder
-  dirId?: string  // Optional: shared directory ID for batch processing
+  dirId?: string,  // Optional: shared directory ID for batch processing
+  overlaySettings?: {  // Optional: overlay settings for HOOK videos
+    enabled: boolean;
+    text: string;
+    x: number;
+    y: number;
+    fontFamily: string;
+    fontSize: number;
+    bold: boolean;
+    italic: boolean;
+    textColor: string;
+    backgroundColor: string;
+    opacity: number;
+    padding: number;
+    cornerRadius: number;
+    lineSpacing: number;
+  }
 ): Promise<string> {
   try {
     console.log(`[cutVideoWithFFmpegAPI] Cutting video ${videoName}: ${startTimeSeconds}s → ${endTimeSeconds}s`);
@@ -1066,6 +1161,13 @@ export async function cutVideoWithFFmpegAPI(
       ]
     };
     
+    // Check if overlay is enabled for HOOK videos
+    const hasOverlay = overlaySettings?.enabled && overlaySettings?.text && videoName.toLowerCase().includes('hook');
+    
+    if (hasOverlay) {
+      console.log(`[cutVideoWithFFmpegAPI] 🎨 Overlay enabled for HOOK video: ${videoName}`);
+    }
+    
     // If CleanVoice audio provided, cut it at SAME timestamps as video
     if (audioFilePath) {
       task.inputs.push({
@@ -1077,18 +1179,34 @@ export async function cutVideoWithFFmpegAPI(
       task.outputs[0].options = [
         '-map', '0:v:0',       // Map video from input 0 (already cut)
         '-map', '1:a:0',       // Map audio from input 1 (already cut at SAME timestamps)
-        '-c:v', 'copy',        // Copy video codec (FAST, no re-encoding)
+        hasOverlay ? '-c:v' : '-c:v', hasOverlay ? 'libx264' : 'copy',  // Re-encode if overlay, copy if not
         '-c:a', 'aac',         // AAC audio codec
         '-b:a', '192k',        // 192 kbps audio bitrate
         '-ar', '48000'         // 48 kHz sample rate
       ];
+      
+      // Add overlay filter if enabled
+      if (hasOverlay) {
+        const drawtextFilter = buildDrawtextFilter(overlaySettings!);
+        task.outputs[0].options.push('-vf', drawtextFilter);
+        console.log(`[cutVideoWithFFmpegAPI] 🎨 Drawtext filter:`, drawtextFilter);
+      }
+      
       console.log(`[cutVideoWithFFmpegAPI] ✅ VARIANT 1: Cut both video AND audio at ${startTimeSeconds}s-${endTimeSeconds}s (perfect sync)`);
     } else {
       // No CleanVoice audio, just trim with original audio
       task.outputs[0].options = [
-        '-c:v', 'copy',     // Copy video codec (FAST)
+        hasOverlay ? '-c:v' : '-c:v', hasOverlay ? 'libx264' : 'copy',  // Re-encode if overlay, copy if not
         '-c:a', 'copy'      // Copy audio codec (FAST)
       ];
+      
+      // Add overlay filter if enabled
+      if (hasOverlay) {
+        const drawtextFilter = buildDrawtextFilter(overlaySettings!);
+        task.outputs[0].options.push('-vf', drawtextFilter);
+        console.log(`[cutVideoWithFFmpegAPI] 🎨 Drawtext filter:`, drawtextFilter);
+      }
+      
       console.log(`[cutVideoWithFFmpegAPI] Task configured: Trim only (no audio replacement)`);
     }
     

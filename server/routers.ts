@@ -1827,6 +1827,22 @@ export const appRouter = router({
         ffmpegApiKey: z.string().optional(),
         cleanVoiceAudioUrl: z.string().nullable().optional(),  // CleanVoice audio URL (can be null or undefined)
         dirId: z.string().optional(),  // Optional: shared directory ID for batch processing
+        overlaySettings: z.object({
+          enabled: z.boolean(),
+          text: z.string(),
+          x: z.number(),
+          y: z.number(),
+          fontFamily: z.string(),
+          fontSize: z.number(),
+          bold: z.boolean(),
+          italic: z.boolean(),
+          textColor: z.string(),
+          backgroundColor: z.string(),
+          opacity: z.number(),
+          padding: z.number(),
+          cornerRadius: z.number(),
+          lineSpacing: z.number(),
+        }).optional(),  // Optional: overlay settings for HOOK videos
       }))
       .mutation(async ({ input }) => {
         try {
@@ -1846,7 +1862,8 @@ export const appRouter = router({
             input.ffmpegApiKey!,
             input.cleanVoiceAudioUrl,  // Pass CleanVoice audio URL
             input.userId,  // Pass userId for user-specific folder
-            input.dirId  // Pass dirId for batch processing optimization
+            input.dirId,  // Pass dirId for batch processing optimization
+            input.overlaySettings  // Pass overlay settings for HOOK videos
           );
           
           console.log(`[videoEditing.cutVideo] Video cut and uploaded successfully:`, finalVideoUrl);

@@ -35,9 +35,27 @@ interface VideoEditorV2Props {
   onTrimChange?: (videoId: string, cutPoints: { startKeep: number; endKeep: number }, isStartLocked: boolean, isEndLocked: boolean) => void;
   onCutAndMerge?: (previousVideo: any | null, currentVideo: any, nextVideo: any | null) => Promise<void>;
   onReprocess?: (videoName: string) => void;  // Callback to re-process single video
+  // Overlay Settings for HOOK videos
+  overlaySettings?: {
+    enabled: boolean;
+    text: string;
+    x: number;
+    y: number;
+    fontFamily: string;
+    fontSize: number;
+    bold: boolean;
+    italic: boolean;
+    textColor: string;
+    backgroundColor: string;
+    opacity: number;
+    padding: number;
+    cornerRadius: number;
+    lineSpacing: number;
+  };
+  onOverlaySettingsChange?: (videoName: string, settings: any) => void;
 }
 
-export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previousVideo, nextVideo, onTrimChange, onCutAndMerge, onReprocess }: VideoEditorV2Props) {
+export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previousVideo, nextVideo, onTrimChange, onCutAndMerge, onReprocess, overlaySettings, onOverlaySettingsChange }: VideoEditorV2Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const zoomviewRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -63,6 +81,32 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
   
   // View Log dropdown state
   const [isLogVisible, setIsLogVisible] = useState(false);
+  
+  // Overlay Settings dropdown state (only for HOOK videos)
+  const [isOverlaySettingsVisible, setIsOverlaySettingsVisible] = useState(false);
+  const isHookVideo = video.videoName.toLowerCase().includes('hook');
+  
+  // Snap guides state
+  const [showSnapGuides, setShowSnapGuides] = useState({ horizontal: false, vertical: false });
+  const SNAP_THRESHOLD = 3; // 3% threshold for snapping
+  
+  // Local overlay settings state (initialize from props or defaults)
+  const [localOverlaySettings, setLocalOverlaySettings] = useState(overlaySettings || {
+    enabled: true, // Always enabled for HOOK videos
+    text: '',
+    x: 6.3, // 68px / 1080px * 100 = 6.3%
+    y: 23.2, // 445px / 1920px * 100 = 23.2%
+    fontFamily: "'Inter', system-ui, sans-serif", // Inter font (META)
+    fontSize: 20, // Default 20px
+    bold: true, // Bold ON by default
+    italic: false, // Italic OFF by default
+    textColor: '#000000', // Black text
+    backgroundColor: '#ffffff', // White background
+    opacity: 1.0, // 100% opacity (will be 0-1 for ffmpeg)
+    padding: 7, // 7px padding
+    cornerRadius: 10, // 10px corner radius
+    lineSpacing: -8 // -8px line spacing (negative = tight)
+  });
   
   // Fine-tune controls state
   const [fineTuneStep, setFineTuneStep] = useState(10); // Default 10ms
@@ -643,6 +687,100 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
             crossOrigin="anonymous"
             onTimeUpdate={handleVideoTimeUpdate}
           />
+          
+          {/* Snap Guide Lines - Horizontal (center Y) */}
+          {isHookVideo && showSnapGuides.horizontal && (
+            <div
+              className="absolute w-full border-t-2 border-purple-500 pointer-events-none"
+              style={{ top: '50%', left: 0, right: 0, zIndex: 10 }}
+            />
+          )}
+          
+          {/* Snap Guide Lines - Vertical (center X) */}
+          {isHookVideo && showSnapGuides.vertical && (
+            <div
+              className="absolute h-full border-l-2 border-purple-500 pointer-events-none"
+              style={{ left: '50%', top: 0, bottom: 0, zIndex: 10 }}
+            />
+          )}
+          
+          {/* Draggable Overlay Preview - Only for HOOK videos with enabled overlay */}
+          {isHookVideo && localOverlaySettings.enabled && localOverlaySettings.text && (
+            <div
+              className="absolute cursor-move select-none"
+              style={{
+                left: `${localOverlaySettings.x}%`,
+                top: `${localOverlaySettings.y}%`,
+                transform: 'translate(-50%, -50%)',
+                pointerEvents: 'all',
+                zIndex: 20
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                const container = e.currentTarget.parentElement;
+                if (!container) return;
+                
+                const rect = container.getBoundingClientRect();
+                const startX = e.clientX;
+                const startY = e.clientY;
+                const startPosX = localOverlaySettings.x;
+                const startPosY = localOverlaySettings.y;
+                
+                const handleMouseMove = (moveEvent: MouseEvent) => {
+                  const deltaX = moveEvent.clientX - startX;
+                  const deltaY = moveEvent.clientY - startY;
+                  
+                  let newX = Math.max(0, Math.min(100, startPosX + (deltaX / rect.width) * 100));
+                  let newY = Math.max(0, Math.min(100, startPosY + (deltaY / rect.height) * 100));
+                  
+                  // Snap to center (50%) if within threshold
+                  const snapHorizontal = Math.abs(newY - 50) < SNAP_THRESHOLD;
+                  const snapVertical = Math.abs(newX - 50) < SNAP_THRESHOLD;
+                  
+                  if (snapHorizontal) newY = 50;
+                  if (snapVertical) newX = 50;
+                  
+                  setShowSnapGuides({ horizontal: snapHorizontal, vertical: snapVertical });
+                  setLocalOverlaySettings(prev => ({ ...prev, x: newX, y: newY }));
+                };
+                
+                const handleMouseUp = () => {
+                  document.removeEventListener('mousemove', handleMouseMove);
+                  document.removeEventListener('mouseup', handleMouseUp);
+                  setShowSnapGuides({ horizontal: false, vertical: false });
+                  onOverlaySettingsChange?.(video.videoName, localOverlaySettings);
+                };
+                
+                document.addEventListener('mousemove', handleMouseMove);
+                document.addEventListener('mouseup', handleMouseUp);
+              }}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                {localOverlaySettings.text.split('\n').map((line, idx, arr) => (
+                  <span
+                    key={idx}
+                    style={{
+                      display: 'inline-block',
+                      fontFamily: localOverlaySettings.fontFamily,
+                      fontSize: `${localOverlaySettings.fontSize}px`,
+                      fontWeight: localOverlaySettings.bold ? 700 : 400,
+                      fontStyle: localOverlaySettings.italic ? 'italic' : 'normal',
+                      color: localOverlaySettings.textColor,
+                      backgroundColor: localOverlaySettings.backgroundColor,
+                      padding: `${localOverlaySettings.padding}px ${localOverlaySettings.padding * 1.5}px`,
+                      borderRadius: `${localOverlaySettings.cornerRadius}px`,
+                      marginBottom: idx < arr.length - 1 ? `${localOverlaySettings.lineSpacing}px` : '0',
+                      whiteSpace: 'nowrap',
+                      position: 'relative',
+                      zIndex: arr.length - idx
+                    }}
+                  >
+                    {line || ' '}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         <audio 
           id="peaks-audio-element"
@@ -704,6 +842,18 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
         </div>
       )}
 
+      {/* Overlay Settings Link - Only for HOOK videos */}
+      {isHookVideo && (
+        <div className="mb-2 text-center">
+          <button
+            onClick={() => setIsOverlaySettingsVisible(!isOverlaySettingsVisible)}
+            className="text-purple-600 hover:text-purple-800 underline text-sm font-medium"
+          >
+            {isOverlaySettingsVisible ? 'Hide Overlay Settings' : 'Overlay Settings'}
+          </button>
+        </div>
+      )}
+
       {/* Debug Log Dropdown */}
       {video.editingDebugInfo && isLogVisible && (
         <div className="mb-4 p-4 bg-gray-50 border border-gray-300 rounded-lg">
@@ -738,6 +888,215 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Overlay Settings Dropdown - Only for HOOK videos */}
+      {isHookVideo && isOverlaySettingsVisible && (
+        <div className="mb-3 p-2 bg-purple-50 border border-purple-300 rounded text-xs">
+          <div className="space-y-2">
+            {/* Text Input */}
+            <div>
+              <label className="block text-[10px] font-medium text-gray-700 mb-0.5">
+                Text:
+              </label>
+              <textarea
+                value={localOverlaySettings.text}
+                onChange={(e) => {
+                  const newSettings = { ...localOverlaySettings, text: e.target.value };
+                  setLocalOverlaySettings(newSettings);
+                }}
+                onBlur={() => onOverlaySettingsChange?.(video.videoName, localOverlaySettings)}
+                placeholder="Multi-line text..."
+                className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
+                rows={2}
+              />
+            </div>
+
+            {/* Font Settings */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[10px] font-medium text-gray-700 mb-0.5">
+                  Font:
+                </label>
+                <select
+                  value={localOverlaySettings.fontFamily}
+                  onChange={(e) => {
+                    const newSettings = { ...localOverlaySettings, fontFamily: e.target.value };
+                    setLocalOverlaySettings(newSettings);
+                    onOverlaySettingsChange?.(video.videoName, newSettings);
+                  }}
+                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
+                >
+                  <option value="'Inter', system-ui, sans-serif">Inter</option>
+                  <option value="'Roboto', system-ui, sans-serif">Roboto</option>
+                  <option value="Arial, sans-serif">Arial</option>
+                  <option value="'Times New Roman', serif">Times</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-medium text-gray-700 mb-0.5">
+                  Size: {localOverlaySettings.fontSize}px
+                </label>
+                <input
+                  type="range"
+                  min="10"
+                  max="120"
+                  value={localOverlaySettings.fontSize}
+                  onChange={(e) => {
+                    const newSettings = { ...localOverlaySettings, fontSize: parseInt(e.target.value) };
+                    setLocalOverlaySettings(newSettings);
+                  }}
+                  onMouseUp={() => onOverlaySettingsChange?.(video.videoName, localOverlaySettings)}
+                  className="w-full h-1"
+                />
+              </div>
+            </div>
+
+            {/* Bold & Italic */}
+            <div className="flex gap-3">
+              <label className="flex items-center gap-1 text-[10px]">
+                <input
+                  type="checkbox"
+                  checked={localOverlaySettings.bold}
+                  onChange={(e) => {
+                    const newSettings = { ...localOverlaySettings, bold: e.target.checked };
+                    setLocalOverlaySettings(newSettings);
+                    onOverlaySettingsChange?.(video.videoName, newSettings);
+                  }}
+                  className="w-3 h-3"
+                />
+                Bold
+              </label>
+              <label className="flex items-center gap-1 text-[10px] italic">
+                <input
+                  type="checkbox"
+                  checked={localOverlaySettings.italic}
+                  onChange={(e) => {
+                    const newSettings = { ...localOverlaySettings, italic: e.target.checked };
+                    setLocalOverlaySettings(newSettings);
+                    onOverlaySettingsChange?.(video.videoName, newSettings);
+                  }}
+                  className="w-3 h-3"
+                />
+                Italic
+              </label>
+            </div>
+
+            {/* Colors */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[10px] font-medium text-gray-700 mb-0.5">
+                  Text:
+                </label>
+                <input
+                  type="color"
+                  value={localOverlaySettings.textColor}
+                  onChange={(e) => {
+                    const newSettings = { ...localOverlaySettings, textColor: e.target.value };
+                    setLocalOverlaySettings(newSettings);
+                    onOverlaySettingsChange?.(video.videoName, newSettings);
+                  }}
+                  className="w-full h-6 border border-gray-300 rounded"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-medium text-gray-700 mb-0.5">
+                  BG:
+                </label>
+                <input
+                  type="color"
+                  value={localOverlaySettings.backgroundColor}
+                  onChange={(e) => {
+                    const newSettings = { ...localOverlaySettings, backgroundColor: e.target.value };
+                    setLocalOverlaySettings(newSettings);
+                    onOverlaySettingsChange?.(video.videoName, newSettings);
+                  }}
+                  className="w-full h-6 border border-gray-300 rounded"
+                />
+              </div>
+            </div>
+
+            {/* Opacity */}
+            <div>
+              <label className="block text-[10px] font-medium text-gray-700 mb-0.5">
+                Opacity: {(localOverlaySettings.opacity * 100).toFixed(0)}%
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={localOverlaySettings.opacity}
+                onChange={(e) => {
+                  const newSettings = { ...localOverlaySettings, opacity: parseFloat(e.target.value) };
+                  setLocalOverlaySettings(newSettings);
+                }}
+                onMouseUp={() => onOverlaySettingsChange?.(video.videoName, localOverlaySettings)}
+                className="w-full h-1"
+                  />
+                </div>
+
+            {/* Layout Settings */}
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className="block text-[10px] font-medium text-gray-700 mb-0.5">
+                  Pad: {localOverlaySettings.padding}px
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="40"
+                  value={localOverlaySettings.padding}
+                  onChange={(e) => {
+                    const newSettings = { ...localOverlaySettings, padding: parseInt(e.target.value) };
+                    setLocalOverlaySettings(newSettings);
+                  }}
+                  onMouseUp={() => onOverlaySettingsChange?.(video.videoName, localOverlaySettings)}
+                  className="w-full h-1"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-medium text-gray-700 mb-0.5">
+                  Rad: {localOverlaySettings.cornerRadius}px
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="40"
+                  value={localOverlaySettings.cornerRadius}
+                  onChange={(e) => {
+                    const newSettings = { ...localOverlaySettings, cornerRadius: parseInt(e.target.value) };
+                    setLocalOverlaySettings(newSettings);
+                  }}
+                  onMouseUp={() => onOverlaySettingsChange?.(video.videoName, localOverlaySettings)}
+                  className="w-full h-1"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-medium text-gray-700 mb-0.5">
+                  Spacing: {localOverlaySettings.lineSpacing}px
+                </label>
+                <input
+                  type="range"
+                  min="-80"
+                  max="80"
+                  value={localOverlaySettings.lineSpacing}
+                  onChange={(e) => {
+                    const newSettings = { ...localOverlaySettings, lineSpacing: parseInt(e.target.value) };
+                    setLocalOverlaySettings(newSettings);
+                  }}
+                  onMouseUp={() => onOverlaySettingsChange?.(video.videoName, localOverlaySettings)}
+                  className="w-full h-1"
+                />
+              </div>
+            </div>
+            
+            {/* Position Display */}
+            <div className="text-[10px] text-gray-600">
+              Pos: X={localOverlaySettings.x.toFixed(1)}%, Y={localOverlaySettings.y.toFixed(1)}%
+            </div>
+          </div>
         </div>
       )}
 
