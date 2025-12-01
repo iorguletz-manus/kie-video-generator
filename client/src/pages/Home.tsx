@@ -1104,6 +1104,18 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       if (session.videoResults) {
         setVideoResults(session.videoResults);
         
+        // Load overlay settings from videoResults
+        const loadedOverlaySettings: Record<string, any> = {};
+        session.videoResults.forEach(v => {
+          if (v.overlaySettings) {
+            loadedOverlaySettings[v.videoName] = v.overlaySettings;
+          }
+        });
+        if (Object.keys(loadedOverlaySettings).length > 0) {
+          setOverlaySettings(loadedOverlaySettings);
+          console.log('[Overlay Settings] Loaded from DB:', loadedOverlaySettings);
+        }
+        
         // Set initial hash for smart cache
         const approvedVideos = session.videoResults.filter(v => 
           v.reviewStatus === 'accepted' && 
