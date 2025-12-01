@@ -788,7 +788,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
                       marginBottom: idx < arr.length - 1 ? `${localOverlaySettings.lineSpacing}px` : '0',
                       whiteSpace: 'nowrap',
                       position: 'relative',
-                      zIndex: idx + 1
+                      zIndex: arr.length - idx
                     }}
                   >
                     {line || ' '}
@@ -1114,6 +1114,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
                 <label className="flex items-center gap-1 text-[10px] text-gray-700 cursor-pointer">
                   <input
                     type="checkbox"
+                    checked={false}
                     onChange={(e) => {
                       if (e.target.checked && previousVideoOverlaySettings) {
                         // Copy all settings EXCEPT text
@@ -1134,8 +1135,6 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
                         };
                         setLocalOverlaySettings(newSettings);
                         onOverlaySettingsChange?.(video.videoName, newSettings);
-                        // Uncheck after copy
-                        e.target.checked = false;
                       }
                     }}
                     className="w-3 h-3"
