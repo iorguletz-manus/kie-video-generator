@@ -13531,7 +13531,7 @@ const handlePrepareForMerge = async () => {
                             }
                             return undefined;
                           })()}
-                          onOverlaySettingsChange={(videoName, settings) => {
+                          onOverlaySettingsChange={async (videoName, settings) => {
                             console.log('[Overlay Settings] Updating settings for:', videoName, settings);
                             
                             // Update local state
@@ -13565,7 +13565,8 @@ const handlePrepareForMerge = async () => {
                                 updatedVideoResultsCount: updatedVideoResults.length
                               });
                               
-                              upsertContextSessionMutation.mutate({
+                              try {
+                                await upsertContextSessionMutation.mutateAsync({
                                 userId: currentUser.id,
                                 coreBeliefId: selectedCoreBeliefId,
                                 emotionalAngleId: selectedEmotionalAngleId,
@@ -13582,6 +13583,10 @@ const handlePrepareForMerge = async () => {
                                 videoResults: updatedVideoResults,
                                 reviewHistory,
                               });
+                              console.log('[Overlay Settings] ✅ Saved to DB successfully!');
+                            } catch (error) {
+                              console.error('[Overlay Settings] ❌ Failed to save to DB:', error);
+                            }
                             }
                           }}
                           />
