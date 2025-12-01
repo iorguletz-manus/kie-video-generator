@@ -13541,6 +13541,14 @@ const handlePrepareForMerge = async () => {
                             }));
                             
                             // Save to database
+                            console.log('[Overlay Settings] 🔍 Checking DB save conditions:', {
+                              selectedCoreBeliefId,
+                              selectedEmotionalAngleId,
+                              selectedAdId,
+                              selectedCharacterId,
+                              canSave: !!(selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId)
+                            });
+                            
                             if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
                               const updatedVideoResults = videoResults.map(v =>
                                 v.videoName === videoName
@@ -13550,6 +13558,12 @@ const handlePrepareForMerge = async () => {
                               
                               // Update videoResults state immediately
                               setVideoResults(updatedVideoResults);
+                              
+                              console.log('[Overlay Settings] 💾 Saving to DB...', {
+                                videoName,
+                                overlaySettings: settings,
+                                updatedVideoResultsCount: updatedVideoResults.length
+                              });
                               
                               upsertContextSessionMutation.mutate({
                                 userId: currentUser.id,
