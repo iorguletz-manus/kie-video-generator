@@ -125,6 +125,8 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
     cornerRadius: 5, // 5px corner radius
     lineSpacing: -10, // -10px line spacing (negative = overlap)
     isLocked: false, // Unlocked by default
+    videoWidth: undefined, // Will be set from video element
+    videoHeight: undefined, // Will be set from video element
   });
   
   // Fine-tune controls state
@@ -705,6 +707,16 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
             playsInline
             crossOrigin="anonymous"
             onTimeUpdate={handleVideoTimeUpdate}
+            onLoadedMetadata={(e) => {
+              const videoElement = e.currentTarget;
+              // Update overlay settings with actual video dimensions
+              setLocalOverlaySettings(prev => ({
+                ...prev,
+                videoWidth: videoElement.videoWidth,
+                videoHeight: videoElement.videoHeight,
+              }));
+              console.log('[VideoEditorV2] Video dimensions:', videoElement.videoWidth, 'x', videoElement.videoHeight);
+            }}
           />
           
           {/* Snap Guide Lines - Horizontal (center Y) */}

@@ -1025,9 +1025,10 @@ function buildDrawtextFilter(settings: {
   // Split text into lines
   const lines = settings.text.split('\n');
   
-  // Video dimensions (9:16 aspect ratio, actual: 720x1280)
-  const VIDEO_W = 720;
-  const VIDEO_H = 1280;
+  // Video dimensions (9:16 aspect ratio)
+  // Use provided dimensions or fallback to 720x1280
+  const VIDEO_W = settings.videoWidth || 720;
+  const VIDEO_H = settings.videoHeight || 1280;
   
   // Convert percentage position to pixels
   const xPos = Math.round((settings.x / 100) * VIDEO_W);
@@ -1101,6 +1102,8 @@ export async function cutVideoWithFFmpegAPI(
     padding: number;
     cornerRadius: number;
     lineSpacing: number;
+    videoWidth?: number;  // Optional: video width in pixels
+    videoHeight?: number;  // Optional: video height in pixels
   }
 ): Promise<string> {
   try {
