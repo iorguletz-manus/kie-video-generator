@@ -1006,7 +1006,7 @@ function buildDrawtextFilter(settings: {
     return text
       .replace(/\\/g, '\\\\')  // Escape backslashes
       .replace(/:/g, '\\:')      // Escape colons
-      .replace(/'/g, "\\'')      // Escape single quotes
+      .replace(/'/g, "\\'")      // Escape single quotes
       .replace(/\n/g, '\\n');    // Convert newlines to \\n
   };
   
