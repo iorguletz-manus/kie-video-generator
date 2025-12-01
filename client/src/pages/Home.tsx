@@ -13114,12 +13114,20 @@ const handlePrepareForMerge = async () => {
 
         {/* STEP 8: Video Editing */}
         {currentStep === 8 && (() => {
+          // DEBUG: Log all videos
+          console.log('[Step 8] 🔍 Total videoResults:', videoResults.length);
+          console.log('[Step 8] 🔍 All video names:', videoResults.map(v => v.videoName));
+          console.log('[Step 8] 🔍 Looking for T1_C1_E2_AD1_HOOK1_LIDIA:', videoResults.find(v => v.videoName === 'T1_C1_E2_AD1_HOOK1_LIDIA'));
+          
           // ALL approved videos (for Cut & Merge previous/next lookup - ignore filter)
           const allApprovedVideos = videoResults.filter(v => 
             v.reviewStatus === 'accepted' && 
             v.status === 'success' && 
             v.videoUrl
           );
+          
+          console.log('[Step 8] 🔍 Approved videos count:', allApprovedVideos.length);
+          console.log('[Step 8] 🔍 Approved video names:', allApprovedVideos.map(v => v.videoName));
           
           // Filter approved videos that have videoUrl (for display)
           let approvedVideos = [...allApprovedVideos];
