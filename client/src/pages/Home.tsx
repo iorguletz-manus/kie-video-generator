@@ -793,6 +793,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     padding: number;
     cornerRadius: number;
     lineSpacing: number;
+    isLocked?: boolean; // Lock state for explicit save
   }>>({});
 
   // Queries
