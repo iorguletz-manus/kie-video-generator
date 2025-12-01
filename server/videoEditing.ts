@@ -1006,8 +1006,17 @@ function buildDrawtextFilter(settings: {
     return text
       .replace(/\\/g, '\\\\')  // Escape backslashes
       .replace(/:/g, '\\:')      // Escape colons
-      .replace(/'/g, "\\'")      // Escape single quotes
+      .replace(/'/g, "\\'')      // Escape single quotes
       .replace(/\n/g, '\\n');    // Convert newlines to \\n
+  };
+  
+  // Escape font family for FFmpeg (escape commas, spaces, quotes)
+  const escapeFontFamily = (font: string): string => {
+    return font
+      .replace(/,/g, '\\,')      // Escape commas
+      .replace(/ /g, '\\ ')      // Escape spaces
+      .replace(/'/g, '')          // Remove quotes
+      .trim();
   };
   
   // Convert hex color to FFmpeg format (remove #)
@@ -1051,7 +1060,10 @@ function buildDrawtextFilter(settings: {
     
     // Add font family if not default
     if (settings.fontFamily && settings.fontFamily !== 'Arial') {
-      params.push(`font=${settings.fontFamily}${fontWeight}${fontStyle}`);
+      const escapedFont = escapeFontFamily(settings.fontFamily);
+      const fontModifiers = [fontWeight, fontStyle].filter(Boolean).join('-');
+      const fullFont = fontModifiers ? `${escapedFont}-${fontModifiers}` : escapedFont;
+      params.push(`font=${fullFont}`);
     }
     
     return `drawtext=${params.join(':')}`;
