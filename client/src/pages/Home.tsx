@@ -1106,15 +1106,23 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         setVideoResults(session.videoResults);
         
         // Load overlay settings from videoResults
+        console.log('[Overlay Settings] 🔄 Loading from DB... Total videos:', session.videoResults.length);
         const loadedOverlaySettings: Record<string, any> = {};
         session.videoResults.forEach(v => {
+          console.log(`[Overlay Settings] 🔍 Checking ${v.videoName}:`, {
+            hasOverlaySettings: !!v.overlaySettings,
+            overlaySettings: v.overlaySettings
+          });
           if (v.overlaySettings) {
             loadedOverlaySettings[v.videoName] = v.overlaySettings;
           }
         });
+        console.log('[Overlay Settings] 📊 Loaded overlay settings count:', Object.keys(loadedOverlaySettings).length);
         if (Object.keys(loadedOverlaySettings).length > 0) {
           setOverlaySettings(loadedOverlaySettings);
-          console.log('[Overlay Settings] Loaded from DB:', loadedOverlaySettings);
+          console.log('[Overlay Settings] ✅ Loaded from DB:', loadedOverlaySettings);
+        } else {
+          console.log('[Overlay Settings] ⚠️ No overlay settings found in DB!');
         }
         
         // Set initial hash for smart cache
@@ -13522,7 +13530,11 @@ const handlePrepareForMerge = async () => {
                               return updatedVideoResults;
                             });
                           }}
-                          overlaySettings={overlaySettings[video.videoName]}
+                          overlaySettings={(() => {
+                            const settings = overlaySettings[video.videoName];
+                            console.log(`[Overlay Settings] 📤 Passing to VideoEditorV2 for ${video.videoName}:`, settings);
+                            return settings;
+                          })()}
                           previousVideoOverlaySettings={(() => {
                             const currentIndexInAll = allApprovedVideos.findIndex(v => v.videoName === video.videoName);
                             if (currentIndexInAll > 0) {

@@ -618,6 +618,15 @@ export async function upsertContextSession(session: InsertContextSession) {
   const db = await getDb();
   if (!db) return null;
 
+  // DEBUG: Log overlay settings being saved
+  if (session.videoResults) {
+    const videosWithOverlay = session.videoResults.filter((v: any) => v.overlaySettings);
+    console.log('[DB] 💾 upsertContextSession - Videos with overlay settings:', videosWithOverlay.length);
+    videosWithOverlay.forEach((v: any) => {
+      console.log(`[DB] 📝 ${v.videoName}:`, v.overlaySettings);
+    });
+  }
+
   // Check if session exists
   const existing = await getContextSession({
     userId: session.userId,
@@ -633,10 +642,12 @@ export async function upsertContextSession(session: InsertContextSession) {
       .update(contextSessions)
       .set(session)
       .where(eq(contextSessions.id, existing.id));
+    console.log('[DB] ✅ Updated existing session ID:', existing.id);
     return { ...existing, ...session };
   } else {
     // Insert new session
     const result = await db.insert(contextSessions).values(session);
+    console.log('[DB] ✅ Inserted new session ID:', result.insertId);
     return { id: Number(result.insertId), ...session };
   }
 }
