@@ -3649,7 +3649,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           const trimEnd = video.cutPoints?.endKeep || 0;
           
           console.log(`[Trimming] Processing ${video.videoName} (${videoIndex + 1}/${videosToTrim.length})`);
-          console.log(`[Trimming] 🎨 Overlay settings for ${video.videoName}:`, overlaySettings[video.videoName]);
+          console.log(`[Trimming] 🎨 Overlay settings for ${video.videoName} (from DB):`, video.overlaySettings);
           
           const result = await cutVideoMutation.mutateAsync({
             userId: localCurrentUser.id,
@@ -3660,7 +3660,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
             cleanVoiceAudioUrl: video.cleanvoiceAudioUrl || null,
             dirId: sharedDirId,  // Pass shared directory ID for optimization
-            overlaySettings: overlaySettings[video.videoName] || undefined,
+            overlaySettings: video.overlaySettings || undefined,  // Read from DB (videoResults)
           });
           
           if (!result.success || !result.downloadUrl) {
@@ -4372,7 +4372,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           ffmpegApiKey: localCurrentUser.ffmpegApiKey || undefined,
           cleanVoiceAudioUrl: video.cleanvoiceAudioUrl || undefined,
           // No dirId for retry - each retry creates its own directory
-          overlaySettings: overlaySettings[video.videoName] || undefined,
+          overlaySettings: video.overlaySettings || undefined,  // Read from DB
         });
         
         if (!result.success || !result.downloadUrl) {
@@ -4998,7 +4998,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
             cleanVoiceAudioUrl: video.cleanvoiceAudioUrl || null,
             dirId: sharedDirId,
-            overlaySettings: overlaySettings[video.videoName] || undefined,
+            overlaySettings: video.overlaySettings || undefined,  // Read from DB
           });
           
           if (!result.success || !result.downloadUrl) {
