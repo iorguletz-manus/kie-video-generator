@@ -1025,9 +1025,9 @@ function buildDrawtextFilter(settings: {
   // Split text into lines
   const lines = settings.text.split('\n');
   
-  // Video dimensions (9:16 aspect ratio, common: 1080x1920)
-  const VIDEO_W = 1080;
-  const VIDEO_H = 1920;
+  // Video dimensions (9:16 aspect ratio, actual: 720x1280)
+  const VIDEO_W = 720;
+  const VIDEO_H = 1280;
   
   // Convert percentage position to pixels
   const xPos = Math.round((settings.x / 100) * VIDEO_W);
