@@ -13547,6 +13547,9 @@ const handlePrepareForMerge = async () => {
                                   : v
                               );
                               
+                              // Update videoResults state immediately
+                              setVideoResults(updatedVideoResults);
+                              
                               upsertContextSessionMutation.mutate({
                                 userId: currentUser.id,
                                 coreBeliefId: selectedCoreBeliefId,
