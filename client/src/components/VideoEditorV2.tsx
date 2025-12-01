@@ -109,7 +109,8 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
   const SNAP_THRESHOLD = 3; // 3% threshold for snapping
   
   // Local overlay settings state (initialize from props or defaults)
-  const [localOverlaySettings, setLocalOverlaySettings] = useState(overlaySettings || {
+  // Default overlay settings
+  const defaultOverlaySettings = {
     enabled: true, // Always enabled for HOOK videos
     text: '',
     x: 50.0, // Centered horizontally
@@ -127,6 +128,12 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
     isLocked: false, // Unlocked by default
     videoWidth: undefined, // Will be set from video element
     videoHeight: undefined, // Will be set from video element
+  };
+  
+  // Merge props with defaults (props override defaults)
+  const [localOverlaySettings, setLocalOverlaySettings] = useState({
+    ...defaultOverlaySettings,
+    ...overlaySettings,
   });
   
   // Fine-tune controls state
