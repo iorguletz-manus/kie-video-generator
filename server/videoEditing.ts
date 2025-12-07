@@ -1,4 +1,4 @@
-import * as fs from 'fs';
+import * as fs from 'fs/promises';
 import * as path from 'path';
 import { exec as execCallback } from 'child_process';
 import { promisify } from 'util';
