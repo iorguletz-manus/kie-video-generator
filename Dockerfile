@@ -1,20 +1,28 @@
-# Use Node.js 22 LTS as base
-FROM node:22-slim
+# Use Ubuntu 22.04 as base
+FROM ubuntu:22.04
 
-# Install system dependencies
+# Prevent interactive prompts during apt install
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install Node.js 22 and system dependencies
 RUN apt-get update && apt-get install -y \
+    curl \
     wget \
-    libatomic1 \
-    libsndfile1 \
-    libmad0 \
-    libid3tag0 \
-    libflac12 \
+    ca-certificates \
+    gnupg \
+    && mkdir -p /etc/apt/keyrings \
+    && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
+    && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list \
+    && apt-get update \
+    && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# Download and install audiowaveform binary from GitHub releases
+# Download and install audiowaveform
 RUN wget -O /tmp/audiowaveform.deb https://github.com/bbc/audiowaveform/releases/download/1.10.1/audiowaveform_1.10.1-1-12_amd64.deb \
-    && dpkg -i /tmp/audiowaveform.deb || apt-get install -f -y \
-    && rm /tmp/audiowaveform.deb
+    && apt-get update \
+    && apt-get install -y /tmp/audiowaveform.deb \
+    && rm /tmp/audiowaveform.deb \
+    && rm -rf /var/lib/apt/lists/*
 
 # Enable corepack for pnpm
 RUN corepack enable && corepack prepare pnpm@10.4.1 --activate
