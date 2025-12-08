@@ -2395,6 +2395,29 @@ export const appRouter = router({
         }
       }),
   }),
+
+  // Test endpoint to verify audiowaveform installation
+  testAudiowaveform: publicProcedure.query(async () => {
+    try {
+      const { stdout, stderr } = await execAsync('which audiowaveform');
+      const versionResult = await execAsync('audiowaveform --version');
+      
+      return {
+        success: true,
+        installed: true,
+        path: stdout.trim(),
+        version: versionResult.stdout.trim() || versionResult.stderr.trim(),
+        message: 'audiowaveform is installed and working!'
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        installed: false,
+        error: error.message,
+        message: 'audiowaveform is NOT installed or not in PATH'
+      };
+    }
+  }),
 });
 
 export type AppRouter = typeof appRouter;
