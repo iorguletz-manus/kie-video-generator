@@ -1980,7 +1980,7 @@ export async function mergeVideosWithFilterComplex(
     console.log(`========================================\n`);
     
     // Save to file for debugging
-    fs.writeFileSync('/tmp/ffmpeg_file_paths_debug.txt', 
+    writeFileSync('/tmp/ffmpeg_file_paths_debug.txt', 
       `Directory ID: ${dirId}\n` +
       `Uploaded video file paths:\n` +
       uploadedFilePaths.map((p, i) => `  ${i + 1}. ${p}`).join('\n') + '\n',
