@@ -1,2 +1,3 @@
+# Force rebuild: audiowaveform installation
 [phases.setup]
 nixPkgs = ['audiowaveform']
