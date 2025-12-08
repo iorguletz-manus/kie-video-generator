@@ -2355,11 +2355,17 @@ export async function mergeVideosSimple(
     const videoSizeMB = (videoBuffer.byteLength / (1024 * 1024)).toFixed(2);
     console.log(`[mergeVideosSimple] Downloaded merged video: ${videoSizeMB} MB`);
     
+    // Build correct path for user-specific folder
+    const mergedPath = userId 
+      ? `user-${userId}/videos/${folder}/${outputFileName}` 
+      : `videos/${folder}/${outputFileName}`;
+    
+    console.log(`[mergeVideosSimple] 📁 Upload path: ${mergedPath} (userId: ${userId}, folder: ${folder})`);
+    
     const cdnUrl = await uploadToBunnyCDN(
       Buffer.from(videoBuffer),
-      outputFileName,
-      userId,
-      folder
+      mergedPath,
+      'video/mp4'
     );
     
     console.log(`[mergeVideosSimple] ✅ Uploaded to BunnyCDN: ${cdnUrl}`);
