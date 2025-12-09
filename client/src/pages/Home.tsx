@@ -880,6 +880,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     {
       // Disable auto-loading on page refresh - only load when user manually selects context
       enabled: shouldAutoLoadContext && !!(selectedTamId && selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId),
+      // ✅ FORCE fresh data load from DB on every mount (hard refresh, incognito, navigation)
+      refetchOnMount: 'always',
+      refetchOnWindowFocus: false, // Don't refetch on window focus to avoid unnecessary DB calls
     }
   );
 
