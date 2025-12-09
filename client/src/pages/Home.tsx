@@ -6065,7 +6065,7 @@ const handlePrepareForMerge = async () => {
   };
 
   // Step 4: Create mappings
-  const createMappings = () => {
+  const createMappings = async () => {
     if (adLines.length === 0) {
       toast.error("Te rog încarcă documentul cu ad-ul mai întâi");
       return;
@@ -6205,7 +6205,7 @@ const handlePrepareForMerge = async () => {
         videoResults,
         reviewHistory,
       }, {
-        onSuccess: () => {
+        onSuccess: async () => {
           console.log('[Step 4] Saved before moving to Step 5');
           await goToStep(5); // Go to STEP 5 - Mapping
           
@@ -6216,7 +6216,7 @@ const handlePrepareForMerge = async () => {
             toast.success(`${newCombinations.length} combinații create cu mapare automată`);
           }
         },
-        onError: (error) => {
+        onError: async (error) => {
           console.error('[Step 4] Save failed:', error);
           // Still move to next step (don't block user)
           await goToStep(5);
