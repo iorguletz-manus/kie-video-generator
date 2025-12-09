@@ -1257,21 +1257,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       
       const loadedAdLines = parseJsonField(contextSession.adLines);
       const loadedCombinations = parseJsonField(contextSession.combinations);
+      const loadedVideoResults = parseJsonField(contextSession.videoResults);
       
-      // ✅ SYNC adLines videoName with combinations (combinations is source of truth for videoName)
-      const syncedAdLines = loadedAdLines.map((line: any) => {
-        const matchingCombo = loadedCombinations.find((combo: any) => combo.text === line.text);
-        if (matchingCombo && matchingCombo.videoName !== line.videoName) {
-          console.log('[Context Session] 🔄 Syncing adLine videoName:', line.videoName, '->', matchingCombo.videoName);
-          return {
-            ...line,
-            videoName: matchingCombo.videoName
-          };
-        }
-        return line;
-      });
-      
-      setAdLines(syncedAdLines);
       setPrompts(parseJsonField(contextSession.prompts));
       
       // Load images and sync with Image Library
@@ -1287,7 +1274,36 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       setImages(syncedImages);
       console.log('[Context Session] ✅ Synced', syncedImages.length, 'images with Image Library');
       
-      setCombinations(loadedCombinations);
+      // ✅ SYNC combinations and adLines with videoResults (videoResults is source of truth for videoName)
+      const syncedCombinations = loadedCombinations.map((combo: any) => {
+        // Match by text + imageId to find the correct videoResult
+        const matchingVideo = loadedVideoResults.find((v: any) => 
+          v.text === combo.text && v.imageId === combo.imageId
+        );
+        if (matchingVideo && matchingVideo.videoName !== combo.videoName) {
+          console.log('[Context Session] 🔄 Syncing combination videoName:', combo.videoName, '->', matchingVideo.videoName);
+          return {
+            ...combo,
+            videoName: matchingVideo.videoName
+          };
+        }
+        return combo;
+      });
+      
+      const syncedAdLines = loadedAdLines.map((line: any) => {
+        const matchingCombo = syncedCombinations.find((combo: any) => combo.text === line.text);
+        if (matchingCombo && matchingCombo.videoName !== line.videoName) {
+          console.log('[Context Session] 🔄 Syncing adLine videoName:', line.videoName, '->', matchingCombo.videoName);
+          return {
+            ...line,
+            videoName: matchingCombo.videoName
+          };
+        }
+        return line;
+      });
+      
+      setAdLines(syncedAdLines);
+      setCombinations(syncedCombinations);
       setDeletedCombinations(parseJsonField(contextSession.deletedCombinations));
       
       // Only load videoResults if they are empty (first load)
@@ -7508,12 +7524,13 @@ const handlePrepareForMerge = async () => {
         setAdLines(syncedAdLines);
       }
     } else if (step === 5) {
-      // Step 5: Reload images and combinations
+      // Step 5: Reload images and combinations, sync with videoResults
       console.log('[goToStep] 🔄 Forcing reload from DB for Step 5...');
       const freshData = await refetchContextSession();
       if (freshData.data) {
         let freshImages = parseJsonField(freshData.data.images);
         const freshCombinations = parseJsonField(freshData.data.combinations);
+        const freshVideoResults = parseJsonField(freshData.data.videoResults);
         
         // Sync image names with Image Library (userImages)
         const libraryImagesData = await refetchLibraryImages();
@@ -7528,12 +7545,27 @@ const handlePrepareForMerge = async () => {
           console.log('[goToStep] ✅ Synced image names with Image Library');
         }
         
+        // ✅ SYNC combinations videoName with videoResults (videoResults is source of truth)
+        const syncedCombinations = freshCombinations.map((combo: any) => {
+          const matchingVideo = freshVideoResults.find((v: any) => 
+            v.text === combo.text && v.imageId === combo.imageId
+          );
+          if (matchingVideo && matchingVideo.videoName !== combo.videoName) {
+            console.log('[goToStep] 🔄 Syncing combination videoName:', combo.videoName, '->', matchingVideo.videoName);
+            return {
+              ...combo,
+              videoName: matchingVideo.videoName
+            };
+          }
+          return combo;
+        });
+        
         console.log('[goToStep] ✅ Loaded fresh data from DB:', {
           images: freshImages.length,
-          combinations: freshCombinations.length,
+          combinations: syncedCombinations.length,
         });
         setImages(freshImages);
-        setCombinations(freshCombinations);
+        setCombinations(syncedCombinations);
       }
     }
   };
