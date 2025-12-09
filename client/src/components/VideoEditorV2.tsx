@@ -704,9 +704,11 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
     <div className="border-2 border-purple-300 rounded-lg p-3 bg-white">
       {/* Video Player */}
       <div className="mb-3">
-        <h3 className="text-lg font-bold text-center mb-3 text-gray-900">
-          {video.videoName}
-        </h3>
+        <div className="flex justify-center mb-3">
+          <h3 className="text-sm font-semibold text-center px-4 py-2 bg-purple-100 text-purple-900 rounded-lg inline-block">
+            {video.videoName}
+          </h3>
+        </div>
         <div 
           className="relative bg-black rounded-lg overflow-hidden mx-auto" 
           style={{ aspectRatio: '9/16', width: '300px' }}

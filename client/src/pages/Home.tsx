@@ -11966,11 +11966,11 @@ const handlePrepareForMerge = async () => {
               
               {/* Buton Regenerate ALL (Failed + Rejected) */}
               {videoResults.some(v => v.status === 'failed' || v.reviewStatus === 'regenerate') && modifyingVideoIndex === null && (
-                <div className="mt-6">
+                <div className="mt-6 flex justify-end">
                   <Button
                     onClick={regenerateAll}
                     disabled={generateBatchMutation.isPending}
-                    className="bg-red-600 hover:bg-red-700 w-full py-4 text-base"
+                    className="bg-red-600 hover:bg-red-700 py-4 text-base px-8"
                   >
                     {generateBatchMutation.isPending ? (
                       <>
@@ -13728,24 +13728,6 @@ const handlePrepareForMerge = async () => {
                           <div className="text-center -mt-4">
                             <span className="text-xs text-red-600">GO TO STEP 9</span>
                           </div>
-
-                          {/* Sample Merge ALL Videos button - only show if we have trimmed videos */}
-                          {videoResults.some(v => v.trimmedVideoUrl) && (
-                            <>
-                            <Button
-                              onClick={() => {
-                                const allAcceptedVideos = videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.trimmedVideoUrl);
-                                handleSampleMerge(allAcceptedVideos);
-                              }}
-                              className="bg-blue-600 hover:bg-blue-700 px-8 py-6 text-base w-full max-w-md"
-                            >
-                              🎬 Sample Merge ALL Videos
-                            </Button>
-                            <div className="text-center -mt-4">
-                              <span className="text-xs text-blue-600">Preview all videos merged</span>
-                            </div>
-                            </>
-                          )}
 
                           {/* Check Videos button - only show if we have trimmed videos */}
                           {videoResults.some(v => v.trimmedVideoUrl) && (
