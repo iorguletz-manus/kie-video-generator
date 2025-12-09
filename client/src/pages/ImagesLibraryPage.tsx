@@ -1202,6 +1202,19 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                 imageGroups[groupNum].push(img);
               });
               
+              // Sort CTA to end within each group
+              Object.keys(imageGroups).forEach(groupKey => {
+                const gNum = parseInt(groupKey);
+                imageGroups[gNum] = imageGroups[gNum].sort((a, b) => {
+                  const aIsCTA = a.imageName.endsWith('_CTA');
+                  const bIsCTA = b.imageName.endsWith('_CTA');
+                  if (aIsCTA !== bIsCTA) {
+                    return aIsCTA ? 1 : -1;
+                  }
+                  return 0;
+                });
+              });
+              
               // Background colors for groups (alternating)
               const groupColors = [
                 'bg-blue-50 border-blue-200',
@@ -1241,24 +1254,20 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                     </Button>
                   </div>
 
-                  {/* Display images grouped by number suffix */}
-                  <div className="space-y-4">
-                    {Object.keys(imageGroups).sort((a, b) => parseInt(a) - parseInt(b)).map((groupKey, groupIndex) => {
-                      const groupNum = parseInt(groupKey);
-                      const groupImages = imageGroups[groupNum];
+                  {/* Display images in single grid with visual grouping */}
+                  <div className={`grid gap-2 ${
+                    gridSize === 'small' ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6' :
+                    gridSize === 'medium' ? 'grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12' :
+                    'grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 xl:grid-cols-14'
+                  }`}>
+                    {characterImages.map((image) => {
+                      // Determine group for visual styling
+                      const match = image.imageName.match(/_(\d+)(?:_CTA)?$/);
+                      const groupNum = match ? parseInt(match[1]) : 0;
+                      const groupIndex = Object.keys(imageGroups).sort((a, b) => parseInt(a) - parseInt(b)).indexOf(groupNum.toString());
                       const colorClass = groupColors[groupIndex % groupColors.length];
                       
                       return (
-                        <div key={groupKey} className={`p-3 rounded-lg border-2 ${colorClass}`}>
-                          <div className="text-xs font-semibold text-gray-700 mb-2">
-                            Group {groupNum} ({groupImages.length} images)
-                          </div>
-                          <div className={`grid gap-2 ${
-                            gridSize === 'small' ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6' :
-                            gridSize === 'medium' ? 'grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12' :
-                            'grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 xl:grid-cols-14'
-                          }`}>
-                            {groupImages.map((image) => (
                       <div
                         key={image.id}
                         draggable={!isSelectionMode}
@@ -1266,7 +1275,7 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                         onDragOver={(e) => handleDragOverImage(e, image.id)}
                         onDragLeave={handleDragLeaveImage}
                         onDrop={() => handleDropOnImage(image.id)}
-                        className={`relative ${!isSelectionMode ? 'cursor-move' : 'cursor-pointer'} ${
+                        className={`relative p-2 rounded-lg border-2 ${colorClass} ${!isSelectionMode ? 'cursor-move' : 'cursor-pointer'} ${
                           dragOverImageId === image.id ? 'ring-2 ring-purple-600' : ''
                         }`}
                       >
@@ -1357,9 +1366,6 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                           </Button>
                         </div>
                       </div>
-                            ))}
-                          </div>
-                        </div>
                       );
                     })}
                   </div>

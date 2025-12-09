@@ -7353,6 +7353,22 @@ const handlePrepareForMerge = async () => {
       videoResults,
       reviewHistory,
     });
+    
+    // FORCE RELOAD from DB to get latest data
+    console.log('[goToCheckVideos] 🔄 Forcing reload from DB...');
+    const freshData = await refetchContextSession();
+    if (freshData.data?.videoResults) {
+      const parseJsonField = (field: any) => {
+        if (!field) return [];
+        const parsed = typeof field === 'string' ? JSON.parse(field) : field;
+        return Array.isArray(parsed) ? parsed : [];
+      };
+      const freshVideoResults = parseJsonField(freshData.data.videoResults);
+      console.log('[goToCheckVideos] ✅ Loaded fresh videoResults from DB:', freshVideoResults.length);
+      setVideoResults(freshVideoResults);
+      setAdLines(parseJsonField(freshData.data.adLines));
+      setCombinations(parseJsonField(freshData.data.combinations));
+    }
   };
 
   // Navigation
@@ -9910,6 +9926,27 @@ const handlePrepareForMerge = async () => {
                                     
                                     toast.success('Text saved & synced!');
                                     setEditingLineId(null);
+                                    
+                                    // SAVE TO DATABASE immediately after sync
+                                    if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
+                                      upsertContextSessionMutation.mutate({
+                                        userId: localCurrentUser.id,
+                                        coreBeliefId: selectedCoreBeliefId,
+                                        emotionalAngleId: selectedEmotionalAngleId,
+                                        adId: selectedAdId,
+                                        characterId: selectedCharacterId,
+                                        currentStep: 2,
+                                        rawTextAd,
+                                        processedTextAd,
+                                        adLines,
+                                        prompts,
+                                        images,
+                                        combinations,
+                                        deletedCombinations,
+                                        videoResults,
+                                        reviewHistory,
+                                      });
+                                    }
                                     
                                     // Auto-scroll back to the edited line
                                     setTimeout(() => {
@@ -12673,7 +12710,7 @@ const handlePrepareForMerge = async () => {
                               </div>
                             ) : (
                               <div className="flex items-center gap-2">
-                                <div className="flex-1">
+                                <div className="flex-1 flex justify-center">
                                   <h4 className="font-bold text-center px-5 py-2.5 bg-green-100 text-green-900 rounded-lg inline-block text-xs">{video.videoName}</h4>
                                 </div>
                                 <button
