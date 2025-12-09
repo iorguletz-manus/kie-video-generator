@@ -79,6 +79,7 @@ interface VideoResult {
   reviewStatus: 'pending' | 'accepted' | 'regenerate' | null;
   regenerationNote?: string; // Ex: "⚠️ 3 regenerări cu aceleași setări"
   internalNote?: string; // Internal note added by user in Step 7
+  generationCount?: number; // Number of successful generations for this video
   isDuplicate?: boolean; // true dacă e duplicate
   duplicateNumber?: number; // 1, 2, 3, etc.
   originalVideoName?: string; // videoName original (fără _D1, _D2)
@@ -6321,6 +6322,7 @@ const handlePrepareForMerge = async () => {
         reviewStatus: null,
         redStart: combo.redStart,  // Copiază pozițiile red text
         redEnd: combo.redEnd,
+        generationCount: 0, // Initialize to 0, will increment on success
       }));
       setVideoResults(initialResults);
 
@@ -6532,6 +6534,8 @@ const handlePrepareForMerge = async () => {
                   status: status,
                   videoUrl: videoUrl,
                   error: errorMessage,
+                  // Increment generationCount ONLY on success
+                  generationCount: status === 'success' ? (v.generationCount || 0) + 1 : v.generationCount,
                 }
               : v
           )
@@ -6559,6 +6563,8 @@ const handlePrepareForMerge = async () => {
                   status: status,
                   videoUrl: videoUrl,
                   error: errorMessage,
+                  // Increment generationCount on success
+                  generationCount: (v.generationCount || 0) + 1,
                 }
               : v
           );
@@ -10838,9 +10844,16 @@ const handlePrepareForMerge = async () => {
                         className="w-20 sm:w-12 flex-shrink-0 aspect-[9/16] object-cover rounded border-2 border-blue-300"
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs text-blue-600 font-bold mb-1">
-                          {result.videoName}
-                        </p>
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="text-xs text-blue-600 font-bold">
+                            {result.videoName}
+                          </p>
+                          {result.generationCount && result.generationCount > 0 && (
+                            <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded font-semibold">
+                              Gen: {result.generationCount}
+                            </span>
+                          )}
+                        </div>
                         <p className="text-sm text-blue-900 mb-2">
                           <span className="font-medium">Text:</span>{' '}
                           {result.redStart !== undefined && result.redEnd !== undefined && result.redStart >= 0 ? (
@@ -12949,6 +12962,16 @@ const handlePrepareForMerge = async () => {
                     </span>
                     <span className="text-gray-600">
                       {videosWithoutDecision.length} fără decizie
+                    </span>
+                  </div>
+                  <div className="flex gap-4 text-sm mt-2">
+                    <span className="text-blue-700 font-semibold">
+                      <Video className="w-4 h-4 inline mr-1" />
+                      Total Generări: {videoResults.reduce((sum, v) => sum + (v.generationCount || 0), 0)}
+                    </span>
+                    <span className="text-purple-700 font-semibold">
+                      <span className="inline-block mr-1">💵</span>
+                      Cost: ${(videoResults.reduce((sum, v) => sum + (v.generationCount || 0), 0) * 0.30).toFixed(2)}
                     </span>
                   </div>
                 </div>
