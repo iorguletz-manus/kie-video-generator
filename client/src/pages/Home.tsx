@@ -6207,7 +6207,7 @@ const handlePrepareForMerge = async () => {
       }, {
         onSuccess: () => {
           console.log('[Step 4] Saved before moving to Step 5');
-          setCurrentStep(5); // Go to STEP 5 - Mapping
+          await goToStep(5); // Go to STEP 5 - Mapping
           
           if (ctaImage && firstCTAIndex !== -1) {
             const ctaLinesCount = textLines.length - firstCTAIndex;
@@ -6219,7 +6219,7 @@ const handlePrepareForMerge = async () => {
         onError: (error) => {
           console.error('[Step 4] Save failed:', error);
           // Still move to next step (don't block user)
-          setCurrentStep(5);
+          await goToStep(5);
           
           if (ctaImage && firstCTAIndex !== -1) {
             const ctaLinesCount = textLines.length - firstCTAIndex;
@@ -6230,7 +6230,7 @@ const handlePrepareForMerge = async () => {
         },
       });
     } else {
-      setCurrentStep(5);
+      await goToStep(5);
       
       if (ctaImage && firstCTAIndex !== -1) {
         const ctaLinesCount = textLines.length - firstCTAIndex;
@@ -7401,6 +7401,27 @@ const handlePrepareForMerge = async () => {
       videoResults,
       reviewHistory,
     });
+    
+    // FORCE RELOAD from DB when navigating to Step 5 (Mapping)
+    if (step === 5) {
+      console.log('[goToStep] 🔄 Forcing reload from DB for Step 5...');
+      const freshData = await refetchContextSession();
+      if (freshData.data) {
+        const parseJsonField = (field: any) => {
+          if (!field) return [];
+          const parsed = typeof field === 'string' ? JSON.parse(field) : field;
+          return Array.isArray(parsed) ? parsed : [];
+        };
+        const freshImages = parseJsonField(freshData.data.images);
+        const freshCombinations = parseJsonField(freshData.data.combinations);
+        console.log('[goToStep] ✅ Loaded fresh data from DB:', {
+          images: freshImages.length,
+          combinations: freshCombinations.length,
+        });
+        setImages(freshImages);
+        setCombinations(freshCombinations);
+      }
+    }
   };
 
   const goBack = () => {
@@ -12089,7 +12110,7 @@ const handlePrepareForMerge = async () => {
                 <div className="mt-6 flex justify-between items-center">
                   <Button
                     variant="outline"
-                    onClick={() => setCurrentStep(5)}
+                    onClick={() => goToStep(5)}
                     className="px-6 py-3"
                   >
                     <ChevronLeft className="w-4 h-4 mr-2" />
