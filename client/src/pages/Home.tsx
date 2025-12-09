@@ -1255,7 +1255,23 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       if (contextSession.rawTextAd) setRawTextAd(contextSession.rawTextAd);
       if (contextSession.processedTextAd) setProcessedTextAd(contextSession.processedTextAd);
       
-      setAdLines(parseJsonField(contextSession.adLines));
+      const loadedAdLines = parseJsonField(contextSession.adLines);
+      const loadedCombinations = parseJsonField(contextSession.combinations);
+      
+      // ✅ SYNC adLines videoName with combinations (combinations is source of truth for videoName)
+      const syncedAdLines = loadedAdLines.map((line: any) => {
+        const matchingCombo = loadedCombinations.find((combo: any) => combo.text === line.text);
+        if (matchingCombo && matchingCombo.videoName !== line.videoName) {
+          console.log('[Context Session] 🔄 Syncing adLine videoName:', line.videoName, '->', matchingCombo.videoName);
+          return {
+            ...line,
+            videoName: matchingCombo.videoName
+          };
+        }
+        return line;
+      });
+      
+      setAdLines(syncedAdLines);
       setPrompts(parseJsonField(contextSession.prompts));
       
       // Load images and sync with Image Library
@@ -1271,7 +1287,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       setImages(syncedImages);
       console.log('[Context Session] ✅ Synced', syncedImages.length, 'images with Image Library');
       
-      setCombinations(parseJsonField(contextSession.combinations));
+      setCombinations(loadedCombinations);
       setDeletedCombinations(parseJsonField(contextSession.deletedCombinations));
       
       // Only load videoResults if they are empty (first load)
@@ -7426,21 +7442,37 @@ const handlePrepareForMerge = async () => {
     };
     
     if (step === 2) {
-      // Step 2: Reload adLines (RED text positions)
+      // Step 2: Reload adLines and sync with combinations
       console.log('[goToStep] 🔄 Forcing reload from DB for Step 2...');
       const freshData = await refetchContextSession();
       if (freshData.data) {
         const freshAdLines = parseJsonField(freshData.data.adLines);
-        console.log('[goToStep] ✅ Loaded fresh adLines from DB:', freshAdLines.length);
-        setAdLines(freshAdLines);
+        const freshCombinations = parseJsonField(freshData.data.combinations);
+        
+        // ✅ SYNC adLines videoName with combinations
+        const syncedAdLines = freshAdLines.map((line: any) => {
+          const matchingCombo = freshCombinations.find((combo: any) => combo.text === line.text);
+          if (matchingCombo && matchingCombo.videoName !== line.videoName) {
+            console.log('[goToStep] 🔄 Syncing adLine videoName:', line.videoName, '->', matchingCombo.videoName);
+            return {
+              ...line,
+              videoName: matchingCombo.videoName
+            };
+          }
+          return line;
+        });
+        
+        console.log('[goToStep] ✅ Loaded fresh adLines from DB:', syncedAdLines.length);
+        setAdLines(syncedAdLines);
       }
     } else if (step === 4) {
-      // Step 4: Reload images and adLines
+      // Step 4: Reload images and adLines, sync with combinations
       console.log('[goToStep] 🔄 Forcing reload from DB for Step 4...');
       const freshData = await refetchContextSession();
       if (freshData.data) {
         let freshImages = parseJsonField(freshData.data.images);
         const freshAdLines = parseJsonField(freshData.data.adLines);
+        const freshCombinations = parseJsonField(freshData.data.combinations);
         
         // Sync image names with Image Library (userImages)
         const libraryImagesData = await refetchLibraryImages();
@@ -7455,12 +7487,25 @@ const handlePrepareForMerge = async () => {
           console.log('[goToStep] ✅ Synced image names with Image Library');
         }
         
+        // ✅ SYNC adLines videoName with combinations
+        const syncedAdLines = freshAdLines.map((line: any) => {
+          const matchingCombo = freshCombinations.find((combo: any) => combo.text === line.text);
+          if (matchingCombo && matchingCombo.videoName !== line.videoName) {
+            console.log('[goToStep] 🔄 Syncing adLine videoName:', line.videoName, '->', matchingCombo.videoName);
+            return {
+              ...line,
+              videoName: matchingCombo.videoName
+            };
+          }
+          return line;
+        });
+        
         console.log('[goToStep] ✅ Loaded fresh data from DB:', {
           images: freshImages.length,
-          adLines: freshAdLines.length,
+          adLines: syncedAdLines.length,
         });
         setImages(freshImages);
-        setAdLines(freshAdLines);
+        setAdLines(syncedAdLines);
       }
     } else if (step === 5) {
       // Step 5: Reload images and combinations
