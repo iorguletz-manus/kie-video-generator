@@ -7402,16 +7402,41 @@ const handlePrepareForMerge = async () => {
       reviewHistory,
     });
     
-    // FORCE RELOAD from DB when navigating to Step 5 (Mapping)
-    if (step === 5) {
+    // FORCE RELOAD from DB when navigating to specific steps
+    const parseJsonField = (field: any) => {
+      if (!field) return [];
+      const parsed = typeof field === 'string' ? JSON.parse(field) : field;
+      return Array.isArray(parsed) ? parsed : [];
+    };
+    
+    if (step === 2) {
+      // Step 2: Reload adLines (RED text positions)
+      console.log('[goToStep] 🔄 Forcing reload from DB for Step 2...');
+      const freshData = await refetchContextSession();
+      if (freshData.data) {
+        const freshAdLines = parseJsonField(freshData.data.adLines);
+        console.log('[goToStep] ✅ Loaded fresh adLines from DB:', freshAdLines.length);
+        setAdLines(freshAdLines);
+      }
+    } else if (step === 4) {
+      // Step 4: Reload images and adLines
+      console.log('[goToStep] 🔄 Forcing reload from DB for Step 4...');
+      const freshData = await refetchContextSession();
+      if (freshData.data) {
+        const freshImages = parseJsonField(freshData.data.images);
+        const freshAdLines = parseJsonField(freshData.data.adLines);
+        console.log('[goToStep] ✅ Loaded fresh data from DB:', {
+          images: freshImages.length,
+          adLines: freshAdLines.length,
+        });
+        setImages(freshImages);
+        setAdLines(freshAdLines);
+      }
+    } else if (step === 5) {
+      // Step 5: Reload images and combinations
       console.log('[goToStep] 🔄 Forcing reload from DB for Step 5...');
       const freshData = await refetchContextSession();
       if (freshData.data) {
-        const parseJsonField = (field: any) => {
-          if (!field) return [];
-          const parsed = typeof field === 'string' ? JSON.parse(field) : field;
-          return Array.isArray(parsed) ? parsed : [];
-        };
         const freshImages = parseJsonField(freshData.data.images);
         const freshCombinations = parseJsonField(freshData.data.combinations);
         console.log('[goToStep] ✅ Loaded fresh data from DB:', {
