@@ -11970,7 +11970,7 @@ const handlePrepareForMerge = async () => {
                   <Button
                     onClick={regenerateAll}
                     disabled={generateBatchMutation.isPending}
-                    className="bg-red-600 hover:bg-red-700 py-4 text-base px-8"
+                    className="bg-red-600 hover:bg-red-700 py-8 text-lg px-8"
                   >
                     {generateBatchMutation.isPending ? (
                       <>
@@ -12633,7 +12633,9 @@ const handlePrepareForMerge = async () => {
                               </div>
                             ) : (
                               <div className="flex items-center gap-2">
-                                <h4 className="font-bold text-green-900 text-lg flex-1">{video.videoName}</h4>
+                                <div className="flex-1">
+                                  <h4 className="font-bold text-center px-5 py-2.5 bg-green-100 text-green-900 rounded-lg inline-block text-base">{video.videoName}</h4>
+                                </div>
                                 <button
                                   onClick={() => {
                                     setEditingVideoName(video.videoName);
