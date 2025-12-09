@@ -1254,7 +1254,20 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       
       setAdLines(parseJsonField(contextSession.adLines));
       setPrompts(parseJsonField(contextSession.prompts));
-      setImages(parseJsonField(contextSession.images));
+      
+      // Load images and sync with Image Library
+      const loadedImages = parseJsonField(contextSession.images);
+      // Sync image names with Image Library (userImages) to get latest fileName
+      const syncedImages = loadedImages.map((img: any) => {
+        const libraryImage = libraryImages.find((libImg: any) => libImg.id === img.id);
+        if (libraryImage) {
+          return { ...img, fileName: libraryImage.fileName }; // ✅ Update fileName from Image Library
+        }
+        return img;
+      });
+      setImages(syncedImages);
+      console.log('[Context Session] ✅ Synced', syncedImages.length, 'images with Image Library');
+      
       setCombinations(parseJsonField(contextSession.combinations));
       setDeletedCombinations(parseJsonField(contextSession.deletedCombinations));
       
