@@ -1257,7 +1257,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       
       const loadedAdLines = parseJsonField(contextSession.adLines);
       const loadedCombinations = parseJsonField(contextSession.combinations);
-      const loadedVideoResults = parseJsonField(contextSession.videoResults);
+      // loadedVideoResults already declared above at line 1247
       
       setPrompts(parseJsonField(contextSession.prompts));
       
