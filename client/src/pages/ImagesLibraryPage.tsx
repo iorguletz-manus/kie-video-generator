@@ -636,9 +636,11 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
     reordered.splice(targetIndex, 0, removed);
 
     // Update displayOrder for all affected images
+    // Preserve global displayOrder by using the minimum displayOrder of the character's images as base
+    const minDisplayOrder = Math.min(...reordered.map(img => img.displayOrder || 0));
     const imageOrders = reordered.map((img, index) => ({
       id: img.id,
-      displayOrder: index,
+      displayOrder: minDisplayOrder + index, // ✅ Preserve global order
     }));
 
     updateOrderMutation.mutate({ imageOrders });

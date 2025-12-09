@@ -798,7 +798,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   }>>({});
 
   // Queries
-  const { data: libraryImages = [] } = trpc.imageLibrary.list.useQuery({
+  const { data: libraryImages = [], refetch: refetchLibraryImages } = trpc.imageLibrary.list.useQuery({
     userId: localCurrentUser.id,
   });
   const { data: libraryCharacters = [] } = trpc.imageLibrary.getCharacters.useQuery({
@@ -7423,8 +7423,22 @@ const handlePrepareForMerge = async () => {
       console.log('[goToStep] 🔄 Forcing reload from DB for Step 4...');
       const freshData = await refetchContextSession();
       if (freshData.data) {
-        const freshImages = parseJsonField(freshData.data.images);
+        let freshImages = parseJsonField(freshData.data.images);
         const freshAdLines = parseJsonField(freshData.data.adLines);
+        
+        // Sync image names with Image Library (userImages)
+        const libraryImagesData = await refetchLibraryImages();
+        if (libraryImagesData.data) {
+          freshImages = freshImages.map((img: any) => {
+            const libraryImage = libraryImagesData.data.find((libImg: any) => libImg.id === img.id);
+            if (libraryImage) {
+              return { ...img, fileName: libraryImage.fileName }; // ✅ Update fileName from Image Library
+            }
+            return img;
+          });
+          console.log('[goToStep] ✅ Synced image names with Image Library');
+        }
+        
         console.log('[goToStep] ✅ Loaded fresh data from DB:', {
           images: freshImages.length,
           adLines: freshAdLines.length,
@@ -7437,8 +7451,22 @@ const handlePrepareForMerge = async () => {
       console.log('[goToStep] 🔄 Forcing reload from DB for Step 5...');
       const freshData = await refetchContextSession();
       if (freshData.data) {
-        const freshImages = parseJsonField(freshData.data.images);
+        let freshImages = parseJsonField(freshData.data.images);
         const freshCombinations = parseJsonField(freshData.data.combinations);
+        
+        // Sync image names with Image Library (userImages)
+        const libraryImagesData = await refetchLibraryImages();
+        if (libraryImagesData.data) {
+          freshImages = freshImages.map((img: any) => {
+            const libraryImage = libraryImagesData.data.find((libImg: any) => libImg.id === img.id);
+            if (libraryImage) {
+              return { ...img, fileName: libraryImage.fileName }; // ✅ Update fileName from Image Library
+            }
+            return img;
+          });
+          console.log('[goToStep] ✅ Synced image names with Image Library');
+        }
+        
         console.log('[goToStep] ✅ Loaded fresh data from DB:', {
           images: freshImages.length,
           combinations: freshCombinations.length,
