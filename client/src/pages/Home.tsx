@@ -6169,6 +6169,19 @@ const handlePrepareForMerge = async () => {
     setCombinations(newCombinations);
     setDeletedCombinations([]);
     
+    // SYNC adLines with updated videoNames from combinations
+    setAdLines(prev => prev.map(line => {
+      const matchingCombo = newCombinations.find(combo => combo.text === line.text);
+      if (matchingCombo && matchingCombo.videoName !== line.videoName) {
+        console.log('[Create Mappings] Syncing adLine videoName:', line.videoName, '->', matchingCombo.videoName);
+        return {
+          ...line,
+          videoName: matchingCombo.videoName
+        };
+      }
+      return line;
+    }));
+    
     console.log('[Create Mappings] Created', newCombinations.length, 'combinations from', textLines.length, 'text lines');
     console.log('[Create Mappings] First 3 texts:', textLines.slice(0, 3).map(l => l.text.substring(0, 50)));
     
@@ -9854,6 +9867,7 @@ const handlePrepareForMerge = async () => {
                               <div className="flex gap-2">
                                 <Button
                                   onClick={() => {
+                                    // Update adLines
                                     setAdLines(prev => prev.map(l => {
                                       if (l.id === line.id) {
                                         return {
@@ -9866,9 +9880,35 @@ const handlePrepareForMerge = async () => {
                                       }
                                       return l;
                                     }));
-                                    // Lock system removed
                                     
-                                    toast.success('Text saved!');
+                                    // SYNC videoResults with updated adLines
+                                    setVideoResults(prev => prev.map(v => {
+                                      // Match by videoName or text
+                                      if (v.videoName === line.videoName || v.text === line.text) {
+                                        return {
+                                          ...v,
+                                          text: editingLineText,
+                                          redStart: editingLineRedStart,
+                                          redEnd: editingLineRedEnd,
+                                        };
+                                      }
+                                      return v;
+                                    }));
+                                    
+                                    // SYNC combinations with updated adLines
+                                    setCombinations(prev => prev.map(c => {
+                                      if (c.videoName === line.videoName || c.text === line.text) {
+                                        return {
+                                          ...c,
+                                          text: editingLineText,
+                                          redStart: editingLineRedStart,
+                                          redEnd: editingLineRedEnd,
+                                        };
+                                      }
+                                      return c;
+                                    }));
+                                    
+                                    toast.success('Text saved & synced!');
                                     setEditingLineId(null);
                                     
                                     // Auto-scroll back to the edited line

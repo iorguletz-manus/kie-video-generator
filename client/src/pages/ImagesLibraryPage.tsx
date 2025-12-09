@@ -1158,7 +1158,7 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                 (img) => img.characterName === character
               );
 
-              // Apply sorting
+              // Apply sorting with CTA at the end of each group
               characterImages = [...characterImages].sort((a, b) => {
                 if (sortBy === 'name') {
                   // Extract number from image name (e.g., "Lidia_2_CTA" -> 2)
@@ -1172,11 +1172,11 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                     return sortOrder === 'asc' ? aNum - bNum : bNum - aNum;
                   }
 
-                  // If same number, sort by CTA (non-CTA first)
+                  // If same number, sort by CTA (non-CTA first, CTA last)
                   const aIsCTA = a.imageName.endsWith('_CTA');
                   const bIsCTA = b.imageName.endsWith('_CTA');
                   if (aIsCTA !== bIsCTA) {
-                    return sortOrder === 'asc' ? (aIsCTA ? 1 : -1) : (aIsCTA ? -1 : 1);
+                    return aIsCTA ? 1 : -1; // CTA always last
                   }
 
                   // Fallback to alphabetical
@@ -1190,6 +1190,27 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                   return sortOrder === 'asc' ? comparison : -comparison;
                 }
               });
+              
+              // Group images by number suffix (e.g., Daria_1, Daria_2)
+              const imageGroups: { [key: number]: typeof characterImages } = {};
+              characterImages.forEach(img => {
+                const match = img.imageName.match(/_(\d+)(?:_CTA)?$/);
+                const groupNum = match ? parseInt(match[1]) : 0;
+                if (!imageGroups[groupNum]) {
+                  imageGroups[groupNum] = [];
+                }
+                imageGroups[groupNum].push(img);
+              });
+              
+              // Background colors for groups (alternating)
+              const groupColors = [
+                'bg-blue-50 border-blue-200',
+                'bg-green-50 border-green-200',
+                'bg-purple-50 border-purple-200',
+                'bg-pink-50 border-pink-200',
+                'bg-yellow-50 border-yellow-200',
+                'bg-indigo-50 border-indigo-200',
+              ];
 
               return (
                 <div
@@ -1220,12 +1241,24 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                     </Button>
                   </div>
 
-                  <div className={`grid gap-2 ${
-                    gridSize === 'small' ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6' :
-                    gridSize === 'medium' ? 'grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12' :
-                    'grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 xl:grid-cols-14'
-                  }`}>
-                    {characterImages.map((image) => (
+                  {/* Display images grouped by number suffix */}
+                  <div className="space-y-4">
+                    {Object.keys(imageGroups).sort((a, b) => parseInt(a) - parseInt(b)).map((groupKey, groupIndex) => {
+                      const groupNum = parseInt(groupKey);
+                      const groupImages = imageGroups[groupNum];
+                      const colorClass = groupColors[groupIndex % groupColors.length];
+                      
+                      return (
+                        <div key={groupKey} className={`p-3 rounded-lg border-2 ${colorClass}`}>
+                          <div className="text-xs font-semibold text-gray-700 mb-2">
+                            Group {groupNum} ({groupImages.length} images)
+                          </div>
+                          <div className={`grid gap-2 ${
+                            gridSize === 'small' ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6' :
+                            gridSize === 'medium' ? 'grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12' :
+                            'grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 xl:grid-cols-14'
+                          }`}>
+                            {groupImages.map((image) => (
                       <div
                         key={image.id}
                         draggable={!isSelectionMode}
@@ -1324,7 +1357,11 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
                           </Button>
                         </div>
                       </div>
-                    ))}
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               );
