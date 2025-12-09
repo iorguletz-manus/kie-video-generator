@@ -705,7 +705,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
       {/* Video Player */}
       <div className="mb-3">
         <div className="flex justify-center mb-3">
-          <h3 className="text-sm font-semibold text-center px-4 py-2 bg-purple-100 text-purple-900 rounded-lg inline-block">
+          <h3 className="text-base font-bold text-center px-5 py-2.5 bg-green-100 text-green-900 rounded-lg inline-block">
             {video.videoName}
           </h3>
         </div>
