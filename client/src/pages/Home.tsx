@@ -1964,7 +1964,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       setAdLines(extractedLines);
       const contentLineCount = extractedLines.filter(l => l.categoryNumber > 0).length;
       toast.success(`Text processed successfully! ${contentLineCount} lines extracted.`);
-      setCurrentStep(2);
+      await goToStep(2);
     } catch (error: any) {
       toast.error(`Error processing text: ${error.message}`);
     }
@@ -9305,7 +9305,7 @@ const handlePrepareForMerge = async () => {
                           
                           // Update local state
                           setAdLines(sourceAdLines);
-                          setCurrentStep(2);
+                          await goToStep(2);
                           setShowCopyContextDropdown(false);
                           
                           toast.success(`Context copied from "${sourceCharacter.name}"!`);
@@ -10347,14 +10347,14 @@ const handlePrepareForMerge = async () => {
               <div className="mt-6 flex justify-between items-center">
                 <Button
                   variant="outline"
-                  onClick={() => setCurrentStep(2)}
+                  onClick={() => goToStep(2)}
                   className="px-6 py-3"
                 >
                   <ChevronLeft className="w-4 h-4 mr-2" />
                   Back
                 </Button>
                 <Button
-                  onClick={() => {
+                  onClick={async () => {
                     // Save to database before moving to next step
                     if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
                       upsertContextSessionMutation.mutate({
@@ -10374,18 +10374,18 @@ const handlePrepareForMerge = async () => {
                         videoResults,
                         reviewHistory,
                       }, {
-                        onSuccess: () => {
+                        onSuccess: async () => {
                           console.log('[Step 3] Saved before moving to Step 4');
-                          setCurrentStep(4);
+                          await goToStep(4);
                         },
-                        onError: (error) => {
+                        onError: async (error) => {
                           console.error('[Step 3] Save failed:', error);
                           // Still move to next step (don't block user)
-                          setCurrentStep(4);
+                          await goToStep(4);
                         },
                       });
                     } else {
-                      setCurrentStep(4);
+                      await goToStep(4);
                     }
                   }}
                   className="bg-blue-600 hover:bg-blue-700 px-8 py-8 text-lg"
@@ -10819,7 +10819,7 @@ const handlePrepareForMerge = async () => {
               <div className="mt-6 flex justify-between items-center">
                 <Button
                   variant="outline"
-                  onClick={() => setCurrentStep(4)}
+                  onClick={() => goToStep(4)}
                   className="px-6 py-3"
                 >
                   <ChevronLeft className="w-4 h-4 mr-2" />
