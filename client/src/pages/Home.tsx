@@ -2986,6 +2986,33 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     console.log('[Sample Merge] 🚀 Starting Sample Merge...');
     
+    // RELOAD videoResults from DB to get fresh cut points
+    console.log('[Sample Merge] 🔄 Reloading videoResults from DB to get fresh cut points...');
+    try {
+      const freshContextResponse = await refetchContextSession();
+      const freshContext = freshContextResponse.data;
+      
+      if (freshContext && freshContext.videoResults) {
+        const freshVideoResults = freshContext.videoResults as any;
+        console.log('[Sample Merge] ✅ Fresh videoResults loaded from DB:', Array.isArray(freshVideoResults) ? freshVideoResults.length : 'N/A');
+        
+        // Update videosToMerge with fresh cut points
+        videosToMerge = videosToMerge.map(video => {
+          const freshVideo = freshVideoResults.find((v: any) => v.videoName === video.videoName);
+          if (freshVideo?.cutPoints) {
+            console.log(`[Sample Merge] 🔄 Updated cutPoints for ${video.videoName}:`, freshVideo.cutPoints);
+            return { ...video, cutPoints: freshVideo.cutPoints };
+          }
+          return video;
+        });
+      } else {
+        console.log('[Sample Merge] ⚠️ No videoResults in DB, using local state');
+      }
+    } catch (error) {
+      console.error('[Sample Merge] ❌ Failed to reload from DB:', error);
+      // Continue with local state if reload fails
+    }
+    
     // Prepare video list with notes
     const videoList = videosToMerge.map(v => ({
       name: v.videoName,
@@ -8790,7 +8817,7 @@ const handlePrepareForMerge = async () => {
               ✂️ Cut & Merge (Test)
             </DialogTitle>
             <DialogDescription>
-              Preview merged video (temporary - not saved to database)
+              Preview merged video
             </DialogDescription>
           </DialogHeader>
           
@@ -8889,7 +8916,7 @@ const handlePrepareForMerge = async () => {
               🎬 Sample Merge ALL Videos
             </DialogTitle>
             <DialogDescription>
-              Preview all videos merged together (temporary - not saved to database)
+              Preview all videos merged together
             </DialogDescription>
           </DialogHeader>
           
