@@ -13659,6 +13659,52 @@ const handlePrepareForMerge = async () => {
                                 next: nextVideo?.videoName || 'NULL'
                               });
                               
+                              // RELOAD videoResults from DB to get fresh cut points
+                              console.log('[Cut & Merge] 🔄 Reloading videoResults from DB to get fresh cut points...');
+                              try {
+                                const freshContext = await trpc.contextSessions.get.query({
+                                  userId: currentUser.id,
+                                  coreBeliefId: selectedCoreBeliefId!,
+                                  emotionalAngleId: selectedEmotionalAngleId!,
+                                  adId: selectedAdId!,
+                                  characterId: selectedCharacterId!
+                                });
+                                
+                                if (freshContext && freshContext.videoResults) {
+                                  const freshVideoResults = JSON.parse(freshContext.videoResults as any);
+                                  console.log('[Cut & Merge] ✅ Fresh videoResults loaded from DB:', freshVideoResults.length);
+                                  
+                                  // Update previousVideo, currentVideo, nextVideo with fresh cut points
+                                  if (previousVideo) {
+                                    const freshPrev = freshVideoResults.find((v: any) => v.videoName === previousVideo.videoName);
+                                    if (freshPrev?.cutPoints) {
+                                      console.log(`[Cut & Merge] 🔄 Updated previous cutPoints:`, freshPrev.cutPoints);
+                                      previousVideo.cutPoints = freshPrev.cutPoints;
+                                    }
+                                  }
+                                  
+                                  const freshCurrent = freshVideoResults.find((v: any) => v.videoName === currentVideo.videoName);
+                                  if (freshCurrent?.cutPoints) {
+                                    console.log(`[Cut & Merge] 🔄 Updated current cutPoints:`, freshCurrent.cutPoints);
+                                    currentVideo.cutPoints = freshCurrent.cutPoints;
+                                  }
+                                  
+                                  if (nextVideo) {
+                                    const freshNext = freshVideoResults.find((v: any) => v.videoName === nextVideo.videoName);
+                                    if (freshNext?.cutPoints) {
+                                      console.log(`[Cut & Merge] 🔄 Updated next cutPoints:`, freshNext.cutPoints);
+                                      nextVideo.cutPoints = freshNext.cutPoints;
+                                    }
+                                  }
+                                } else {
+                                  console.warn('[Cut & Merge] ⚠️ No fresh context found in DB, using local state');
+                                }
+                              } catch (error) {
+                                console.error('[Cut & Merge] ❌ Failed to reload from DB:', error);
+                                toast.error('Failed to reload cut points from DB');
+                                return;
+                              }
+                              
                               // Collect all videos to merge (previous + current + next)
                               const videosToMerge = [
                                 previousVideo,
