@@ -13794,8 +13794,9 @@ const handlePrepareForMerge = async () => {
                                 const freshContext = freshContextResponse.data;
                                 
                                 if (freshContext && freshContext.videoResults) {
-                                  const freshVideoResults = JSON.parse(freshContext.videoResults as any);
-                                  console.log('[Cut & Merge] ✅ Fresh videoResults loaded from DB:', freshVideoResults.length);
+                                  // videoResults is already parsed by TRPC (it's a JSON column)
+                                  const freshVideoResults = freshContext.videoResults as any;
+                                  console.log('[Cut & Merge] ✅ Fresh videoResults loaded from DB:', Array.isArray(freshVideoResults) ? freshVideoResults.length : 'N/A');
                                   
                                   // Update previousVideo, currentVideo, nextVideo with fresh cut points
                                   if (previousVideo) {
