@@ -455,40 +455,89 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     const videoElement = document.getElementById('sample-merge-video-player') as HTMLVideoElement;
     if (!videoElement) return;
     
-    // Build timeline from video durations
-    const timeline: Array<{ startTime: number; endTime: number; name: string }> = [];
-    let currentTime = 0;
+    // Build timeline - will be updated when video loads with real duration
+    let timeline: Array<{ startTime: number; endTime: number; name: string }> = [];
     
-    sampleMergeVideos.forEach((video) => {
-      // Find video data to get duration
-      const videoData = videoResults.find(v => v.videoName === video.name);
-      if (!videoData) return;
+    const buildTimeline = (totalRealDuration?: number) => {
+      timeline = [];
+      let currentTime = 0;
       
-      let durationSeconds = 0;
+      // Calculate total expected duration
+      const totalExpectedDuration = sampleMergeVideos.reduce((sum, video) => {
+        const videoData = videoResults.find(v => v.videoName === video.name);
+        if (!videoData) return sum + 10;
+        
+        if (videoData.cutPoints) {
+          const durationMs = (videoData.cutPoints.endKeep || 0) - (videoData.cutPoints.startKeep || 0);
+          return sum + (durationMs / 1000);
+        } else if (videoData.trimmedDuration) {
+          return sum + videoData.trimmedDuration;
+        }
+        return sum + 10;
+      }, 0);
       
-      // Try to get duration from cutPoints (if exists)
-      if (videoData.cutPoints) {
-        const durationMs = (videoData.cutPoints.endKeep || 0) - (videoData.cutPoints.startKeep || 0);
-        durationSeconds = durationMs / 1000;
-      } else if (videoData.trimmedDuration) {
-        // Use saved trimmed duration if available
-        durationSeconds = videoData.trimmedDuration;
-      } else {
-        // Fallback: assume 10 seconds per video (will be inaccurate but better than nothing)
-        console.warn(`[Video Sync] ⚠️ No duration data for ${video.name}, using 10s fallback`);
-        durationSeconds = 10;
-      }
-      
-      timeline.push({
-        startTime: currentTime,
-        endTime: currentTime + durationSeconds,
-        name: video.name,
+      console.log('[Sample Merge] Building timeline:', {
+        totalExpectedDuration,
+        totalRealDuration,
+        videosCount: sampleMergeVideos.length
       });
       
-      currentTime += durationSeconds;
-    });
+      sampleMergeVideos.forEach((video) => {
+        const videoData = videoResults.find(v => v.videoName === video.name);
+        if (!videoData) return;
+        
+        let durationSeconds = 0;
+        
+        if (videoData.cutPoints) {
+          const durationMs = (videoData.cutPoints.endKeep || 0) - (videoData.cutPoints.startKeep || 0);
+          durationSeconds = durationMs / 1000;
+          
+          // FIX: If we have real total duration, scale proportionally
+          if (totalRealDuration && totalExpectedDuration > 0) {
+            const proportion = durationSeconds / totalExpectedDuration;
+            durationSeconds = proportion * totalRealDuration;
+            console.log(`[Sample Merge] Scaled ${video.name}: ${(durationMs/1000).toFixed(2)}s → ${durationSeconds.toFixed(2)}s`);
+          }
+        } else if (videoData.trimmedDuration) {
+          durationSeconds = videoData.trimmedDuration;
+        } else {
+          console.warn(`[Video Sync] ⚠️ No duration data for ${video.name}, using 10s fallback`);
+          durationSeconds = 10;
+        }
+        
+        timeline.push({
+          startTime: currentTime,
+          endTime: currentTime + durationSeconds,
+          name: video.name,
+        });
+        
+        currentTime += durationSeconds;
+      });
+      
+      console.log('[Sample Merge] Timeline built:', timeline);
+    };
     
-    console.log('[Sample Merge] Timeline:', timeline);
+    // Build initial timeline without real duration
+    buildTimeline();
+    
+    // Rebuild timeline when video loads with real duration
+    const handleLoadedMetadata = () => {
+      const realDuration = videoElement.duration;
+      console.log('[Sample Merge] 🎬 Video loaded, real duration:', realDuration.toFixed(2), 's');
+      buildTimeline(realDuration);
+      
+      // Set initial video name after rebuild
+      if (timeline.length > 0) {
+        setCurrentPlayingVideoName(timeline[0].name);
+      }
+    };
+    
+    videoElement.addEventListener('loadedmetadata', handleLoadedMetadata);
+    
+    // If video is already loaded, rebuild immediately
+    if (videoElement.readyState >= 1) {
+      handleLoadedMetadata();
+    }
     
     // Update current video name based on playback time
     const handleTimeUpdate = () => {
@@ -519,6 +568,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     return () => {
       videoElement.removeEventListener('timeupdate', handleTimeUpdate);
       videoElement.removeEventListener('seeked', handleTimeUpdate);
+      videoElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
     };
   }, [sampleMergedVideoUrl, sampleMergeVideos, videoResults]);
   
@@ -529,36 +579,82 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     const videoElement = document.getElementById('cut-merge-video-player') as HTMLVideoElement;
     if (!videoElement) return;
     
-    // Build timeline from cutMergeVideos state
-    const timeline: Array<{ startTime: number; endTime: number; name: string }> = [];
-    let currentTime = 0;
+    // Build timeline - will be updated when video loads with real duration
+    let timeline: Array<{ startTime: number; endTime: number; name: string }> = [];
     
-    cutMergeVideos.forEach((video) => {
-      let durationSeconds = 0;
+    const buildTimeline = (totalRealDuration?: number) => {
+      timeline = [];
+      let currentTime = 0;
       
-      // Try to get duration from cutPoints (if exists)
-      if (video.cutPoints) {
-        const durationMs = (video.cutPoints.endKeep || 0) - (video.cutPoints.startKeep || 0);
-        durationSeconds = durationMs / 1000;
-      } else if (video.trimmedDuration) {
-        // Use saved trimmed duration if available
-        durationSeconds = video.trimmedDuration;
-      } else {
-        // Fallback: assume 10 seconds per video
-        console.warn(`[Cut & Merge Sync] ⚠️ No duration data for ${video.videoName}, using 10s fallback`);
-        durationSeconds = 10;
-      }
+      // Calculate total expected duration from cutPoints
+      const totalExpectedDuration = cutMergeVideos.reduce((sum, video) => {
+        if (video.cutPoints) {
+          const durationMs = (video.cutPoints.endKeep || 0) - (video.cutPoints.startKeep || 0);
+          return sum + (durationMs / 1000);
+        }
+        return sum + 10; // fallback
+      }, 0);
       
-      timeline.push({
-        startTime: currentTime,
-        endTime: currentTime + durationSeconds,
-        name: video.videoName,
+      console.log('[Cut & Merge] Building timeline:', {
+        totalExpectedDuration,
+        totalRealDuration,
+        videosCount: cutMergeVideos.length
       });
       
-      currentTime += durationSeconds;
-    });
+      cutMergeVideos.forEach((video) => {
+        let durationSeconds = 0;
+        
+        // Try to get duration from cutPoints (if exists)
+        if (video.cutPoints) {
+          const durationMs = (video.cutPoints.endKeep || 0) - (video.cutPoints.startKeep || 0);
+          durationSeconds = durationMs / 1000;
+          
+          // FIX: If we have real total duration, scale proportionally
+          if (totalRealDuration && totalExpectedDuration > 0) {
+            const proportion = durationSeconds / totalExpectedDuration;
+            durationSeconds = proportion * totalRealDuration;
+            console.log(`[Cut & Merge] Scaled ${video.videoName}: ${(durationMs/1000).toFixed(2)}s → ${durationSeconds.toFixed(2)}s`);
+          }
+        } else if (video.trimmedDuration) {
+          durationSeconds = video.trimmedDuration;
+        } else {
+          console.warn(`[Cut & Merge Sync] ⚠️ No duration data for ${video.videoName}, using 10s fallback`);
+          durationSeconds = 10;
+        }
+        
+        timeline.push({
+          startTime: currentTime,
+          endTime: currentTime + durationSeconds,
+          name: video.videoName,
+        });
+        
+        currentTime += durationSeconds;
+      });
+      
+      console.log('[Cut & Merge] Timeline built:', timeline);
+    };
     
-    console.log('[Cut & Merge] Timeline:', timeline);
+    // Build initial timeline without real duration
+    buildTimeline();
+    
+    // Rebuild timeline when video loads with real duration
+    const handleLoadedMetadata = () => {
+      const realDuration = videoElement.duration;
+      console.log('[Cut & Merge] 🎬 Video loaded, real duration:', realDuration.toFixed(2), 's');
+      buildTimeline(realDuration);
+      
+      // Set initial video name after rebuild
+      if (timeline.length > 0) {
+        setCurrentCutMergeVideoName(timeline[0].name);
+      }
+    };
+    
+    videoElement.addEventListener('loadedmetadata', handleLoadedMetadata);
+    
+    // If video is already loaded, rebuild immediately
+    if (videoElement.readyState >= 1) {
+      handleLoadedMetadata();
+    }
     
     // Update current video name based on playback time
     const handleTimeUpdate = () => {
@@ -582,8 +678,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
     
     return () => {
-       videoElement.removeEventListener('timeupdate', handleTimeUpdate);
+      videoElement.removeEventListener('timeupdate', handleTimeUpdate);
       videoElement.removeEventListener('seeked', handleTimeUpdate);
+      videoElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
     };
   }, [mergedVideoUrl, isMergeModalOpen, cutMergeVideos]);
   
@@ -2977,6 +3074,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       console.log('[Sample Merge] Success!', result);
       setSampleMergedVideoUrl(result.downloadUrl);
       setLastSampleVideoUrl(result.downloadUrl); // Save for "Open Last Sample" link
+      
+      // FIX: Update sampleMergeVideos after second merge to sync video names
+      console.log('[Sample Merge] 🔄 Updating sampleMergeVideos after merge');
+      const updatedVideoList = videosToMerge.map(v => ({
+        name: v.videoName,
+        note: v.step9Note || ''
+      }));
+      setSampleMergeVideos(updatedVideoList);
       const currentHash = JSON.stringify(videosToMerge.map(v => ({
         name: v.videoName,
         startMs: Math.round(v.cutPoints?.startKeep || 0),
@@ -13808,6 +13913,14 @@ const handlePrepareForMerge = async () => {
                                   setMergedVideoUrl(result.downloadUrl);
                                   setLastMergedPairHash(currentHash);
                                   setMergeProgress('Merge complete!');
+                                  
+                                  // FIX: Update cutMergeVideos after second merge to sync video names
+                                  console.log('[Cut & Merge] 🔄 Updating cutMergeVideos after merge');
+                                  setCutMergeVideos(videosToMerge.map(v => ({
+                                    videoName: v.videoName,
+                                    cutPoints: v.cutPoints,
+                                    trimmedDuration: v.trimmedDuration
+                                  })));
                                 } else {
                                   throw new Error('Merge failed');
                                 }
