@@ -9233,6 +9233,12 @@ const handlePrepareForMerge = async () => {
                   } else if (value) {
                     const newTamId = parseInt(value);
                     setSelectedTamId(newTamId);
+                    
+                    // Skip reset if loading from "Load Last Context"
+                    if (isLoadingContext) {
+                      return;
+                    }
+                    
                     // Reset dependent selections
                     setSelectedCoreBeliefId(null);
                     setSelectedEmotionalAngleId(null);
@@ -9257,18 +9263,21 @@ const handlePrepareForMerge = async () => {
                 onClick={() => {
                   const lastContext = latestContextSession;
                   if (lastContext) {
-                    // Set flag to prevent handler side effects
+                    // Set flag to prevent ALL handlers and queries
                     setIsLoadingContext(true);
                     
-                    // Simply set the dropdowns - let the app work like manual selection
+                    // Set states directly without triggering handlers
                     setSelectedTamId(lastContext.tamId);
                     setSelectedCoreBeliefId(lastContext.coreBeliefId);
                     setSelectedEmotionalAngleId(lastContext.emotionalAngleId);
                     setSelectedAdId(lastContext.adId);
                     setSelectedCharacterId(lastContext.characterId);
                     
-                    // Reset flag after state updates
-                    setTimeout(() => setIsLoadingContext(false), 100);
+                    // KEEP shouldAutoLoadContext = false to prevent query execution
+                    // This is the key: query stays disabled, videoResults stay in memory
+                    
+                    // Reset flag after all state updates complete
+                    setTimeout(() => setIsLoadingContext(false), 200);
                     
                     toast.success('📌 Last context loaded!');
                   } else {
@@ -9305,6 +9314,12 @@ const handlePrepareForMerge = async () => {
                   } else if (value) {
                     const newCoreBeliefId = parseInt(value);
                     setSelectedCoreBeliefId(newCoreBeliefId);
+                    
+                    // Skip reset if loading from "Load Last Context"
+                    if (isLoadingContext) {
+                      return;
+                    }
+                    
                     // Reset dependent selections
                     setSelectedEmotionalAngleId(null);
                     setSelectedAdId(null);
@@ -9349,6 +9364,12 @@ const handlePrepareForMerge = async () => {
                   } else if (value) {
                     const newEmotionalAngleId = parseInt(value);
                     setSelectedEmotionalAngleId(newEmotionalAngleId);
+                    
+                    // Skip reset if loading from "Load Last Context"
+                    if (isLoadingContext) {
+                      return;
+                    }
+                    
                     // Reset dependent selections
                     setSelectedAdId(null);
                     setSelectedCharacterId(null);
@@ -9393,6 +9414,12 @@ const handlePrepareForMerge = async () => {
                   } else if (value) {
                     const newAdId = parseInt(value);
                     setSelectedAdId(newAdId);
+                    
+                    // Skip reset if loading from "Load Last Context"
+                    if (isLoadingContext) {
+                      return;
+                    }
+                    
                     // Reset character
                     setSelectedCharacterId(null);
                     // Note: Auto-save will happen when Character is selected (all fields complete)
