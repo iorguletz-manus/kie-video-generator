@@ -9274,25 +9274,35 @@ const handlePrepareForMerge = async () => {
                       });
                       
                       // Set flag to prevent auto-save during context loading
+                      console.log('[Load Last Context] 🚫 Setting isLoadingContext = TRUE (disabling auto-save)');
                       setIsLoadingContext(true);
                       
                       // Load sequentially: TAM → Core Belief → Emotional Angle → AD → Character
+                      console.log('[Load Last Context] 1️⃣ Setting TAM:', lastContext.tamId);
                       setSelectedTamId(lastContext.tamId);
                       await new Promise(resolve => setTimeout(resolve, 100));
                       
+                      console.log('[Load Last Context] 2️⃣ Setting Core Belief:', lastContext.coreBeliefId);
                       setSelectedCoreBeliefId(lastContext.coreBeliefId);
                       await new Promise(resolve => setTimeout(resolve, 100));
                       
+                      console.log('[Load Last Context] 3️⃣ Setting Emotional Angle:', lastContext.emotionalAngleId);
                       setSelectedEmotionalAngleId(lastContext.emotionalAngleId);
                       await new Promise(resolve => setTimeout(resolve, 100));
                       
+                      console.log('[Load Last Context] 4️⃣ Setting AD:', lastContext.adId);
                       setSelectedAdId(lastContext.adId);
                       await new Promise(resolve => setTimeout(resolve, 100));
                       
+                      console.log('[Load Last Context] 5️⃣ Setting Character:', lastContext.characterId);
                       setSelectedCharacterId(lastContext.characterId);
                       
                       // Reset flag after loading complete
-                      setTimeout(() => setIsLoadingContext(false), 500);
+                      console.log('[Load Last Context] ⏰ Waiting 500ms before re-enabling auto-save...');
+                      setTimeout(() => {
+                        console.log('[Load Last Context] ✅ Setting isLoadingContext = FALSE (re-enabling auto-save)');
+                        setIsLoadingContext(false);
+                      }, 500);
                       
                       toast.success('📌 Last context loaded!');
                     } else {
@@ -9481,7 +9491,7 @@ const handlePrepareForMerge = async () => {
                     setShouldAutoLoadContext(true);
                     
                     // Auto-save Character selection to database
-                    console.log('[Character Selection] Saving to database:', newCharacterId);
+                    console.log('[Character Selection] 📦 Saving to database:', newCharacterId);
                     console.log('[Character Selection] ALL VALUES:', {
                       userId: localCurrentUser.id,
                       tamId: selectedTamId,
@@ -9492,10 +9502,12 @@ const handlePrepareForMerge = async () => {
                     });
                     
                     // Skip auto-save if we're loading context from DB
+                    console.log('[Character Selection] 🔍 Checking isLoadingContext flag:', isLoadingContext);
                     if (isLoadingContext) {
-                      console.log('[Character Selection] Skipping auto-save - loading context from DB');
+                      console.log('[Character Selection] ⛔ SKIPPING AUTO-SAVE - isLoadingContext = TRUE (loading from DB)');
                       return;
                     }
+                    console.log('[Character Selection] ✅ Proceeding with auto-save - isLoadingContext = FALSE');
                     
                     upsertContextSessionMutation.mutate({
                       userId: localCurrentUser.id,
