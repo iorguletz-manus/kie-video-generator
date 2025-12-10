@@ -1798,7 +1798,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }, 0); // 0ms = instant save to prevent currentStep jumping
     
     return () => clearTimeout(saveTimeout);
-  }, [isLoadingContext, currentStep, selectedTamId, selectedCoreBeliefId, selectedEmotionalAngleId, selectedAdId, selectedCharacterId, localCurrentUser, videoResults, hookMergedVideos, bodyMergedVideoUrl, finalVideos]);
+  }, [currentStep, selectedTamId, selectedCoreBeliefId, selectedEmotionalAngleId, selectedAdId, selectedCharacterId, localCurrentUser, videoResults, hookMergedVideos, bodyMergedVideoUrl, finalVideos]);
+  // Note: isLoadingContext is NOT in dependencies to prevent re-execution when flag resets to false
   
   const regenerateVideos = useMemo(
     () => videoResults.filter(v => 
