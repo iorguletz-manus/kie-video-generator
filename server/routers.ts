@@ -1460,7 +1460,17 @@ export const appRouter = router({
             message: 'Database not available',
           });
         }
-        return await db.select()
+        // Select only ID columns to avoid large JSON serialization
+        return await db.select({
+          id: contextSessions.id,
+          userId: contextSessions.userId,
+          tamId: contextSessions.tamId,
+          coreBeliefId: contextSessions.coreBeliefId,
+          emotionalAngleId: contextSessions.emotionalAngleId,
+          adId: contextSessions.adId,
+          characterId: contextSessions.characterId,
+          updatedAt: contextSessions.updatedAt,
+        })
           .from(contextSessions)
           .where(eq(contextSessions.userId, input.userId))
           .orderBy(desc(contextSessions.updatedAt));
@@ -1507,8 +1517,17 @@ export const appRouter = router({
             message: 'Database not available',
           });
         }
-        // Get latest context session by updatedAt
-        const sessions = await db.select()
+        // Get latest context session by updatedAt (select only ID columns)
+        const sessions = await db.select({
+          id: contextSessions.id,
+          userId: contextSessions.userId,
+          tamId: contextSessions.tamId,
+          coreBeliefId: contextSessions.coreBeliefId,
+          emotionalAngleId: contextSessions.emotionalAngleId,
+          adId: contextSessions.adId,
+          characterId: contextSessions.characterId,
+          updatedAt: contextSessions.updatedAt,
+        })
           .from(contextSessions)
           .where(eq(contextSessions.userId, input.userId))
           .orderBy(desc(contextSessions.updatedAt))
