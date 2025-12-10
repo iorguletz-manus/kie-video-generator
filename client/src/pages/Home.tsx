@@ -159,6 +159,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [, setLocation] = useLocation();
   
   // Step 1: Categories
+  const [isLoadingContext, setIsLoadingContext] = useState(false);
   const [selectedTamId, setSelectedTamId] = useState<number | null>(null);
   const [selectedCoreBeliefId, setSelectedCoreBeliefId] = useState<number | null>(null);
   const [selectedEmotionalAngleId, setSelectedEmotionalAngleId] = useState<number | null>(null);
@@ -9272,6 +9273,9 @@ const handlePrepareForMerge = async () => {
                         characterId: lastContext.characterId
                       });
                       
+                      // Set flag to prevent auto-save during context loading
+                      setIsLoadingContext(true);
+                      
                       // Load sequentially: TAM → Core Belief → Emotional Angle → AD → Character
                       setSelectedTamId(lastContext.tamId);
                       await new Promise(resolve => setTimeout(resolve, 100));
@@ -9286,6 +9290,9 @@ const handlePrepareForMerge = async () => {
                       await new Promise(resolve => setTimeout(resolve, 100));
                       
                       setSelectedCharacterId(lastContext.characterId);
+                      
+                      // Reset flag after loading complete
+                      setTimeout(() => setIsLoadingContext(false), 500);
                       
                       toast.success('📌 Last context loaded!');
                     } else {
@@ -9483,6 +9490,13 @@ const handlePrepareForMerge = async () => {
                       adId: selectedAdId,
                       characterId: newCharacterId,
                     });
+                    
+                    // Skip auto-save if we're loading context from DB
+                    if (isLoadingContext) {
+                      console.log('[Character Selection] Skipping auto-save - loading context from DB');
+                      return;
+                    }
+                    
                     upsertContextSessionMutation.mutate({
                       userId: localCurrentUser.id,
                       tamId: selectedTamId,
