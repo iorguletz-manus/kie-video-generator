@@ -33,6 +33,13 @@ export default function CategoryManagementPage({ currentUser }: CategoryManageme
   const { data: characters = [] } = trpc.characters.list.useQuery({ userId: currentUser.id });
   const { data: contextSessions = [] } = trpc.contextSessions.listByUser.useQuery({ userId: currentUser.id });
 
+  // Debug: Log data to see what we're getting
+  useEffect(() => {
+    console.log('[Category Management] Characters:', characters.length, characters.map(c => ({ id: c.id, name: c.name })));
+    console.log('[Category Management] Context Sessions:', contextSessions.length, contextSessions.map(s => ({ id: s.id, adId: s.adId, characterId: s.characterId })));
+    console.log('[Category Management] ADs:', ads.length, ads.map(a => ({ id: a.id, name: a.name })));
+  }, [characters, contextSessions, ads]);
+
   // Expand all by default
   useEffect(() => {
     if (tams.length > 0) {
