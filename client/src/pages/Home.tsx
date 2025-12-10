@@ -1754,6 +1754,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   
   // Auto-save currentStep to database whenever it changes
   useEffect(() => {
+    // Skip if loading context from "Load Last Context" button
+    if (isLoadingContext) {
+      console.log('[Auto-save] ⛔ SKIPPING auto-save (isLoadingContext = true)');
+      return;
+    }
+    
     // Skip if no context selected or user not loaded
     if (!selectedTamId || !selectedCoreBeliefId || !selectedEmotionalAngleId || !selectedAdId || !selectedCharacterId) {
       return;
@@ -1792,7 +1798,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }, 0); // 0ms = instant save to prevent currentStep jumping
     
     return () => clearTimeout(saveTimeout);
-  }, [currentStep, selectedTamId, selectedCoreBeliefId, selectedEmotionalAngleId, selectedAdId, selectedCharacterId, localCurrentUser, videoResults, hookMergedVideos, bodyMergedVideoUrl, finalVideos]);
+  }, [isLoadingContext, currentStep, selectedTamId, selectedCoreBeliefId, selectedEmotionalAngleId, selectedAdId, selectedCharacterId, localCurrentUser, videoResults, hookMergedVideos, bodyMergedVideoUrl, finalVideos]);
   
   const regenerateVideos = useMemo(
     () => videoResults.filter(v => 
