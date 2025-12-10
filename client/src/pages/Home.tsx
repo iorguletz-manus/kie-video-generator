@@ -8785,9 +8785,10 @@ const handlePrepareForMerge = async () => {
                }) && (
                 <button
                   onClick={() => {
-                    const videosWithTrimmed = videoResults.filter(v => v.trimmedVideoUrl);
+                    // Use ALL approved videos with trimmedVideoUrl from context, ignore filters
+                    const allApprovedWithTrimmed = videoResults.filter(v => v.step9Approved && v.trimmedVideoUrl);
                     setIsTrimmingModalOpen(false); // Close trimming modal
-                    handleSampleMerge(videosWithTrimmed);
+                    handleSampleMerge(allApprovedWithTrimmed);
                   }}
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-4 rounded-lg text-base font-semibold transition-colors flex items-center justify-center gap-2"
                 >
@@ -13850,8 +13851,8 @@ const handlePrepareForMerge = async () => {
                     <div className="flex flex-col items-end gap-1">
                     <Button
                       onClick={() => {
-                        // Get ALL accepted videos with trimmed videos
-                        const allAcceptedVideos = videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.trimmedVideoUrl);
+                        // Get ALL approved videos with trimmed videos from context, ignore filters
+                        const allAcceptedVideos = videoResults.filter(v => v.step9Approved && v.trimmedVideoUrl);
                         handleSampleMerge(allAcceptedVideos);
                       }}
                       className="bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap"
@@ -14374,7 +14375,11 @@ const handlePrepareForMerge = async () => {
                           {videoResults.some(v => v.trimmedVideoUrl) && (
                             <div className="flex flex-col items-end gap-1">
                             <Button
-                              onClick={() => handleSampleMerge(approvedVideos)}
+                              onClick={() => {
+                                // Use ALL approved videos from context, ignore Step 8 filters
+                                const allApprovedVideos = videoResults.filter(v => v.step9Approved && v.trimmedVideoUrl);
+                                handleSampleMerge(allApprovedVideos);
+                              }}
                               className="bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap"
                               size="sm"
                               >
