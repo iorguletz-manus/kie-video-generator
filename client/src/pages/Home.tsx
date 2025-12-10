@@ -3006,6 +3006,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       return;
     }
     
+    // Check if there are recut videos - if yes, trigger Trim All Videos instead
+    const recutVideos = videoResults.filter(v => v.recutStatus === 'recut');
+    if (recutVideos.length > 0) {
+      console.log('[Sample Merge] ⚠️ Found', recutVideos.length, 'recut videos, triggering Trim All Videos');
+      const trimButton = document.querySelector('[data-trim-all-videos]') as HTMLButtonElement;
+      if (trimButton) {
+        trimButton.click();
+      }
+      return;
+    }
+    
     // Check if sampleMergedVideoUrl exists (second time clicking)
     if (!skipWarning && sampleMergedVideoUrl) {
       console.log('[Sample Merge] ⚠️ sampleMergedVideoUrl exists, showing warning');
@@ -8953,7 +8964,7 @@ const handlePrepareForMerge = async () => {
               ⚠️ Warning
             </DialogTitle>
             <DialogDescription className="text-red-600 font-semibold">
-              This is the second time you're clicking this button. If you modified the START and END markers on videos, you need to click "Trim All Videos" first, otherwise the sample videos will be the same as last time. Are you sure you want to continue?
+              If you modified the START and END markers on some videos, it is preferable to use the Cut & Merge (Test) function from each video to test each video separately. The Sample Merge function is preferable to use only once or a maximum of 2 times if there are many videos where you modified the markers. Are you sure you want to continue?
             </DialogDescription>
           </DialogHeader>
           
@@ -8961,15 +8972,10 @@ const handlePrepareForMerge = async () => {
             <Button
               onClick={() => {
                 setShowSampleMergeWarning(false);
-                // Trigger Trim All Videos button click
-                const trimButton = document.querySelector('[data-trim-all-videos]') as HTMLButtonElement;
-                if (trimButton) {
-                  trimButton.click();
-                }
               }}
-              className="bg-red-600 hover:bg-red-700 text-white"
+              className="bg-gray-600 hover:bg-gray-700 text-white"
             >
-              Trim Videos
+              CLOSE
             </Button>
             <Button
               onClick={() => {
