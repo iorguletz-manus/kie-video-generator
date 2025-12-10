@@ -462,15 +462,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       timeline = [];
       let currentTime = 0;
       
-      // Calculate total expected duration from fresh cutPoints in sampleMergeVideos
+      // Calculate total expected duration from videoResults state (fresh from DB)
       const totalExpectedDuration = sampleMergeVideos.reduce((sum, video) => {
-        // Use cutPoints from sampleMergeVideos (fresh from DB)
-        if (video.cutPoints) {
-          const durationMs = (video.cutPoints.endKeep || 0) - (video.cutPoints.startKeep || 0);
-          return sum + (durationMs / 1000);
-        }
-        
-        // Fallback: check videoResults state
         const videoData = videoResults.find(v => v.videoName === video.name);
         if (!videoData) return sum + 10;
         
@@ -492,42 +485,27 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       sampleMergeVideos.forEach((video) => {
         let durationSeconds = 0;
         
-        // DEBUG: Check if cutPoints exist
-        console.log(`[Sample Merge] 🔍 Building timeline for ${video.name}, has cutPoints:`, !!video.cutPoints, video.cutPoints);
-        
-        // Use cutPoints from sampleMergeVideos (fresh from DB)
-        if (video.cutPoints) {
-          const durationMs = (video.cutPoints.endKeep || 0) - (video.cutPoints.startKeep || 0);
-          durationSeconds = durationMs / 1000;
-          
-          // FIX: If we have real total duration, scale proportionally
-          if (totalRealDuration && totalExpectedDuration > 0) {
-            const proportion = durationSeconds / totalExpectedDuration;
-            durationSeconds = proportion * totalRealDuration;
-            console.log(`[Sample Merge] Scaled ${video.name}: ${(durationMs/1000).toFixed(2)}s → ${durationSeconds.toFixed(2)}s`);
-          }
-        } else {
-          // Fallback: check videoResults state
-          const videoData = videoResults.find(v => v.videoName === video.name);
-          if (videoData) {
-            if (videoData.cutPoints) {
-              const durationMs = (videoData.cutPoints.endKeep || 0) - (videoData.cutPoints.startKeep || 0);
-              durationSeconds = durationMs / 1000;
-              
-              if (totalRealDuration && totalExpectedDuration > 0) {
-                const proportion = durationSeconds / totalExpectedDuration;
-                durationSeconds = proportion * totalRealDuration;
-                console.log(`[Sample Merge] Scaled ${video.name}: ${(durationMs/1000).toFixed(2)}s → ${durationSeconds.toFixed(2)}s`);
-              }
-            } else if (videoData.trimmedDuration) {
-              durationSeconds = videoData.trimmedDuration;
+        // Get cutPoints from videoResults state (fresh from DB)
+        const videoData = videoResults.find(v => v.videoName === video.name);
+        if (videoData) {
+          if (videoData.cutPoints) {
+            const durationMs = (videoData.cutPoints.endKeep || 0) - (videoData.cutPoints.startKeep || 0);
+            durationSeconds = durationMs / 1000;
+            
+            // FIX: If we have real total duration, scale proportionally
+            if (totalRealDuration && totalExpectedDuration > 0) {
+              const proportion = durationSeconds / totalExpectedDuration;
+              durationSeconds = proportion * totalRealDuration;
+              console.log(`[Sample Merge] Scaled ${video.name}: ${(durationMs/1000).toFixed(2)}s → ${durationSeconds.toFixed(2)}s`);
             }
+          } else if (videoData.trimmedDuration) {
+            durationSeconds = videoData.trimmedDuration;
           }
-          
-          if (durationSeconds === 0) {
-            console.warn(`[Video Sync] ⚠️ No duration data for ${video.name}, using 10s fallback`);
-            durationSeconds = 10;
-          }
+        }
+        
+        if (durationSeconds === 0) {
+          console.warn(`[Video Sync] ⚠️ No duration data for ${video.name}, using 10s fallback`);
+          durationSeconds = 10;
         }
         
         timeline.push({
@@ -3030,6 +3008,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           }
           return video;
         });
+        
+        // CRITICAL: Update videoResults STATE so buildTimeline can access fresh cutPoints
+        setVideoResults(freshVideoResults);
+        console.log('[Sample Merge] ✅ Updated videoResults state with fresh cutPoints from DB');
       } else {
         console.log('[Sample Merge] ⚠️ No videoResults in DB, using local state');
       }
@@ -3038,11 +3020,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       // Continue with local state if reload fails
     }
     
-    // Prepare video list with notes AND fresh cutPoints
+    // Prepare video list with notes (cutPoints now in videoResults state)
     const videoList = videosToMerge.map(v => ({
       name: v.videoName,
-      note: v.step9Note || '',
-      cutPoints: v.cutPoints // ✅ Include fresh cutPoints from DB reload
+      note: v.step9Note || ''
     }));
     
     setSampleMergeVideos(videoList);
