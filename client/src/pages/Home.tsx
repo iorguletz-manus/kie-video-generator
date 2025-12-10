@@ -8800,10 +8800,22 @@ const handlePrepareForMerge = async () => {
                     console.log('[Trimming Modal] Refetching videoResults before Sample Merge...');
                     const freshContext = await refetchContextSession();
                     const freshVideoResults = freshContext.data?.videoResults || [];
+                    console.log('[Trimming Modal] 🔍 Refetch returned', freshVideoResults.length, 'total videoResults');
+                    console.log('[Trimming Modal] 🔍 First video sample:', freshVideoResults[0]);
                     
                     // Use ALL approved videos from fresh data (they already have trimmed videos)
                     const allApprovedVideos = freshVideoResults.filter((v: any) => v.step9Approved);
                     console.log('[Trimming Modal] Found', allApprovedVideos.length, 'approved videos for Sample Merge');
+                    
+                    // If no approved videos found, use videoResults state instead
+                    if (allApprovedVideos.length === 0) {
+                      console.log('[Trimming Modal] ⚠️ No approved videos from refetch, using videoResults state instead');
+                      const stateApprovedVideos = videoResults.filter(v => v.step9Approved);
+                      console.log('[Trimming Modal] Found', stateApprovedVideos.length, 'approved videos from state');
+                      setIsTrimmingModalOpen(false);
+                      handleSampleMerge(stateApprovedVideos);
+                      return;
+                    }
                     
                     setIsTrimmingModalOpen(false); // Close trimming modal
                     
