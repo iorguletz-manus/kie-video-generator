@@ -9232,12 +9232,15 @@ const handlePrepareForMerge = async () => {
                     }
                   } else if (value) {
                     const newTamId = parseInt(value);
+                    console.log('[TAM Handler] Setting TAM:', newTamId, 'isLoadingContext:', isLoadingContext);
                     setSelectedTamId(newTamId);
                     
                     // Skip reset if loading from "Load Last Context"
                     if (isLoadingContext) {
+                      console.log('[TAM Handler] ⛔ SKIPPING reset (isLoadingContext = true)');
                       return;
                     }
+                    console.log('[TAM Handler] Resetting dependent selections');
                     
                     // Reset dependent selections
                     setSelectedCoreBeliefId(null);
@@ -9261,26 +9264,44 @@ const handlePrepareForMerge = async () => {
               {/* Load Last Context Link */}
               <button
                 onClick={() => {
+                  console.log('[Load Last Context] 🟢 Button clicked');
                   const lastContext = latestContextSession;
+                  console.log('[Load Last Context] Context from DB:', lastContext);
+                  
                   if (lastContext) {
                     // Set flag to prevent ALL handlers and queries
+                    console.log('[Load Last Context] 🚫 Setting isLoadingContext = TRUE');
                     setIsLoadingContext(true);
                     
                     // Set states directly without triggering handlers
+                    console.log('[Load Last Context] 1️⃣ Setting TAM:', lastContext.tamId);
                     setSelectedTamId(lastContext.tamId);
+                    
+                    console.log('[Load Last Context] 2️⃣ Setting Core Belief:', lastContext.coreBeliefId);
                     setSelectedCoreBeliefId(lastContext.coreBeliefId);
+                    
+                    console.log('[Load Last Context] 3️⃣ Setting Emotional Angle:', lastContext.emotionalAngleId);
                     setSelectedEmotionalAngleId(lastContext.emotionalAngleId);
+                    
+                    console.log('[Load Last Context] 4️⃣ Setting AD:', lastContext.adId);
                     setSelectedAdId(lastContext.adId);
+                    
+                    console.log('[Load Last Context] 5️⃣ Setting Character:', lastContext.characterId);
                     setSelectedCharacterId(lastContext.characterId);
                     
+                    console.log('[Load Last Context] ⏰ Waiting 200ms before resetting flag...');
                     // KEEP shouldAutoLoadContext = false to prevent query execution
                     // This is the key: query stays disabled, videoResults stay in memory
                     
                     // Reset flag after all state updates complete
-                    setTimeout(() => setIsLoadingContext(false), 200);
+                    setTimeout(() => {
+                      console.log('[Load Last Context] ✅ Setting isLoadingContext = FALSE');
+                      setIsLoadingContext(false);
+                    }, 200);
                     
                     toast.success('📌 Last context loaded!');
                   } else {
+                    console.log('[Load Last Context] ❌ No context found');
                     toast.error('No previous context found');
                   }
                 }}
@@ -9470,14 +9491,17 @@ const handlePrepareForMerge = async () => {
                     }
                   } else if (value) {
                     const newCharacterId = parseInt(value);
+                    console.log('[Character Handler] Setting Character:', newCharacterId, 'isLoadingContext:', isLoadingContext);
                     // Simply update character selection without auto-duplicate
                     setSelectedCharacterId(newCharacterId);
                     previousCharacterIdRef.current = newCharacterId;
                     
                     // Skip side effects if loading from "Load Last Context" button
                     if (isLoadingContext) {
+                      console.log('[Character Handler] ⛔ SKIPPING setShouldAutoLoadContext and auto-save (isLoadingContext = true)');
                       return;
                     }
+                    console.log('[Character Handler] Proceeding with setShouldAutoLoadContext and auto-save');
                     
                     // Enable auto-loading when user manually selects context
                     setShouldAutoLoadContext(true);
