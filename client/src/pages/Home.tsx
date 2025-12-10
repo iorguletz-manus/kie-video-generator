@@ -8795,10 +8795,22 @@ const handlePrepareForMerge = async () => {
                  return videoData?.trimmedVideoUrl;
                }) && (
                 <button
-                  onClick={() => {
-                    // Use ALL approved videos with trimmedVideoUrl from context, ignore filters
-                    const allApprovedWithTrimmed = videoResults.filter(v => v.step9Approved && v.trimmedVideoUrl);
+                  onClick={async () => {
+                    // Refetch videoResults from DB to get fresh trimmedVideoUrl values
+                    console.log('[Trimming Modal] Refetching videoResults before Sample Merge...');
+                    const freshContext = await refetchContextSession();
+                    const freshVideoResults = freshContext.data?.videoResults || [];
+                    
+                    // Use ALL approved videos with trimmedVideoUrl from fresh data
+                    const allApprovedWithTrimmed = freshVideoResults.filter((v: any) => v.step9Approved && v.trimmedVideoUrl);
+                    console.log('[Trimming Modal] Found', allApprovedWithTrimmed.length, 'approved videos with trimmedVideoUrl');
+                    
                     setIsTrimmingModalOpen(false); // Close trimming modal
+                    
+                    // Update videoResults state with fresh data before calling handleSampleMerge
+                    setVideoResults(freshVideoResults);
+                    
+                    // Call handleSampleMerge with fresh data
                     handleSampleMerge(allApprovedWithTrimmed);
                   }}
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-4 rounded-lg text-base font-semibold transition-colors flex items-center justify-center gap-2"
@@ -8964,7 +8976,7 @@ const handlePrepareForMerge = async () => {
               ⚠️ Warning
             </DialogTitle>
             <DialogDescription className="text-red-600 font-semibold">
-              If you modified the START and END markers on some videos, it is preferable to use the Cut & Merge (Test) function from each video to test each video separately. The Sample Merge function is preferable to use only once or a maximum of 2 times if there are many videos where you modified the markers. Are you sure you want to continue?
+              If you modified the START and END markers on some videos, it is preferable to use the <span className="font-bold bg-yellow-200 px-1 rounded">Cut & Merge (Test)</span> function from each video to test each video separately. The Sample Merge function is preferable to use only once or a maximum of 2 times if there are many videos where you modified the markers. Are you sure you want to continue?
             </DialogDescription>
           </DialogHeader>
           
