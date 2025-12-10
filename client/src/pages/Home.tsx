@@ -6189,17 +6189,25 @@ const handlePrepareForMerge = async () => {
         console.log(`  - ❌ Using default image: ${selectedImage.fileName}`);
       }
       
-      // Extract image name from fileName (e.g., "Alina_1_CTA.png" → "ALINA_1")
-      let imageName = '';
+      // Extract only the number suffix from fileName (e.g., "Alina_1_CTA.png" → "1")
+      // This avoids duplication like "ALINA_ALINA_1" and produces "ALINA_1"
+      let imageSuffix = '';
       if (selectedImage.fileName) {
         // Remove extension
         const nameWithoutExt = selectedImage.fileName.replace(/\.[^.]+$/, '');
         // Remove "_CTA" or "CTA" suffix (case insensitive)
-        imageName = nameWithoutExt.replace(/_?CTA$/i, '').toUpperCase();
+        const nameWithoutCTA = nameWithoutExt.replace(/_?CTA$/i, '');
+        // Extract number suffix (e.g., "Alina_1" → "1", "Alina_2" → "2")
+        const match = nameWithoutCTA.match(/_?(\d+)$/);
+        if (match) {
+          imageSuffix = match[1]; // Just the number ("1", "2", etc.)
+        }
       }
       
-      // Update videoName to include image name
-      const updatedVideoName = imageName ? `${line.videoName}_${imageName}` : line.videoName;
+      // Update videoName to append only the number suffix
+      // line.videoName already contains character name (e.g., "T2_C1_E1_AD2_HOOK1_ALINA")
+      // We just append "_1" or "_2" to get "T2_C1_E1_AD2_HOOK1_ALINA_1"
+      const updatedVideoName = imageSuffix ? `${line.videoName}_${imageSuffix}` : line.videoName;
       
       return {
         id: `combo-${index}`,
