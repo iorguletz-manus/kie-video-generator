@@ -8995,9 +8995,18 @@ const handlePrepareForMerge = async () => {
               <button
                 onClick={async () => {
                   try {
+                    console.log('[Load Last Context] Fetching for userId:', localCurrentUser.id);
                     const lastContext = await trpc.contextSessions.getLastContext.query({ userId: localCurrentUser.id });
+                    console.log('[Load Last Context] Response:', lastContext);
+                    
                     if (lastContext) {
-                      console.log('[Load Last Context] Found:', lastContext);
+                      console.log('[Load Last Context] Loading context:', {
+                        tamId: lastContext.tamId,
+                        coreBeliefId: lastContext.coreBeliefId,
+                        emotionalAngleId: lastContext.emotionalAngleId,
+                        adId: lastContext.adId,
+                        characterId: lastContext.characterId
+                      });
                       setSelectedTamId(lastContext.tamId);
                       setSelectedCoreBeliefId(lastContext.coreBeliefId);
                       setSelectedEmotionalAngleId(lastContext.emotionalAngleId);
@@ -9005,14 +9014,17 @@ const handlePrepareForMerge = async () => {
                       setSelectedCharacterId(lastContext.characterId);
                       toast.success('📌 Last context loaded!');
                     } else {
+                      console.log('[Load Last Context] No context found in DB');
                       toast.error('No previous context found');
                     }
                   } catch (error: any) {
-                    console.error('[Load Last Context] Error:', error);
-                    toast.error('Failed to load last context');
+                    console.error('[Load Last Context] Error details:', error);
+                    console.error('[Load Last Context] Error message:', error.message);
+                    console.error('[Load Last Context] Error stack:', error.stack);
+                    toast.error(`Failed to load last context: ${error.message || 'Unknown error'}`);
                   }
                 }}
-                className="text-xs text-blue-600 underline hover:text-blue-800 mt-1"
+                className="text-xs text-blue-600 hover:text-blue-800 mt-1"
               >
                 📌 Load Last Context
               </button>
