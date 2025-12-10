@@ -22,7 +22,7 @@ import { toast } from "sonner";
 import { Upload, X, Check, Loader2, Video, FileText, Image as ImageIcon, Map as MapIcon, Play, Download, Undo2, ChevronLeft, RefreshCw, Clock, Search, FileEdit, MessageSquare, Images, Grid3x3, Scissors, CheckCircle2, Folder, Settings as SettingsIcon, LogOut, Sparkles, AlertTriangle, ChevronRight } from "lucide-react";
 
 type PromptType = 'PROMPT_NEUTRAL' | 'PROMPT_SMILING' | 'PROMPT_CTA' | 'PROMPT_CUSTOM';
-type SectionType = 'HOOKS' | 'MIRROR' | 'DCS' | 'TRANZITION' | 'NEW_CAUSE' | 'MECHANISM' | 'EMOTIONAL_PROOF' | 'TRANSFORMATION' | 'CTA' | 'OTHER';
+type SectionType = 'HOOKS' | 'MIRROR' | 'DCS' | 'TRANSITION' | 'NEW_CAUSE' | 'MECHANISM' | 'EMOTIONAL_PROOF' | 'TRANSFORMATION' | 'CTA' | 'OTHER';
 
 interface AdLine {
   id: string;
@@ -1895,7 +1895,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             'HOOKS': 'HOOKS',
             'MIRROR': 'MIRROR',
             'DCS': 'DCS',
-            'TRANZITION': 'TRANZITION',
+            'TRANSITION': 'TRANSITION',
+            'TRANZITION': 'TRANSITION',  // Typo variation - normalize to TRANSITION
+            'TRANZITIE': 'TRANSITION',   // Romanian variation - normalize to TRANSITION
             'NEW CAUSE': 'NEW_CAUSE',
             'NEW-CAUSE': 'NEW_CAUSE',  // Backend sends hyphenated version
             'MECHANISM': 'MECHANISM',
@@ -6687,7 +6689,7 @@ const handlePrepareForMerge = async () => {
         taskId: '155a3426ecbf0f4548030f333716f597',
         videoUrl: 'https://tempfile.aiquickdraw.com/v/155a3426ecbf0f4548030f333716f597_1763116288.mp4',
         text: "Dacă simți că viața ta e doar despre supraviețuire, cheltuieli, stres și lipsuri, ascultă-mă un minut.",
-        section: 'TRANZITION' as SectionType,
+        section: 'TRANSITION' as SectionType,
       },
     ];
     
@@ -12754,7 +12756,7 @@ const handlePrepareForMerge = async () => {
               )}
 
               {/* Organizare pe categorii */}
-              {['HOOKS', 'MIRROR', 'DCS', 'TRANZITION', 'NEW_CAUSE', 'MECHANISM', 'EMOTIONAL_PROOF', 'TRANSFORMATION', 'CTA'].map(category => {
+              {['HOOKS', 'MIRROR', 'DCS', 'TRANSITION', 'NEW_CAUSE', 'MECHANISM', 'EMOTIONAL_PROOF', 'TRANSFORMATION', 'CTA'].map(category => {
                 // Filtrare videouri: doar cele generate cu succes (status === 'success' și videoUrl există)
                 // Use step6FilteredVideos to prevent auto-remove on decision change
                 let categoryVideos = step6FilteredVideos.filter(v => 
@@ -13199,7 +13201,7 @@ const handlePrepareForMerge = async () => {
                         const zip = new JSZip();
                         
                         // Order videos by category: HOOKS, MIRROR, DCS, TRANZITION, NEW_CAUSE, MECHANISM, EMOTIONAL_PROOF, TRANSFORMATION, CTA
-                        const categoryOrder = ['HOOKS', 'MIRROR', 'DCS', 'TRANZITION', 'NEW_CAUSE', 'MECHANISM', 'EMOTIONAL_PROOF', 'TRANSFORMATION', 'CTA'];
+                        const categoryOrder = ['HOOKS', 'MIRROR', 'DCS', 'TRANSITION', 'NEW_CAUSE', 'MECHANISM', 'EMOTIONAL_PROOF', 'TRANSFORMATION', 'CTA'];
                         const orderedVideos: typeof acceptedVideos = [];
                         
                         categoryOrder.forEach(category => {

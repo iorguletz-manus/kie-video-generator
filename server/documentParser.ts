@@ -8,7 +8,8 @@ const KEYWORDS_TO_REMOVE = [
   'MIRROR:',
   'DCS:',
   'TRANSITION:',
-  'TRANZITION:',
+  'TRANZITION:',  // Typo variation
+  'TRANZITIE:',   // Romanian variation
   'NEW_CAUSE:',
   'MECHANISM:',
   'EMOTIONAL_PROOF:',
@@ -28,7 +29,7 @@ function isCategoryHeader(line: string): boolean {
   }
   
   // Verifică alte categorii cu număr
-  if (/(MIRROR|DCS|TRANZITION|TRANSITION|NEW_CAUSE|MECHANISM|EMOTIONAL_PROOF|TRANSFORMATION|CTA)\d+:?/.test(upperLine)) {
+  if (/(MIRROR|DCS|TRANZITION|TRANZITIE|TRANSITION|NEW_CAUSE|MECHANISM|EMOTIONAL_PROOF|TRANSFORMATION|CTA)\d+:?/.test(upperLine)) {
     return true;
   }
   
@@ -110,7 +111,7 @@ export function replaceInsertText(promptTemplate: string, text: string): string 
 /**
  * Tipuri de secțiuni din document ad
  */
-export type SectionType = 'HOOKS' | 'MIRROR' | 'DCS' | 'TRANZITION' | 'NEW_CAUSE' | 'MECHANISM' | 'EMOTIONAL_PROOF' | 'TRANSFORMATION' | 'CTA' | 'OTHER';
+export type SectionType = 'HOOKS' | 'MIRROR' | 'DCS' | 'TRANSITION' | 'NEW_CAUSE' | 'MECHANISM' | 'EMOTIONAL_PROOF' | 'TRANSFORMATION' | 'CTA' | 'OTHER';
 
 /**
  * Tipuri de prompturi
@@ -137,7 +138,8 @@ export function detectSection(line: string, allLines: string[], lineIndex: numbe
     if (prevLine.startsWith('EMOTIONAL_PROOF')) return 'EMOTIONAL_PROOF';
     if (prevLine.startsWith('MECHANISM')) return 'MECHANISM';
     if (prevLine.startsWith('NEW_CAUSE')) return 'NEW_CAUSE';
-    if (prevLine.startsWith('TRANZITION') || prevLine.startsWith('TRANSITION')) return 'TRANZITION';
+    // Normalize all variations (TRANZITION, TRANZITIE, TRANSITION) to TRANSITION
+    if (prevLine.startsWith('TRANZITION') || prevLine.startsWith('TRANZITIE') || prevLine.startsWith('TRANSITION')) return 'TRANSITION';
     if (prevLine.startsWith('DCS')) return 'DCS';
     if (prevLine.startsWith('MIRROR')) return 'MIRROR';
     if (prevLine.startsWith('HOOKS') || prevLine.startsWith('H1') || prevLine.startsWith('H2') || prevLine.startsWith('H3')) return 'HOOKS';
@@ -183,8 +185,8 @@ export function extractCategoryNumber(line: string): number | null {
     return parseInt(hookMatch[1], 10);
   }
   
-  // Pentru alte categorii: MIRROR1, DCS2, TRANZITION1, etc.
-  const categoryMatch = upperLine.match(/(MIRROR|DCS|TRANZITION|TRANSITION|NEW_CAUSE|MECHANISM|EMOTIONAL_PROOF|TRANSFORMATION|CTA)(\d+)/);
+  // Pentru alte categorii: MIRROR1, DCS2, TRANSITION1, etc.
+  const categoryMatch = upperLine.match(/(MIRROR|DCS|TRANZITION|TRANZITIE|TRANSITION|NEW_CAUSE|MECHANISM|EMOTIONAL_PROOF|TRANSFORMATION|CTA)(\d+)/);
   if (categoryMatch) {
     return parseInt(categoryMatch[2], 10);
   }
