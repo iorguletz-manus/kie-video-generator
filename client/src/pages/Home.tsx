@@ -13767,13 +13767,8 @@ const handlePrepareForMerge = async () => {
                               // RELOAD videoResults from DB to get fresh cut points
                               console.log('[Cut & Merge] 🔄 Reloading videoResults from DB to get fresh cut points...');
                               try {
-                                const freshContext = await trpc.contextSessions.get.query({
-                                  userId: currentUser.id,
-                                  coreBeliefId: selectedCoreBeliefId!,
-                                  emotionalAngleId: selectedEmotionalAngleId!,
-                                  adId: selectedAdId!,
-                                  characterId: selectedCharacterId!
-                                });
+                                const freshContextResponse = await refetchContextSession();
+                                const freshContext = freshContextResponse.data;
                                 
                                 if (freshContext && freshContext.videoResults) {
                                   const freshVideoResults = JSON.parse(freshContext.videoResults as any);
