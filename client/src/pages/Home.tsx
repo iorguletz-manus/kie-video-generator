@@ -462,8 +462,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       timeline = [];
       let currentTime = 0;
       
-      // Calculate total expected duration
+      // Calculate total expected duration from fresh cutPoints in sampleMergeVideos
       const totalExpectedDuration = sampleMergeVideos.reduce((sum, video) => {
+        // Use cutPoints from sampleMergeVideos (fresh from DB)
+        if (video.cutPoints) {
+          const durationMs = (video.cutPoints.endKeep || 0) - (video.cutPoints.startKeep || 0);
+          return sum + (durationMs / 1000);
+        }
+        
+        // Fallback: check videoResults state
         const videoData = videoResults.find(v => v.videoName === video.name);
         if (!videoData) return sum + 10;
         
@@ -483,13 +490,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       });
       
       sampleMergeVideos.forEach((video) => {
-        const videoData = videoResults.find(v => v.videoName === video.name);
-        if (!videoData) return;
-        
         let durationSeconds = 0;
         
-        if (videoData.cutPoints) {
-          const durationMs = (videoData.cutPoints.endKeep || 0) - (videoData.cutPoints.startKeep || 0);
+        // Use cutPoints from sampleMergeVideos (fresh from DB)
+        if (video.cutPoints) {
+          const durationMs = (video.cutPoints.endKeep || 0) - (video.cutPoints.startKeep || 0);
           durationSeconds = durationMs / 1000;
           
           // FIX: If we have real total duration, scale proportionally
@@ -498,11 +503,28 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             durationSeconds = proportion * totalRealDuration;
             console.log(`[Sample Merge] Scaled ${video.name}: ${(durationMs/1000).toFixed(2)}s → ${durationSeconds.toFixed(2)}s`);
           }
-        } else if (videoData.trimmedDuration) {
-          durationSeconds = videoData.trimmedDuration;
         } else {
-          console.warn(`[Video Sync] ⚠️ No duration data for ${video.name}, using 10s fallback`);
-          durationSeconds = 10;
+          // Fallback: check videoResults state
+          const videoData = videoResults.find(v => v.videoName === video.name);
+          if (videoData) {
+            if (videoData.cutPoints) {
+              const durationMs = (videoData.cutPoints.endKeep || 0) - (videoData.cutPoints.startKeep || 0);
+              durationSeconds = durationMs / 1000;
+              
+              if (totalRealDuration && totalExpectedDuration > 0) {
+                const proportion = durationSeconds / totalExpectedDuration;
+                durationSeconds = proportion * totalRealDuration;
+                console.log(`[Sample Merge] Scaled ${video.name}: ${(durationMs/1000).toFixed(2)}s → ${durationSeconds.toFixed(2)}s`);
+              }
+            } else if (videoData.trimmedDuration) {
+              durationSeconds = videoData.trimmedDuration;
+            }
+          }
+          
+          if (durationSeconds === 0) {
+            console.warn(`[Video Sync] ⚠️ No duration data for ${video.name}, using 10s fallback`);
+            durationSeconds = 10;
+          }
         }
         
         timeline.push({
@@ -3013,10 +3035,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       // Continue with local state if reload fails
     }
     
-    // Prepare video list with notes
+    // Prepare video list with notes AND fresh cutPoints
     const videoList = videosToMerge.map(v => ({
       name: v.videoName,
-      note: v.step9Note || ''
+      note: v.step9Note || '',
+      cutPoints: v.cutPoints // ✅ Include fresh cutPoints from DB reload
     }));
     
     setSampleMergeVideos(videoList);
