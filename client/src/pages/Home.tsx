@@ -424,6 +424,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
   });
   const [sampleMergeCountdown, setSampleMergeCountdown] = useState<number>(0);
+  const [freshDataTimestamp, setFreshDataTimestamp] = useState<number>(0);
   
   // Persist lastSampleVideoUrl to localStorage
   useEffect(() => {
@@ -576,7 +577,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       videoElement.removeEventListener('seeked', handleTimeUpdate);
       videoElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
     };
-  }, [sampleMergedVideoUrl, sampleMergeVideos, videoResults]);
+  }, [sampleMergedVideoUrl, sampleMergeVideos, videoResults, freshDataTimestamp]);
   
   // Sync current video name with playback time (Cut & Merge Modal)
   useEffect(() => {
@@ -3016,6 +3017,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         freshVideoResultsRef.current = freshVideoResults;
         // Also update state for other components
         setVideoResults(freshVideoResults);
+        // Trigger useEffect re-run by updating timestamp
+        setFreshDataTimestamp(Date.now());
         console.log('[Sample Merge] ✅ Updated videoResults state and ref with fresh cutPoints from DB');
       } else {
         console.log('[Sample Merge] ⚠️ No videoResults in DB, using local state');
