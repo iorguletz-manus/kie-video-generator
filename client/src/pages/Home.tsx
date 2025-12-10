@@ -159,7 +159,6 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [, setLocation] = useLocation();
   
   // Step 1: Categories
-  const [isLoadingContext, setIsLoadingContext] = useState(false);
   const [selectedTamId, setSelectedTamId] = useState<number | null>(null);
   const [selectedCoreBeliefId, setSelectedCoreBeliefId] = useState<number | null>(null);
   const [selectedEmotionalAngleId, setSelectedEmotionalAngleId] = useState<number | null>(null);
@@ -1002,8 +1001,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     },
     {
       // Disable auto-loading on page refresh - only load when user manually selects context
-      // Also disable when loading context from "Load Last Context" to prevent overwriting videoResults
-      enabled: shouldAutoLoadContext && !isLoadingContext && !!(selectedTamId && selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId),
+      enabled: shouldAutoLoadContext && !!(selectedTamId && selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId),
       // ✅ FORCE fresh data load from DB on every mount (hard refresh, incognito, navigation)
       refetchOnMount: 'always',
       refetchOnWindowFocus: false, // Don't refetch on window focus to avoid unnecessary DB calls
@@ -9255,66 +9253,18 @@ const handlePrepareForMerge = async () => {
               </Select>
               {/* Load Last Context Link */}
               <button
-                onClick={async () => {
-                  try {
-                    console.log('[Load Last Context] 🔍 Debug info:', {
-                      userId: localCurrentUser.id,
-                      hasLatestContextSession: !!latestContextSession,
-                      latestContextSession
-                    });
-                    const lastContext = latestContextSession;
-                    console.log('[Load Last Context] Response:', lastContext);
-                    
-                    if (lastContext) {
-                      console.log('[Load Last Context] Loading context sequentially:', {
-                        tamId: lastContext.tamId,
-                        coreBeliefId: lastContext.coreBeliefId,
-                        emotionalAngleId: lastContext.emotionalAngleId,
-                        adId: lastContext.adId,
-                        characterId: lastContext.characterId
-                      });
-                      
-                      // Set flag to prevent auto-save during context loading
-                      console.log('[Load Last Context] 🚫 Setting isLoadingContext = TRUE (disabling auto-save)');
-                      setIsLoadingContext(true);
-                      
-                      // Load sequentially: TAM → Core Belief → Emotional Angle → AD → Character
-                      console.log('[Load Last Context] 1️⃣ Setting TAM:', lastContext.tamId);
-                      setSelectedTamId(lastContext.tamId);
-                      await new Promise(resolve => setTimeout(resolve, 100));
-                      
-                      console.log('[Load Last Context] 2️⃣ Setting Core Belief:', lastContext.coreBeliefId);
-                      setSelectedCoreBeliefId(lastContext.coreBeliefId);
-                      await new Promise(resolve => setTimeout(resolve, 100));
-                      
-                      console.log('[Load Last Context] 3️⃣ Setting Emotional Angle:', lastContext.emotionalAngleId);
-                      setSelectedEmotionalAngleId(lastContext.emotionalAngleId);
-                      await new Promise(resolve => setTimeout(resolve, 100));
-                      
-                      console.log('[Load Last Context] 4️⃣ Setting AD:', lastContext.adId);
-                      setSelectedAdId(lastContext.adId);
-                      await new Promise(resolve => setTimeout(resolve, 100));
-                      
-                      console.log('[Load Last Context] 5️⃣ Setting Character:', lastContext.characterId);
-                      setSelectedCharacterId(lastContext.characterId);
-                      
-                      // Reset flag after loading complete
-                      console.log('[Load Last Context] ⏰ Waiting 500ms before re-enabling auto-save...');
-                      setTimeout(() => {
-                        console.log('[Load Last Context] ✅ Setting isLoadingContext = FALSE (re-enabling auto-save)');
-                        setIsLoadingContext(false);
-                      }, 500);
-                      
-                      toast.success('📌 Last context loaded!');
-                    } else {
-                      console.log('[Load Last Context] No context found in DB');
-                      toast.error('No previous context found');
-                    }
-                  } catch (error: any) {
-                    console.error('[Load Last Context] Error details:', error);
-                    console.error('[Load Last Context] Error message:', error.message);
-                    console.error('[Load Last Context] Error stack:', error.stack);
-                    toast.error(`Failed to load last context: ${error.message || 'Unknown error'}`);
+                onClick={() => {
+                  const lastContext = latestContextSession;
+                  if (lastContext) {
+                    // Simply set the dropdowns - let the app work like manual selection
+                    setSelectedTamId(lastContext.tamId);
+                    setSelectedCoreBeliefId(lastContext.coreBeliefId);
+                    setSelectedEmotionalAngleId(lastContext.emotionalAngleId);
+                    setSelectedAdId(lastContext.adId);
+                    setSelectedCharacterId(lastContext.characterId);
+                    toast.success('📌 Last context loaded!');
+                  } else {
+                    toast.error('No previous context found');
                   }
                 }}
                 className="text-xs text-blue-600 hover:text-blue-800 mt-1"
@@ -9492,24 +9442,6 @@ const handlePrepareForMerge = async () => {
                     setShouldAutoLoadContext(true);
                     
                     // Auto-save Character selection to database
-                    console.log('[Character Selection] 📦 Saving to database:', newCharacterId);
-                    console.log('[Character Selection] ALL VALUES:', {
-                      userId: localCurrentUser.id,
-                      tamId: selectedTamId,
-                      coreBeliefId: selectedCoreBeliefId,
-                      emotionalAngleId: selectedEmotionalAngleId,
-                      adId: selectedAdId,
-                      characterId: newCharacterId,
-                    });
-                    
-                    // Skip auto-save if we're loading context from DB
-                    console.log('[Character Selection] 🔍 Checking isLoadingContext flag:', isLoadingContext);
-                    if (isLoadingContext) {
-                      console.log('[Character Selection] ⛔ SKIPPING AUTO-SAVE - isLoadingContext = TRUE (loading from DB)');
-                      return;
-                    }
-                    console.log('[Character Selection] ✅ Proceeding with auto-save - isLoadingContext = FALSE');
-                    
                     upsertContextSessionMutation.mutate({
                       userId: localCurrentUser.id,
                       tamId: selectedTamId,
