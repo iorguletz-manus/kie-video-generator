@@ -425,6 +425,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   });
   const [sampleMergeCountdown, setSampleMergeCountdown] = useState<number>(0);
   const [freshDataTimestamp, setFreshDataTimestamp] = useState<number>(0);
+  const [showSampleMergeWarning, setShowSampleMergeWarning] = useState<boolean>(false);
   
   // Persist lastSampleVideoUrl to localStorage
   useEffect(() => {
@@ -2998,10 +2999,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   };
   
   // Sample Merge ALL Videos - with 65-second cooldown timer in popup
-  const handleSampleMerge = async (videosToMerge: typeof videoResults) => {
+  const handleSampleMerge = async (videosToMerge: typeof videoResults, skipWarning: boolean = false) => {
     // Prevent multiple simultaneous merges
     if (sampleMergeProgress && sampleMergeProgress !== '') {
       console.log('[Sample Merge] ⚠️ Merge already in progress, ignoring click');
+      return;
+    }
+    
+    // Check if sampleMergedVideoUrl exists (second time clicking)
+    if (!skipWarning && sampleMergedVideoUrl) {
+      console.log('[Sample Merge] ⚠️ sampleMergedVideoUrl exists, showing warning');
+      setShowSampleMergeWarning(true);
       return;
     }
     
@@ -8936,6 +8944,47 @@ const handlePrepareForMerge = async () => {
         </DialogContent>
       </Dialog>
       
+      {/* Sample Merge Warning Dialog */}
+      <Dialog open={showSampleMergeWarning} onOpenChange={setShowSampleMergeWarning}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              ⚠️ Warning
+            </DialogTitle>
+            <DialogDescription className="text-red-600 font-semibold">
+              This is the second time you're clicking this button. If you modified the START and END markers on videos, you need to click "Trim All Videos" first, otherwise the sample videos will be the same as last time. Are you sure you want to continue?
+            </DialogDescription>
+          </DialogHeader>
+          
+          <DialogFooter className="flex gap-2">
+            <Button
+              onClick={() => {
+                setShowSampleMergeWarning(false);
+                // Trigger Trim All Videos button click
+                const trimButton = document.querySelector('[data-trim-all-videos]') as HTMLButtonElement;
+                if (trimButton) {
+                  trimButton.click();
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Trim Videos
+            </Button>
+            <Button
+              onClick={() => {
+                setShowSampleMergeWarning(false);
+                // Continue with Sample Merge (skip warning)
+                const approvedVideos = videoResults.filter(v => v.step9Approved);
+                handleSampleMerge(approvedVideos, true);
+              }}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              Continue With Sample Merge
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
       {/* Sample Merge Modal */}
       <Dialog open={isSampleMergeModalOpen} onOpenChange={(open) => {
         setIsSampleMergeModalOpen(open);
@@ -14310,6 +14359,7 @@ const handlePrepareForMerge = async () => {
                               handleSimpleCut();
                             }}
                             className="bg-red-600 hover:bg-red-700 px-8 py-8 text-lg w-full max-w-md"
+                            data-trim-all-videos
                           >
                             {(() => {
                               const count = videoResults.filter(v => v.reviewStatus === 'accepted' && v.recutStatus !== 'accepted' && v.status === 'success' && v.videoUrl).length;
