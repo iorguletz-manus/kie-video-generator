@@ -30,6 +30,8 @@ export default function CategoryManagementPage({ currentUser }: CategoryManageme
   const { data: coreBeliefs = [], refetch: refetchCoreBeliefs } = trpc.coreBeliefs.list.useQuery({ userId: currentUser.id });
   const { data: emotionalAngles = [], refetch: refetchEmotionalAngles } = trpc.emotionalAngles.list.useQuery({ userId: currentUser.id });
   const { data: ads = [], refetch: refetchAds } = trpc.ads.list.useQuery({ userId: currentUser.id });
+  const { data: characters = [] } = trpc.characters.list.useQuery({ userId: currentUser.id });
+  const { data: contextSessions = [] } = trpc.contextSessions.listByUser.useQuery({ userId: currentUser.id });
 
   // Expand all by default
   useEffect(() => {
@@ -230,7 +232,7 @@ export default function CategoryManagementPage({ currentUser }: CategoryManageme
       </div>
 
       {/* Stats Cards */}
-      <div className="max-w-6xl mx-auto px-4 py-6">
+      <div className="max-w-6xl mx-auto px-4">
         <div className="grid grid-cols-4 gap-4 mb-6">
           <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white">
             <CardContent className="p-4">
@@ -485,9 +487,35 @@ export default function CategoryManagementPage({ currentUser }: CategoryManageme
                                                       </div>
                                                     ) : (
                                                       <>
-                                                        <span className="flex-1 text-orange-900" onDoubleClick={() => startEdit('ad', ad.id, ad.name)}>
-                                                          {ad.name}
-                                                        </span>
+                                                        <div className="flex-1">
+                                                          <span className="text-orange-900" onDoubleClick={() => startEdit('ad', ad.id, ad.name)}>
+                                                            {ad.name}
+                                                          </span>
+                                                          {/* Character names used in this AD */}
+                                                          {(() => {
+                                                            // Find all unique character IDs used in this AD
+                                                            const usedCharacterIds = new Set(
+                                                              contextSessions
+                                                                .filter(session => session.adId === ad.id)
+                                                                .map(session => session.characterId)
+                                                                .filter(Boolean)
+                                                            );
+                                                            const usedCharacters = characters.filter(char => usedCharacterIds.has(char.id));
+                                                            
+                                                            if (usedCharacters.length > 0) {
+                                                              return (
+                                                                <div className="mt-1 flex flex-wrap gap-1">
+                                                                  {usedCharacters.map(char => (
+                                                                    <span key={char.id} className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded">
+                                                                      {char.name}
+                                                                    </span>
+                                                                  ))}
+                                                                </div>
+                                                              );
+                                                            }
+                                                            return null;
+                                                          })()}
+                                                        </div>
                                                         <div className="opacity-0 group-hover:opacity-100 flex gap-1">
                                                           <Button
                                                             size="sm"
