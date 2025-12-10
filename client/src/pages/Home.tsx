@@ -8795,34 +8795,12 @@ const handlePrepareForMerge = async () => {
                  return videoData?.trimmedVideoUrl;
                }) && (
                 <button
-                  onClick={async () => {
-                    // Refetch videoResults from DB to get fresh trimmedVideoUrl values
-                    console.log('[Trimming Modal] Refetching videoResults before Sample Merge...');
-                    const freshContext = await refetchContextSession();
-                    const freshVideoResults = freshContext.data?.videoResults || [];
-                    console.log('[Trimming Modal] 🔍 Refetch returned', freshVideoResults.length, 'total videoResults');
-                    console.log('[Trimming Modal] 🔍 First video sample:', freshVideoResults[0]);
-                    
-                    // Use ALL approved videos from fresh data (they already have trimmed videos)
-                    const allApprovedVideos = freshVideoResults.filter((v: any) => v.step9Approved);
-                    console.log('[Trimming Modal] Found', allApprovedVideos.length, 'approved videos for Sample Merge');
-                    
-                    // If no approved videos found, use videoResults state instead
-                    if (allApprovedVideos.length === 0) {
-                      console.log('[Trimming Modal] ⚠️ No approved videos from refetch, using videoResults state instead');
-                      const stateApprovedVideos = videoResults.filter(v => v.step9Approved);
-                      console.log('[Trimming Modal] Found', stateApprovedVideos.length, 'approved videos from state');
-                      setIsTrimmingModalOpen(false);
-                      handleSampleMerge(stateApprovedVideos);
-                      return;
-                    }
+                  onClick={() => {
+                    // Use ALL approved videos from videoResults state
+                    const allApprovedVideos = videoResults.filter(v => v.step9Approved);
+                    console.log('[Trimming Modal] Using', allApprovedVideos.length, 'approved videos from state');
                     
                     setIsTrimmingModalOpen(false); // Close trimming modal
-                    
-                    // Update videoResults state with fresh data before calling handleSampleMerge
-                    setVideoResults(freshVideoResults);
-                    
-                    // Call handleSampleMerge with fresh data
                     handleSampleMerge(allApprovedVideos);
                   }}
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-4 rounded-lg text-base font-semibold transition-colors flex items-center justify-center gap-2"
@@ -9004,8 +8982,10 @@ const handlePrepareForMerge = async () => {
             <Button
               onClick={() => {
                 setShowSampleMergeWarning(false);
-                // Continue with Sample Merge (skip warning)
+                // Use ALL approved videos from videoResults state
                 const approvedVideos = videoResults.filter(v => v.step9Approved);
+                console.log('[Warning Dialog] Using', approvedVideos.length, 'approved videos from state');
+                // Continue with Sample Merge (skip warning)
                 handleSampleMerge(approvedVideos, true);
               }}
               className="bg-green-600 hover:bg-green-700 text-white"
