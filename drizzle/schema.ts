@@ -205,6 +205,7 @@ export const contextSessions = mysqlTable("context_sessions", {
   hookMergedVideos: json("hookMergedVideos"), // Object: { baseName: cdnUrl }
   bodyMergedVideoUrl: text("bodyMergedVideoUrl"), // CDN URL for merged body video
   finalVideos: json("finalVideos"), // Array of final merged videos (hook + body combinations)
+  sampleMergedVideoUrl: text("sampleMergedVideoUrl"), // CDN URL for sample merged video (from "Sample Merge All Videos" button)
   
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

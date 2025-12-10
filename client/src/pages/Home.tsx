@@ -3073,7 +3073,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       
       console.log('[Sample Merge] Success!', result);
       setSampleMergedVideoUrl(result.downloadUrl);
-      setLastSampleVideoUrl(result.downloadUrl); // Save for "Open Last Sample" link
+      setLastSampleVideoUrl(result.downloadUrl); // Save for "Open Last Sample" link (backward compat)
       
       // FIX: Update sampleMergeVideos after second merge to sync video names
       console.log('[Sample Merge] 🔄 Updating sampleMergeVideos after merge');
@@ -3088,6 +3088,25 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         endMs: Math.round(v.cutPoints?.endKeep || 0),
       })));
       setLastMergedVideosHash(currentHash);
+      
+      // SAVE to DB: sampleMergedVideoUrl in context_sessions
+      console.log('[Sample Merge] 💾 Saving sampleMergedVideoUrl to DB...');
+      try {
+        await upsertContextSessionMutation.mutateAsync({
+          userId: localCurrentUser.id,
+          tamId: selectedTamId || undefined,
+          coreBeliefId: selectedCoreBeliefId!,
+          emotionalAngleId: selectedEmotionalAngleId!,
+          adId: selectedAdId!,
+          characterId: selectedCharacterId!,
+          sampleMergedVideoUrl: result.downloadUrl, // Save URL to DB
+        });
+        console.log('[Sample Merge] ✅ sampleMergedVideoUrl saved to DB!');
+      } catch (dbError: any) {
+        console.error('[Sample Merge] ❌ Failed to save to DB:', dbError);
+        // Don't fail the whole merge if DB save fails
+      }
+      
       setSampleMergeProgress('');
       toast.success('✅ Sample merge complete!');
     } catch (error: any) {
@@ -13653,17 +13672,21 @@ const handlePrepareForMerge = async () => {
                       🎬 Sample Merge ALL Videos
                     </Button>
                     {/* Open Last Sample link */}
-                    {lastSampleVideoUrl && (
+                    {(contextSession?.sampleMergedVideoUrl || lastSampleVideoUrl) && (
                       <button
                         onClick={() => {
-                          // Reopen modal with last sample video
+                          // Reopen modal with last sample video from DB (or localStorage fallback)
                           const allAcceptedVideos = videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.trimmedVideoUrl);
                           const videoList = allAcceptedVideos.map(v => ({
                             name: v.videoName,
                             note: v.step9Note || ''
                           }));
                           setSampleMergeVideos(videoList);
-                          setSampleMergedVideoUrl(lastSampleVideoUrl);
+                          
+                          // Use DB value first, fallback to localStorage
+                          const urlToLoad = contextSession?.sampleMergedVideoUrl || lastSampleVideoUrl;
+                          console.log('[Open Last Sample] Loading URL from:', contextSession?.sampleMergedVideoUrl ? 'DB' : 'localStorage', urlToLoad);
+                          setSampleMergedVideoUrl(urlToLoad);
                           setIsSampleMergeModalOpen(true);
                           setSampleMergeProgress('');
                         }}
@@ -14167,16 +14190,20 @@ const handlePrepareForMerge = async () => {
                                 🎬 Sample Merge ALL Videos
                               </Button>
                               {/* Open Last Sample link */}
-                              {lastSampleVideoUrl && (
+                              {(contextSession?.sampleMergedVideoUrl || lastSampleVideoUrl) && (
                               <button
                                 onClick={() => {
-                                  // Reopen modal with last sample video
+                                  // Reopen modal with last sample video from DB (or localStorage fallback)
                                   const videoList = approvedVideos.map(v => ({
                                     name: v.videoName,
                                     note: v.step9Note || ''
                                   }));
                                   setSampleMergeVideos(videoList);
-                                  setSampleMergedVideoUrl(lastSampleVideoUrl);
+                                  
+                                  // Use DB value first, fallback to localStorage
+                                  const urlToLoad = contextSession?.sampleMergedVideoUrl || lastSampleVideoUrl;
+                                  console.log('[Open Last Sample] Loading URL from:', contextSession?.sampleMergedVideoUrl ? 'DB' : 'localStorage', urlToLoad);
+                                  setSampleMergedVideoUrl(urlToLoad);
                                   setIsSampleMergeModalOpen(true);
                                   setSampleMergeProgress('');
                                 }}
