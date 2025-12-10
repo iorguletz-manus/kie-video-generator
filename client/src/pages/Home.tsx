@@ -4766,6 +4766,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       try {
         await upsertContextSessionMutation.mutateAsync({
           userId: localCurrentUser.id,
+          tamId: selectedTamId,
           coreBeliefId: selectedCoreBelief!,
           emotionalAngleId: selectedEmotionalAngle!,
           adId: selectedAd!,
@@ -6431,6 +6432,7 @@ const handlePrepareForMerge = async () => {
     if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
       upsertContextSessionMutation.mutate({
         userId: localCurrentUser.id,
+        tamId: selectedTamId,
         coreBeliefId: selectedCoreBeliefId,
         emotionalAngleId: selectedEmotionalAngleId,
         adId: selectedAdId,
@@ -9038,6 +9040,7 @@ const handlePrepareForMerge = async () => {
                                     if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
                                       upsertContextSessionMutation.mutate({
                                         userId: currentUser.id,
+                                        tamId: selectedTamId,
                                         coreBeliefId: selectedCoreBeliefId,
                                         emotionalAngleId: selectedEmotionalAngleId,
                                         adId: selectedAdId,
@@ -10354,6 +10357,7 @@ const handlePrepareForMerge = async () => {
                                     if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
                                       upsertContextSessionMutation.mutate({
                                         userId: localCurrentUser.id,
+                                        tamId: selectedTamId,
                                         coreBeliefId: selectedCoreBeliefId,
                                         emotionalAngleId: selectedEmotionalAngleId,
                                         adId: selectedAdId,
@@ -10411,6 +10415,7 @@ const handlePrepareForMerge = async () => {
                         if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
                           upsertContextSessionMutation.mutate({
                             userId: localCurrentUser.id,
+                            tamId: selectedTamId,
                             coreBeliefId: selectedCoreBeliefId,
                             emotionalAngleId: selectedEmotionalAngleId,
                             adId: selectedAdId,
@@ -10730,6 +10735,7 @@ const handlePrepareForMerge = async () => {
                     if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
                       upsertContextSessionMutation.mutate({
                         userId: localCurrentUser.id,
+                        tamId: selectedTamId,
                         coreBeliefId: selectedCoreBeliefId,
                         emotionalAngleId: selectedEmotionalAngleId,
                         adId: selectedAdId,
@@ -14130,6 +14136,7 @@ const handlePrepareForMerge = async () => {
                                 
                                 upsertContextSessionMutation.mutate({
                                   userId: currentUser.id,
+                                  tamId: selectedTamId,
                                   coreBeliefId: selectedCoreBeliefId,
                                   emotionalAngleId: selectedEmotionalAngleId,
                                   adId: selectedAdId,
@@ -14213,6 +14220,7 @@ const handlePrepareForMerge = async () => {
                               try {
                                 await upsertContextSessionMutation.mutateAsync({
                                 userId: currentUser.id,
+                                tamId: selectedTamId,
                                 coreBeliefId: selectedCoreBeliefId,
                                 emotionalAngleId: selectedEmotionalAngleId,
                                 adId: selectedAdId,
@@ -14582,6 +14590,7 @@ const handlePrepareForMerge = async () => {
                                         if (selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
                                           upsertContextSessionMutation.mutate({
                                             userId: currentUser.id,
+                                            tamId: selectedTamId,
                                             coreBeliefId: selectedCoreBeliefId,
                                             emotionalAngleId: selectedEmotionalAngleId,
                                             adId: selectedAdId,
