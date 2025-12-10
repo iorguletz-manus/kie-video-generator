@@ -9177,7 +9177,11 @@ const handlePrepareForMerge = async () => {
               <button
                 onClick={async () => {
                   try {
-                    console.log('[Load Last Context] Using latestContextSession from hook');
+                    console.log('[Load Last Context] 🔍 Debug info:', {
+                      userId: localCurrentUser.id,
+                      hasLatestContextSession: !!latestContextSession,
+                      latestContextSession
+                    });
                     const lastContext = latestContextSession;
                     console.log('[Load Last Context] Response:', lastContext);
                     
