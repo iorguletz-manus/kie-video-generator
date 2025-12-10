@@ -9207,12 +9207,24 @@ const handlePrepareForMerge = async () => {
                       toast.success('TAM created!');
                     }
                   } else if (value) {
-                    setSelectedTamId(parseInt(value));
+                    const newTamId = parseInt(value);
+                    setSelectedTamId(newTamId);
                     // Reset dependent selections
                     setSelectedCoreBeliefId(null);
                     setSelectedEmotionalAngleId(null);
                     setSelectedAdId(null);
                     setSelectedCharacterId(null);
+                    
+                    // Auto-save TAM selection to database
+                    console.log('[TAM Selection] Saving tamId to database:', newTamId);
+                    upsertContextSessionMutation.mutate({
+                      userId: localCurrentUser.id,
+                      tamId: newTamId,
+                      coreBeliefId: null,
+                      emotionalAngleId: null,
+                      adId: null,
+                      characterId: null,
+                    });
                   }
                 }}
               >
@@ -9302,11 +9314,23 @@ const handlePrepareForMerge = async () => {
                       toast.success('Core Belief created!');
                     }
                   } else if (value) {
-                    setSelectedCoreBeliefId(parseInt(value));
+                    const newCoreBeliefId = parseInt(value);
+                    setSelectedCoreBeliefId(newCoreBeliefId);
                     // Reset dependent selections
                     setSelectedEmotionalAngleId(null);
                     setSelectedAdId(null);
                     setSelectedCharacterId(null);
+                    
+                    // Auto-save Core Belief selection to database
+                    console.log('[Core Belief Selection] Saving to database:', newCoreBeliefId);
+                    upsertContextSessionMutation.mutate({
+                      userId: localCurrentUser.id,
+                      tamId: selectedTamId,
+                      coreBeliefId: newCoreBeliefId,
+                      emotionalAngleId: null,
+                      adId: null,
+                      characterId: null,
+                    });
                   }
                 }}
               >
@@ -9344,10 +9368,22 @@ const handlePrepareForMerge = async () => {
                       toast.success('Emotional Angle created!');
                     }
                   } else if (value) {
-                    setSelectedEmotionalAngleId(parseInt(value));
+                    const newEmotionalAngleId = parseInt(value);
+                    setSelectedEmotionalAngleId(newEmotionalAngleId);
                     // Reset dependent selections
                     setSelectedAdId(null);
                     setSelectedCharacterId(null);
+                    
+                    // Auto-save Emotional Angle selection to database
+                    console.log('[Emotional Angle Selection] Saving to database:', newEmotionalAngleId);
+                    upsertContextSessionMutation.mutate({
+                      userId: localCurrentUser.id,
+                      tamId: selectedTamId,
+                      coreBeliefId: selectedCoreBeliefId,
+                      emotionalAngleId: newEmotionalAngleId,
+                      adId: null,
+                      characterId: null,
+                    });
                   }
                 }}
               >
@@ -9386,9 +9422,21 @@ const handlePrepareForMerge = async () => {
                       toast.success('Ad created!');
                     }
                   } else if (value) {
-                    setSelectedAdId(parseInt(value));
+                    const newAdId = parseInt(value);
+                    setSelectedAdId(newAdId);
                     // Reset character
                     setSelectedCharacterId(null);
+                    
+                    // Auto-save AD selection to database
+                    console.log('[AD Selection] Saving to database:', newAdId);
+                    upsertContextSessionMutation.mutate({
+                      userId: localCurrentUser.id,
+                      tamId: selectedTamId,
+                      coreBeliefId: selectedCoreBeliefId,
+                      emotionalAngleId: selectedEmotionalAngleId,
+                      adId: newAdId,
+                      characterId: null,
+                    });
                   }
                 }}
               >
@@ -9441,6 +9489,17 @@ const handlePrepareForMerge = async () => {
                     previousCharacterIdRef.current = newCharacterId;
                     // Enable auto-loading when user manually selects context
                     setShouldAutoLoadContext(true);
+                    
+                    // Auto-save Character selection to database
+                    console.log('[Character Selection] Saving to database:', newCharacterId);
+                    upsertContextSessionMutation.mutate({
+                      userId: localCurrentUser.id,
+                      tamId: selectedTamId,
+                      coreBeliefId: selectedCoreBeliefId,
+                      emotionalAngleId: selectedEmotionalAngleId,
+                      adId: selectedAdId,
+                      characterId: newCharacterId,
+                    });
                   }
                 }}
               >
