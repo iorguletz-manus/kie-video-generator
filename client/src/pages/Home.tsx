@@ -8960,22 +8960,34 @@ const handlePrepareForMerge = async () => {
       
       {/* Sample Merge Warning Dialog */}
       <Dialog open={showSampleMergeWarning} onOpenChange={setShowSampleMergeWarning}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-600">
+            <DialogTitle className="flex items-center gap-2 text-red-600 text-lg">
               ⚠️ Warning
             </DialogTitle>
-            <DialogDescription className="text-red-600 font-semibold">
-              If you modified the START and END markers on some videos, it is preferable to use the <span className="font-bold bg-yellow-200 px-1 rounded">Cut & Merge (Test)</span> function from each video to test each video separately. The Sample Merge function is preferable to use only once or a maximum of 2 times if there are many videos where you modified the markers. Are you sure you want to continue?
+            <DialogDescription className="space-y-3">
+              <p className="text-sm text-gray-700 leading-relaxed">
+                If you modified the START and END markers on some videos, it is preferable to use the <span className="font-bold bg-yellow-200 px-1.5 py-0.5 rounded">Cut & Merge (Test)</span> function from each video to test each video separately. The Sample Merge function is preferable to use only once or a maximum of 2 times if there are many videos where you modified the markers.
+              </p>
+              
+              <div className="bg-yellow-100 border-l-4 border-yellow-500 p-3 rounded">
+                <p className="text-sm text-yellow-800 font-medium">
+                  <span className="font-bold">ATTENTION:</span> This function does NOT CUT videos, it only MERGES them. If this is the 2nd or 3rd time you're clicking this button, you should know that after modifying the markers, you need to TRIM/CUT first and then MERGE. Otherwise, the final merged video will not be correct.
+                </p>
+              </div>
+              
+              <p className="text-sm text-gray-700 font-medium">
+                Are you sure you want to continue?
+              </p>
             </DialogDescription>
           </DialogHeader>
           
-          <DialogFooter className="flex gap-2">
+          <DialogFooter className="flex gap-2 mt-4">
             <Button
               onClick={() => {
                 setShowSampleMergeWarning(false);
               }}
-              className="bg-gray-600 hover:bg-gray-700 text-white"
+              className="bg-gray-600 hover:bg-gray-700 text-white text-sm"
             >
               CLOSE
             </Button>
@@ -8988,7 +9000,7 @@ const handlePrepareForMerge = async () => {
                 // Continue with Sample Merge (skip warning)
                 handleSampleMerge(videosWithTrimmed, true);
               }}
-              className="bg-green-600 hover:bg-green-700 text-white"
+              className="bg-green-600 hover:bg-green-700 text-white text-sm"
             >
               Continue With Sample Merge
             </Button>
