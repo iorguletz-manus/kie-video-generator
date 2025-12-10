@@ -492,6 +492,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       sampleMergeVideos.forEach((video) => {
         let durationSeconds = 0;
         
+        // DEBUG: Check if cutPoints exist
+        console.log(`[Sample Merge] 🔍 Building timeline for ${video.name}, has cutPoints:`, !!video.cutPoints, video.cutPoints);
+        
         // Use cutPoints from sampleMergeVideos (fresh from DB)
         if (video.cutPoints) {
           const durationMs = (video.cutPoints.endKeep || 0) - (video.cutPoints.startKeep || 0);
