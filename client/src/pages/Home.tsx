@@ -159,6 +159,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [, setLocation] = useLocation();
   
   // Step 1: Categories
+  const [isLoadingContext, setIsLoadingContext] = useState(false);
   const [selectedTamId, setSelectedTamId] = useState<number | null>(null);
   const [selectedCoreBeliefId, setSelectedCoreBeliefId] = useState<number | null>(null);
   const [selectedEmotionalAngleId, setSelectedEmotionalAngleId] = useState<number | null>(null);
@@ -9256,12 +9257,19 @@ const handlePrepareForMerge = async () => {
                 onClick={() => {
                   const lastContext = latestContextSession;
                   if (lastContext) {
+                    // Set flag to prevent handler side effects
+                    setIsLoadingContext(true);
+                    
                     // Simply set the dropdowns - let the app work like manual selection
                     setSelectedTamId(lastContext.tamId);
                     setSelectedCoreBeliefId(lastContext.coreBeliefId);
                     setSelectedEmotionalAngleId(lastContext.emotionalAngleId);
                     setSelectedAdId(lastContext.adId);
                     setSelectedCharacterId(lastContext.characterId);
+                    
+                    // Reset flag after state updates
+                    setTimeout(() => setIsLoadingContext(false), 100);
+                    
                     toast.success('📌 Last context loaded!');
                   } else {
                     toast.error('No previous context found');
@@ -9438,6 +9446,12 @@ const handlePrepareForMerge = async () => {
                     // Simply update character selection without auto-duplicate
                     setSelectedCharacterId(newCharacterId);
                     previousCharacterIdRef.current = newCharacterId;
+                    
+                    // Skip side effects if loading from "Load Last Context" button
+                    if (isLoadingContext) {
+                      return;
+                    }
+                    
                     // Enable auto-loading when user manually selects context
                     setShouldAutoLoadContext(true);
                     
