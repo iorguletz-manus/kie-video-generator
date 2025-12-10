@@ -9186,18 +9186,29 @@ const handlePrepareForMerge = async () => {
                     console.log('[Load Last Context] Response:', lastContext);
                     
                     if (lastContext) {
-                      console.log('[Load Last Context] Loading context:', {
+                      console.log('[Load Last Context] Loading context sequentially:', {
                         tamId: lastContext.tamId,
                         coreBeliefId: lastContext.coreBeliefId,
                         emotionalAngleId: lastContext.emotionalAngleId,
                         adId: lastContext.adId,
                         characterId: lastContext.characterId
                       });
+                      
+                      // Load sequentially: TAM → Core Belief → Emotional Angle → AD → Character
                       setSelectedTamId(lastContext.tamId);
+                      await new Promise(resolve => setTimeout(resolve, 100));
+                      
                       setSelectedCoreBeliefId(lastContext.coreBeliefId);
+                      await new Promise(resolve => setTimeout(resolve, 100));
+                      
                       setSelectedEmotionalAngleId(lastContext.emotionalAngleId);
+                      await new Promise(resolve => setTimeout(resolve, 100));
+                      
                       setSelectedAdId(lastContext.adId);
+                      await new Promise(resolve => setTimeout(resolve, 100));
+                      
                       setSelectedCharacterId(lastContext.characterId);
+                      
                       toast.success('📌 Last context loaded!');
                     } else {
                       console.log('[Load Last Context] No context found in DB');
