@@ -1465,6 +1465,7 @@ export const appRouter = router({
           .where(eq(contextSessions.userId, input.userId));
       }),
 
+    // Get the most recent context session for a user (sorted by updatedAt)
     getLastContext: publicProcedure
       .input(z.object({ userId: z.number() }))
       .query(async ({ input }) => {
