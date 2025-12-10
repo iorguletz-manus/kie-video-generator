@@ -8801,9 +8801,9 @@ const handlePrepareForMerge = async () => {
                     const freshContext = await refetchContextSession();
                     const freshVideoResults = freshContext.data?.videoResults || [];
                     
-                    // Use ALL approved videos with trimmedVideoUrl from fresh data
-                    const allApprovedWithTrimmed = freshVideoResults.filter((v: any) => v.step9Approved && v.trimmedVideoUrl);
-                    console.log('[Trimming Modal] Found', allApprovedWithTrimmed.length, 'approved videos with trimmedVideoUrl');
+                    // Use ALL approved videos from fresh data (they already have trimmed videos)
+                    const allApprovedVideos = freshVideoResults.filter((v: any) => v.step9Approved);
+                    console.log('[Trimming Modal] Found', allApprovedVideos.length, 'approved videos for Sample Merge');
                     
                     setIsTrimmingModalOpen(false); // Close trimming modal
                     
@@ -8811,7 +8811,7 @@ const handlePrepareForMerge = async () => {
                     setVideoResults(freshVideoResults);
                     
                     // Call handleSampleMerge with fresh data
-                    handleSampleMerge(allApprovedWithTrimmed);
+                    handleSampleMerge(allApprovedVideos);
                   }}
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-4 rounded-lg text-base font-semibold transition-colors flex items-center justify-center gap-2"
                 >
