@@ -228,6 +228,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const modifyEditorRef = useRef<HTMLDivElement>(null);
   const skipCountdownRef = useRef(false);
   const cancelSampleMergeRef = useRef(false);
+  const freshVideoResultsRef = useRef<typeof videoResults | null>(null);
   
   // State pentru custom prompts (fiecare video poate avea propriul custom prompt)
   const [customPrompts, setCustomPrompts] = useState<Record<number, string>>({});
@@ -462,9 +463,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       timeline = [];
       let currentTime = 0;
       
-      // Calculate total expected duration from videoResults state (fresh from DB)
+      // Calculate total expected duration from fresh videoResults (ref or state)
+      const videosSource = freshVideoResultsRef.current || videoResults;
       const totalExpectedDuration = sampleMergeVideos.reduce((sum, video) => {
-        const videoData = videoResults.find(v => v.videoName === video.name);
+        const videoData = videosSource.find(v => v.videoName === video.name);
         if (!videoData) return sum + 10;
         
         if (videoData.cutPoints) {
@@ -485,8 +487,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       sampleMergeVideos.forEach((video) => {
         let durationSeconds = 0;
         
-        // Get cutPoints from videoResults state (fresh from DB)
-        const videoData = videoResults.find(v => v.videoName === video.name);
+        // Get cutPoints from fresh videoResults (ref or state)
+        const videosSource = freshVideoResultsRef.current || videoResults;
+        const videoData = videosSource.find(v => v.videoName === video.name);
         if (videoData) {
           if (videoData.cutPoints) {
             const durationMs = (videoData.cutPoints.endKeep || 0) - (videoData.cutPoints.startKeep || 0);
@@ -3009,9 +3012,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           return video;
         });
         
-        // CRITICAL: Update videoResults STATE so buildTimeline can access fresh cutPoints
+        // CRITICAL: Store fresh videoResults in ref (available immediately, no async wait)
+        freshVideoResultsRef.current = freshVideoResults;
+        // Also update state for other components
         setVideoResults(freshVideoResults);
-        console.log('[Sample Merge] ✅ Updated videoResults state with fresh cutPoints from DB');
+        console.log('[Sample Merge] ✅ Updated videoResults state and ref with fresh cutPoints from DB');
       } else {
         console.log('[Sample Merge] ⚠️ No videoResults in DB, using local state');
       }
