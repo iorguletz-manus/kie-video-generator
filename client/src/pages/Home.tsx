@@ -9475,6 +9475,14 @@ const handlePrepareForMerge = async () => {
                     
                     // Auto-save Character selection to database
                     console.log('[Character Selection] Saving to database:', newCharacterId);
+                    console.log('[Character Selection] ALL VALUES:', {
+                      userId: localCurrentUser.id,
+                      tamId: selectedTamId,
+                      coreBeliefId: selectedCoreBeliefId,
+                      emotionalAngleId: selectedEmotionalAngleId,
+                      adId: selectedAdId,
+                      characterId: newCharacterId,
+                    });
                     upsertContextSessionMutation.mutate({
                       userId: localCurrentUser.id,
                       tamId: selectedTamId,
