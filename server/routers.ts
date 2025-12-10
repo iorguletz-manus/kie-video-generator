@@ -1465,6 +1465,24 @@ export const appRouter = router({
           .where(eq(contextSessions.userId, input.userId));
       }),
 
+    getLastContext: publicProcedure
+      .input(z.object({ userId: z.number() }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Database not available',
+          });
+        }
+        const results = await db.select()
+          .from(contextSessions)
+          .where(eq(contextSessions.userId, input.userId))
+          .orderBy(desc(contextSessions.updatedAt))
+          .limit(1);
+        return results[0] || null;
+      }),
+
     get: publicProcedure
       .input(z.object({
         userId: z.number(),

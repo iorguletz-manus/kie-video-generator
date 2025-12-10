@@ -8991,6 +8991,31 @@ const handlePrepareForMerge = async () => {
                   <SelectItem value="new">+ New TAM</SelectItem>
                 </SelectContent>
               </Select>
+              {/* Load Last Context Link */}
+              <button
+                onClick={async () => {
+                  try {
+                    const lastContext = await trpc.contextSessions.getLastContext.query({ userId: localCurrentUser.id });
+                    if (lastContext) {
+                      console.log('[Load Last Context] Found:', lastContext);
+                      setSelectedTamId(lastContext.tamId);
+                      setSelectedCoreBeliefId(lastContext.coreBeliefId);
+                      setSelectedEmotionalAngleId(lastContext.emotionalAngleId);
+                      setSelectedAdId(lastContext.adId);
+                      setSelectedCharacterId(lastContext.characterId);
+                      toast.success('📌 Last context loaded!');
+                    } else {
+                      toast.error('No previous context found');
+                    }
+                  } catch (error: any) {
+                    console.error('[Load Last Context] Error:', error);
+                    toast.error('Failed to load last context');
+                  }
+                }}
+                className="text-xs text-blue-600 underline hover:text-blue-800 mt-1"
+              >
+                📌 Load Last Context
+              </button>
             </div>
 
             {/* Core Belief */}
