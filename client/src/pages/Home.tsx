@@ -1543,24 +1543,25 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // AUTO-SAVE REMOVED: Explicit saves added to Next buttons and major actions
   // This eliminates race conditions when loading data from database
   
-  // Restore selections from latest context session on mount (ONE SOURCE OF TRUTH)
-  useEffect(() => {
-    if (!latestContextSession) return;
-    
-    console.log('[Context Restore] Restoring selections from database:', {
-      tamId: latestContextSession.tamId,
-      coreBeliefId: latestContextSession.coreBeliefId,
-      emotionalAngleId: latestContextSession.emotionalAngleId,
-      adId: latestContextSession.adId,
-      characterId: latestContextSession.characterId,
-    });
-    
-    if (latestContextSession.tamId) setSelectedTamId(latestContextSession.tamId);
-    if (latestContextSession.coreBeliefId) setSelectedCoreBeliefId(latestContextSession.coreBeliefId);
-    if (latestContextSession.emotionalAngleId) setSelectedEmotionalAngleId(latestContextSession.emotionalAngleId);
-    if (latestContextSession.adId) setSelectedAdId(latestContextSession.adId);
-    if (latestContextSession.characterId) setSelectedCharacterId(latestContextSession.characterId);
-  }, [latestContextSession]);
+  // DISABLED: Auto-restore from latest context session on mount
+  // User must explicitly click "Load Last Context" button to restore selections
+  // useEffect(() => {
+  //   if (!latestContextSession) return;
+  //   
+  //   console.log('[Context Restore] Restoring selections from database:', {
+  //     tamId: latestContextSession.tamId,
+  //     coreBeliefId: latestContextSession.coreBeliefId,
+  //     emotionalAngleId: latestContextSession.emotionalAngleId,
+  //     adId: latestContextSession.adId,
+  //     characterId: latestContextSession.characterId,
+  //   });
+  //   
+  //   if (latestContextSession.tamId) setSelectedTamId(latestContextSession.tamId);
+  //   if (latestContextSession.coreBeliefId) setSelectedCoreBeliefId(latestContextSession.coreBeliefId);
+  //   if (latestContextSession.emotionalAngleId) setSelectedEmotionalAngleId(latestContextSession.emotionalAngleId);
+  //   if (latestContextSession.adId) setSelectedAdId(latestContextSession.adId);
+  //   if (latestContextSession.characterId) setSelectedCharacterId(latestContextSession.characterId);
+  // }, [latestContextSession]);
 
   // DISABLED: Auto-select first TAM - require manual selection
   // useEffect(() => {
