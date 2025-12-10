@@ -8796,6 +8796,10 @@ const handlePrepareForMerge = async () => {
                }) && (
                 <button
                   onClick={() => {
+                    // Debug: Check step9Approved values
+                    console.log('[Trimming Modal] 🔍 Total videoResults:', videoResults.length);
+                    console.log('[Trimming Modal] 🔍 First 3 videos step9Approved:', videoResults.slice(0, 3).map(v => ({ name: v.videoName, approved: v.step9Approved })));
+                    
                     // Use ALL approved videos from videoResults state
                     const allApprovedVideos = videoResults.filter(v => v.step9Approved);
                     console.log('[Trimming Modal] Using', allApprovedVideos.length, 'approved videos from state');
@@ -8982,6 +8986,10 @@ const handlePrepareForMerge = async () => {
             <Button
               onClick={() => {
                 setShowSampleMergeWarning(false);
+                // Debug: Check step9Approved values
+                console.log('[Warning Dialog] 🔍 Total videoResults:', videoResults.length);
+                console.log('[Warning Dialog] 🔍 First 3 videos step9Approved:', videoResults.slice(0, 3).map(v => ({ name: v.videoName, approved: v.step9Approved })));
+                
                 // Use ALL approved videos from videoResults state
                 const approvedVideos = videoResults.filter(v => v.step9Approved);
                 console.log('[Warning Dialog] Using', approvedVideos.length, 'approved videos from state');
