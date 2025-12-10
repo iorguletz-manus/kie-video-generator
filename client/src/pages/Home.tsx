@@ -192,6 +192,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   
   // Step 8: Video Editing Processing
   const [showProcessingModal, setShowProcessingModal] = useState(false);
+  const [showCuttingModeDialog, setShowCuttingModeDialog] = useState(false);
   const [processingProgress, setProcessingProgress] = useState({ 
     ffmpeg: { current: 0, total: 0, status: 'idle' as 'idle' | 'processing' | 'complete', activeVideos: [] as string[] },
     whisper: { current: 0, total: 0, status: 'idle' as 'idle' | 'processing' | 'complete', activeVideos: [] as string[] },
@@ -7134,6 +7135,11 @@ const handlePrepareForMerge = async () => {
                 error: newResult.error,
                 videoUrl: undefined, // Reset videoUrl
                 reviewStatus: null, // Șterge Rejected/Approved când regenerăm
+                // Clear cutting data to force reprocessing in Step 8
+                ffmpegWavUrl: undefined,
+                whisperUrl: undefined,
+                cleanvoiceUrl: undefined,
+                cutPoints: undefined,
               }
             : v
         )
@@ -13312,6 +13318,18 @@ const handlePrepareForMerge = async () => {
                           return;
                         }
                         
+                        // Check if any videos already have cutting data (ffmpegWavUrl)
+                        const alreadyProcessedVideos = approvedVideos.filter(v => v.ffmpegWavUrl);
+                        const remainingVideos = approvedVideos.filter(v => !v.ffmpegWavUrl);
+                        
+                        console.log(`[Video Editing] Already processed: ${alreadyProcessedVideos.length}, Remaining: ${remainingVideos.length}`);
+                        
+                        // If some videos are already processed, show dialog
+                        if (alreadyProcessedVideos.length > 0 && remainingVideos.length > 0) {
+                          setShowCuttingModeDialog(true);
+                          return;
+                        }
+                        
                         // Process ALL approved videos (with or without red text)
                         const videosToProcess = approvedVideos;
                         
@@ -15204,6 +15222,134 @@ const handlePrepareForMerge = async () => {
             </svg>
           </button>
         </>
+      )}
+
+      {/* Cutting Mode Dialog */}
+      {showCuttingModeDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 shadow-xl">
+            <h3 className="text-xl font-bold mb-4">Choose Cutting Mode</h3>
+            <p className="text-gray-600 mb-6">
+              Some videos have already been processed. How would you like to proceed?
+            </p>
+            
+            <div className="space-y-3">
+              <Button
+                onClick={async () => {
+                  setShowCuttingModeDialog(false);
+                  
+                  // Process ONLY remaining videos (without ffmpegWavUrl)
+                  const approvedVideos = videoResults.filter(v => {
+                    return v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl;
+                  });
+                  const videosToProcess = approvedVideos.filter(v => !v.ffmpegWavUrl);
+                  
+                  console.log(`[Video Editing] CUT ONLY REMAINING: Processing ${videosToProcess.length} videos`);
+                  
+                  // Reset progress
+                  setProcessingProgress({ 
+                    ffmpeg: { current: 0, total: videosToProcess.length },
+                    whisper: { current: 0, total: videosToProcess.length },
+                    cleanvoice: { current: 0, total: videosToProcess.length },
+                    currentVideoName: '' 
+                  });
+                  setProcessingStep(null);
+                  
+                  setShowProcessingModal(true);
+                  
+                  try {
+                    await batchProcessVideosWithWhisper(videosToProcess);
+                    const failedCount = processingProgress.failedVideos.length;
+                    if (failedCount > 0) {
+                      toast.warning(`⚠️ Processing complete: ${processingProgress.successVideos.length} success, ${failedCount} failed.`);
+                    } else {
+                      toast.success(`✅ ${videosToProcess.length} videouri procesate cu succes!`);
+                    }
+                  } catch (error: any) {
+                    console.error('[Video Editing] Batch processing error:', error);
+                    setShowProcessingModal(false);
+                    toast.error(`Eroare la procesarea videouri: ${error.message}`);
+                  }
+                }}
+                className="w-full bg-green-600 hover:bg-green-700 text-white py-3"
+              >
+                🎯 Cut Only Remaining Videos
+              </Button>
+              
+              <Button
+                onClick={async () => {
+                  setShowCuttingModeDialog(false);
+                  
+                  // Process ALL approved videos (clear old data first)
+                  const approvedVideos = videoResults.filter(v => {
+                    return v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl;
+                  });
+                  const videosToProcess = approvedVideos;
+                  
+                  console.log(`[Video Editing] CUT ALL AGAIN: Processing ${videosToProcess.length} videos`);
+                  
+                  // CLEAR old Step 8 data before reprocessing
+                  setVideoResults(prev => prev.map(v => 
+                    v.editStatus === 'processed' 
+                      ? { 
+                          ...v, 
+                          editStatus: null,
+                          whisperTranscript: undefined,
+                          cutPoints: undefined,
+                          words: undefined,
+                          audioUrl: undefined,
+                          waveformData: undefined,
+                          trimStatus: null,
+                          trimmedVideoUrl: undefined,
+                          acceptRejectStatus: null,
+                          // Clear cutting data
+                          ffmpegWavUrl: undefined,
+                          whisperUrl: undefined,
+                          cleanvoiceUrl: undefined,
+                        }
+                      : v
+                  ));
+                  
+                  // Reset progress
+                  setProcessingProgress({ 
+                    ffmpeg: { current: 0, total: videosToProcess.length },
+                    whisper: { current: 0, total: videosToProcess.length },
+                    cleanvoice: { current: 0, total: videosToProcess.length },
+                    currentVideoName: '' 
+                  });
+                  setProcessingStep(null);
+                  
+                  setShowProcessingModal(true);
+                  
+                  try {
+                    await batchProcessVideosWithWhisper(videosToProcess);
+                    const failedCount = processingProgress.failedVideos.length;
+                    if (failedCount > 0) {
+                      toast.warning(`⚠️ Processing complete: ${processingProgress.successVideos.length} success, ${failedCount} failed.`);
+                    } else {
+                      toast.success(`✅ ${videosToProcess.length} videouri procesate cu succes!`);
+                    }
+                  } catch (error: any) {
+                    console.error('[Video Editing] Batch processing error:', error);
+                    setShowProcessingModal(false);
+                    toast.error(`Eroare la procesarea videouri: ${error.message}`);
+                  }
+                }}
+                className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3"
+              >
+                🔄 Cut All Again
+              </Button>
+              
+              <Button
+                onClick={() => setShowCuttingModeDialog(false)}
+                variant="outline"
+                className="w-full"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
