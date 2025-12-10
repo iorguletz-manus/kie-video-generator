@@ -1579,6 +1579,7 @@ export const appRouter = router({
     upsert: publicProcedure
       .input(z.object({
         userId: z.number(),
+        tamId: z.number(),
         coreBeliefId: z.number(),
         emotionalAngleId: z.number(),
         adId: z.number(),
