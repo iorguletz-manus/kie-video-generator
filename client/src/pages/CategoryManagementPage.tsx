@@ -501,13 +501,24 @@ export default function CategoryManagementPage({ currentUser }: CategoryManageme
                                                           {/* Character names used in this AD */}
                                                           {(() => {
                                                             // Find all unique character IDs used in this AD
+                                                            const sessionsForAd = contextSessions.filter(session => session.adId === ad.id);
+                                                            console.log(`[CM Debug] AD ${ad.id} (${ad.name}):`, {
+                                                              totalSessions: contextSessions.length,
+                                                              sessionsForThisAd: sessionsForAd.length,
+                                                              sessionIds: sessionsForAd.map(s => s.id),
+                                                              characterIds: sessionsForAd.map(s => s.characterId)
+                                                            });
+                                                            
                                                             const usedCharacterIds = new Set(
-                                                              contextSessions
-                                                                .filter(session => session.adId === ad.id)
+                                                              sessionsForAd
                                                                 .map(session => session.characterId)
                                                                 .filter(Boolean)
                                                             );
+                                                            console.log(`[CM Debug] AD ${ad.id} usedCharacterIds:`, Array.from(usedCharacterIds));
+                                                            console.log(`[CM Debug] Available characters:`, characters.map(c => ({ id: c.id, name: c.name })));
+                                                            
                                                             const usedCharacters = characters.filter(char => usedCharacterIds.has(char.id));
+                                                            console.log(`[CM Debug] AD ${ad.id} usedCharacters:`, usedCharacters.map(c => c.name));
                                                             
                                                             if (usedCharacters.length > 0) {
                                                               return (
