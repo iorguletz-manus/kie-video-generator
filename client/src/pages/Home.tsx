@@ -465,6 +465,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       let currentTime = 0;
       
       // Calculate total expected duration from fresh videoResults (ref or state)
+      console.log('[Sample Merge] 🔍 buildTimeline data sources:', {
+        hasRef: !!freshVideoResultsRef.current,
+        refCount: freshVideoResultsRef.current?.length || 0,
+        stateCount: videoResults.length,
+        usingRef: !!freshVideoResultsRef.current
+      });
       const videosSource = freshVideoResultsRef.current || videoResults;
       const totalExpectedDuration = sampleMergeVideos.reduce((sum, video) => {
         const videoData = videosSource.find(v => v.videoName === video.name);
@@ -495,6 +501,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           if (videoData.cutPoints) {
             const durationMs = (videoData.cutPoints.endKeep || 0) - (videoData.cutPoints.startKeep || 0);
             durationSeconds = durationMs / 1000;
+            
+            // DEBUG: Log first video's cutPoints to verify
+            if (video.name === 'T2_C1_E1_AD1_HOOK1_DARIA_1') {
+              console.log('[Sample Merge] 🔍 HOOK1_DARIA_1 cutPoints:', {
+                endKeep: videoData.cutPoints.endKeep,
+                startKeep: videoData.cutPoints.startKeep,
+                durationMs,
+                durationSeconds
+              });
+            }
             
             // FIX: If we have real total duration, scale proportionally
             if (totalRealDuration && totalExpectedDuration > 0) {
