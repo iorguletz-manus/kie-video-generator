@@ -8796,16 +8796,12 @@ const handlePrepareForMerge = async () => {
                }) && (
                 <button
                   onClick={() => {
-                    // Debug: Check step9Approved values
-                    console.log('[Trimming Modal] 🔍 Total videoResults:', videoResults.length);
-                    console.log('[Trimming Modal] 🔍 First 3 videos step9Approved:', JSON.stringify(videoResults.slice(0, 3).map(v => ({ name: v.videoName, approved: v.step9Approved })), null, 2));
-                    
-                    // Use ALL approved videos from videoResults state
-                    const allApprovedVideos = videoResults.filter(v => v.step9Approved);
-                    console.log('[Trimming Modal] Using', allApprovedVideos.length, 'approved videos from state');
+                    // Use ALL videos with trimmedVideoUrl from videoResults state
+                    const videosWithTrimmed = videoResults.filter(v => v.trimmedVideoUrl);
+                    console.log('[Trimming Modal] Using', videosWithTrimmed.length, 'videos with trimmedVideoUrl');
                     
                     setIsTrimmingModalOpen(false); // Close trimming modal
-                    handleSampleMerge(allApprovedVideos);
+                    handleSampleMerge(videosWithTrimmed);
                   }}
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-4 rounded-lg text-base font-semibold transition-colors flex items-center justify-center gap-2"
                 >
@@ -8986,15 +8982,11 @@ const handlePrepareForMerge = async () => {
             <Button
               onClick={() => {
                 setShowSampleMergeWarning(false);
-                // Debug: Check step9Approved values
-                console.log('[Warning Dialog] 🔍 Total videoResults:', videoResults.length);
-                console.log('[Warning Dialog] 🔍 First 3 videos step9Approved:', JSON.stringify(videoResults.slice(0, 3).map(v => ({ name: v.videoName, approved: v.step9Approved })), null, 2));
-                
-                // Use ALL approved videos from videoResults state
-                const approvedVideos = videoResults.filter(v => v.step9Approved);
-                console.log('[Warning Dialog] Using', approvedVideos.length, 'approved videos from state');
+                // Use ALL videos with trimmedVideoUrl from videoResults state
+                const videosWithTrimmed = videoResults.filter(v => v.trimmedVideoUrl);
+                console.log('[Warning Dialog] Using', videosWithTrimmed.length, 'videos with trimmedVideoUrl');
                 // Continue with Sample Merge (skip warning)
-                handleSampleMerge(approvedVideos, true);
+                handleSampleMerge(videosWithTrimmed, true);
               }}
               className="bg-green-600 hover:bg-green-700 text-white"
             >
