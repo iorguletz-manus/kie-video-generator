@@ -9159,9 +9159,8 @@ const handlePrepareForMerge = async () => {
                 onClick={async () => {
                   try {
                     console.log('[Load Last Context] Fetching for userId:', localCurrentUser.id);
-                    // Use listByUser and get first result (sorted by updatedAt DESC)
-                    const allContexts = await trpc.contextSessions.listByUser.query({ userId: localCurrentUser.id });
-                    const lastContext = allContexts && allContexts.length > 0 ? allContexts[0] : null;
+                    // Use getLatest query instead (more reliable)
+                    const lastContext = await trpc.contextSessions.getLatest.query({ userId: localCurrentUser.id });
                     console.log('[Load Last Context] Response:', lastContext);
                     
                     if (lastContext) {
