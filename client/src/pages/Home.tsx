@@ -9237,17 +9237,7 @@ const handlePrepareForMerge = async () => {
                     setSelectedEmotionalAngleId(null);
                     setSelectedAdId(null);
                     setSelectedCharacterId(null);
-                    
-                    // Auto-save TAM selection to database
-                    console.log('[TAM Selection] Saving tamId to database:', newTamId);
-                    upsertContextSessionMutation.mutate({
-                      userId: localCurrentUser.id,
-                      tamId: newTamId,
-                      coreBeliefId: null,
-                      emotionalAngleId: null,
-                      adId: null,
-                      characterId: null,
-                    });
+                    // Note: Auto-save will happen when Character is selected (all fields complete)
                   }
                 }}
               >
@@ -9343,17 +9333,7 @@ const handlePrepareForMerge = async () => {
                     setSelectedEmotionalAngleId(null);
                     setSelectedAdId(null);
                     setSelectedCharacterId(null);
-                    
-                    // Auto-save Core Belief selection to database
-                    console.log('[Core Belief Selection] Saving to database:', newCoreBeliefId);
-                    upsertContextSessionMutation.mutate({
-                      userId: localCurrentUser.id,
-                      tamId: selectedTamId,
-                      coreBeliefId: newCoreBeliefId,
-                      emotionalAngleId: null,
-                      adId: null,
-                      characterId: null,
-                    });
+                    // Note: Auto-save will happen when Character is selected (all fields complete)
                   }
                 }}
               >
@@ -9396,17 +9376,7 @@ const handlePrepareForMerge = async () => {
                     // Reset dependent selections
                     setSelectedAdId(null);
                     setSelectedCharacterId(null);
-                    
-                    // Auto-save Emotional Angle selection to database
-                    console.log('[Emotional Angle Selection] Saving to database:', newEmotionalAngleId);
-                    upsertContextSessionMutation.mutate({
-                      userId: localCurrentUser.id,
-                      tamId: selectedTamId,
-                      coreBeliefId: selectedCoreBeliefId,
-                      emotionalAngleId: newEmotionalAngleId,
-                      adId: null,
-                      characterId: null,
-                    });
+                    // Note: Auto-save will happen when Character is selected (all fields complete)
                   }
                 }}
               >
@@ -9449,17 +9419,7 @@ const handlePrepareForMerge = async () => {
                     setSelectedAdId(newAdId);
                     // Reset character
                     setSelectedCharacterId(null);
-                    
-                    // Auto-save AD selection to database
-                    console.log('[AD Selection] Saving to database:', newAdId);
-                    upsertContextSessionMutation.mutate({
-                      userId: localCurrentUser.id,
-                      tamId: selectedTamId,
-                      coreBeliefId: selectedCoreBeliefId,
-                      emotionalAngleId: selectedEmotionalAngleId,
-                      adId: newAdId,
-                      characterId: null,
-                    });
+                    // Note: Auto-save will happen when Character is selected (all fields complete)
                   }
                 }}
               >
