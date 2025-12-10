@@ -1462,7 +1462,8 @@ export const appRouter = router({
         }
         return await db.select()
           .from(contextSessions)
-          .where(eq(contextSessions.userId, input.userId));
+          .where(eq(contextSessions.userId, input.userId))
+          .orderBy(desc(contextSessions.updatedAt));
       }),
 
     // Get the most recent context session for a user (sorted by updatedAt)
