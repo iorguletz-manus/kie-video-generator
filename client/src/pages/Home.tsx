@@ -9254,8 +9254,8 @@ const handlePrepareForMerge = async () => {
                   <SelectItem value="new">+ New TAM</SelectItem>
                 </SelectContent>
               </Select>
-              {/* Load Last Context Link */}
-              <button
+              {/* Load Last Context Link - DISABLED */}
+              {/* <button
                 onClick={() => {
                   console.log('[Load Last Context] 🟢 Button clicked');
                   const lastContext = latestContextSession;
@@ -9273,6 +9273,11 @@ const handlePrepareForMerge = async () => {
                     setSelectedAdId(lastContext.adId);
                     setSelectedCharacterId(lastContext.characterId);
                     
+                    // IMPORTANT: Also set currentStep from DB to prevent auto-save with step 1
+                    if (lastContext.currentStep) {
+                      setCurrentStep(lastContext.currentStep);
+                    }
+                    
                     toast.success('📌 Last context loaded!');
                   } else {
                     console.log('[Load Last Context] ❌ No context found');
@@ -9282,7 +9287,7 @@ const handlePrepareForMerge = async () => {
                 className="text-xs text-blue-600 hover:text-blue-800 mt-1"
               >
                 📌 Load Last Context
-              </button>
+              </button> */}
             </div>
 
             {/* Core Belief */}
