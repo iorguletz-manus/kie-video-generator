@@ -14743,9 +14743,13 @@ const handlePrepareForMerge = async () => {
                                 const blob = await response.blob();
                                 const url = URL.createObjectURL(blob);
                                 
+                                // Extract filename from Bunny CDN URL
+                                const urlParts = video.trimmedVideoUrl!.split('/');
+                                const cdnFilename = urlParts[urlParts.length - 1];
+                                
                                 const link = document.createElement('a');
                                 link.href = url;
-                                link.download = `${video.videoName}.mp4`;
+                                link.download = cdnFilename;
                                 document.body.appendChild(link);
                                 link.click();
                                 document.body.removeChild(link);
@@ -15481,9 +15485,13 @@ const handlePrepareForMerge = async () => {
                                 const response = await fetch(video.cdnUrl);
                                 const blob = await response.blob();
                                 const url = URL.createObjectURL(blob);
+                                // Extract filename from Bunny CDN URL
+                                const urlParts = video.trimmedVideoUrl!.split('/');
+                                const cdnFilename = urlParts[urlParts.length - 1];
+                                
                                 const link = document.createElement('a');
                                 link.href = url;
-                                link.download = `${video.videoName}.mp4`;
+                                link.download = cdnFilename;
                                 link.click();
                                 URL.revokeObjectURL(url);
                                 toast.success(`✅ ${video.videoName} downloaded!`);
