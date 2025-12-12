@@ -35,9 +35,37 @@ export default function CategoryManagementPage({ currentUser }: CategoryManageme
 
   // Debug: Log data to see what we're getting
   useEffect(() => {
-    console.log('[Category Management] Characters:', characters.length, characters.map(c => ({ id: c.id, name: c.name })));
-    console.log('[Category Management] Context Sessions:', contextSessions.length, contextSessions.map(s => ({ id: s.id, adId: s.adId, characterId: s.characterId })));
-    console.log('[Category Management] ADs:', ads.length, ads.map(a => ({ id: a.id, name: a.name })));
+    console.log('\n========== CATEGORY MANAGEMENT DATA ==========');
+    console.log('[CM] 📊 Total Characters:', characters.length);
+    console.log('[CM] 📋 Characters:', characters.map(c => ({ id: c.id, name: c.name })));
+    
+    console.log('[CM] 📊 Total Context Sessions:', contextSessions.length);
+    console.log('[CM] 📋 Context Sessions:', contextSessions.map(s => ({
+      id: s.id,
+      adId: s.adId,
+      characterId: s.characterId,
+      hasVideoResults: !!s.videoResults,
+      videoResultsType: typeof s.videoResults
+    })));
+    
+    console.log('[CM] 📊 Total ADs:', ads.length);
+    console.log('[CM] 📋 ADs:', ads.map(a => ({ id: a.id, name: a.name, emotionalAngleId: a.emotionalAngleId })));
+    
+    // For each AD, show which characters are used
+    ads.forEach(ad => {
+      const sessionsForAd = contextSessions.filter(s => s.adId === ad.id);
+      const characterIds = sessionsForAd.map(s => s.characterId).filter(Boolean);
+      const uniqueCharacterIds = [...new Set(characterIds)];
+      const usedCharacters = characters.filter(c => uniqueCharacterIds.includes(c.id));
+      
+      console.log(`[CM] 🎯 AD ${ad.id} (${ad.name}):`);
+      console.log(`  - Sessions for this AD: ${sessionsForAd.length}`);
+      console.log(`  - Character IDs: [${characterIds.join(', ')}]`);
+      console.log(`  - Unique Character IDs: [${uniqueCharacterIds.join(', ')}]`);
+      console.log(`  - Used Characters: [${usedCharacters.map(c => c.name).join(', ')}]`);
+    });
+    
+    console.log('==============================================\n');
   }, [characters, contextSessions, ads]);
 
   // Expand all by default
