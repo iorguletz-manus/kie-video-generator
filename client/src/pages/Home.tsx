@@ -1013,10 +1013,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // Sort characters: UNUSED first, USED last
   // USED = character has generated videos (status: success/pending/failed) IN CURRENT AD
   const sortedCategoryCharacters = useMemo(() => {
-    console.log('[Character USED/UNUSED] 🔍 Starting detection...');
-    console.log('[Character USED/UNUSED] selectedAdId:', selectedAdId);
-    console.log('[Character USED/UNUSED] Total context sessions:', allContextSessions.length);
-    console.log('[Character USED/UNUSED] All sessions:', allContextSessions.map(s => ({ id: s.id, adId: s.adId, characterId: s.characterId })));
+    console.log('[Character USED/UNUSED] 🔍 ========== STARTING DETECTION ==========');
+    console.log('[Character USED/UNUSED] 📌 selectedAdId:', selectedAdId, '(type:', typeof selectedAdId, ')');
+    console.log('[Character USED/UNUSED] 📊 Total context sessions:', allContextSessions.length);
+    console.log('[Character USED/UNUSED] 📋 All sessions details:');
+    allContextSessions.forEach(s => {
+      console.log(`  - Session ${s.id}: adId=${s.adId} (type: ${typeof s.adId}), characterId=${s.characterId}, hasVideoResults=${!!s.videoResults}`);
+    });
     
     // Track which characters have generated videos IN CURRENT AD
     const charactersWithVideos = new Set<number>();
@@ -1026,10 +1029,23 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       session.adId === selectedAdId
     );
     
-    console.log('[Character USED/UNUSED] Sessions for current AD:', currentAdSessions.length);
-    console.log('[Character USED/UNUSED] Filtered sessions:', currentAdSessions.map(s => ({ id: s.id, adId: s.adId, characterId: s.characterId })));
+    console.log('[Character USED/UNUSED] 🎯 Filter: session.adId === selectedAdId');
+    console.log('[Character USED/UNUSED] 🎯 Comparison details:');
+    allContextSessions.forEach(s => {
+      const matches = s.adId === selectedAdId;
+      console.log(`  - Session ${s.id}: ${s.adId} === ${selectedAdId} ? ${matches} (types: ${typeof s.adId} vs ${typeof selectedAdId})`);
+    });
+    console.log('[Character USED/UNUSED] ✅ Sessions for current AD:', currentAdSessions.length);
+    if (currentAdSessions.length > 0) {
+      console.log('[Character USED/UNUSED] ✅ Filtered sessions:', currentAdSessions.map(s => ({ id: s.id, adId: s.adId, characterId: s.characterId })));
+    }
     currentAdSessions.forEach(session => {
-      console.log(`[Character USED/UNUSED] 🔎 Checking session ${session.id}: characterId=${session.characterId}, videoResults type=${typeof session.videoResults}, videoResults is null=${session.videoResults === null}`);
+      console.log(`[Character USED/UNUSED] 🔎 Checking session ${session.id}:`);
+      console.log(`  - characterId: ${session.characterId} (exists: ${!!session.characterId})`);
+      console.log(`  - videoResults type: ${typeof session.videoResults}`);
+      console.log(`  - videoResults is null: ${session.videoResults === null}`);
+      console.log(`  - videoResults is undefined: ${session.videoResults === undefined}`);
+      console.log(`  - Will enter if block: ${!!(session.characterId && session.videoResults)}`);
       
       if (session.characterId && session.videoResults) {
         try {
