@@ -3,6 +3,16 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, ChevronDown, Edit2, Trash2, Search, Plus, Folder, FolderOpen } from "lucide-react";
@@ -169,26 +179,24 @@ export default function CategoryManagementPage({ currentUser }: CategoryManageme
     }
   };
 
-  // Delete handlers
-  const handleDelete = async (type: 'tam' | 'coreBelief' | 'emotionalAngle' | 'ad', id: number, name: string) => {
-    let warningMessage = `Delete "${name}"?`;
-    
-    if (type === 'tam') {
-      const relatedCoreBeliefs = coreBeliefs.filter(cb => cb.tamId === id);
-      const relatedEmotionalAngles = emotionalAngles.filter(ea => relatedCoreBeliefs.some(cb => cb.id === ea.coreBeliefId));
-      const relatedAds = ads.filter(ad => relatedEmotionalAngles.some(ea => ea.id === ad.emotionalAngleId));
-      warningMessage = `Delete TAM "${name}"?\n\nThis will also delete:\n- ${relatedCoreBeliefs.length} Core Beliefs\n- ${relatedEmotionalAngles.length} Emotional Angles\n- ${relatedAds.length} Ads`;
-    } else if (type === 'coreBelief') {
-      const relatedEmotionalAngles = emotionalAngles.filter(ea => ea.coreBeliefId === id);
-      const relatedAds = ads.filter(ad => relatedEmotionalAngles.some(ea => ea.id === ad.emotionalAngleId));
-      warningMessage = `Delete Core Belief "${name}"?\n\nThis will also delete:\n- ${relatedEmotionalAngles.length} Emotional Angles\n- ${relatedAds.length} Ads`;
-    } else if (type === 'emotionalAngle') {
-      const relatedAds = ads.filter(ad => ad.emotionalAngleId === id);
-      warningMessage = `Delete Emotional Angle "${name}"?\n\nThis will also delete:\n- ${relatedAds.length} Ads`;
-    }
+  // Delete confirmation state
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    open: boolean;
+    type: 'tam' | 'coreBelief' | 'emotionalAngle' | 'ad';
+    id: number;
+    name: string;
+  } | null>(null);
 
-    const confirmed = confirm(warningMessage);
-    if (!confirmed) return;
+  // Delete handlers
+  const handleDelete = (type: 'tam' | 'coreBelief' | 'emotionalAngle' | 'ad', id: number, name: string) => {
+    // Open confirmation dialog
+    setDeleteConfirmation({ open: true, type, id, name });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirmation) return;
+    
+    const { type, id, name } = deleteConfirmation;
 
     try {
       if (type === 'tam') {
@@ -210,9 +218,12 @@ export default function CategoryManagementPage({ currentUser }: CategoryManageme
         await deleteAdMutation.mutateAsync({ id });
         await refetchAds();
       }
-      toast.success("Deleted successfully!");
+      toast.success(`Deleted "${name}" successfully!`);
+      setDeleteConfirmation(null); // Close dialog
     } catch (error: any) {
-      toast.error(`Failed to delete: ${error.message}`);
+      // Backend will throw error if cascade delete is blocked
+      toast.error(error.message || `Failed to delete: ${error.message}`);
+      setDeleteConfirmation(null); // Close dialog even on error
     }
   };
 
@@ -605,6 +616,26 @@ export default function CategoryManagementPage({ currentUser }: CategoryManageme
           </CardContent>
         </Card>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmation?.open || false} onOpenChange={(open) => !open && setDeleteConfirmation(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Delete</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteConfirmation?.name}"?
+              <br />
+              <span className="text-red-600 font-semibold">This action cannot be undone.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteConfirmation(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
