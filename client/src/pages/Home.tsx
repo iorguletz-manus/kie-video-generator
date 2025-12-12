@@ -1038,6 +1038,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       
       if (session.characterId && session.videoResults) {
         try {
+          console.log(`[Character USED/UNUSED] Session ${session.id} RAW videoResults:`, JSON.stringify(session.videoResults).substring(0, 200));
+          
           const videos = typeof session.videoResults === 'string' 
             ? JSON.parse(session.videoResults) 
             : session.videoResults;
