@@ -3599,8 +3599,27 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       console.error('[Step 10→Step 11] ❌ Failed to save finalVideos:', error);
     }
     
-    // Update state AFTER database save
-    setFinalVideos(results);
+    // Update state AFTER database save - MERGE with existing finalVideos
+    setFinalVideos(prevFinalVideos => {
+      console.log('[Step 10→Step 11] 🔄 Merging finalVideos...');
+      console.log('  Previous finalVideos:', prevFinalVideos.length, 'videos');
+      console.log('  New results:', results.length, 'videos');
+      
+      // Create a map of existing videos by videoName
+      const existingMap = new Map(prevFinalVideos.map(v => [v.videoName, v]));
+      
+      // Add/replace with new results
+      results.forEach(newVideo => {
+        const action = existingMap.has(newVideo.videoName) ? 'REPLACED' : 'ADDED';
+        console.log(`  ${action}: ${newVideo.videoName}`);
+        existingMap.set(newVideo.videoName, newVideo);
+      });
+      
+      // Return merged array
+      const mergedArray = Array.from(existingMap.values());
+      console.log('  Final merged array:', mergedArray.length, 'videos');
+      return mergedArray;
+    });
     
     // Update final status
     const finalStatus = failedCount === 0 ? 'complete' : 'partial';
@@ -15581,13 +15600,13 @@ const handlePrepareForMerge = async () => {
                                 const response = await fetch(video.cdnUrl);
                                 const blob = await response.blob();
                                 const url = URL.createObjectURL(blob);
-                                // Extract filename from Bunny CDN URL
-                                const urlParts = video.trimmedVideoUrl!.split('/');
+                                // Extract filename from cdnUrl
+                                const urlParts = video.cdnUrl.split('/');
                                 const cdnFilename = urlParts[urlParts.length - 1];
                                 
                                 const link = document.createElement('a');
                                 link.href = url;
-                                link.download = cdnFilename;
+                                link.download = cdnFilename || `${video.videoName}.mp4`;
                                 link.click();
                                 URL.revokeObjectURL(url);
                                 toast.success(`✅ ${video.videoName} downloaded!`);
