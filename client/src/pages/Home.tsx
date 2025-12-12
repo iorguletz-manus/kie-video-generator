@@ -7685,7 +7685,7 @@ const handlePrepareForMerge = async () => {
       localStorage.setItem('selectionHistory', JSON.stringify(selectionHistory));
       console.log('[Selection History] Saved to localStorage:', selectionHistory);
     }
-  }, [selectedTamId, selectedCoreBeliefId, selectedEmotionalAngleId, selectedAdId, selectedCharacterId]);edCombinations, reviewHistory, hookMergedVideos, bodyMergedVideoUrl, finalVideos, upsertContextSessionMutation]);
+  }, [selectedTamId, selectedCoreBeliefId, selectedEmotionalAngleId, selectedAdId, selectedCharacterId]);
 
   const undoReview = useCallback(() => {
     if (reviewHistory.length === 0) {
