@@ -15594,13 +15594,14 @@ const handlePrepareForMerge = async () => {
                           
                           {/* Video Player */}
                           <div className="relative bg-black rounded-lg overflow-hidden" style={{ aspectRatio: '9/16' }}>
+                            {/* Force re-render when URL changes + Load metadata to show duration */}
                             <video
-                              key={video.cdnUrl}  {/* Force re-render when URL changes */}
+                              key={video.cdnUrl}
                               src={video.cdnUrl}
                               className="absolute top-0 left-0 w-full h-full object-contain"
                               controls
                               playsInline
-                              preload="metadata"  {/* Load metadata to show duration */}
+                              preload="metadata"
                             />
                           </div>
                           
