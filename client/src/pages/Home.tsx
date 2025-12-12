@@ -9396,7 +9396,7 @@ const handlePrepareForMerge = async () => {
                     setSelectedAdId(null);
                     setSelectedCharacterId(null);
                     
-                    await new Promise(resolve => setTimeout(resolve, 50));
+                    await new Promise(resolve => setTimeout(resolve, 100));
                     await refetchCoreBeliefs();
                     
                     // Select first Core Belief
@@ -9409,7 +9409,7 @@ const handlePrepareForMerge = async () => {
                       setSelectedAdId(null);
                       setSelectedCharacterId(null);
                       
-                      await new Promise(resolve => setTimeout(resolve, 50));
+                      await new Promise(resolve => setTimeout(resolve, 100));
                       await refetchEmotionalAngles();
                       
                       // Select first Emotional Angle
@@ -9421,7 +9421,7 @@ const handlePrepareForMerge = async () => {
                         setSelectedAdId(null);
                         setSelectedCharacterId(null);
                         
-                        await new Promise(resolve => setTimeout(resolve, 50));
+                        await new Promise(resolve => setTimeout(resolve, 100));
                         await refetchAds();
                         
                         // Select first Ad
@@ -16024,6 +16024,23 @@ const handlePrepareForMerge = async () => {
           </div>
         </div>
       )}
+
+      {/* Create Item Dialog */}
+      <CreateItemDialog
+        open={createDialog.open}
+        type={createDialog.type}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCreateDialog({ open: false, type: null, onConfirm: null });
+          }
+        }}
+        onConfirm={(name) => {
+          if (createDialog.onConfirm) {
+            createDialog.onConfirm(name);
+          }
+          setCreateDialog({ open: false, type: null, onConfirm: null });
+        }}
+      />
     </div>
   );
 }
