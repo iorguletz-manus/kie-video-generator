@@ -8,6 +8,7 @@ import { ProcessingModal } from '@/components/ProcessingModal';
 import MergeProgressModal from '@/components/MergeProgressModal';
 import MergeFinalProgressModal from '@/components/MergeFinalProgressModal';
 import DownloadZipProgressModal from '@/components/DownloadZipProgressModal';
+import { CreateItemDialog } from '@/components/CreateItemDialog';
 import { trpc } from '../lib/trpc';
 import mammoth from 'mammoth';
 import { Button } from "@/components/ui/button";
@@ -167,6 +168,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [selectedAdId, setSelectedAdId] = useState<number | null>(null);
   const [selectedCharacterId, setSelectedCharacterId] = useState<number | null>(null);
   const previousCharacterIdRef = useRef<number | null>(null);
+  
+  // Create Item Dialog state
+  const [createDialog, setCreateDialog] = useState<{
+    open: boolean;
+    type: 'tam' | 'coreBelief' | 'emotionalAngle' | 'ad' | 'character' | null;
+    onConfirm: ((name: string) => void) | null;
+  }>({ open: false, type: null, onConfirm: null });
   const [textAdMode, setTextAdMode] = useState<'upload' | 'paste' | 'google-doc'>('upload');
   const [rawTextAd, setRawTextAd] = useState<string>('');
   const [processedTextAd, setProcessedTextAd] = useState<string>('');
@@ -9303,16 +9311,20 @@ const handlePrepareForMerge = async () => {
                 value={selectedTamId?.toString() || ''} 
                 onValueChange={async (value) => {
                   if (value === 'new') {
-                    const name = prompt('Enter new TAM name:');
-                    if (name && name.trim()) {
-                      const result = await createTamMutation.mutateAsync({
-                        userId: localCurrentUser.id,
-                        name: name.trim(),
-                      });
-                      setSelectedTamId(result.id);
-                      refetchTams();
-                      toast.success('TAM created!');
-                    }
+                    setCreateDialog({
+                      open: true,
+                      type: 'tam',
+                      onConfirm: async (name) => {
+                        const result = await createTamMutation.mutateAsync({
+                          userId: localCurrentUser.id,
+                          name,
+                        });
+                        setSelectedTamId(result.id);
+                        refetchTams();
+                        toast.success('TAM created!');
+                      },
+                    });
+                    return; // Don't proceed with selection
                   } else if (value) {
                     const newTamId = parseInt(value);
                     setSelectedTamId(newTamId);
@@ -9370,6 +9382,74 @@ const handlePrepareForMerge = async () => {
               >
                 📌 Load Last Context
               </button>
+              <button
+                onClick={async () => {
+                  console.log('[AUTO SELECT] 🤖 Starting auto-selection...');
+                  
+                  // Select first TAM
+                  if (tams.length > 0) {
+                    const firstTam = tams[0];
+                    console.log('[AUTO SELECT] Selecting TAM:', firstTam.name);
+                    setSelectedTamId(firstTam.id);
+                    setSelectedCoreBeliefId(null);
+                    setSelectedEmotionalAngleId(null);
+                    setSelectedAdId(null);
+                    setSelectedCharacterId(null);
+                    
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                    await refetchCoreBeliefs();
+                    
+                    // Select first Core Belief
+                    const firstCoreBeliefs = coreBeliefs.filter(cb => cb.tamId === firstTam.id);
+                    if (firstCoreBeliefs.length > 0) {
+                      const firstCoreBelief = firstCoreBeliefs[0];
+                      console.log('[AUTO SELECT] Selecting Core Belief:', firstCoreBelief.name);
+                      setSelectedCoreBeliefId(firstCoreBelief.id);
+                      setSelectedEmotionalAngleId(null);
+                      setSelectedAdId(null);
+                      setSelectedCharacterId(null);
+                      
+                      await new Promise(resolve => setTimeout(resolve, 50));
+                      await refetchEmotionalAngles();
+                      
+                      // Select first Emotional Angle
+                      const firstEmotionalAngles = emotionalAngles.filter(ea => ea.coreBeliefId === firstCoreBelief.id);
+                      if (firstEmotionalAngles.length > 0) {
+                        const firstEmotionalAngle = firstEmotionalAngles[0];
+                        console.log('[AUTO SELECT] Selecting Emotional Angle:', firstEmotionalAngle.name);
+                        setSelectedEmotionalAngleId(firstEmotionalAngle.id);
+                        setSelectedAdId(null);
+                        setSelectedCharacterId(null);
+                        
+                        await new Promise(resolve => setTimeout(resolve, 50));
+                        await refetchAds();
+                        
+                        // Select first Ad
+                        const firstAds = ads.filter(ad => ad.emotionalAngleId === firstEmotionalAngle.id);
+                        if (firstAds.length > 0) {
+                          const firstAd = firstAds[0];
+                          console.log('[AUTO SELECT] Selecting Ad:', firstAd.name);
+                          setSelectedAdId(firstAd.id);
+                          setSelectedCharacterId(null);
+                          
+                          toast.success('✅ Auto-selected: TAM 1 → Core Belief 1 → Emotional Angle 1 → AD 1');
+                        } else {
+                          toast.error('No ADs found for selected Emotional Angle');
+                        }
+                      } else {
+                        toast.error('No Emotional Angles found for selected Core Belief');
+                      }
+                    } else {
+                      toast.error('No Core Beliefs found for selected TAM');
+                    }
+                  } else {
+                    toast.error('No TAMs available');
+                  }
+                }}
+                className="text-xs text-green-600 hover:text-green-800 mt-1 ml-3 cursor-pointer font-semibold"
+              >
+                🤖 AUTO SELECT
+              </button>
             </div>
 
             {/* Core Belief */}
@@ -9382,17 +9462,21 @@ const handlePrepareForMerge = async () => {
                 disabled={!selectedTamId}
                 onValueChange={async (value) => {
                   if (value === 'new') {
-                    const name = prompt('Enter new Core Belief name:');
-                    if (name && name.trim()) {
-                      const result = await createCoreBeliefMutation.mutateAsync({
-                        userId: localCurrentUser.id,
-                        tamId: selectedTamId,
-                        name: name.trim(),
-                      });
-                      setSelectedCoreBeliefId(result.id);
-                      refetchCoreBeliefs();
-                      toast.success('Core Belief created!');
-                    }
+                    setCreateDialog({
+                      open: true,
+                      type: 'coreBelief',
+                      onConfirm: async (name) => {
+                        const result = await createCoreBeliefMutation.mutateAsync({
+                          userId: localCurrentUser.id,
+                          tamId: selectedTamId,
+                          name,
+                        });
+                        setSelectedCoreBeliefId(result.id);
+                        refetchCoreBeliefs();
+                        toast.success('Core Belief created!');
+                      },
+                    });
+                    return;
                   } else if (value) {
                     const newCoreBeliefId = parseInt(value);
                     setSelectedCoreBeliefId(newCoreBeliefId);
@@ -9427,17 +9511,21 @@ const handlePrepareForMerge = async () => {
                 disabled={!selectedCoreBeliefId}
                 onValueChange={async (value) => {
                   if (value === 'new') {
-                    const name = prompt('Enter new Emotional Angle name:');
-                    if (name && name.trim()) {
-                      const result = await createEmotionalAngleMutation.mutateAsync({
-                        userId: localCurrentUser.id,
-                        coreBeliefId: selectedCoreBeliefId,
-                        name: name.trim(),
-                      });
-                      setSelectedEmotionalAngleId(result.id);
-                      refetchEmotionalAngles();
-                      toast.success('Emotional Angle created!');
-                    }
+                    setCreateDialog({
+                      open: true,
+                      type: 'emotionalAngle',
+                      onConfirm: async (name) => {
+                        const result = await createEmotionalAngleMutation.mutateAsync({
+                          userId: localCurrentUser.id,
+                          coreBeliefId: selectedCoreBeliefId,
+                          name,
+                        });
+                        setSelectedEmotionalAngleId(result.id);
+                        refetchEmotionalAngles();
+                        toast.success('Emotional Angle created!');
+                      },
+                    });
+                    return;
                   } else if (value) {
                     const newEmotionalAngleId = parseInt(value);
                     setSelectedEmotionalAngleId(newEmotionalAngleId);
@@ -9471,18 +9559,22 @@ const handlePrepareForMerge = async () => {
                 disabled={!selectedEmotionalAngleId}
                 onValueChange={async (value) => {
                   if (value === 'new') {
-                    const name = prompt('Enter new Ad name:');
-                    if (name && name.trim()) {
-                      const result = await createAdMutation.mutateAsync({
-                        userId: localCurrentUser.id,
-                        emotionalAngleId: selectedEmotionalAngleId,
-                        name: name.trim(),
-                      });
-                      setSelectedAdId(result.id);
-                      setSelectedCharacterId(null); // Reset character for new AD
-                      refetchAds();
-                      toast.success('Ad created!');
-                    }
+                    setCreateDialog({
+                      open: true,
+                      type: 'ad',
+                      onConfirm: async (name) => {
+                        const result = await createAdMutation.mutateAsync({
+                          userId: localCurrentUser.id,
+                          emotionalAngleId: selectedEmotionalAngleId,
+                          name,
+                        });
+                        setSelectedAdId(result.id);
+                        setSelectedCharacterId(null);
+                        refetchAds();
+                        toast.success('Ad created!');
+                      },
+                    });
+                    return;
                   } else if (value) {
                     const newAdId = parseInt(value);
                     setSelectedAdId(newAdId);
@@ -9515,26 +9607,29 @@ const handlePrepareForMerge = async () => {
                 disabled={!selectedAdId}
                 onValueChange={async (value) => {
                   if (value === 'new') {
-                    const name = prompt('Enter new Character name:');
-                    if (name && name.trim()) {
-                      // Check for duplicate character name
-                      const isDuplicate = categoryCharacters.some(char => char.name.toLowerCase() === name.trim().toLowerCase());
-                      if (isDuplicate) {
-                        toast.error(`Character "${name.trim()}" already exists!`);
-                        return;
-                      }
-                      try {
-                        const result = await createCharacterMutation.mutateAsync({
-                          userId: localCurrentUser.id,
-                          name: name.trim(),
-                        });
-                        await refetchCharacters();
-                        setSelectedCharacterId(result.id);
-                        toast.success('Character created!');
-                      } catch (error: any) {
-                        toast.error(`Failed to create character: ${error.message}`);
-                      }
-                    }
+                    setCreateDialog({
+                      open: true,
+                      type: 'character',
+                      onConfirm: async (name) => {
+                        const isDuplicate = categoryCharacters.some(char => char.name.toLowerCase() === name.toLowerCase());
+                        if (isDuplicate) {
+                          toast.error(`Character "${name}" already exists!`);
+                          return;
+                        }
+                        try {
+                          const result = await createCharacterMutation.mutateAsync({
+                            userId: localCurrentUser.id,
+                            name,
+                          });
+                          await refetchCharacters();
+                          setSelectedCharacterId(result.id);
+                          toast.success('Character created!');
+                        } catch (error: any) {
+                          toast.error(`Failed to create character: ${error.message}`);
+                        }
+                      },
+                    });
+                    return;
                   } else if (value) {
                     const newCharacterId = parseInt(value);
                     // Simply update character selection without auto-duplicate
@@ -9606,7 +9701,6 @@ const handlePrepareForMerge = async () => {
                     </>
                   )}
                   
-                  <SelectItem value="new">+ New Character</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -9880,18 +9974,23 @@ const handlePrepareForMerge = async () => {
                     value={selectedCoreBeliefId?.toString() || ''} 
                     onValueChange={async (value) => {
                       if (value === 'new') {
-                        const name = prompt('Enter new Core Belief name:');
-                        if (name && name.trim()) {
-                          const result = await createCoreBeliefMutation.mutateAsync({
-                            userId: localCurrentUser.id,
-                            name: name.trim(),
-                          });
-                          await refetchCoreBeliefs();
-                          setSelectedCoreBeliefId(result.id);
-                          setSelectedEmotionalAngleId(null);
-                          setSelectedAdId(null);
-                          toast.success('Core Belief created!');
-                        }
+                        setCreateDialog({
+                          open: true,
+                          type: 'coreBelief',
+                          onConfirm: async (name) => {
+                            const result = await createCoreBeliefMutation.mutateAsync({
+                              userId: localCurrentUser.id,
+                              tamId: selectedTamId,
+                              name,
+                            });
+                            await refetchCoreBeliefs();
+                            setSelectedCoreBeliefId(result.id);
+                            setSelectedEmotionalAngleId(null);
+                            setSelectedAdId(null);
+                            toast.success('Core Belief created!');
+                          },
+                        });
+                        return;
                       } else {
                         setSelectedCoreBeliefId(parseInt(value));
                         setSelectedEmotionalAngleId(null);
@@ -9919,18 +10018,22 @@ const handlePrepareForMerge = async () => {
                       value={selectedEmotionalAngleId?.toString() || ''} 
                       onValueChange={async (value) => {
                         if (value === 'new') {
-                          const name = prompt('Enter new Emotional Angle name:');
-                          if (name && name.trim()) {
-                            const result = await createEmotionalAngleMutation.mutateAsync({
-                              userId: localCurrentUser.id,
-                              coreBeliefId: selectedCoreBeliefId,
-                              name: name.trim(),
-                            });
-                            await refetchEmotionalAngles();
-                            setSelectedEmotionalAngleId(result.id);
-                            setSelectedAdId(null);
-                            toast.success('Emotional Angle created!');
-                          }
+                          setCreateDialog({
+                            open: true,
+                            type: 'emotionalAngle',
+                            onConfirm: async (name) => {
+                              const result = await createEmotionalAngleMutation.mutateAsync({
+                                userId: localCurrentUser.id,
+                                coreBeliefId: selectedCoreBeliefId,
+                                name,
+                              });
+                              await refetchEmotionalAngles();
+                              setSelectedEmotionalAngleId(result.id);
+                              setSelectedAdId(null);
+                              toast.success('Emotional Angle created!');
+                            },
+                          });
+                          return;
                         } else {
                           setSelectedEmotionalAngleId(parseInt(value));
                           setSelectedAdId(null);
@@ -9958,18 +10061,22 @@ const handlePrepareForMerge = async () => {
                       value={selectedAdId?.toString() || ''} 
                       onValueChange={async (value) => {
                         if (value === 'new') {
-                          const name = prompt('Enter new Ad name:');
-                          if (name && name.trim()) {
-                            const result = await createAdMutation.mutateAsync({
-                              userId: localCurrentUser.id,
-                              emotionalAngleId: selectedEmotionalAngleId,
-                              name: name.trim(),
-                            });
-                            await refetchAds();
-                            setSelectedAdId(result.id);
-                            setSelectedCharacterId(null); // Reset character for new AD
-                            toast.success('Ad created!');
-                          }
+                          setCreateDialog({
+                            open: true,
+                            type: 'ad',
+                            onConfirm: async (name) => {
+                              const result = await createAdMutation.mutateAsync({
+                                userId: localCurrentUser.id,
+                                emotionalAngleId: selectedEmotionalAngleId,
+                                name,
+                              });
+                              await refetchAds();
+                              setSelectedAdId(result.id);
+                              setSelectedCharacterId(null); // Reset character for new AD
+                              toast.success('Ad created!');
+                            },
+                          });
+                          return;
                         } else {
                           const adId = parseInt(value);
                           const selectedAd = ads.find(ad => ad.id === adId);
@@ -10000,22 +10107,25 @@ const handlePrepareForMerge = async () => {
                       value={selectedCharacterId?.toString() || 'none'} 
                       onValueChange={async (value) => {
                         if (value === 'new') {
-                          const name = prompt('Enter new Character name:');
-                          if (name && name.trim()) {
-                            // Check for duplicate character name
-                            const isDuplicate = categoryCharacters.some(char => char.name.toLowerCase() === name.trim().toLowerCase());
-                            if (isDuplicate) {
-                              toast.error(`Character "${name.trim()}" already exists!`);
-                              return;
-                            }
-                            const result = await createCharacterMutation.mutateAsync({
-                              userId: localCurrentUser.id,
-                              name: name.trim(),
-                            });
-                            await refetchCharacters();
-                            setSelectedCharacterId(result.id);
-                            toast.success('Character created!');
-                          }
+                          setCreateDialog({
+                            open: true,
+                            type: 'character',
+                            onConfirm: async (name) => {
+                              const isDuplicate = categoryCharacters.some(char => char.name.toLowerCase() === name.toLowerCase());
+                              if (isDuplicate) {
+                                toast.error(`Character "${name}" already exists!`);
+                                return;
+                              }
+                              const result = await createCharacterMutation.mutateAsync({
+                                userId: localCurrentUser.id,
+                                name,
+                              });
+                              await refetchCharacters();
+                              setSelectedCharacterId(result.id);
+                              toast.success('Character created!');
+                            },
+                          });
+                          return;
                         } else if (value === 'none') {
                           setSelectedCharacterId(null);
                         } else {
@@ -10052,7 +10162,6 @@ const handlePrepareForMerge = async () => {
                             ))}
                           </>
                         )}
-                        <SelectItem value="new">+ New Character</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -10993,29 +11102,13 @@ const handlePrepareForMerge = async () => {
                     <Select 
                       value={selectedCharacterId?.toString() || ''} 
                       onValueChange={(value) => {
-                        if (value === '__new__') {
-                          const newName = prompt('Nume caracter nou:');
-                          if (newName && newName.trim()) {
-                            createCharacterMutation.mutate({
-                              userId: localCurrentUser.id,
-                              name: newName.trim(),
-                            }, {
-                              onSuccess: (newChar) => {
-                                setSelectedCharacterId(newChar.id);
-                                toast.success(`Caracter "${newName}" creat!`);
-                              },
-                            });
-                          }
-                        } else {
-                          setSelectedCharacterId(parseInt(value));
-                        }
+                        setSelectedCharacterId(parseInt(value));
                       }}
                     >
                       <SelectTrigger className="bg-white">
                         <SelectValue placeholder="Select or create character" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="__new__">+ New Character</SelectItem>
                         {categoryCharacters?.map((char) => (
                           <SelectItem key={char.id} value={char.id.toString()}>
                             {char.name}

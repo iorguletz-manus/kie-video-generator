@@ -56,7 +56,7 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
   const [editingImageId, setEditingImageId] = useState<number | null>(null);
   const [editImageName, setEditImageName] = useState("");
   const [draggedImageId, setDraggedImageId] = useState<number | null>(null);
-  const [gridSize, setGridSize] = useState<'small' | 'medium' | 'large'>('medium');
+  const [gridSize, setGridSize] = useState<'small' | 'medium' | 'large'>('small'); // Default to 'small' = Large Images view
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'date'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
