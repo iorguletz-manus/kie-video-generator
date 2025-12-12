@@ -1518,11 +1518,19 @@ export const appRouter = router({
             message: 'Database not available',
           });
         }
+        // NOTE: Removed ORDER BY to avoid "Out of sort memory" error with large videoResults JSON
+        // Get all sessions and sort in memory (should be small number of sessions per user)
         const results = await db.select()
           .from(contextSessions)
-          .where(eq(contextSessions.userId, input.userId))
-          .orderBy(desc(contextSessions.updatedAt))
-          .limit(1);
+          .where(eq(contextSessions.userId, input.userId));
+        
+        // Sort in memory by updatedAt DESC
+        results.sort((a, b) => {
+          const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+          const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+          return timeB - timeA;
+        });
+        
         return results[0] || null;
       }),
 

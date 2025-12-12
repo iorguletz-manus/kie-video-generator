@@ -9294,8 +9294,8 @@ const handlePrepareForMerge = async () => {
                   <SelectItem value="new">+ New TAM</SelectItem>
                 </SelectContent>
               </Select>
-              {/* Load Last Context Link - DISABLED */}
-              {/* <button
+              {/* Load Last Context Link */}
+              <button
                 onClick={() => {
                   console.log('[Load Last Context] 🟢 Button clicked');
                   const lastContext = latestContextSession;
@@ -9324,10 +9324,10 @@ const handlePrepareForMerge = async () => {
                     toast.error('No previous context found');
                   }
                 }}
-                className="text-xs text-blue-600 hover:text-blue-800 mt-1"
+                className="text-xs text-blue-600 hover:text-blue-800 mt-1 cursor-pointer"
               >
                 📌 Load Last Context
-              </button> */}
+              </button>
             </div>
 
             {/* Core Belief */}
