@@ -1092,16 +1092,20 @@ export const appRouter = router({
       }))
       .mutation(async ({ input }) => {
         try {
-          console.log('[imageLibrary.updateOrder] Updating order for', input.imageOrders.length, 'images');
+          console.log('[imageLibrary.updateOrder] 📥 Received request to update order for', input.imageOrders.length, 'images');
+          console.log('[imageLibrary.updateOrder] 📦 Image orders to update:', JSON.stringify(input.imageOrders, null, 2));
           
           // Update each image's displayOrder
           for (const { id, displayOrder } of input.imageOrders) {
-            await updateUserImage(id, { displayOrder });
+            console.log(`[imageLibrary.updateOrder] 🔄 Updating image ${id} to displayOrder ${displayOrder}`);
+            const result = await updateUserImage(id, { displayOrder });
+            console.log(`[imageLibrary.updateOrder] ✅ Image ${id} updated successfully:`, result);
           }
           
-          console.log('[imageLibrary.updateOrder] Order updated successfully');
+          console.log('[imageLibrary.updateOrder] ✅ All images order updated successfully');
           return { success: true };
         } catch (error: any) {
+          console.error('[imageLibrary.updateOrder] ❌ Error updating order:', error);
           throw new TRPCError({
             code: 'INTERNAL_SERVER_ERROR',
             message: `Failed to update order: ${error.message}`,

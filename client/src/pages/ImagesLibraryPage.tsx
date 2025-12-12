@@ -592,7 +592,10 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
   };
 
   const handleDropOnImage = (targetImageId: number) => {
+    console.log('[MOVE ORDER] 🎯 handleDropOnImage called', { draggedImageId, targetImageId });
+    
     if (!draggedImageId || draggedImageId === targetImageId) {
+      console.log('[MOVE ORDER] ❌ No draggedImageId or same image, aborting');
       setDraggedImageId(null);
       setDragOverImageId(null);
       return;
@@ -601,8 +604,13 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
     // Get current character images
     const draggedImage = allImages.find(img => img.id === draggedImageId);
     const targetImage = allImages.find(img => img.id === targetImageId);
+    console.log('[MOVE ORDER] 📦 Found images:', { 
+      draggedImage: draggedImage ? { id: draggedImage.id, fileName: draggedImage.fileName, characterName: draggedImage.characterName, displayOrder: draggedImage.displayOrder } : null,
+      targetImage: targetImage ? { id: targetImage.id, fileName: targetImage.fileName, characterName: targetImage.characterName, displayOrder: targetImage.displayOrder } : null
+    });
 
     if (!draggedImage || !targetImage) {
+      console.log('[MOVE ORDER] ❌ Missing draggedImage or targetImage');
       setDraggedImageId(null);
       setDragOverImageId(null);
       return;
@@ -610,6 +618,10 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
 
     // Only allow reordering within same character
     if (draggedImage.characterName !== targetImage.characterName) {
+      console.log('[MOVE ORDER] ❌ Different characters, aborting', { 
+        draggedChar: draggedImage.characterName, 
+        targetChar: targetImage.characterName 
+      });
       setDraggedImageId(null);
       setDragOverImageId(null);
       return;
@@ -619,12 +631,15 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
     const characterImages = allImages.filter(
       img => img.characterName === draggedImage.characterName
     );
+    console.log('[MOVE ORDER] 📋 Character images:', characterImages.map(img => ({ id: img.id, fileName: img.fileName, displayOrder: img.displayOrder })));
 
     // Find indices
     const draggedIndex = characterImages.findIndex(img => img.id === draggedImageId);
     const targetIndex = characterImages.findIndex(img => img.id === targetImageId);
+    console.log('[MOVE ORDER] 📍 Indices:', { draggedIndex, targetIndex });
 
     if (draggedIndex === -1 || targetIndex === -1) {
+      console.log('[MOVE ORDER] ❌ Invalid indices');
       setDraggedImageId(null);
       setDragOverImageId(null);
       return;
@@ -634,14 +649,18 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
     const reordered = [...characterImages];
     const [removed] = reordered.splice(draggedIndex, 1);
     reordered.splice(targetIndex, 0, removed);
+    console.log('[MOVE ORDER] 🔄 Reordered array:', reordered.map(img => ({ id: img.id, fileName: img.fileName, displayOrder: img.displayOrder })));
 
     // Update displayOrder for all affected images
     // Preserve global displayOrder by using the minimum displayOrder of the character's images as base
     const minDisplayOrder = Math.min(...reordered.map(img => img.displayOrder || 0));
+    console.log('[MOVE ORDER] 📊 Min displayOrder:', minDisplayOrder);
+    
     const imageOrders = reordered.map((img, index) => ({
       id: img.id,
       displayOrder: minDisplayOrder + index, // ✅ Preserve global order
     }));
+    console.log('[MOVE ORDER] 📤 Sending to backend:', imageOrders);
 
     updateOrderMutation.mutate({ imageOrders });
 
