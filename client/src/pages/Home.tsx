@@ -1016,6 +1016,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     console.log('[Character USED/UNUSED] 🔍 Starting detection...');
     console.log('[Character USED/UNUSED] selectedAdId:', selectedAdId);
     console.log('[Character USED/UNUSED] Total context sessions:', allContextSessions.length);
+    console.log('[Character USED/UNUSED] All sessions:', allContextSessions.map(s => ({ id: s.id, adId: s.adId, characterId: s.characterId })));
     
     // Track which characters have generated videos IN CURRENT AD
     const charactersWithVideos = new Set<number>();
@@ -1026,7 +1027,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     );
     
     console.log('[Character USED/UNUSED] Sessions for current AD:', currentAdSessions.length);
-    
+    console.log('[Character USED/UNUSED] Filtered sessions:', currentAdSessions.map(s => ({ id: s.id, adId: s.adId, characterId: s.characterId })));
     currentAdSessions.forEach(session => {
       console.log(`[Character USED/UNUSED] 🔎 Checking session ${session.id}: characterId=${session.characterId}, videoResults type=${typeof session.videoResults}, videoResults is null=${session.videoResults === null}`);
       
