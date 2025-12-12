@@ -964,7 +964,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   );
   
   // Log ADs returned from query
-  React.useEffect(() => {
+  useEffect(() => {
     if (ads.length > 0) {
       console.log('[AD Dropdown] 📋 ADs from query:', ads.map(ad => ({ id: ad.id, name: ad.name, emotionalAngleId: ad.emotionalAngleId, userId: ad.userId })));
     }
