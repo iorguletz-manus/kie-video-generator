@@ -2491,29 +2491,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     // STEP 1: FFmpeg batch - Extract WAV from all videos in this batch (PARALLEL)
     const ffmpegPromises = batchVideos.map(async (video) => {
       try {
-        // SMART SKIP: Check if FFmpeg already done (video has audioUrl)
-        if (video.audioUrl && video.waveformData) {
-          console.log(`[Batch Processing] ⏭️ FFmpeg SKIP for ${video.videoName} (audioUrl exists)`);
-          
-          setProcessingProgress(prev => ({
-            ...prev,
-            ffmpeg: {
-              current: prev.ffmpeg.current + 1,
-              total: videos.length,
-              status: prev.ffmpeg.current + 1 === videos.length ? 'complete' : 'processing',
-              activeVideos: prev.ffmpeg.activeVideos
-            },
-            ffmpegSuccess: [...prev.ffmpegSuccess, video.videoName]
-          }));
-          
-          return {
-            video,
-            wavUrl: video.audioUrl,  // Use existing WAV
-            waveformJson: video.waveformData,  // Use existing waveform
-            success: true,
-            skipped: true,
-          };
-        }
+        // ALWAYS re-extract WAV (no SMART SKIP)
+        // This ensures fresh processing for regenerated videos
         
         console.log(`[Batch Processing] 🎬 FFmpeg START for ${video.videoName}`);
         
@@ -14117,6 +14096,19 @@ const handlePrepareForMerge = async () => {
                                 toast.error('Video not found!');
                                 return;
                               }
+                              
+                              // FORCE re-extraction: Clear audioUrl and waveformData
+                              // This prevents FFmpeg SMART SKIP and forces fresh WAV extraction
+                              console.log('[Reprocesare] Clearing audioUrl and waveformData to force re-extraction');
+                              const videoToReprocessClean = {
+                                ...videoToReprocess,
+                                audioUrl: undefined,
+                                waveformData: undefined,
+                                cleanvoiceAudioUrl: undefined,
+                                whisperTranscript: undefined,
+                                cutPoints: undefined,
+                                editingDebugInfo: undefined
+                              };
                               
                               // Log BEFORE reprocesare
                               console.log('[Reprocesare] BEFORE - cutPoints:', {
