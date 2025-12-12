@@ -15641,47 +15641,89 @@ const handlePrepareForMerge = async () => {
                       <Button
                         onClick={async () => {
                           try {
-                            toast.info('📦 Preparing ZIP archive...');
-                            
-                            // Dynamically import JSZip
-                            const JSZip = (await import('jszip')).default;
-                            const zip = new JSZip();
-                            
-                            // Generate folder name from first video (all have same context/character/image)
+                            // Generate folder name from first video
                             const firstVideo = finalVideos[0];
                             if (!firstVideo) {
                               toast.error('No videos to download');
                               return;
                             }
                             
-                            // Extract folder name from video name (e.g., T1_C1_E1_AD1_HOOK1_TEST_ALINA_1 → T1_C1_E1_AD1_TEST_ALINA_1)
-                            // Remove HOOK{number}_ from the name
                             const folderName = firstVideo.videoName.replace(/_HOOK\d+_/, '_');
+                            const totalVideos = finalVideos.length;
                             
-                            // Download all videos and add to ZIP inside folder
-                            for (const video of finalVideos) {
+                            // Show progress dialog
+                            const progressDialog = document.createElement('div');
+                            progressDialog.style.cssText = `
+                              position: fixed;
+                              top: 50%;
+                              left: 50%;
+                              transform: translate(-50%, -50%);
+                              background: white;
+                              padding: 30px;
+                              border-radius: 12px;
+                              box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+                              z-index: 10000;
+                              min-width: 400px;
+                            `;
+                            progressDialog.innerHTML = `
+                              <div style="text-align: center;">
+                                <h3 style="font-size: 20px; font-weight: bold; margin-bottom: 20px;">📦 Downloading Videos</h3>
+                                <div style="background: #e5e7eb; border-radius: 8px; height: 30px; overflow: hidden; margin-bottom: 15px;">
+                                  <div id="progress-bar" style="background: linear-gradient(90deg, #10b981, #059669); height: 100%; width: 0%; transition: width 0.3s;"></div>
+                                </div>
+                                <p id="progress-text" style="font-size: 16px; color: #6b7280;">0 / ${totalVideos} videos (0%)</p>
+                              </div>
+                            `;
+                            document.body.appendChild(progressDialog);
+                            
+                            const progressBar = document.getElementById('progress-bar')!;
+                            const progressText = document.getElementById('progress-text')!;
+                            
+                            // Dynamically import JSZip
+                            const JSZip = (await import('jszip')).default;
+                            const zip = new JSZip();
+                            
+                            // Download all videos IN PARALLEL with progress tracking
+                            let completedCount = 0;
+                            
+                            const downloadPromises = finalVideos.map(async (video) => {
                               try {
                                 const response = await fetch(video.cdnUrl);
                                 const blob = await response.blob();
-                                // Add video to folder inside ZIP
                                 zip.file(`${folderName}/${video.videoName}.mp4`, blob);
+                                
+                                // Update progress
+                                completedCount++;
+                                const percent = Math.round((completedCount / totalVideos) * 100);
+                                progressBar.style.width = `${percent}%`;
+                                progressText.textContent = `${completedCount} / ${totalVideos} videos (${percent}%)`;
                               } catch (error) {
                                 console.error(`Failed to download ${video.videoName}:`, error);
-                                toast.error(`Failed to download ${video.videoName}`);
                               }
-                            }
+                            });
                             
-                            // Generate ZIP and download with folder name
+                            await Promise.all(downloadPromises);
+                            
+                            // Update progress: Generating ZIP
+                            progressText.textContent = 'Generating ZIP file...';
+                            
+                            // Generate ZIP and download
                             const zipBlob = await zip.generateAsync({ type: 'blob' });
                             const link = document.createElement('a');
                             link.href = URL.createObjectURL(zipBlob);
                             link.download = `${folderName}.zip`;
                             link.click();
                             
-                            toast.success('🎉 All videos downloaded!');
+                            // Remove progress dialog
+                            document.body.removeChild(progressDialog);
+                            
+                            toast.success(`🎉 All ${totalVideos} videos downloaded!`);
                           } catch (error) {
                             console.error('ZIP download failed:', error);
                             toast.error('Failed to create ZIP archive');
+                            // Remove progress dialog on error
+                            const dialog = document.querySelector('div[style*="z-index: 10000"]');
+                            if (dialog) document.body.removeChild(dialog);
                           }
                         }}
                         className="bg-green-600 hover:bg-green-700 px-12 py-8 text-xl font-bold shadow-xl"
