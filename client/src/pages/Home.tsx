@@ -766,9 +766,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     };
   }, [trimmingMergedVideoUrl, trimmingProgress.successVideos, videoResults]);
   
-  // Download ZIP progress
+  // Download ZIP progress (old modal - kept for compatibility)
   const [isDownloadZipModalOpen, setIsDownloadZipModalOpen] = useState(false);
-  const [downloadZipProgress, setDownloadZipProgress] = useState<string>('');
   
   // Initial videos hash for smart cache (tracks original marker values from DB)
   const [initialVideosHash, setInitialVideosHash] = useState<string | null>(null);
