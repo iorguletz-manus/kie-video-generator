@@ -7668,7 +7668,24 @@ const handlePrepareForMerge = async () => {
       console.error('[Category Change] Error:', error);
       toast.error(`Failed to save category: ${error.message}`);
     }
-  }, [videoResults, localCurrentUser, selectedTamId, selectedCoreBeliefId, selectedEmotionalAngleId, selectedAdId, selectedCharacterId, currentStep, rawTextAd, processedTextAd, adLines, prompts, images, combinations, deletedCombinations, reviewHistory, hookMergedVideos, bodyMergedVideoUrl, finalVideos, upsertContextSessionMutation]);
+  }, [currentStep, selectedTamId, selectedCoreBeliefId, selectedEmotionalAngleId, selectedAdId, selectedCharacterId, rawTextAd, processedTextAd, adLines, prompts, images, combinations, videoResults, localCurrentUser?.id]);
+
+  // Save selection history to localStorage (for AUTO SELECT HISTORY)
+  useEffect(() => {
+    // Only save if all selections are made (including character)
+    if (selectedTamId && selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId) {
+      const selectionHistory = {
+        tamId: selectedTamId,
+        coreBeliefId: selectedCoreBeliefId,
+        emotionalAngleId: selectedEmotionalAngleId,
+        adId: selectedAdId,
+        characterId: selectedCharacterId,
+        timestamp: Date.now(),
+      };
+      localStorage.setItem('selectionHistory', JSON.stringify(selectionHistory));
+      console.log('[Selection History] Saved to localStorage:', selectionHistory);
+    }
+  }, [selectedTamId, selectedCoreBeliefId, selectedEmotionalAngleId, selectedAdId, selectedCharacterId]);edCombinations, reviewHistory, hookMergedVideos, bodyMergedVideoUrl, finalVideos, upsertContextSessionMutation]);
 
   const undoReview = useCallback(() => {
     if (reviewHistory.length === 0) {
@@ -9439,21 +9456,9 @@ const handlePrepareForMerge = async () => {
                           const firstAd = firstAds[0];
                           console.log('[AUTO SELECT] Selecting Ad:', firstAd.name);
                           setSelectedAdId(firstAd.id);
+                          setSelectedCharacterId(null);
                           
-                          // Wait and select first Character
-                          await new Promise(resolve => setTimeout(resolve, 100));
-                          await refetchCharacters();
-                          
-                          if (categoryCharacters.length > 0) {
-                            const firstCharacter = categoryCharacters[0];
-                            console.log('[AUTO SELECT] Selecting Character:', firstCharacter.name);
-                            setSelectedCharacterId(firstCharacter.id);
-                            
-                            toast.success('✅ Auto-selected: TAM 1 → Core Belief 1 → Emotional Angle 1 → AD 1 → Character 1');
-                          } else {
-                            setSelectedCharacterId(null);
-                            toast.success('✅ Auto-selected: TAM 1 → Core Belief 1 → Emotional Angle 1 → AD 1 (no characters available)');
-                          }
+                          toast.success('✅ Auto-selected: TAM 1 → Core Belief 1 → Emotional Angle 1 → AD 1');
                         } else {
                           toast.error('No ADs found for selected Emotional Angle');
                         }
@@ -9470,6 +9475,45 @@ const handlePrepareForMerge = async () => {
                 className="text-xs text-green-600 hover:text-green-800 mt-1 ml-3 cursor-pointer font-semibold"
               >
                 🤖 AUTO SELECT
+              </button>
+              <button
+                onClick={async () => {
+                  console.log('[AUTO SELECT HISTORY] 📜 Starting history selection...');
+                  
+                  // Load from localStorage
+                  const historyStr = localStorage.getItem('selectionHistory');
+                  if (!historyStr) {
+                    toast.error('No selection history found');
+                    return;
+                  }
+                  
+                  try {
+                    const history = JSON.parse(historyStr);
+                    console.log('[AUTO SELECT HISTORY] Loaded history:', history);
+                    
+                    // Set all selections at once
+                    setSelectedTamId(history.tamId);
+                    setSelectedCoreBeliefId(history.coreBeliefId);
+                    setSelectedEmotionalAngleId(history.emotionalAngleId);
+                    setSelectedAdId(history.adId);
+                    setSelectedCharacterId(history.characterId);
+                    
+                    // Get names for toast message
+                    const tam = tams.find(t => t.id === history.tamId);
+                    const cb = coreBeliefs.find(c => c.id === history.coreBeliefId);
+                    const ea = emotionalAngles.find(e => e.id === history.emotionalAngleId);
+                    const ad = ads.find(a => a.id === history.adId);
+                    const char = categoryCharacters.find(c => c.id === history.characterId);
+                    
+                    toast.success(`📜 Loaded from history: ${tam?.name || 'TAM'} → ${cb?.name || 'CB'} → ${ea?.name || 'EA'} → ${ad?.name || 'AD'} → ${char?.name || 'Character'}`);
+                  } catch (error: any) {
+                    console.error('[AUTO SELECT HISTORY] Error loading history:', error);
+                    toast.error('Failed to load selection history');
+                  }
+                }}
+                className="text-xs text-purple-600 hover:text-purple-800 mt-1 ml-3 cursor-pointer font-semibold"
+              >
+                📜 AUTO SELECT HISTORY
               </button>
             </div>
 
