@@ -14161,9 +14161,48 @@ const handlePrepareForMerge = async () => {
                                       redPosition: updatedVideo?.cutPoints?.redPosition,
                                       confidence: updatedVideo?.cutPoints?.confidence
                                     });
+                                    console.log('[Reprocesare] AFTER (in state) - cleanvoiceAudioUrl:', updatedVideo?.cleanvoiceAudioUrl);
                                   }, 100);
                                   
-                                  toast.success(`✅ ${videoName} reprocesed successfully!`);
+                                  // SAVE TO DATABASE after reprocesare
+                                  console.log('[Reprocesare] 💾 Saving to database...');
+                                  try {
+                                    // Get current videoResults state
+                                    const currentVideoResults = await new Promise<typeof videoResults>((resolve) => {
+                                      setVideoResults(current => {
+                                        resolve(current);
+                                        return current;
+                                      });
+                                    });
+                                    
+                                    await upsertContextSessionMutation.mutateAsync({
+                                      userId: localCurrentUser.id,
+                                      tamId: selectedTamId,
+                                      coreBeliefId: selectedCoreBeliefId,
+                                      emotionalAngleId: selectedEmotionalAngleId,
+                                      adId: selectedAdId,
+                                      characterId: selectedCharacterId,
+                                      currentStep,
+                                      rawTextAd,
+                                      processedTextAd,
+                                      adLines,
+                                      prompts,
+                                      images,
+                                      combinations,
+                                      deletedCombinations,
+                                      videoResults: currentVideoResults,
+                                      reviewHistory,
+                                      hookMergedVideos,
+                                      bodyMergedVideoUrl,
+                                      finalVideos,
+                                    });
+                                    
+                                    console.log('[Reprocesare] ✅ Database save successful!');
+                                    toast.success(`✅ ${videoName} reprocesed and saved to database!`);
+                                  } catch (dbError: any) {
+                                    console.error('[Reprocesare] ❌ Database save failed:', dbError);
+                                    toast.error(`⚠️ Reprocesare succeeded but database save failed: ${dbError.message}`);
+                                  }
                                 } else {
                                   toast.error(`❌ Failed to reprocess ${videoName}`);
                                 }
