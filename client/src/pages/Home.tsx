@@ -1012,6 +1012,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // Sort characters: UNUSED first, USED last
   // USED = character has generated videos (status: success/pending/failed) IN CURRENT AD
   const sortedCategoryCharacters = useMemo(() => {
+    console.log('[Character USED/UNUSED] 🔍 Starting detection...');
+    console.log('[Character USED/UNUSED] selectedAdId:', selectedAdId);
+    console.log('[Character USED/UNUSED] Total context sessions:', allContextSessions.length);
+    
     // Track which characters have generated videos IN CURRENT AD
     const charactersWithVideos = new Set<number>();
     
@@ -1019,6 +1023,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     const currentAdSessions = allContextSessions.filter(session => 
       session.adId === selectedAdId
     );
+    
+    console.log('[Character USED/UNUSED] Sessions for current AD:', currentAdSessions.length);
     
     currentAdSessions.forEach(session => {
       if (session.characterId && session.videoResults) {
@@ -1032,8 +1038,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             (v: any) => v.status === 'success' || v.status === 'pending' || v.status === 'failed'
           );
           
+          console.log(`[Character USED/UNUSED] Session ${session.id}: characterId=${session.characterId}, videos=${Array.isArray(videos) ? videos.length : 0}, hasGenerated=${hasGeneratedVideos}`);
+          
           if (hasGeneratedVideos) {
             charactersWithVideos.add(session.characterId);
+            console.log(`[Character USED/UNUSED] ✅ Marked character ${session.characterId} as USED`);
           }
         } catch (e) {
           // Ignore parse errors
@@ -1044,6 +1053,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     // Separate UNUSED and USED characters
     const unused = categoryCharacters.filter(char => !charactersWithVideos.has(char.id));
     const used = categoryCharacters.filter(char => charactersWithVideos.has(char.id));
+    
+    console.log('[Character USED/UNUSED] 🎯 Final results:');
+    console.log('[Character USED/UNUSED] UNUSED characters:', unused.map(c => `${c.name} (${c.id})`));
+    console.log('[Character USED/UNUSED] USED characters:', used.map(c => `${c.name} (${c.id})`));
     
     // Sort each group alphabetically
     unused.sort((a, b) => a.name.localeCompare(b.name));
@@ -1705,6 +1718,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // Step 10: Pre-select all hooks and body when entering Step 10
   useEffect(() => {
     if (currentStep === 10) {
+      console.log('[Step 10] Pre-selecting hooks and body...');
+      console.log('[Step 10] videoResults count:', videoResults.length);
+      console.log('[Step 10] contextSession loaded:', !!contextSession);
+      
+      // WAIT for contextSession to load from DB before pre-selecting
+      if (!contextSession) {
+        console.log('[Step 10] ⏳ Waiting for contextSession to load from DB...');
+        return;
+      }
       // Pre-select all hooks (exclude base hooks if merged version exists)
       const hookVideos = videoResults.filter(v => 
         v.trimmedVideoUrl && 
@@ -1750,7 +1772,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         }
       }
     }
-  }, [currentStep, videoResults, bodyMergedVideoUrl]);
+  }, [currentStep, videoResults, bodyMergedVideoUrl, contextSession, hookMergedVideos]);
   
   // Auto-save currentStep to database whenever it changes
   useEffect(() => {
