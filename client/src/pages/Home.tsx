@@ -9439,9 +9439,21 @@ const handlePrepareForMerge = async () => {
                           const firstAd = firstAds[0];
                           console.log('[AUTO SELECT] Selecting Ad:', firstAd.name);
                           setSelectedAdId(firstAd.id);
-                          setSelectedCharacterId(null);
                           
-                          toast.success('✅ Auto-selected: TAM 1 → Core Belief 1 → Emotional Angle 1 → AD 1');
+                          // Wait and select first Character
+                          await new Promise(resolve => setTimeout(resolve, 100));
+                          await refetchCharacters();
+                          
+                          if (categoryCharacters.length > 0) {
+                            const firstCharacter = categoryCharacters[0];
+                            console.log('[AUTO SELECT] Selecting Character:', firstCharacter.name);
+                            setSelectedCharacterId(firstCharacter.id);
+                            
+                            toast.success('✅ Auto-selected: TAM 1 → Core Belief 1 → Emotional Angle 1 → AD 1 → Character 1');
+                          } else {
+                            setSelectedCharacterId(null);
+                            toast.success('✅ Auto-selected: TAM 1 → Core Belief 1 → Emotional Angle 1 → AD 1 (no characters available)');
+                          }
                         } else {
                           toast.error('No ADs found for selected Emotional Angle');
                         }

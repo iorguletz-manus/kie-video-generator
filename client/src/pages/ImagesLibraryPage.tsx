@@ -160,8 +160,9 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
       console.log('[MOVE ORDER] ✅ Backend update successful, refetching...');
       // Small delay to ensure DB write completes
       await new Promise(resolve => setTimeout(resolve, 100));
-      await refetch();
-      console.log('[MOVE ORDER] ✅ Refetch complete');
+      const result = await refetch();
+      console.log('[MOVE ORDER] ✅ Refetch complete - new order:', 
+        result.data?.map(img => `${img.imageName}(${img.displayOrder})`).join(', '));
       toast.success('Image order updated!');
     },
     onError: (error) => {
@@ -684,7 +685,8 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
     
     // Sort by displayOrder
     updatedAllImages.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
-    console.log('[MOVE ORDER] 🔄 Optimistically updated cache');
+    console.log('[MOVE ORDER] 🔄 Optimistically updated cache - new order:', 
+      updatedAllImages.map(img => `${img.imageName}(${img.displayOrder})`).join(', '));
     
     // Set optimistic data
     utils.imageLibrary.list.setData({ userId: currentUser.id }, updatedAllImages);
