@@ -1460,7 +1460,7 @@ export const appRouter = router({
             message: 'Database not available',
           });
         }
-        // Select only ID columns to avoid large JSON serialization
+        // Select ID columns + videoResults for character USED/UNUSED detection
         return await db.select({
           id: contextSessions.id,
           userId: contextSessions.userId,
@@ -1469,6 +1469,7 @@ export const appRouter = router({
           emotionalAngleId: contextSessions.emotionalAngleId,
           adId: contextSessions.adId,
           characterId: contextSessions.characterId,
+          videoResults: contextSessions.videoResults,
           updatedAt: contextSessions.updatedAt,
         })
           .from(contextSessions)
