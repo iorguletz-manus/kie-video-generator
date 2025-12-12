@@ -163,14 +163,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [selectedTamId, setSelectedTamId] = useState<number | null>(null);
   const [selectedCoreBeliefId, setSelectedCoreBeliefId] = useState<number | null>(null);
   const [selectedEmotionalAngleId, setSelectedEmotionalAngleId] = useState<number | null>(null);
-  const [selectedAdId, setSelectedAdId] = useState<number | null>(() => {
-    const saved = localStorage.getItem('selectedAdId');
-    return saved ? parseInt(saved) : null;
-  });
-  const [selectedCharacterId, setSelectedCharacterId] = useState<number | null>(() => {
-    const saved = localStorage.getItem('selectedCharacterId');
-    return saved ? parseInt(saved) : null;
-  });
+  const [selectedAdId, setSelectedAdId] = useState<number | null>(null);
+  const [selectedCharacterId, setSelectedCharacterId] = useState<number | null>(null);
   const previousCharacterIdRef = useRef<number | null>(null);
   const [textAdMode, setTextAdMode] = useState<'upload' | 'paste' | 'google-doc'>('upload');
   const [rawTextAd, setRawTextAd] = useState<string>('');
