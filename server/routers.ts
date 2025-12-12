@@ -1495,8 +1495,13 @@ export const appRouter = router({
           
           console.log('[Backend listByUser] ✅ Returning', results.length, 'results to frontend');
           return results;
-        } catch (error) {
+        } catch (error: any) {
           console.error('[Backend listByUser] ❌ ERROR:', error);
+          console.error('[Backend listByUser] ❌ Error message:', error.message);
+          console.error('[Backend listByUser] ❌ Error stack:', error.stack);
+          if (error.sql) {
+            console.error('[Backend listByUser] ❌ SQL:', error.sql);
+          }
           throw error;
         }
       }),
