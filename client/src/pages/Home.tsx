@@ -7,6 +7,7 @@ import { VideoEditorV2 } from '@/components/VideoEditorV2';
 import { ProcessingModal } from '@/components/ProcessingModal';
 import MergeProgressModal from '@/components/MergeProgressModal';
 import MergeFinalProgressModal from '@/components/MergeFinalProgressModal';
+import DownloadZipProgressModal from '@/components/DownloadZipProgressModal';
 import { trpc } from '../lib/trpc';
 import mammoth from 'mammoth';
 import { Button } from "@/components/ui/button";
@@ -855,6 +856,20 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     hookName: string;
     bodyName: string;
   }>>([]);
+  
+  // Download ZIP progress
+  const [isDownloadingZip, setIsDownloadingZip] = useState(false);
+  const [downloadZipProgress, setDownloadZipProgress] = useState<{
+    total: number;
+    current: number;
+    status: 'downloading' | 'generating' | 'complete';
+    message: string;
+  }>({
+    total: 0,
+    current: 0,
+    status: 'downloading',
+    message: ''
+  });
   
   // Persist cache to localStorage whenever it changes
   useEffect(() => {
@@ -8103,6 +8118,15 @@ const handlePrepareForMerge = async () => {
             setIsMergingFinalVideos(false);
           }
         }}
+      />
+      
+      {/* Download ZIP Progress Modal */}
+      <DownloadZipProgressModal
+        open={isDownloadingZip}
+        total={downloadZipProgress.total}
+        current={downloadZipProgress.current}
+        status={downloadZipProgress.status}
+        message={downloadZipProgress.message}
       />
       
       {/* Trimming Modal for Step 8 → Step 9 */}
@@ -15651,33 +15675,14 @@ const handlePrepareForMerge = async () => {
                             const folderName = firstVideo.videoName.replace(/_HOOK\d+_/, '_');
                             const totalVideos = finalVideos.length;
                             
-                            // Show progress dialog
-                            const progressDialog = document.createElement('div');
-                            progressDialog.style.cssText = `
-                              position: fixed;
-                              top: 50%;
-                              left: 50%;
-                              transform: translate(-50%, -50%);
-                              background: white;
-                              padding: 30px;
-                              border-radius: 12px;
-                              box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-                              z-index: 10000;
-                              min-width: 400px;
-                            `;
-                            progressDialog.innerHTML = `
-                              <div style="text-align: center;">
-                                <h3 style="font-size: 20px; font-weight: bold; margin-bottom: 20px;">📦 Downloading Videos</h3>
-                                <div style="background: #e5e7eb; border-radius: 8px; height: 30px; overflow: hidden; margin-bottom: 15px;">
-                                  <div id="progress-bar" style="background: linear-gradient(90deg, #10b981, #059669); height: 100%; width: 0%; transition: width 0.3s;"></div>
-                                </div>
-                                <p id="progress-text" style="font-size: 16px; color: #6b7280;">0 / ${totalVideos} videos (0%)</p>
-                              </div>
-                            `;
-                            document.body.appendChild(progressDialog);
-                            
-                            const progressBar = document.getElementById('progress-bar')!;
-                            const progressText = document.getElementById('progress-text')!;
+                            // Show progress modal
+                            setIsDownloadingZip(true);
+                            setDownloadZipProgress({
+                              total: totalVideos,
+                              current: 0,
+                              status: 'downloading',
+                              message: 'Downloading videos in parallel...'
+                            });
                             
                             // Dynamically import JSZip
                             const JSZip = (await import('jszip')).default;
@@ -15694,9 +15699,10 @@ const handlePrepareForMerge = async () => {
                                 
                                 // Update progress
                                 completedCount++;
-                                const percent = Math.round((completedCount / totalVideos) * 100);
-                                progressBar.style.width = `${percent}%`;
-                                progressText.textContent = `${completedCount} / ${totalVideos} videos (${percent}%)`;
+                                setDownloadZipProgress(prev => ({
+                                  ...prev,
+                                  current: completedCount
+                                }));
                               } catch (error) {
                                 console.error(`Failed to download ${video.videoName}:`, error);
                               }
@@ -15705,7 +15711,11 @@ const handlePrepareForMerge = async () => {
                             await Promise.all(downloadPromises);
                             
                             // Update progress: Generating ZIP
-                            progressText.textContent = 'Generating ZIP file...';
+                            setDownloadZipProgress(prev => ({
+                              ...prev,
+                              status: 'generating',
+                              message: 'Generating ZIP file...'
+                            }));
                             
                             // Generate ZIP and download
                             const zipBlob = await zip.generateAsync({ type: 'blob' });
@@ -15714,16 +15724,23 @@ const handlePrepareForMerge = async () => {
                             link.download = `${folderName}.zip`;
                             link.click();
                             
-                            // Remove progress dialog
-                            document.body.removeChild(progressDialog);
+                            // Complete
+                            setDownloadZipProgress(prev => ({
+                              ...prev,
+                              status: 'complete',
+                              message: 'Download complete!'
+                            }));
+                            
+                            // Close modal after 1 second
+                            setTimeout(() => {
+                              setIsDownloadingZip(false);
+                            }, 1000);
                             
                             toast.success(`🎉 All ${totalVideos} videos downloaded!`);
                           } catch (error) {
                             console.error('ZIP download failed:', error);
                             toast.error('Failed to create ZIP archive');
-                            // Remove progress dialog on error
-                            const dialog = document.querySelector('div[style*="z-index: 10000"]');
-                            if (dialog) document.body.removeChild(dialog);
+                            setIsDownloadingZip(false);
                           }
                         }}
                         className="bg-green-600 hover:bg-green-700 px-12 py-8 text-xl font-bold shadow-xl"
