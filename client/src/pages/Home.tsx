@@ -1047,6 +1047,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           
           console.log(`[Character USED/UNUSED] Session ${session.id}: characterId=${session.characterId}, videos=${Array.isArray(videos) ? videos.length : 0}, hasGenerated=${hasGeneratedVideos}`);
           
+          if (Array.isArray(videos) && videos.length > 0) {
+            const videoStatuses = videos.map((v: any) => v.status).filter(Boolean);
+            console.log(`[Character USED/UNUSED] Session ${session.id} video statuses:`, videoStatuses.slice(0, 10)); // Show first 10
+          }
+          
           if (hasGeneratedVideos) {
             charactersWithVideos.add(session.characterId);
             console.log(`[Character USED/UNUSED] ✅ Marked character ${session.characterId} as USED`);
