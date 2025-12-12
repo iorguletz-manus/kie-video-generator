@@ -962,6 +962,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     { emotionalAngleId: selectedEmotionalAngleId! },
     { enabled: !!selectedEmotionalAngleId }
   );
+  
+  // Log ADs returned from query
+  React.useEffect(() => {
+    if (ads.length > 0) {
+      console.log('[AD Dropdown] 📋 ADs from query:', ads.map(ad => ({ id: ad.id, name: ad.name, emotionalAngleId: ad.emotionalAngleId, userId: ad.userId })));
+    }
+  }, [ads]);
   const { data: categoryCharacters = [], refetch: refetchCharacters } = trpc.categoryCharacters.list.useQuery({
     userId: localCurrentUser.id,
   });
@@ -9890,7 +9897,11 @@ const handlePrepareForMerge = async () => {
                             toast.success('Ad created!');
                           }
                         } else {
-                          setSelectedAdId(parseInt(value));
+                          const adId = parseInt(value);
+                          const selectedAd = ads.find(ad => ad.id === adId);
+                          console.log('[AD Dropdown] 🎯 User selected AD:', { id: adId, name: selectedAd?.name, emotionalAngleId: selectedAd?.emotionalAngleId, userId: selectedAd?.userId });
+                          console.log('[AD Dropdown] 📌 Setting selectedAdId to:', adId);
+                          setSelectedAdId(adId);
                         }
                       }}
                     >
