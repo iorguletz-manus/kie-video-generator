@@ -1034,6 +1034,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     console.log('[Character USED/UNUSED] Sessions for current AD:', currentAdSessions.length);
     
     currentAdSessions.forEach(session => {
+      console.log(`[Character USED/UNUSED] 🔎 Checking session ${session.id}: characterId=${session.characterId}, videoResults type=${typeof session.videoResults}, videoResults is null=${session.videoResults === null}`);
+      
       if (session.characterId && session.videoResults) {
         try {
           const videos = typeof session.videoResults === 'string' 
