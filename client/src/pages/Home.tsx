@@ -970,6 +970,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // Get all context sessions to determine UNUSED vs USED characters
   const { data: allContextSessions = [] } = trpc.contextSessions.listByUser.useQuery({
     userId: localCurrentUser.id,
+  }, {
+    staleTime: 0, // Always fetch fresh data
+    cacheTime: 0, // Don't cache results
+    refetchOnMount: true, // Refetch on component mount
+    refetchOnWindowFocus: false, // Don't refetch on window focus
   });
   
   // Log query results
