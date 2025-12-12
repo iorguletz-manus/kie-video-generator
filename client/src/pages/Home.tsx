@@ -971,6 +971,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const { data: allContextSessions = [] } = trpc.contextSessions.listByUser.useQuery({
     userId: localCurrentUser.id,
   });
+  
+  // Log query results
+  useEffect(() => {
+    console.log('[Context Sessions Query] localCurrentUser.id:', localCurrentUser.id);
+    console.log('[Context Sessions Query] allContextSessions.length:', allContextSessions.length);
+    console.log('[Context Sessions Query] allContextSessions:', allContextSessions.map(s => ({ id: s.id, userId: s.userId, adId: s.adId, characterId: s.characterId })));
+  }, [allContextSessions, localCurrentUser.id]);
 
   // Get latest context session for restoring selections on mount
   const { data: latestContextSession } = trpc.contextSessions.getLatest.useQuery({
