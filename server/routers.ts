@@ -1468,6 +1468,8 @@ export const appRouter = router({
           console.log('[Backend listByUser] 💾 Database connection OK, executing query...');
           
           // Select ID columns + videoResults for character USED/UNUSED detection
+          // NOTE: Removed ORDER BY to avoid "Out of sort memory" error with large videoResults JSON
+          // Frontend will handle sorting if needed
           const results = await db.select({
             id: contextSessions.id,
             userId: contextSessions.userId,
@@ -1480,8 +1482,7 @@ export const appRouter = router({
             updatedAt: contextSessions.updatedAt,
           })
             .from(contextSessions)
-            .where(eq(contextSessions.userId, input.userId))
-            .orderBy(desc(contextSessions.updatedAt));
+            .where(eq(contextSessions.userId, input.userId));
           
           console.log('[Backend listByUser] 📊 Query completed! Found', results.length, 'sessions for userId', input.userId);
           
