@@ -9491,21 +9491,20 @@ const handlePrepareForMerge = async () => {
                     const history = JSON.parse(historyStr);
                     console.log('[AUTO SELECT HISTORY] Loaded history:', history);
                     
-                    // Set all selections at once
+                    // Set selections (without Character)
                     setSelectedTamId(history.tamId);
                     setSelectedCoreBeliefId(history.coreBeliefId);
                     setSelectedEmotionalAngleId(history.emotionalAngleId);
                     setSelectedAdId(history.adId);
-                    setSelectedCharacterId(history.characterId);
+                    setSelectedCharacterId(null); // Don't select character
                     
                     // Get names for toast message
                     const tam = tams.find(t => t.id === history.tamId);
                     const cb = coreBeliefs.find(c => c.id === history.coreBeliefId);
                     const ea = emotionalAngles.find(e => e.id === history.emotionalAngleId);
                     const ad = ads.find(a => a.id === history.adId);
-                    const char = categoryCharacters.find(c => c.id === history.characterId);
                     
-                    toast.success(`📜 Loaded from history: ${tam?.name || 'TAM'} → ${cb?.name || 'CB'} → ${ea?.name || 'EA'} → ${ad?.name || 'AD'} → ${char?.name || 'Character'}`);
+                    toast.success(`📜 Loaded from history: ${tam?.name || 'TAM'} → ${cb?.name || 'CB'} → ${ea?.name || 'EA'} → ${ad?.name || 'AD'}`);
                   } catch (error: any) {
                     console.error('[AUTO SELECT HISTORY] Error loading history:', error);
                     toast.error('Failed to load selection history');
