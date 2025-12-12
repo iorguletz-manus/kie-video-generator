@@ -1453,39 +1453,52 @@ export const appRouter = router({
     listByUser: publicProcedure
       .input(z.object({ userId: z.number() }))
       .query(async ({ input }) => {
-        console.log('[Backend listByUser] 🔍 Query started with userId:', input.userId);
-        
-        const db = await getDb();
-        if (!db) {
-          throw new TRPCError({
-            code: 'INTERNAL_SERVER_ERROR',
-            message: 'Database not available',
-          });
+        try {
+          console.log('[Backend listByUser] 🔍 Query started with userId:', input.userId);
+          
+          const db = await getDb();
+          if (!db) {
+            console.log('[Backend listByUser] ❌ Database not available');
+            throw new TRPCError({
+              code: 'INTERNAL_SERVER_ERROR',
+              message: 'Database not available',
+            });
+          }
+          
+          console.log('[Backend listByUser] 💾 Database connection OK, executing query...');
+          
+          // Select ID columns + videoResults for character USED/UNUSED detection
+          const results = await db.select({
+            id: contextSessions.id,
+            userId: contextSessions.userId,
+            tamId: contextSessions.tamId,
+            coreBeliefId: contextSessions.coreBeliefId,
+            emotionalAngleId: contextSessions.emotionalAngleId,
+            adId: contextSessions.adId,
+            characterId: contextSessions.characterId,
+            videoResults: contextSessions.videoResults,
+            updatedAt: contextSessions.updatedAt,
+          })
+            .from(contextSessions)
+            .where(eq(contextSessions.userId, input.userId))
+            .orderBy(desc(contextSessions.updatedAt));
+          
+          console.log('[Backend listByUser] 📊 Query completed! Found', results.length, 'sessions for userId', input.userId);
+          
+          if (results.length > 0) {
+            results.forEach(s => {
+              console.log(`  - Session ${s.id}: userId=${s.userId}, tamId=${s.tamId}, adId=${s.adId}, characterId=${s.characterId}, hasVideoResults=${!!s.videoResults}, videoResultsType=${typeof s.videoResults}`);
+            });
+          } else {
+            console.log('[Backend listByUser] ⚠️ No sessions found for userId', input.userId);
+          }
+          
+          console.log('[Backend listByUser] ✅ Returning', results.length, 'results to frontend');
+          return results;
+        } catch (error) {
+          console.error('[Backend listByUser] ❌ ERROR:', error);
+          throw error;
         }
-        
-        // Select ID columns + videoResults for character USED/UNUSED detection
-        const results = await db.select({
-          id: contextSessions.id,
-          userId: contextSessions.userId,
-          tamId: contextSessions.tamId,
-          coreBeliefId: contextSessions.coreBeliefId,
-          emotionalAngleId: contextSessions.emotionalAngleId,
-          adId: contextSessions.adId,
-          characterId: contextSessions.characterId,
-          videoResults: contextSessions.videoResults,
-          updatedAt: contextSessions.updatedAt,
-        })
-          .from(contextSessions)
-          .where(eq(contextSessions.userId, input.userId))
-          .orderBy(desc(contextSessions.updatedAt));
-        
-        console.log('[Backend listByUser] 📊 Found', results.length, 'sessions for userId', input.userId);
-        results.forEach(s => {
-          console.log(`  - Session ${s.id}: userId=${s.userId}, adId=${s.adId}, characterId=${s.characterId}, hasVideoResults=${!!s.videoResults}, videoResultsType=${typeof s.videoResults}`);
-        });
-        
-        console.log('[Backend listByUser] ✅ Returning results to frontend');
-        return results;
       }),
 
     // Get the most recent context session for a user (sorted by updatedAt)
@@ -1510,6 +1523,7 @@ export const appRouter = router({
     get: publicProcedure
       .input(z.object({
         userId: z.number(),
+        tamId: z.number().optional().nullable(), // Optional tamId for unique identification
         coreBeliefId: z.number(),
         emotionalAngleId: z.number(),
         adId: z.number(),

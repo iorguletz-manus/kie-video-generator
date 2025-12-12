@@ -589,6 +589,7 @@ export async function deleteCharacter(id: number) {
 
 export async function getContextSession(params: {
   userId: number;
+  tamId?: number | null; // Optional for backward compatibility
   coreBeliefId: number;
   emotionalAngleId: number;
   adId: number;
@@ -597,18 +598,24 @@ export async function getContextSession(params: {
   const db = await getDb();
   if (!db) return null;
 
+  // Build where conditions - include tamId if provided
+  const conditions = [
+    eq(contextSessions.userId, params.userId),
+    eq(contextSessions.coreBeliefId, params.coreBeliefId),
+    eq(contextSessions.emotionalAngleId, params.emotionalAngleId),
+    eq(contextSessions.adId, params.adId),
+    eq(contextSessions.characterId, params.characterId)
+  ];
+  
+  // Add tamId condition if provided
+  if (params.tamId !== undefined && params.tamId !== null) {
+    conditions.push(eq(contextSessions.tamId, params.tamId));
+  }
+
   const result = await db
     .select()
     .from(contextSessions)
-    .where(
-      and(
-        eq(contextSessions.userId, params.userId),
-        eq(contextSessions.coreBeliefId, params.coreBeliefId),
-        eq(contextSessions.emotionalAngleId, params.emotionalAngleId),
-        eq(contextSessions.adId, params.adId),
-        eq(contextSessions.characterId, params.characterId)
-      )
-    )
+    .where(and(...conditions))
     .limit(1);
 
   return result[0] || null;
@@ -630,6 +637,7 @@ export async function upsertContextSession(session: InsertContextSession) {
   // Check if session exists
   const existing = await getContextSession({
     userId: session.userId,
+    tamId: session.tamId, // Include tamId for unique identification
     coreBeliefId: session.coreBeliefId,
     emotionalAngleId: session.emotionalAngleId,
     adId: session.adId,
