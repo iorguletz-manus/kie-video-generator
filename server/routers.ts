@@ -1453,6 +1453,8 @@ export const appRouter = router({
     listByUser: publicProcedure
       .input(z.object({ userId: z.number() }))
       .query(async ({ input }) => {
+        console.log('[Backend listByUser] 🔍 Query started with userId:', input.userId);
+        
         const db = await getDb();
         if (!db) {
           throw new TRPCError({
@@ -1460,8 +1462,9 @@ export const appRouter = router({
             message: 'Database not available',
           });
         }
+        
         // Select ID columns + videoResults for character USED/UNUSED detection
-        return await db.select({
+        const results = await db.select({
           id: contextSessions.id,
           userId: contextSessions.userId,
           tamId: contextSessions.tamId,
@@ -1475,6 +1478,14 @@ export const appRouter = router({
           .from(contextSessions)
           .where(eq(contextSessions.userId, input.userId))
           .orderBy(desc(contextSessions.updatedAt));
+        
+        console.log('[Backend listByUser] 📊 Found', results.length, 'sessions for userId', input.userId);
+        results.forEach(s => {
+          console.log(`  - Session ${s.id}: userId=${s.userId}, adId=${s.adId}, characterId=${s.characterId}, hasVideoResults=${!!s.videoResults}, videoResultsType=${typeof s.videoResults}`);
+        });
+        
+        console.log('[Backend listByUser] ✅ Returning results to frontend');
+        return results;
       }),
 
     // Get the most recent context session for a user (sorted by updatedAt)
