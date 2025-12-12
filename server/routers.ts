@@ -1260,6 +1260,22 @@ export const appRouter = router({
         });
         return { success: true, id: result[0].insertId };
       }),
+    
+    delete: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        // Check if TAM has Core Beliefs
+        const coreBeliefs = await getCoreBeliefsByTamId(input.id);
+        if (coreBeliefs.length > 0) {
+          throw new TRPCError({
+            code: 'PRECONDITION_FAILED',
+            message: `Cannot delete TAM: It has ${coreBeliefs.length} Core Belief(s). Delete all Core Beliefs first.`,
+          });
+        }
+        
+        await deleteTam(input.id);
+        return { success: true };
+      }),
   }),
 
   // Core Beliefs router
@@ -1304,6 +1320,15 @@ export const appRouter = router({
     delete: publicProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
+        // Check if Core Belief has Emotional Angles
+        const emotionalAngles = await getEmotionalAnglesByCoreBeliefId(input.id);
+        if (emotionalAngles.length > 0) {
+          throw new TRPCError({
+            code: 'PRECONDITION_FAILED',
+            message: `Cannot delete Core Belief: It has ${emotionalAngles.length} Emotional Angle(s). Delete all Emotional Angles first.`,
+          });
+        }
+        
         await deleteCoreBelief(input.id);
         return { success: true };
       }),
@@ -1351,6 +1376,15 @@ export const appRouter = router({
     delete: publicProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
+        // Check if Emotional Angle has ADs
+        const ads = await getAdsByEmotionalAngleId(input.id);
+        if (ads.length > 0) {
+          throw new TRPCError({
+            code: 'PRECONDITION_FAILED',
+            message: `Cannot delete Emotional Angle: It has ${ads.length} AD(s). Delete all ADs first.`,
+          });
+        }
+        
         await deleteEmotionalAngle(input.id);
         return { success: true };
       }),
