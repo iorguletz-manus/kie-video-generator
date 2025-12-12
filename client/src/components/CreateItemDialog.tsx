@@ -13,19 +13,43 @@ import { Label } from "@/components/ui/label";
 
 interface CreateItemDialogProps {
   open: boolean;
+  type: 'tam' | 'coreBelief' | 'emotionalAngle' | 'ad' | 'character' | null;
   onOpenChange: (open: boolean) => void;
-  title: string;
-  description?: string;
-  placeholder: string;
   onConfirm: (name: string) => void;
 }
 
+const TYPE_CONFIG = {
+  tam: {
+    title: 'Create New TAM',
+    label: 'TAM name',
+    placeholder: 'Enter TAM name',
+  },
+  coreBelief: {
+    title: 'Create New Core Belief',
+    label: 'Core Belief name',
+    placeholder: 'Enter Core Belief name',
+  },
+  emotionalAngle: {
+    title: 'Create New Emotional Angle',
+    label: 'Emotional Angle name',
+    placeholder: 'Enter Emotional Angle name',
+  },
+  ad: {
+    title: 'Create New AD',
+    label: 'AD name',
+    placeholder: 'Enter AD name',
+  },
+  character: {
+    title: 'Create New Character',
+    label: 'Character name',
+    placeholder: 'Enter Character name',
+  },
+};
+
 export function CreateItemDialog({
   open,
+  type,
   onOpenChange,
-  title,
-  description,
-  placeholder,
   onConfirm,
 }: CreateItemDialogProps) {
   const [name, setName] = useState('');
@@ -44,19 +68,22 @@ export function CreateItemDialog({
     }
   };
 
+  const config = type ? TYPE_CONFIG[type] : null;
+  
+  if (!config) return null;
+  
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          {description && <DialogDescription>{description}</DialogDescription>}
+          <DialogTitle>{config.title}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Name</Label>
+            <Label htmlFor="name">{config.label}</Label>
             <Input
               id="name"
-              placeholder={placeholder}
+              placeholder={config.placeholder}
               value={name}
               onChange={(e) => setName(e.target.value)}
               onKeyDown={handleKeyDown}

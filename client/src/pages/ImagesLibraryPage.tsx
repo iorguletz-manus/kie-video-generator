@@ -35,6 +35,7 @@ interface ImagesLibraryPageProps {
 
 export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProps) {
   const [, setLocation] = useLocation();
+  const utils = trpc.useUtils();
   
   // Safety check: if currentUser is null, show loading
   if (!currentUser) {
@@ -155,10 +156,16 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
   });
 
   const updateOrderMutation = trpc.imageLibrary.updateOrder.useMutation({
-    onSuccess: () => {
-      refetch();
+    onSuccess: async () => {
+      console.log('[MOVE ORDER] ✅ Backend update successful, refetching...');
+      // Small delay to ensure DB write completes
+      await new Promise(resolve => setTimeout(resolve, 100));
+      await refetch();
+      console.log('[MOVE ORDER] ✅ Refetch complete');
+      toast.success('Image order updated!');
     },
     onError: (error) => {
+      console.error('[MOVE ORDER] ❌ Backend update failed:', error);
       toast.error(`Failed to update order: ${error.message}`);
     },
   });
@@ -661,6 +668,26 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
       displayOrder: minDisplayOrder + index, // ✅ Preserve global order
     }));
     console.log('[MOVE ORDER] 📤 Sending to backend:', imageOrders);
+
+    // Optimistic update: Update cache immediately for instant UI feedback
+    const previousData = utils.imageLibrary.list.getData({ userId: currentUser.id });
+    console.log('[MOVE ORDER] 💾 Previous data:', previousData?.length, 'images');
+    
+    // Create new array with updated displayOrder
+    const updatedAllImages = allImages.map(img => {
+      const newOrder = imageOrders.find(o => o.id === img.id);
+      if (newOrder) {
+        return { ...img, displayOrder: newOrder.displayOrder };
+      }
+      return img;
+    });
+    
+    // Sort by displayOrder
+    updatedAllImages.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+    console.log('[MOVE ORDER] 🔄 Optimistically updated cache');
+    
+    // Set optimistic data
+    utils.imageLibrary.list.setData({ userId: currentUser.id }, updatedAllImages);
 
     updateOrderMutation.mutate({ imageOrders });
 

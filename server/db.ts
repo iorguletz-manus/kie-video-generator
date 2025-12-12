@@ -242,9 +242,12 @@ export async function updateUserImage(id: number, data: Partial<InsertUserImage>
   }
 
   try {
-    await db.update(userImages).set(data).where(eq(userImages.id, id));
+    console.log(`[Database] 🔄 Updating user image ${id} with data:`, data);
+    const result = await db.update(userImages).set(data).where(eq(userImages.id, id));
+    console.log(`[Database] ✅ User image ${id} updated successfully`);
+    return result;
   } catch (error) {
-    console.error("[Database] Failed to update user image:", error);
+    console.error("[Database] ❌ Failed to update user image:", error);
     throw error;
   }
 }

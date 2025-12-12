@@ -9396,11 +9396,14 @@ const handlePrepareForMerge = async () => {
                     setSelectedAdId(null);
                     setSelectedCharacterId(null);
                     
+                    // Wait for refetch to complete and get fresh data
                     await new Promise(resolve => setTimeout(resolve, 100));
-                    await refetchCoreBeliefs();
+                    const cbResult = await refetchCoreBeliefs();
+                    const freshCoreBeliefs = cbResult.data || [];
+                    console.log('[AUTO SELECT] Fetched Core Beliefs:', freshCoreBeliefs.length);
                     
-                    // Select first Core Belief
-                    const firstCoreBeliefs = coreBeliefs.filter(cb => cb.tamId === firstTam.id);
+                    // Select first Core Belief from fresh data
+                    const firstCoreBeliefs = freshCoreBeliefs.filter(cb => cb.tamId === firstTam.id);
                     if (firstCoreBeliefs.length > 0) {
                       const firstCoreBelief = firstCoreBeliefs[0];
                       console.log('[AUTO SELECT] Selecting Core Belief:', firstCoreBelief.name);
@@ -9409,11 +9412,14 @@ const handlePrepareForMerge = async () => {
                       setSelectedAdId(null);
                       setSelectedCharacterId(null);
                       
+                      // Wait for refetch to complete and get fresh data
                       await new Promise(resolve => setTimeout(resolve, 100));
-                      await refetchEmotionalAngles();
+                      const eaResult = await refetchEmotionalAngles();
+                      const freshEmotionalAngles = eaResult.data || [];
+                      console.log('[AUTO SELECT] Fetched Emotional Angles:', freshEmotionalAngles.length);
                       
-                      // Select first Emotional Angle
-                      const firstEmotionalAngles = emotionalAngles.filter(ea => ea.coreBeliefId === firstCoreBelief.id);
+                      // Select first Emotional Angle from fresh data
+                      const firstEmotionalAngles = freshEmotionalAngles.filter(ea => ea.coreBeliefId === firstCoreBelief.id);
                       if (firstEmotionalAngles.length > 0) {
                         const firstEmotionalAngle = firstEmotionalAngles[0];
                         console.log('[AUTO SELECT] Selecting Emotional Angle:', firstEmotionalAngle.name);
@@ -9421,11 +9427,14 @@ const handlePrepareForMerge = async () => {
                         setSelectedAdId(null);
                         setSelectedCharacterId(null);
                         
+                        // Wait for refetch to complete and get fresh data
                         await new Promise(resolve => setTimeout(resolve, 100));
-                        await refetchAds();
+                        const adsResult = await refetchAds();
+                        const freshAds = adsResult.data || [];
+                        console.log('[AUTO SELECT] Fetched ADs:', freshAds.length);
                         
-                        // Select first Ad
-                        const firstAds = ads.filter(ad => ad.emotionalAngleId === firstEmotionalAngle.id);
+                        // Select first Ad from fresh data
+                        const firstAds = freshAds.filter(ad => ad.emotionalAngleId === firstEmotionalAngle.id);
                         if (firstAds.length > 0) {
                           const firstAd = firstAds[0];
                           console.log('[AUTO SELECT] Selecting Ad:', firstAd.name);
