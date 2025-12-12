@@ -30,7 +30,7 @@ export default function CategoryManagementPage({ currentUser }: CategoryManageme
   const { data: coreBeliefs = [], refetch: refetchCoreBeliefs } = trpc.coreBeliefs.list.useQuery({ userId: currentUser.id });
   const { data: emotionalAngles = [], refetch: refetchEmotionalAngles } = trpc.emotionalAngles.list.useQuery({ userId: currentUser.id });
   const { data: ads = [], refetch: refetchAds } = trpc.ads.list.useQuery({ userId: currentUser.id });
-  const { data: characters = [] } = trpc.characters.list.useQuery({ userId: currentUser.id });
+  const { data: characters = [] } = trpc.categoryCharacters.list.useQuery({ userId: currentUser.id });
   const { data: contextSessions = [] } = trpc.contextSessions.listByUser.useQuery({ userId: currentUser.id });
 
   // Debug: Log data to see what we're getting
