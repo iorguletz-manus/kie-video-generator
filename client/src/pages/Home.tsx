@@ -15575,7 +15575,17 @@ const handlePrepareForMerge = async () => {
                   <>
                     {/* Videos Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {finalVideos.map((video, index) => (
+                      {finalVideos
+                        .slice()
+                        .sort((a, b) => {
+                          // Extract hook number from video name (e.g., HOOK2 -> 2)
+                          const aMatch = a.videoName.match(/HOOK(\d+)/);
+                          const bMatch = b.videoName.match(/HOOK(\d+)/);
+                          const aNum = aMatch ? parseInt(aMatch[1]) : 999;
+                          const bNum = bMatch ? parseInt(bMatch[1]) : 999;
+                          return aNum - bNum;
+                        })
+                        .map((video, index) => (
                         <div key={index} className="space-y-3 p-4 border border-gray-300 rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow">
                           {/* Video Name */}
                           <p className="text-sm font-semibold text-gray-900 truncate">
@@ -15585,10 +15595,12 @@ const handlePrepareForMerge = async () => {
                           {/* Video Player */}
                           <div className="relative bg-black rounded-lg overflow-hidden" style={{ aspectRatio: '9/16' }}>
                             <video
+                              key={video.cdnUrl}  {/* Force re-render when URL changes */}
                               src={video.cdnUrl}
                               className="absolute top-0 left-0 w-full h-full object-contain"
                               controls
                               playsInline
+                              preload="metadata"  {/* Load metadata to show duration */}
                             />
                           </div>
                           
