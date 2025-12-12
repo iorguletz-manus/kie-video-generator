@@ -2016,6 +2016,7 @@ export async function mergeVideosWithFilterComplex(
             '-c:v', 'libx264',
             '-crf', '18',  // High quality (18 = visually lossless)
             '-preset', 'medium',
+            '-movflags', 'faststart',  // Move moov atom to start for Chrome compatibility
             '-c:a', 'aac',
             '-ar', '48000',
             '-ac', '2'
@@ -2291,6 +2292,7 @@ export async function mergeVideosSimple(
             '-c:v', 'libx264',
             '-preset', 'veryfast',
             '-crf', '18',
+            '-movflags', 'faststart',  // Move moov atom to start for Chrome compatibility
             '-c:a', 'aac',
             '-b:a', '192k'
           ]
