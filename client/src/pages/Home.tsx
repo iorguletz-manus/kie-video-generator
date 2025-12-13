@@ -3591,37 +3591,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       }
     }
     
-    // Save to database BEFORE setFinalVideos to ensure completion
-    console.log('[Step 10→Step 11] 💾 Saving finalVideos to DB:', results);
-    
-    try {
-      await upsertContextSessionMutation.mutateAsync({
-        userId: localCurrentUser.id,
-        tamId: selectedTamId,
-        coreBeliefId: selectedCoreBeliefId,
-        emotionalAngleId: selectedEmotionalAngleId,
-        adId: selectedAdId,
-        characterId: selectedCharacterId,
-        currentStep: 11,
-        rawTextAd,
-        processedTextAd,
-        adLines,
-        prompts,
-        images,
-        combinations,
-        deletedCombinations,
-        videoResults,
-        reviewHistory,
-        hookMergedVideos,
-        bodyMergedVideoUrl,
-        finalVideos: results, // Save results directly
-      });
-      console.log('[Step 10→Step 11] ✅ finalVideos saved to database');
-    } catch (error) {
-      console.error('[Step 10→Step 11] ❌ Failed to save finalVideos:', error);
-    }
-    
-    // Update state AFTER database save - MERGE with existing finalVideos
+    // Update state FIRST - MERGE with existing finalVideos
+    let mergedFinalVideos: typeof results = [];
     setFinalVideos(prevFinalVideos => {
       console.log('[Step 10→Step 11] 🔄 Merging finalVideos...');
       console.log('  Previous finalVideos:', prevFinalVideos.length, 'videos');
@@ -3640,9 +3611,36 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       // Return merged array
       const mergedArray = Array.from(existingMap.values());
       console.log('  Final merged array:', mergedArray.length, 'videos');
+      mergedFinalVideos = mergedArray; // Store for database save
       return mergedArray;
     });
     
+    // Save to database AFTER merge - use merged array
+    try {
+      await upsertContextSessionMutation.mutateAsync({
+        userId: localCurrentUser.id,
+        tamId: selectedTamId!,
+        coreBeliefId: selectedCoreBeliefId!,
+        emotionalAngleId: selectedEmotionalAngleId!,
+        adId: selectedAdId!,
+        characterId: selectedCharacterId!,
+        rawTextAd,
+        processedTextAd,
+        adLines,
+        prompts,
+        images,
+        combinations,
+        deletedCombinations,
+        videoResults,
+        reviewHistory,
+        hookMergedVideos,
+        bodyMergedVideoUrl,
+        finalVideos: mergedFinalVideos, // Save MERGED array, not just results
+      });
+      console.log('[Step 10→Step 11] ✅ Merged finalVideos saved to database:', mergedFinalVideos.length, 'videos');
+    } catch (error) {
+      console.error('[Step 10→Step 11] ❌ Failed to save finalVideos:', error);
+    }   
     // Update final status
     const finalStatus = failedCount === 0 ? 'complete' : 'partial';
     setMergeFinalProgress(prev => ({
