@@ -1044,6 +1044,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
   );
 
+  // Computed value: finalVideos from database (single source of truth for Step 10 & 11)
+  const finalVideosFromDB = useMemo(() => {
+    if (!contextSession?.finalVideos) return [];
+    const parsed = typeof contextSession.finalVideos === 'string'
+      ? JSON.parse(contextSession.finalVideos)
+      : contextSession.finalVideos;
+    return parsed || [];
+  }, [contextSession?.finalVideos]);
+
   // Sort characters: UNUSED first, USED last
   // USED = character has generated videos (status: success/pending/failed) IN CURRENT AD
   const sortedCategoryCharacters = useMemo(() => {
@@ -3591,31 +3600,26 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       }
     }
     
-    // Update state FIRST - MERGE with existing finalVideos
-    let mergedFinalVideos: typeof results = [];
-    setFinalVideos(prevFinalVideos => {
-      console.log('[Step 10→Step 11] 🔄 Merging finalVideos...');
-      console.log('  Previous finalVideos:', prevFinalVideos.length, 'videos');
-      console.log('  New results:', results.length, 'videos');
-      
-      // Create a map of existing videos by videoName
-      const existingMap = new Map(prevFinalVideos.map(v => [v.videoName, v]));
-      
-      // Add/replace with new results
-      results.forEach(newVideo => {
-        const action = existingMap.has(newVideo.videoName) ? 'REPLACED' : 'ADDED';
-        console.log(`  ${action}: ${newVideo.videoName}`);
-        existingMap.set(newVideo.videoName, newVideo);
-      });
-      
-      // Return merged array
-      const mergedArray = Array.from(existingMap.values());
-      console.log('  Final merged array:', mergedArray.length, 'videos');
-      mergedFinalVideos = mergedArray; // Store for database save
-      return mergedArray;
+    // MERGE with existing finalVideos from DB
+    console.log('[Step 10→Step 11] 🔄 Merging finalVideos...');
+    console.log('  Previous finalVideos from DB:', finalVideosFromDB.length, 'videos');
+    console.log('  New results:', results.length, 'videos');
+    
+    // Create a map of existing videos by videoName
+    const existingMap = new Map(finalVideosFromDB.map(v => [v.videoName, v]));
+    
+    // Add/replace with new results
+    results.forEach(newVideo => {
+      const action = existingMap.has(newVideo.videoName) ? 'REPLACED' : 'ADDED';
+      console.log(`  ${action}: ${newVideo.videoName}`);
+      existingMap.set(newVideo.videoName, newVideo);
     });
     
-    // Save to database AFTER merge - use merged array
+    // Get merged array
+    const mergedFinalVideos = Array.from(existingMap.values());
+    console.log('  Final merged array:', mergedFinalVideos.length, 'videos');
+    
+    // Save merged array to database
     try {
       await upsertContextSessionMutation.mutateAsync({
         userId: localCurrentUser.id,
@@ -3635,11 +3639,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         reviewHistory,
         hookMergedVideos,
         bodyMergedVideoUrl,
-        finalVideos: mergedFinalVideos, // Save MERGED array, not just results
+        finalVideos: mergedFinalVideos, // Save MERGED array
       });
       console.log('[Step 10→Step 11] ✅ Merged finalVideos saved to database:', mergedFinalVideos.length, 'videos');
+      
+      // Refetch from DB to update UI (single source of truth)
+      await refetchContextSession();
+      console.log('[Step 10→Step 11] 🔄 Refetched from database');
     } catch (error) {
-      console.error('[Step 10→Step 11] ❌ Failed to save finalVideos:', error);
+      console.error('[Step 10→Step 11] ❌ Failed to save/refetch finalVideos:', error);
     }   
     // Update final status
     const finalStatus = failedCount === 0 ? 'complete' : 'partial';
@@ -15665,13 +15673,13 @@ const handlePrepareForMerge = async () => {
             </CardHeader>
             <CardContent className="pt-6">
               <div className="space-y-6">
-                {finalVideos.length === 0 ? (
+                {finalVideosFromDB.length === 0 ? (
                   <p className="text-gray-600 text-center py-8">No final videos yet. Go back to Step 10 to merge videos.</p>
                 ) : (
                   <>
                     {/* Videos Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {finalVideos
+                      {finalVideosFromDB
                         .slice()
                         .sort((a, b) => {
                           // Extract hook number from video name (e.g., HOOK2 -> 2)
@@ -15738,14 +15746,14 @@ const handlePrepareForMerge = async () => {
                         onClick={async () => {
                           try {
                             // Generate folder name from first video
-                            const firstVideo = finalVideos[0];
+                            const firstVideo = finalVideosFromDB[0];
                             if (!firstVideo) {
                               toast.error('No videos to download');
                               return;
                             }
                             
                             const folderName = firstVideo.videoName.replace(/_HOOK\d+_/, '_');
-                            const totalVideos = finalVideos.length;
+                            const totalVideos = finalVideosFromDB.length;
                             
                             // Show progress modal
                             setIsDownloadingZip(true);
@@ -15763,7 +15771,7 @@ const handlePrepareForMerge = async () => {
                             // Download all videos IN PARALLEL with progress tracking
                             let completedCount = 0;
                             
-                            const downloadPromises = finalVideos.map(async (video) => {
+                            const downloadPromises = finalVideosFromDB.map(async (video) => {
                               try {
                                 const response = await fetch(video.cdnUrl);
                                 const blob = await response.blob();
@@ -15820,7 +15828,7 @@ const handlePrepareForMerge = async () => {
                         <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                         </svg>
-                        Download All Videos ({finalVideos.length})
+                        Download All Videos ({finalVideosFromDB.length})
                         <svg className="w-6 h-6 ml-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
