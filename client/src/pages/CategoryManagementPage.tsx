@@ -156,25 +156,44 @@ export default function CategoryManagementPage({ currentUser }: CategoryManageme
   };
 
   const saveEdit = async () => {
-    if (!editingId || !editingName.trim()) return;
+    if (!editingId || !editingName.trim()) {
+      console.log('[CM Save] ❌ Validation failed:', { editingId, editingName });
+      return;
+    }
+
+    console.log('[CM Save] 💾 Starting save:', { type: editingId.type, id: editingId.id, newName: editingName.trim() });
 
     try {
       if (editingId.type === 'tam') {
+        console.log('[CM Save] 📤 Calling updateTamMutation...');
         await updateTamMutation.mutateAsync({ id: editingId.id, name: editingName.trim() });
+        console.log('[CM Save] ✅ TAM updated, refetching...');
         await refetchTams();
+        console.log('[CM Save] ✅ TAMs refetched');
       } else if (editingId.type === 'coreBelief') {
+        console.log('[CM Save] 📤 Calling updateCoreBeliefMutation...');
         await updateCoreBeliefMutation.mutateAsync({ id: editingId.id, name: editingName.trim() });
+        console.log('[CM Save] ✅ Core Belief updated, refetching...');
         await refetchCoreBeliefs();
+        console.log('[CM Save] ✅ Core Beliefs refetched');
       } else if (editingId.type === 'emotionalAngle') {
+        console.log('[CM Save] 📤 Calling updateEmotionalAngleMutation...');
         await updateEmotionalAngleMutation.mutateAsync({ id: editingId.id, name: editingName.trim() });
+        console.log('[CM Save] ✅ Emotional Angle updated, refetching...');
         await refetchEmotionalAngles();
+        console.log('[CM Save] ✅ Emotional Angles refetched');
       } else if (editingId.type === 'ad') {
+        console.log('[CM Save] 📤 Calling updateAdMutation...');
         await updateAdMutation.mutateAsync({ id: editingId.id, name: editingName.trim() });
+        console.log('[CM Save] ✅ AD updated, refetching...');
         await refetchAds();
+        console.log('[CM Save] ✅ ADs refetched');
       }
+      console.log('[CM Save] ✅ Save complete!');
       toast.success("Updated successfully!");
       cancelEdit();
     } catch (error: any) {
+      console.error('[CM Save] ❌ Error:', error);
       toast.error(`Failed to update: ${error.message}`);
     }
   };

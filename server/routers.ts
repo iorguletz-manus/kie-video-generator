@@ -1265,6 +1265,16 @@ export const appRouter = router({
         return { success: true, id: result[0].insertId };
       }),
     
+    update: publicProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().min(1).max(255),
+      }))
+      .mutation(async ({ input }) => {
+        await updateTam(input.id, { name: input.name });
+        return { success: true };
+      }),
+    
     delete: publicProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
