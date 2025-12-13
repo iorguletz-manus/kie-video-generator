@@ -348,7 +348,7 @@ export default function CategoryManagementPage({ currentUser }: CategoryManageme
                 const isEditing = editingId?.type === 'tam' && editingId.id === tam.id;
 
                 return (
-                  <div key={tam.id} className={`border-l-4 border-purple-500 pl-4 rounded-lg ${isExpanded ? 'bg-purple-50/30' : ''}`}>
+                  <div key={tam.id} className="border-l-4 border-purple-500 pl-4">
                     {/* TAM */}
                     <div className="flex items-center gap-2 p-2 hover:bg-purple-50 rounded group">
                       <Button
@@ -413,7 +413,7 @@ export default function CategoryManagementPage({ currentUser }: CategoryManageme
                           const isCbEditing = editingId?.type === 'coreBelief' && editingId.id === coreBelief.id;
 
                           return (
-                            <div key={coreBelief.id} className={`border-l-4 border-blue-500 pl-4 rounded-lg ${isCbExpanded ? 'bg-blue-50/30' : ''}`}>
+                            <div key={coreBelief.id} className="border-l-4 border-blue-500 pl-4">
                               {/* Core Belief */}
                               <div className="flex items-center gap-2 p-2 hover:bg-blue-50 rounded group">
                                 <Button
@@ -478,7 +478,7 @@ export default function CategoryManagementPage({ currentUser }: CategoryManageme
                                     const isEaEditing = editingId?.type === 'emotionalAngle' && editingId.id === emotionalAngle.id;
 
                                     return (
-                                      <div key={emotionalAngle.id} className={`border-l-4 border-green-500 pl-4 rounded-lg ${isEaExpanded ? 'bg-green-50/30' : ''}`}>
+                                      <div key={emotionalAngle.id} className="border-l-4 border-green-500 pl-4">
                                         {/* Emotional Angle */}
                                         <div className="flex items-center gap-2 p-2 hover:bg-green-50 rounded group">
                                           <Button
@@ -556,7 +556,7 @@ export default function CategoryManagementPage({ currentUser }: CategoryManageme
                                               const usedCharacters = characters.filter(char => usedCharacterIds.has(char.id));
 
                                               return (
-                                                <div key={ad.id} className={`border-l-4 border-orange-500 pl-4 rounded-lg ${isAdExpanded ? 'bg-orange-50/30' : ''}`}>
+                                                <div key={ad.id} className="border-l-4 border-orange-500 pl-4">
                                                   {/* Ad */}
                                                   <div className="flex items-center gap-2 p-2 hover:bg-orange-50 rounded group">
                                                     <Button

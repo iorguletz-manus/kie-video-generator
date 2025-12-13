@@ -1283,7 +1283,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       
       // Refetch sessions to update UI
       await refetchSessions();
-      toast.success('Sesiune salvată!');
+      toast.success('Session saved!');
     } catch (error) {
       console.error('Eroare la salvare sesiune:', error);
       toast.error('Eroare la salvare sesiune');
@@ -1303,7 +1303,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       });
       
       if (!session) {
-        toast.error('Sesiune negăsită');
+        toast.error('Session not found');
         return;
       }
       
@@ -1366,10 +1366,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       // Actualizează currentSessionId pentru a sincroniza selector-ul
       setCurrentSessionId(sessionId);
       
-      toast.success(`Sesiune "${session.name}" încărcată!`);
+      toast.success(`Session "${session.name}" loaded!`);
     } catch (error) {
       console.error('Eroare la încărcare sesiune:', error);
-      toast.error('Eroare la încărcare sesiune');
+      toast.error('Error loading session');
     }
   };
   
@@ -1403,10 +1403,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       setRegenerateVariantCount(1);
       setRegenerateVariants([]);
       
-      toast.success('Sesiune ștearsă!');
+      toast.success('Session deleted!');
     } catch (error) {
       console.error('Eroare la ștergere sesiune:', error);
-      toast.error('Eroare la ștergere sesiune');
+      toast.error('Error deleting session');
     }
   };
   
@@ -2289,7 +2289,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       setAdDocument(file);
       await parseAdDocument(file);
     } else {
-      toast.error("Te rog încarcă un document .docx");
+      toast.error("Please upload a .docx document");
     }
   };
 
@@ -2357,7 +2357,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           };
           
           setPrompts(prev => [...prev, newPrompt]);
-          toast.success(`Prompt "${newPrompt.name}" încărcat`);
+          toast.success(`Prompt "${newPrompt.name}" loaded`);
         };
         reader.readAsDataURL(file);
       } catch (error: any) {
@@ -2386,13 +2386,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     const imageFiles = files.filter(file => file.type.startsWith('image/'));
     
     if (imageFiles.length === 0) {
-      toast.error('Niciun fișier imagine valid selectat');
+      toast.error('No valid image file selected');
       return;
     }
     
     // Validate character selection
     if (!selectedCharacterId) {
-      toast.error('Te rog selectează un caracter înainte de a încărca imagini');
+      toast.error('Please select a character before uploading images');
       return;
     }
     
@@ -2413,7 +2413,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
     
     if (duplicates.length > 0) {
-      toast.error(`Imaginile următoare există deja în library pentru ${characterName}: ${duplicates.join(', ')}`);
+      toast.error(`The following images already exist in library for ${characterName}: ${duplicates.join(', ')}`);
       return;
     }
     
@@ -2475,11 +2475,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       setImages(prev => [...prev, ...sortedImages]);
       setUploadingFiles([]);
       setUploadProgress(0);
-      toast.success(`${uploadedImages.length} imagini încărcate`);
+      toast.success(`${uploadedImages.length} images uploaded`);
     } catch (error: any) {
       setUploadingFiles([]);
       setUploadProgress(0);
-      toast.error(`Eroare la încărcarea imaginilor: ${error.message}`);
+      toast.error(`Error uploading images: ${error.message}`);
     }
   };
   
@@ -3827,7 +3827,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     );
     
     if (videosToTrim.length === 0) {
-      toast.error('Nu există videouri pentru tăiere!');
+      toast.error('No videos to cut!');
       setIsTrimmingModalOpen(false);
       return;
     }
@@ -5173,7 +5173,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     );
     
     if (videosToTrim.length === 0) {
-      toast.error('Nu există videouri pentru tăiere!');
+      toast.error('No videos to cut!');
       setIsTrimmingModalOpen(false);
       return;
     }
@@ -6404,11 +6404,11 @@ const handlePrepareForMerge = async () => {
   // Step 4: Create mappings
   const createMappings = async () => {
     if (adLines.length === 0) {
-      toast.error("Te rog încarcă documentul cu ad-ul mai întâi");
+      toast.error("Please upload the ad document first");
       return;
     }
     if (images.length === 0) {
-      toast.error("Te rog încarcă cel puțin o imagine");
+      toast.error("Please upload at least one image");
       return;
     }
     // Prompturile hardcodate sunt întotdeauna active, nu mai verificăm prompts.length
@@ -6557,9 +6557,9 @@ const handlePrepareForMerge = async () => {
           
           if (ctaImage && firstCTAIndex !== -1) {
             const ctaLinesCount = textLines.length - firstCTAIndex;
-            toast.success(`${newCombinations.length} combinații create. Poza CTA mapata pe secțiunea CTA și toate liniile următoare (${ctaLinesCount} linii)`);
+            toast.success(`${newCombinations.length} combinations created. CTA image mapped to CTA section and all following lines (${ctaLinesCount} lines)`);
           } else {
-            toast.success(`${newCombinations.length} combinații create cu mapare automată`);
+            toast.success(`${newCombinations.length} combinations created with automatic mapping`);
           }
         },
         onError: async (error) => {
@@ -6569,9 +6569,9 @@ const handlePrepareForMerge = async () => {
           
           if (ctaImage && firstCTAIndex !== -1) {
             const ctaLinesCount = textLines.length - firstCTAIndex;
-            toast.success(`${newCombinations.length} combinații create. Poza CTA mapata pe secțiunea CTA și toate liniile următoare (${ctaLinesCount} linii)`);
+            toast.success(`${newCombinations.length} combinations created. CTA image mapped to CTA section and all following lines (${ctaLinesCount} lines)`);
           } else {
-            toast.success(`${newCombinations.length} combinații create cu mapare automată`);
+            toast.success(`${newCombinations.length} combinations created with automatic mapping`);
           }
         },
       });
@@ -6641,14 +6641,14 @@ const handlePrepareForMerge = async () => {
       });
       
       setDeletedCombinations(prev => prev.slice(1));
-      toast.success("Combinație restaurată la poziția originală");
+      toast.success("Combination restored to original position");
     }
   };
 
   // Step 5: Generate videos
   const generateVideos = async () => {
     if (combinations.length === 0) {
-      toast.error("Nu există combinații de generat");
+      toast.error("No combinations to generate");
       return;
     }
 
@@ -6790,7 +6790,7 @@ const handlePrepareForMerge = async () => {
       toast.success(`${successCount} videouri trimise spre generare`);
       
       if (failedCount > 0) {
-        toast.error(`${failedCount} videouri au eșuat`);
+        toast.error(`${failedCount} videos failed`);
       }
       
       // SAVE TO DATABASE after generation
@@ -6818,7 +6818,7 @@ const handlePrepareForMerge = async () => {
         },
         onError: (error) => {
           console.error('[Database Save] Failed to save session:', error);
-          toast.error('Sesiunea nu a putut fi salvată în database, dar e salvată local');
+          toast.error('Session could not be saved to database, but is saved locally');
         },
       });
     } catch (error: any) {
@@ -6934,11 +6934,11 @@ const handlePrepareForMerge = async () => {
             reviewHistory,
           });
         } else if (isNewFailure) {
-          toast.error(`Video #${index + 1} a eșuat: ${errorMessage}`);
+          toast.error(`Video #${index + 1} failed: ${errorMessage}`);
         }
         // Nu mai afișăm toast pentru pending - doar UI update
       } else {
-        toast.error(`Răspuns invalid de la API: ${data.msg || 'Unknown error'}`);
+        toast.error(`Invalid response from API: ${data.msg || 'Unknown error'}`);
       }
     } catch (error: any) {
       console.error('Error checking video status:', error);
@@ -6948,7 +6948,7 @@ const handlePrepareForMerge = async () => {
 
   const downloadVideo = (url: string, index: number) => {
     window.open(url, '_blank');
-    toast.success(`Descărcare video #${index + 1} pornită`);
+    toast.success(`Download video #${index + 1} started`);
   };
 
   // TEMPORARY: Load sample videos for testing when Kie.ai is down
@@ -6981,7 +6981,7 @@ const handlePrepareForMerge = async () => {
       },
     ];
     
-    toast.info('Încărcare sample videos...');
+    toast.info('Loading sample videos...');
     
     try {
       // Creează videoResults cu videoUrl deja completat (hardcodat)
@@ -7029,10 +7029,10 @@ const handlePrepareForMerge = async () => {
       setCombinations(sampleCombinations);
       setCurrentStep(7); // Go to STEP 7 - Check Videos
       
-      toast.success(`4/4 sample videos încărcate cu succes!`);
+      toast.success(`4/4 sample videos loaded successfully!`);
       console.log('Sample videos loaded:', sampleResults.map(v => v.videoName));
     } catch (error: any) {
-      toast.error(`Eroare la încărcarea sample videos: ${error.message}`);
+      toast.error(`Error loading sample videos: ${error.message}`);
     }
   };
   
@@ -7049,12 +7049,12 @@ const handlePrepareForMerge = async () => {
       .map(({ index }) => index);
     
     if (toRegenerateIndexes.length === 0) {
-      toast.error('Nu există videouri de regenerat');
+      toast.error('No videos to regenerate');
       return;
     }
 
     try {
-      toast.info(`Se regenerează ${toRegenerateIndexes.length} videouri...`);
+      toast.info(`Regenerating ${toRegenerateIndexes.length} videos...`);
       
       // Grupează pe tip de prompt
       const combinationsByPrompt: Record<PromptType, Array<{ combo: typeof combinations[0], index: number }>> = {
@@ -7136,7 +7136,7 @@ const handlePrepareForMerge = async () => {
         toast.success(`${successCount} videouri retrimise pentru generare`);
       }
       if (failCount > 0) {
-        toast.error(`${failCount} videouri au eșuat din nou`);
+        toast.error(`${failCount} videos failed again`);
       }
     } catch (error: any) {
       toast.error(`Eroare la regenerare batch: ${error.message}`);
@@ -7153,7 +7153,7 @@ const handlePrepareForMerge = async () => {
     const videoIndex = videoResults.findIndex(v => v.videoName === videoName);
     
     if (videoIndex < 0) {
-      toast.error('Video nu găsit');
+      toast.error('Video not found');
       return;
     }
     
@@ -7161,7 +7161,7 @@ const handlePrepareForMerge = async () => {
     const originalCombo = combinations[videoIndex];
     
     if (!originalCombo) {
-      toast.error('Combinație nu găsită');
+      toast.error('Combination not found');
       return;
     }
     
@@ -7231,7 +7231,7 @@ const handlePrepareForMerge = async () => {
     const videoIndex = videoResults.findIndex(v => v.videoName === videoName);
     
     if (videoIndex < 0) {
-      toast.error('Video nu găsit');
+      toast.error('Video not found');
       return;
     }
     
@@ -7239,7 +7239,7 @@ const handlePrepareForMerge = async () => {
     setVideoResults(prev => prev.filter((_, i) => i !== videoIndex));
     setCombinations(prev => prev.filter((_, i) => i !== videoIndex));
     
-    toast.success(`Duplicate șters: ${videoName}`);
+    toast.success(`Duplicate deleted: ${videoName}`);
   }, [videoResults]);
 
   // Expune funcțiile pentru Step6
@@ -7258,7 +7258,7 @@ const handlePrepareForMerge = async () => {
     const combo = combinations[index];
     
     if (!combo) {
-      toast.error('Combinație nu găsită');
+      toast.error('Combination not found');
       return;
     }
     
@@ -7358,12 +7358,12 @@ const handlePrepareForMerge = async () => {
       setModifyDialogueText('');
 
       if (newResult.success) {
-        toast.success(`Video #${index + 1} retrimis cu modificări`);
+        toast.success(`Video #${index + 1} resubmitted with changes`);
       } else {
         toast.error(`Eroare la retrimite video #${index + 1}: ${newResult.error}`);
       }
     } catch (error: any) {
-      toast.error(`Eroare la regenerare cu modificări: ${error.message}`);
+      toast.error(`Error regenerating with changes: ${error.message}`);
     }
   };
 
@@ -7373,7 +7373,7 @@ const handlePrepareForMerge = async () => {
     const combo = combinations[index];
     
     if (!combo) {
-      toast.error('Combinație nu găsită');
+      toast.error('Combination not found');
       return;
     }
 
@@ -7555,7 +7555,7 @@ const handlePrepareForMerge = async () => {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
 
-    toast.success('Document Word descărcat!');
+    toast.success('Word document downloaded!');
   }, [adLines]);
 
   // ========== STEP 6: Review functions (MEMOIZED) ==========
@@ -7595,7 +7595,7 @@ const handlePrepareForMerge = async () => {
         ? { ...v, reviewStatus: null }
         : v
     ));
-    toast.success(`Decizie anulată pentru ${videoName}`);
+    toast.success(`Decision cancelled for ${videoName}`);
   }, [videoResults]);
 
   const handleCategoryChange = useCallback(async (videoName: string, newSection: string) => {
@@ -7689,7 +7689,7 @@ const handlePrepareForMerge = async () => {
 
   const undoReview = useCallback(() => {
     if (reviewHistory.length === 0) {
-      toast.error('Nu există acțiuni de anulat');
+      toast.error('No actions to undo');
       return;
     }
     
@@ -7702,7 +7702,7 @@ const handlePrepareForMerge = async () => {
     ));
     
     setReviewHistory(prev => prev.slice(0, -1));
-    toast.success(`Acțiune anulată pentru ${lastAction.videoName}`);
+    toast.success(`Action undone for ${lastAction.videoName}`);
   }, [reviewHistory]);
 
   const goToCheckVideos = async () => {
@@ -9051,7 +9051,7 @@ const handlePrepareForMerge = async () => {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Download className="w-5 h-5" />
-              Descarcă Arhivă ZIP
+              Download ZIP Archive
             </DialogTitle>
             <DialogDescription>
               Creez arhiva cu toate videoclipurile acceptate...
@@ -9820,7 +9820,7 @@ const handlePrepareForMerge = async () => {
                 STEP 1 - Prepare Text Ad
               </CardTitle>
               <CardDescription>
-                Selectează categoriile și pregătește textul ad-ului (118-125 caractere).
+                Select categories and prepare ad text (118-125 characters).
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-4 md:pt-8 px-3 md:px-8 pb-4 md:pb-8">
@@ -10355,13 +10355,13 @@ const handlePrepareForMerge = async () => {
                       setAdLines([]);
                       const input = document.getElementById('ad-upload') as HTMLInputElement;
                       if (input) input.value = '';
-                      toast.success('Document șters. Poți încărca altul.');
+                      toast.success('Document deleted. You can upload another one.');
                     }}
                     variant="outline"
                     className="border-red-300 text-red-700 hover:bg-red-50"
                   >
                     <X className="w-4 h-4 mr-2" />
-                    Șterge document
+                    Delete document
                   </Button>
                 </div>
               )}
@@ -10375,7 +10375,7 @@ const handlePrepareForMerge = async () => {
                           const lastDeleted = deletedLinesHistory[0];
                           setAdLines(prev => [...prev, lastDeleted]);
                           setDeletedLinesHistory(prev => prev.slice(1));
-                          toast.success(`Linie restaurată: ${lastDeleted.videoName}`);
+                          toast.success(`Line restored: ${lastDeleted.videoName}`);
                         }}
                         variant="outline"
                         size="sm"
@@ -10430,11 +10430,11 @@ const handlePrepareForMerge = async () => {
                             <div className="absolute top-2 right-2 flex gap-2">
                               <Button
                                 onClick={() => {
-                                  if (confirm(`Șterge linia "${line.videoName}"?`)) {
+                                  if (confirm(`Delete line "${line.videoName}"?`)) {
                                     // Save to history before deleting
                                     setDeletedLinesHistory(prev => [line, ...prev]);
                                     setAdLines(prev => prev.filter(l => l.id !== line.id));
-                                    toast.success('Linie ștearsă (UNDO disponibil)');
+                                    toast.success('Line deleted (UNDO available)');
                                   }
                                 }}
                                 variant="outline"
@@ -10724,7 +10724,7 @@ const handlePrepareForMerge = async () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="hardcoded">Prompturi hardcodate</SelectItem>
-                    <SelectItem value="custom">Adaugă prompturi custom</SelectItem>
+                    <SelectItem value="custom">Add custom prompts</SelectItem>
                     <SelectItem value="manual">Manual prompt</SelectItem>
                   </SelectContent>
                 </Select>
@@ -10747,7 +10747,7 @@ const handlePrepareForMerge = async () => {
               {/* Mode: Upload prompturi custom */}
               {promptMode === 'custom' && (
               <div className="mb-4">
-                <p className="font-medium text-blue-900 mb-3">Adaugă prompturi custom (opțional):</p>
+                <p className="font-medium text-blue-900 mb-3">Add custom prompts (optional):</p>
                 
                 {/* Upload .docx */}
                 <div
@@ -10782,14 +10782,14 @@ const handlePrepareForMerge = async () => {
                           setPrompts([]);
                           const input = document.getElementById('prompt-upload') as HTMLInputElement;
                           if (input) input.value = '';
-                          toast.success('Toate prompturile custom au fost șterse.');
+                          toast.success('All custom prompts have been deleted.');
                         }}
                         variant="outline"
                         size="sm"
                         className="border-red-300 text-red-700 hover:bg-red-50"
                       >
                         <X className="w-4 h-4 mr-1" />
-                        Șterge toate
+                        Delete all
                       </Button>
                     </div>
                     <div className="space-y-2">
@@ -10826,7 +10826,7 @@ const handlePrepareForMerge = async () => {
                     <Button
                       onClick={() => {
                         if (!manualPromptText.includes('[INSERT TEXT]')) {
-                          toast.error('Promptul trebuie să conțină [INSERT TEXT]');
+                          toast.error('Prompt must contain [INSERT TEXT]');
                           return;
                         }
                         if (manualPromptText.trim().length === 0) {
@@ -10843,12 +10843,12 @@ const handlePrepareForMerge = async () => {
                         
                         setPrompts(prev => [...prev, newPrompt]);
                         setManualPromptText('');
-                        toast.success('Prompt manual adăugat!');
+                        toast.success('Manual prompt added!');
                       }}
                       disabled={!manualPromptText.includes('[INSERT TEXT]') || manualPromptText.trim().length === 0}
                       className="mt-3 bg-blue-600 hover:bg-blue-700"
                     >
-                      Adaugă Prompt Manual
+                      Add Manual Prompt
                     </Button>
                   </div>
                 </div>
@@ -10909,7 +10909,7 @@ const handlePrepareForMerge = async () => {
 
               {/* Upload Custom Prompts */}
               <div className="mb-4">
-                <p className="font-medium text-blue-900 mb-3">Adaugă prompturi custom (opțional):</p>
+                <p className="font-medium text-blue-900 mb-3">Add custom prompts (optional):</p>
                 
                 <div
                   onDrop={handlePromptDocumentDrop}
@@ -10944,13 +10944,13 @@ const handlePrepareForMerge = async () => {
                       setPrompts([]);
                       const input = document.getElementById('prompt-upload') as HTMLInputElement;
                       if (input) input.value = '';
-                      toast.success('Toate prompturile custom au fost șterse.');
+                      toast.success('All custom prompts have been deleted.');
                     }}
                     variant="outline"
                     size="sm"
                     className="mb-3"
                   >
-                    Șterge toate prompturile
+                    Delete all prompts
                   </Button>
                   <div className="space-y-2">
                     {prompts.map((prompt) => (
@@ -10962,7 +10962,7 @@ const handlePrepareForMerge = async () => {
                         <Button
                           onClick={() => {
                             setPrompts(prev => prev.filter(p => p.id !== prompt.id));
-                            toast.success(`Prompt "${prompt.name}" șters.`);
+                            toast.success(`Prompt "${prompt.name}" deleted.`);
                           }}
                           variant="outline"
                           size="sm"
@@ -11418,7 +11418,7 @@ const handlePrepareForMerge = async () => {
                         <button
                           onClick={() => removeCombination(combo.id)}
                           className="p-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
-                          title="Șterge combinația"
+                          title="Delete combination"
                         >
                           <X className="w-5 h-5" />
                         </button>
@@ -11580,7 +11580,7 @@ const handlePrepareForMerge = async () => {
                                       console.log('[Modify & Regenerate] Clicked for rejected video:', result.videoName, 'realIndex:', realIndex);
                                       
                                       if (realIndex < 0) {
-                                        toast.error('Video nu găsit în videoResults');
+                                        toast.error('Video not found in videoResults');
                                         return;
                                       }
                                       
@@ -11909,7 +11909,7 @@ const handlePrepareForMerge = async () => {
                                         }}
                                         placeholder={
                                           modifyPromptType === 'PROMPT_CUSTOM'
-                                            ? 'Introdu promptul custom aici'
+                                            ? 'Enter custom prompt here'
                                             : `Editează ${modifyPromptType} sau lasă gol pentru a folosi promptul hardcodat`
                                         }
                                         rows={3}
@@ -11934,7 +11934,7 @@ const handlePrepareForMerge = async () => {
                                           }
                                         }}
                                         className="min-h-[80px] text-sm"
-                                        placeholder="Introdu textul aici..."
+                                        placeholder="Enter text here..."
                                       />
                                       
                                       {/* Butoane pentru marcare roșu */}
@@ -11945,9 +11945,9 @@ const handlePrepareForMerge = async () => {
                                             if (selection && selection.end > selection.start) {
                                               setModifyRedStart(selection.start);
                                               setModifyRedEnd(selection.end);
-                                              toast.success('Text marcat ca roșu!');
+                                              toast.success('Text marked as red!');
                                             } else {
-                                              toast.warning('Selectează textul pe care vrei să-l marchezi ca roșu');
+                                              toast.warning('Select the text you want to mark as red');
                                             }
                                           }}
                                           variant="outline"
@@ -11961,7 +11961,7 @@ const handlePrepareForMerge = async () => {
                                           onClick={() => {
                                             setModifyRedStart(-1);
                                             setModifyRedEnd(-1);
-                                            toast.success('Marcare roșu ștearsă!');
+                                            toast.success('Red marking deleted!');
                                           }}
                                           variant="outline"
                                           size="sm"
@@ -12177,7 +12177,7 @@ const handlePrepareForMerge = async () => {
                                             },
                                           });
                                           
-                                          toast.success('Modificări salvate!');
+                                          toast.success('Changes saved!');
                                           setModifyingVideoIndex(null);
                                           
                                           // Auto-scroll to video card after save
@@ -12270,7 +12270,7 @@ const handlePrepareForMerge = async () => {
                                                   updated[variantIndex] = { ...updated[variantIndex], promptText: e.target.value };
                                                   setRegenerateVariants(updated);
                                                 }}
-                                                placeholder="Introdu promptul aici"
+                                                placeholder="Enter prompt here"
                                                 className="text-xs min-h-[60px]"
                                               />
                                             </div>
@@ -12343,7 +12343,7 @@ const handlePrepareForMerge = async () => {
                                             size="sm"
                                             onClick={async () => {
                                               if (modifyingVideoIndex === null || modifyingVideoIndex < 0) {
-                                                toast.error('Selectează un video pentru regenerare');
+                                                toast.error('Select a video for regeneration');
                                                 return;
                                               }
                                               
@@ -12353,7 +12353,7 @@ const handlePrepareForMerge = async () => {
                                               );
                                               
                                               if (invalidVariants.length > 0) {
-                                                toast.error('Toate variantele trebuie să aibă text valid');
+                                                toast.error('All variants must have valid text');
                                                 return;
                                               }
                                               
@@ -12368,9 +12368,9 @@ const handlePrepareForMerge = async () => {
                                                 );
                                                 
                                                 if (allIdentical && regenerateVariants.length > 1) {
-                                                  toast.info(`Se vor face ${regenerateVariants.length} regenerări cu aceleași setări (nu se vor crea duplicate)`);
+                                                  toast.info(`Will make ${regenerateVariants.length} regenerations with same settings (no duplicates will be created)`);
                                                 } else {
-                                                  toast.info(`Se regenerează ${regenerateVariants.length} variant${regenerateVariants.length > 1 ? 'e' : 'ă'} în paralel...`);
+                                                  toast.info(`Regenerating ${regenerateVariants.length} variant${regenerateVariants.length > 1 ? 's' : ''} in parallel...`);
                                                 }
                                                 
                                                 // Pregătește variantele pentru backend
@@ -12500,10 +12500,10 @@ const handlePrepareForMerge = async () => {
                                                 const failCount = result.results.filter((r: any) => !r.success).length;
                                                 
                                                 if (successCount > 0) {
-                                                  toast.success(`${successCount} variant${successCount > 1 ? 'e trimise' : 'ă trimisă'} pentru generare!`);
+                                                  toast.success(`${successCount} variant${successCount > 1 ? 's sent' : ' sent'} for generation!`);
                                                 }
                                                 if (failCount > 0) {
-                                                  toast.error(`${failCount} variant${failCount > 1 ? 'e au eșuat' : 'ă a eșuat'}`);
+                                                  toast.error(`${failCount} variant${failCount > 1 ? 's failed' : ' failed'}`);
                                                 }
                                                 
                                                 // Reset form
@@ -12791,7 +12791,7 @@ const handlePrepareForMerge = async () => {
               {/* Selectare video pentru regenerare */}
               <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-lg">
                 <p className="font-medium text-orange-900 mb-3">
-                  Selectează videoul care trebuie regenerat:
+                  Select the video to regenerate:
                 </p>
                 <select
                   className="w-full p-3 border border-orange-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
@@ -12815,7 +12815,7 @@ const handlePrepareForMerge = async () => {
                     }
                   }}
                 >
-                  <option value="-1">Selectează un video...</option>
+                  <option value="-1">Select a video...</option>
                   {videoResults.map((video, index) => (
                     <option key={index} value={index}>
                       {video.videoName} - {video.status === 'failed' ? 'FAILED' : video.text.substring(0, 50)}...
@@ -13022,7 +13022,7 @@ const handlePrepareForMerge = async () => {
                     <Button
                       onClick={async () => {
                         if (selectedVideoIndex < 0) {
-                          toast.error('Selectează un video pentru regenerare');
+                          toast.error('Select a video for regeneration');
                           return;
                         }
 
@@ -13032,12 +13032,12 @@ const handlePrepareForMerge = async () => {
                         );
                         
                         if (invalidVariants.length > 0) {
-                          toast.error('Toate variantele trebuie să aibă text valid (minim 1 caracter)');
+                          toast.error('All variants must have valid text (minimum 1 character)');
                           return;
                         }
 
                         try {
-                          toast.info(`Se regenerează ${regenerateVariants.length} variant${regenerateVariants.length > 1 ? 'e' : 'ă'} în paralel...`);
+                          toast.info(`Regenerating ${regenerateVariants.length} variant${regenerateVariants.length > 1 ? 's' : ''} in parallel...`);
                           
                           // Pregătește toate variantele pentru backend
                           const variantsForBackend = regenerateVariants.map((variant, variantIndex) => {
@@ -13145,10 +13145,10 @@ const handlePrepareForMerge = async () => {
                           const failCount = result.results.filter((r: any) => !r.success).length;
                           
                           if (successCount > 0) {
-                            toast.success(`${successCount} variant${successCount > 1 ? 'e trimise' : 'ă trimisă'} pentru generare!`);
+                            toast.success(`${successCount} variant${successCount > 1 ? 's sent' : ' sent'} for generation!`);
                           }
                           if (failCount > 0) {
-                            toast.error(`${failCount} variant${failCount > 1 ? 'e au eșuat' : 'ă a eșuat'}`);
+                            toast.error(`${failCount} variant${failCount > 1 ? 's failed' : ' failed'}`)
                           }
 
                           // Reset form
@@ -13159,7 +13159,7 @@ const handlePrepareForMerge = async () => {
                           
                           // Revino la STEP 6 pentru a verifica progresul
                           setCurrentStep(6);
-                          toast.success('Regenerare completă! Verifică progresul la STEP 6.');
+                          toast.success('Regeneration complete! Check progress at STEP 6.');
                         } catch (error: any) {
                           toast.error(`Eroare la regenerare: ${error.message}`);
                         }
@@ -13317,7 +13317,7 @@ const handlePrepareForMerge = async () => {
                                     // Check if name already exists
                                     const nameExists = videoResults.some(v => v.videoName === newVideoName && v.videoName !== oldVideoName);
                                     if (nameExists) {
-                                      toast.error('Un video cu acest nume există deja!');
+                                      toast.error('A video with this name already exists!');
                                       return;
                                     }
                                     
@@ -13578,7 +13578,7 @@ const handlePrepareForMerge = async () => {
                                 variant="outline"
                                 onClick={async () => {
                                   try {
-                                    toast.info(`Descarcă ${video.videoName}...`);
+                                    toast.info(`Downloading ${video.videoName}...`);
                                     const response = await fetch(video.videoUrl!);
                                     const blob = await response.blob();
                                     const url = window.URL.createObjectURL(blob);
@@ -13589,10 +13589,10 @@ const handlePrepareForMerge = async () => {
                                     link.click();
                                     document.body.removeChild(link);
                                     window.URL.revokeObjectURL(url);
-                                    toast.success(`${video.videoName} descărcat!`);
+                                    toast.success(`${video.videoName} downloaded!`);
                                   } catch (error) {
                                     console.error('Download error:', error);
-                                    toast.error(`Eroare la descărcare: ${error}`);
+                                    toast.error(`Download error: ${error}`);
                                   }
                                 }}
                                 className="w-full border-blue-500 text-blue-700 hover:bg-blue-50 text-xs py-1"
@@ -13677,7 +13677,7 @@ const handlePrepareForMerge = async () => {
                         const acceptedVideos = acceptedVideosWithUrl;
                       
                       if (acceptedVideos.length === 0) {
-                        toast.error('Nu există videouri acceptate pentru download');
+                        toast.error('No accepted videos for download');
                         return;
                       }
                       
@@ -13729,7 +13729,7 @@ const handlePrepareForMerge = async () => {
                         document.body.removeChild(link);
                         window.URL.revokeObjectURL(url);
                         
-                        toast.success(`Arhiva ZIP cu ${orderedVideos.length} videouri descărcată!`);
+                        toast.success(`ZIP archive with ${orderedVideos.length} videos downloaded!`);
                         setIsDownloadZipModalOpen(false);
                         setDownloadZipProgress('');
                       } catch (error: any) {
@@ -13751,7 +13751,7 @@ const handlePrepareForMerge = async () => {
                         onClick={generateWordDocument}
                         className="text-blue-600 hover:text-blue-800 text-sm underline"
                       >
-                        Descarcă document Word cu toate liniile extrase
+                        Download Word document with all extracted lines
                       </button>
                     </div>
                   </div>
@@ -13795,7 +13795,7 @@ const handlePrepareForMerge = async () => {
                         });
                         
                         if (approvedVideos.length === 0) {
-                          toast.error('Nu există videouri acceptate cu URL valid pentru editare');
+                          toast.error('No accepted videos with valid URL for editing');
                           return;
                         }
                         
@@ -13815,7 +13815,7 @@ const handlePrepareForMerge = async () => {
                         const videosToProcess = approvedVideos;
                         
                         if (videosToProcess.length === 0) {
-                          toast.error('❌ Nu există videouri acceptate! Verifică Step 7.');
+                          toast.error('❌ No accepted videos! Check Step 7.');
                           return;
                         }
                         
@@ -14726,7 +14726,7 @@ const handlePrepareForMerge = async () => {
                             ));
                             // Remove from history
                             setRecutHistory(prev => prev.slice(0, -1));
-                            toast.success(`Acțiune anulată pentru ${lastAction.videoName}`);
+                            toast.success(`Action undone for ${lastAction.videoName}`);
                           }}
                           variant="outline"
                           className="border-orange-500 text-orange-700 hover:bg-orange-50"
@@ -14816,7 +14816,7 @@ const handlePrepareForMerge = async () => {
                                         ? { ...v, recutStatus: 'recut' }
                                         : v
                                     ));
-                                    toast.info(`✂️ ${video.videoName} marcat pentru retăiere!`);
+                                    toast.info(`✂️ ${video.videoName} marked for cutting!`);
                                   }}
                                   size="sm"
                                   className="flex-1 bg-red-600 hover:bg-red-700 text-white text-xs py-1"
@@ -14848,7 +14848,7 @@ const handlePrepareForMerge = async () => {
                                         ? { ...v, recutStatus: null }
                                         : v
                                     ));
-                                    toast.info('Decizie anulată');
+                                    toast.info('Decision cancelled');
                                   }}
                                   size="sm"
                                   variant="outline"
