@@ -9367,118 +9367,8 @@ const handlePrepareForMerge = async () => {
               </Select>
               {/* Load Last Context Link */}
               <button
-                onClick={() => {
-                  console.log('[Load Last Context] 🟢 Button clicked');
-                  const lastContext = latestContextSession;
-                  console.log('[Load Last Context] Context from DB:', lastContext);
-                  
-                  if (lastContext) {
-                    // Simple approach: Just set the state values
-                    // Let React Select handlers work naturally like manual selection
-                    console.log('[Load Last Context] Setting all dropdown values...');
-                    
-                    // Set all values at once
-                    setSelectedTamId(lastContext.tamId);
-                    setSelectedCoreBeliefId(lastContext.coreBeliefId);
-                    setSelectedEmotionalAngleId(lastContext.emotionalAngleId);
-                    setSelectedAdId(lastContext.adId);
-                    setSelectedCharacterId(lastContext.characterId);
-                    
-                    // IMPORTANT: Also set currentStep from DB to prevent auto-save with step 1
-                    if (lastContext.currentStep) {
-                      setCurrentStep(lastContext.currentStep);
-                    }
-                    
-                    toast.success('📌 Last context loaded!');
-                  } else {
-                    console.log('[Load Last Context] ❌ No context found');
-                    toast.error('No previous context found');
-                  }
-                }}
-                className="text-xs text-blue-600 hover:text-blue-800 mt-1 cursor-pointer"
-              >
-                📌 Load Last Context
-              </button>
-              <button
                 onClick={async () => {
-                  console.log('[AUTO SELECT] 🤖 Starting auto-selection...');
-                  
-                  // Select first TAM
-                  if (tams.length > 0) {
-                    const firstTam = tams[0];
-                    console.log('[AUTO SELECT] Selecting TAM:', firstTam.name);
-                    setSelectedTamId(firstTam.id);
-                    setSelectedCoreBeliefId(null);
-                    setSelectedEmotionalAngleId(null);
-                    setSelectedAdId(null);
-                    setSelectedCharacterId(null);
-                    
-                    // Wait for refetch to complete and get fresh data
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                    const cbResult = await refetchCoreBeliefs();
-                    const freshCoreBeliefs = cbResult.data || [];
-                    console.log('[AUTO SELECT] Fetched Core Beliefs:', freshCoreBeliefs.length);
-                    
-                    // Select first Core Belief from fresh data
-                    const firstCoreBeliefs = freshCoreBeliefs.filter(cb => cb.tamId === firstTam.id);
-                    if (firstCoreBeliefs.length > 0) {
-                      const firstCoreBelief = firstCoreBeliefs[0];
-                      console.log('[AUTO SELECT] Selecting Core Belief:', firstCoreBelief.name);
-                      setSelectedCoreBeliefId(firstCoreBelief.id);
-                      setSelectedEmotionalAngleId(null);
-                      setSelectedAdId(null);
-                      setSelectedCharacterId(null);
-                      
-                      // Wait for refetch to complete and get fresh data
-                      await new Promise(resolve => setTimeout(resolve, 100));
-                      const eaResult = await refetchEmotionalAngles();
-                      const freshEmotionalAngles = eaResult.data || [];
-                      console.log('[AUTO SELECT] Fetched Emotional Angles:', freshEmotionalAngles.length);
-                      
-                      // Select first Emotional Angle from fresh data
-                      const firstEmotionalAngles = freshEmotionalAngles.filter(ea => ea.coreBeliefId === firstCoreBelief.id);
-                      if (firstEmotionalAngles.length > 0) {
-                        const firstEmotionalAngle = firstEmotionalAngles[0];
-                        console.log('[AUTO SELECT] Selecting Emotional Angle:', firstEmotionalAngle.name);
-                        setSelectedEmotionalAngleId(firstEmotionalAngle.id);
-                        setSelectedAdId(null);
-                        setSelectedCharacterId(null);
-                        
-                        // Wait for refetch to complete and get fresh data
-                        await new Promise(resolve => setTimeout(resolve, 100));
-                        const adsResult = await refetchAds();
-                        const freshAds = adsResult.data || [];
-                        console.log('[AUTO SELECT] Fetched ADs:', freshAds.length);
-                        
-                        // Select first Ad from fresh data
-                        const firstAds = freshAds.filter(ad => ad.emotionalAngleId === firstEmotionalAngle.id);
-                        if (firstAds.length > 0) {
-                          const firstAd = firstAds[0];
-                          console.log('[AUTO SELECT] Selecting Ad:', firstAd.name);
-                          setSelectedAdId(firstAd.id);
-                          setSelectedCharacterId(null);
-                          
-                          toast.success('✅ Auto-selected: TAM 1 → Core Belief 1 → Emotional Angle 1 → AD 1');
-                        } else {
-                          toast.error('No ADs found for selected Emotional Angle');
-                        }
-                      } else {
-                        toast.error('No Emotional Angles found for selected Core Belief');
-                      }
-                    } else {
-                      toast.error('No Core Beliefs found for selected TAM');
-                    }
-                  } else {
-                    toast.error('No TAMs available');
-                  }
-                }}
-                className="text-xs text-green-600 hover:text-green-800 mt-1 ml-3 cursor-pointer font-semibold"
-              >
-                🤖 AUTO SELECT
-              </button>
-              <button
-                onClick={async () => {
-                  console.log('[AUTO SELECT HISTORY] 📜 Starting history selection...');
+                  console.log('[Load Last Context] 📌 Starting history selection...');
                   
                   // Load from localStorage
                   const historyStr = localStorage.getItem('selectionHistory');
@@ -9489,7 +9379,7 @@ const handlePrepareForMerge = async () => {
                   
                   try {
                     const history = JSON.parse(historyStr);
-                    console.log('[AUTO SELECT HISTORY] Loaded history:', history);
+                    console.log('[Load Last Context] Loaded history:', history);
                     
                     // Step 1: Set TAM and refetch Core Beliefs
                     setSelectedTamId(history.tamId);
@@ -9501,7 +9391,7 @@ const handlePrepareForMerge = async () => {
                     await new Promise(resolve => setTimeout(resolve, 100));
                     const cbResult = await refetchCoreBeliefs();
                     const freshCoreBeliefs = cbResult.data || [];
-                    console.log('[AUTO SELECT HISTORY] Fetched Core Beliefs:', freshCoreBeliefs.length);
+                    console.log('[Load Last Context] Fetched Core Beliefs:', freshCoreBeliefs.length);
                     
                     // Step 2: Set Core Belief and refetch Emotional Angles
                     setSelectedCoreBeliefId(history.coreBeliefId);
@@ -9511,7 +9401,7 @@ const handlePrepareForMerge = async () => {
                     await new Promise(resolve => setTimeout(resolve, 100));
                     const eaResult = await refetchEmotionalAngles();
                     const freshEmotionalAngles = eaResult.data || [];
-                    console.log('[AUTO SELECT HISTORY] Fetched Emotional Angles:', freshEmotionalAngles.length);
+                    console.log('[Load Last Context] Fetched Emotional Angles:', freshEmotionalAngles.length);
                     
                     // Step 3: Set Emotional Angle and refetch ADs
                     setSelectedEmotionalAngleId(history.emotionalAngleId);
@@ -9520,7 +9410,7 @@ const handlePrepareForMerge = async () => {
                     await new Promise(resolve => setTimeout(resolve, 100));
                     const adsResult = await refetchAds();
                     const freshAds = adsResult.data || [];
-                    console.log('[AUTO SELECT HISTORY] Fetched ADs:', freshAds.length);
+                    console.log('[Load Last Context] Fetched ADs:', freshAds.length);
                     
                     // Step 4: Set AD (without Character)
                     setSelectedAdId(history.adId);
@@ -9532,15 +9422,15 @@ const handlePrepareForMerge = async () => {
                     const ea = freshEmotionalAngles.find(e => e.id === history.emotionalAngleId);
                     const ad = freshAds.find(a => a.id === history.adId);
                     
-                    toast.success(`📜 Loaded from history: ${tam?.name || 'TAM'} → ${cb?.name || 'CB'} → ${ea?.name || 'EA'} → ${ad?.name || 'AD'}`);
+                    toast.success(`📌 Loaded: ${tam?.name || 'TAM'} → ${cb?.name || 'CB'} → ${ea?.name || 'EA'} → ${ad?.name || 'AD'}`);
                   } catch (error: any) {
-                    console.error('[AUTO SELECT HISTORY] Error loading history:', error);
+                    console.error('[Load Last Context] Error loading history:', error);
                     toast.error('Failed to load selection history');
                   }
                 }}
-                className="text-xs text-purple-600 hover:text-purple-800 mt-1 ml-3 cursor-pointer font-semibold"
+                className="text-xs text-blue-600 hover:text-blue-800 mt-1 cursor-pointer"
               >
-                📜 AUTO SELECT HISTORY
+                📌 Load Last Context
               </button>
             </div>
 

@@ -59,7 +59,7 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
   const [draggedImageId, setDraggedImageId] = useState<number | null>(null);
   const [gridSize, setGridSize] = useState<'small' | 'medium' | 'large'>('small'); // Default to 'small' = Large Images view
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'name' | 'date'>('date');
+  const [sortBy, setSortBy] = useState<'name' | 'date' | 'order'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [previewFiles, setPreviewFiles] = useState<Array<{ file: File; preview: string }>>([]);
@@ -193,7 +193,10 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
 
     // Apply sorting
     result = [...result].sort((a, b) => {
-      if (sortBy === 'name') {
+      if (sortBy === 'order') {
+        // Sort by displayOrder (manual drag & drop order)
+        return (a.displayOrder || 0) - (b.displayOrder || 0);
+      } else if (sortBy === 'name') {
         // Extract number from image name (e.g., "Lidia_2_CTA" -> 2)
         const aMatch = a.imageName.match(/_(\d+)(?:_CTA)?$/);
         const bMatch = b.imageName.match(/_(\d+)(?:_CTA)?$/);
@@ -691,6 +694,10 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
     // Set optimistic data
     utils.imageLibrary.list.setData({ userId: currentUser.id }, updatedAllImages);
 
+    // Auto-switch to Custom Order view to show the new order
+    setSortBy('order');
+    console.log('[MOVE ORDER] 🔄 Switched to Custom Order view');
+
     updateOrderMutation.mutate({ imageOrders });
 
     setDraggedImageId(null);
@@ -1146,13 +1153,14 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
             <Label className="text-purple-900 font-medium text-base">View Options</Label>
             <div className="flex flex-wrap items-center gap-3">
               {/* Sort Controls */}
-              <Select value={sortBy} onValueChange={(value: 'name' | 'date') => setSortBy(value)}>
+              <Select value={sortBy} onValueChange={(value: 'name' | 'date' | 'order') => setSortBy(value)}>
                 <SelectTrigger className="w-32 h-10">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="date">Date</SelectItem>
                   <SelectItem value="name">Name</SelectItem>
+                  <SelectItem value="date">Date</SelectItem>
+                  <SelectItem value="order">Custom Order</SelectItem>
                 </SelectContent>
               </Select>
 
