@@ -42,7 +42,7 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
     try {
       // Validate password
       if (newPassword && newPassword !== confirmPassword) {
-        toast.error('Password-urile nu coincid!');
+        toast.error('Passwords do not match!');
         return;
       }
 
@@ -75,13 +75,13 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
             });
 
             if (updateResult.success && updateResult.user) {
-              toast.success('Profil actualizat!');
+              toast.success('Profile updated!');
               onProfileUpdated(updateResult.user);
               onClose();
             }
           } catch (error: any) {
             console.error('Upload error:', error);
-            toast.error('Eroare la upload imagine!');
+            toast.error('Error uploading image!');
           }
         };
         reader.readAsDataURL(profileImage);
@@ -97,14 +97,14 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
         });
 
         if (updateResult.success && updateResult.user) {
-          toast.success('Profil actualizat!');
+          toast.success('Profile updated!');
           onProfileUpdated(updateResult.user);
           onClose();
         }
       }
     } catch (error: any) {
       console.error('Update error:', error);
-      toast.error(error.message || 'Eroare la actualizare profil!');
+      toast.error(error.message || 'Error updating profile!');
     }
   };
 
@@ -119,7 +119,7 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
           {/* Profile Image */}
           <div>
             <label className="block text-sm font-medium text-blue-900 mb-2">
-              Poză Profil
+              Profile Picture
             </label>
             <div className="flex items-center gap-4">
               {profileImagePreview && (
@@ -148,14 +148,14 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
           {/* Password */}
           <div>
             <label className="block text-sm font-medium text-blue-900 mb-2">
-              Password Nou (opțional)
+              New Password (optional)
             </label>
             <input
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               className="w-full px-4 py-3 bg-white border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Lasă gol pentru a păstra password-ul actual"
+              placeholder="Leave empty to keep current password"
             />
           </div>
 
@@ -163,14 +163,14 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
           {newPassword && (
             <div>
               <label className="block text-sm font-medium text-blue-900 mb-2">
-                Confirmă Password
+                Confirm Password
               </label>
               <input
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 className="w-full px-4 py-3 bg-white border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Confirmă password-ul nou"
+                placeholder="Confirm new password"
               />
             </div>
           )}
@@ -185,7 +185,7 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
               value={kieApiKey}
               onChange={(e) => setKieApiKey(e.target.value)}
               className="w-full px-4 py-3 bg-white border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Introdu API key-ul tău de la kie.ai"
+              placeholder="Enter your API key from kie.ai"
             />
           </div>
 
@@ -199,7 +199,7 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
               value={openaiApiKey}
               onChange={(e) => setOpenaiApiKey(e.target.value)}
               className="w-full px-4 py-3 bg-white border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Introdu API key-ul tău de la OpenAI"
+              placeholder="Enter your API key from OpenAI"
             />
           </div>
 
@@ -213,7 +213,7 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
               value={ffmpegApiKey}
               onChange={(e) => setFfmpegApiKey(e.target.value)}
               className="w-full px-4 py-3 bg-white border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Introdu API key-ul tău de la FFMPEG API"
+              placeholder="Enter your API key from FFMPEG API"
             />
           </div>
 
@@ -227,7 +227,7 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
               value={cleanvoiceApiKey}
               onChange={(e) => setCleanvoiceApiKey(e.target.value)}
               className="w-full px-4 py-3 bg-white border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Introdu API key-ul tău de la CleanVoice"
+              placeholder="Enter your API key from CleanVoice"
             />
           </div>
 
@@ -239,15 +239,15 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
               disabled={updateProfileMutation.isPending || uploadImageMutation.isPending}
             >
               {updateProfileMutation.isPending || uploadImageMutation.isPending
-                ? 'Se salvează...'
-                : 'Salvează'}
+                ? 'Saving...'
+                : 'Save'}
             </Button>
             <Button
               onClick={onClose}
               variant="outline"
               className="flex-1"
             >
-              Anulează
+              Cancel
             </Button>
           </div>
         </div>
