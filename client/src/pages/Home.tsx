@@ -9491,18 +9491,46 @@ const handlePrepareForMerge = async () => {
                     const history = JSON.parse(historyStr);
                     console.log('[AUTO SELECT HISTORY] Loaded history:', history);
                     
-                    // Set selections (without Character)
+                    // Step 1: Set TAM and refetch Core Beliefs
                     setSelectedTamId(history.tamId);
-                    setSelectedCoreBeliefId(history.coreBeliefId);
-                    setSelectedEmotionalAngleId(history.emotionalAngleId);
-                    setSelectedAdId(history.adId);
-                    setSelectedCharacterId(null); // Don't select character
+                    setSelectedCoreBeliefId(null);
+                    setSelectedEmotionalAngleId(null);
+                    setSelectedAdId(null);
+                    setSelectedCharacterId(null);
                     
-                    // Get names for toast message
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    const cbResult = await refetchCoreBeliefs();
+                    const freshCoreBeliefs = cbResult.data || [];
+                    console.log('[AUTO SELECT HISTORY] Fetched Core Beliefs:', freshCoreBeliefs.length);
+                    
+                    // Step 2: Set Core Belief and refetch Emotional Angles
+                    setSelectedCoreBeliefId(history.coreBeliefId);
+                    setSelectedEmotionalAngleId(null);
+                    setSelectedAdId(null);
+                    
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    const eaResult = await refetchEmotionalAngles();
+                    const freshEmotionalAngles = eaResult.data || [];
+                    console.log('[AUTO SELECT HISTORY] Fetched Emotional Angles:', freshEmotionalAngles.length);
+                    
+                    // Step 3: Set Emotional Angle and refetch ADs
+                    setSelectedEmotionalAngleId(history.emotionalAngleId);
+                    setSelectedAdId(null);
+                    
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    const adsResult = await refetchAds();
+                    const freshAds = adsResult.data || [];
+                    console.log('[AUTO SELECT HISTORY] Fetched ADs:', freshAds.length);
+                    
+                    // Step 4: Set AD (without Character)
+                    setSelectedAdId(history.adId);
+                    setSelectedCharacterId(null);
+                    
+                    // Get names for toast message from fresh data
                     const tam = tams.find(t => t.id === history.tamId);
-                    const cb = coreBeliefs.find(c => c.id === history.coreBeliefId);
-                    const ea = emotionalAngles.find(e => e.id === history.emotionalAngleId);
-                    const ad = ads.find(a => a.id === history.adId);
+                    const cb = freshCoreBeliefs.find(c => c.id === history.coreBeliefId);
+                    const ea = freshEmotionalAngles.find(e => e.id === history.emotionalAngleId);
+                    const ad = freshAds.find(a => a.id === history.adId);
                     
                     toast.success(`📜 Loaded from history: ${tam?.name || 'TAM'} → ${cb?.name || 'CB'} → ${ea?.name || 'EA'} → ${ad?.name || 'AD'}`);
                   } catch (error: any) {
