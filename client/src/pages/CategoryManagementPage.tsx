@@ -32,6 +32,7 @@ export default function CategoryManagementPage({ currentUser }: CategoryManageme
   const [expandedTams, setExpandedTams] = useState<Set<number>>(new Set());
   const [expandedCoreBeliefs, setExpandedCoreBeliefs] = useState<Set<number>>(new Set());
   const [expandedEmotionalAngles, setExpandedEmotionalAngles] = useState<Set<number>>(new Set());
+  const [expandedAds, setExpandedAds] = useState<Set<number>>(new Set());
   const [editingId, setEditingId] = useState<{ type: 'tam' | 'coreBelief' | 'emotionalAngle' | 'ad', id: number } | null>(null);
   const [editingName, setEditingName] = useState("");
 
@@ -139,6 +140,18 @@ export default function CategoryManagementPage({ currentUser }: CategoryManageme
         next.delete(emotionalAngleId);
       } else {
         next.add(emotionalAngleId);
+      }
+      return next;
+    });
+  };
+
+  const toggleAd = (adId: number) => {
+    setExpandedAds(prev => {
+      const next = new Set(prev);
+      if (next.has(adId)) {
+        next.delete(adId);
+      } else {
+        next.add(adId);
       }
       return next;
     });
@@ -335,7 +348,7 @@ export default function CategoryManagementPage({ currentUser }: CategoryManageme
                 const isEditing = editingId?.type === 'tam' && editingId.id === tam.id;
 
                 return (
-                  <div key={tam.id} className="border-l-4 border-purple-500 pl-4">
+                  <div key={tam.id} className={`border-l-4 border-purple-500 pl-4 rounded-lg ${isExpanded ? 'bg-purple-50/30' : ''}`}>
                     {/* TAM */}
                     <div className="flex items-center gap-2 p-2 hover:bg-purple-50 rounded group">
                       <Button
@@ -400,7 +413,7 @@ export default function CategoryManagementPage({ currentUser }: CategoryManageme
                           const isCbEditing = editingId?.type === 'coreBelief' && editingId.id === coreBelief.id;
 
                           return (
-                            <div key={coreBelief.id} className="border-l-4 border-blue-500 pl-4">
+                            <div key={coreBelief.id} className={`border-l-4 border-blue-500 pl-4 rounded-lg ${isCbExpanded ? 'bg-blue-50/30' : ''}`}>
                               {/* Core Belief */}
                               <div className="flex items-center gap-2 p-2 hover:bg-blue-50 rounded group">
                                 <Button
@@ -465,7 +478,7 @@ export default function CategoryManagementPage({ currentUser }: CategoryManageme
                                     const isEaEditing = editingId?.type === 'emotionalAngle' && editingId.id === emotionalAngle.id;
 
                                     return (
-                                      <div key={emotionalAngle.id} className="border-l-4 border-green-500 pl-4">
+                                      <div key={emotionalAngle.id} className={`border-l-4 border-green-500 pl-4 rounded-lg ${isEaExpanded ? 'bg-green-50/30' : ''}`}>
                                         {/* Emotional Angle */}
                                         <div className="flex items-center gap-2 p-2 hover:bg-green-50 rounded group">
                                           <Button
@@ -525,15 +538,36 @@ export default function CategoryManagementPage({ currentUser }: CategoryManageme
                                         {isEaExpanded && (
                                           <div className="ml-8 mt-2 space-y-2">
                                             {eaAds.map((ad) => {
+                                              const isAdExpanded = expandedAds.has(ad.id);
                                               const isAdEditing = editingId?.type === 'ad' && editingId.id === ad.id;
+                                              
+                                              // Find characters with generated videos for this AD
+                                              const sessionsForAd = contextSessions.filter(session => session.adId === ad.id);
+                                              const usedCharacterIds = new Set(
+                                                sessionsForAd
+                                                  .filter(session => {
+                                                    // Check if session has at least 1 successful video
+                                                    const videoResults = session.videoResults as any[] | undefined;
+                                                    return videoResults && videoResults.some(v => v.status === 'success' && v.videoUrl);
+                                                  })
+                                                  .map(session => session.characterId)
+                                                  .filter(Boolean)
+                                              );
+                                              const usedCharacters = characters.filter(char => usedCharacterIds.has(char.id));
 
                                               return (
-                                                <div key={ad.id} className="border-l-4 border-orange-500 pl-4">
+                                                <div key={ad.id} className={`border-l-4 border-orange-500 pl-4 rounded-lg ${isAdExpanded ? 'bg-orange-50/30' : ''}`}>
                                                   {/* Ad */}
                                                   <div className="flex items-center gap-2 p-2 hover:bg-orange-50 rounded group">
-                                                    <div className="w-6 h-6 flex items-center justify-center">
-                                                      <div className="w-2 h-2 rounded-full bg-orange-500"></div>
-                                                    </div>
+                                                    <Button
+                                                      variant="ghost"
+                                                      size="sm"
+                                                      onClick={() => toggleAd(ad.id)}
+                                                      className="p-0 h-6 w-6"
+                                                    >
+                                                      {isAdExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                                                    </Button>
+                                                    {isAdExpanded ? <FolderOpen className="w-5 h-5 text-orange-600" /> : <Folder className="w-5 h-5 text-orange-600" />}
                                                     
                                                     {isAdEditing ? (
                                                       <div className="flex-1 flex items-center gap-2">
@@ -552,46 +586,10 @@ export default function CategoryManagementPage({ currentUser }: CategoryManageme
                                                       </div>
                                                     ) : (
                                                       <>
-                                                        <div className="flex-1">
-                                                          <span className="text-orange-900" onDoubleClick={() => startEdit('ad', ad.id, ad.name)}>
-                                                            {ad.name}
-                                                          </span>
-                                                          {/* Character names used in this AD */}
-                                                          {(() => {
-                                                            // Find all unique character IDs used in this AD
-                                                            const sessionsForAd = contextSessions.filter(session => session.adId === ad.id);
-                                                            console.log(`[CM Debug] AD ${ad.id} (${ad.name}):`, {
-                                                              totalSessions: contextSessions.length,
-                                                              sessionsForThisAd: sessionsForAd.length,
-                                                              sessionIds: sessionsForAd.map(s => s.id),
-                                                              characterIds: sessionsForAd.map(s => s.characterId)
-                                                            });
-                                                            
-                                                            const usedCharacterIds = new Set(
-                                                              sessionsForAd
-                                                                .map(session => session.characterId)
-                                                                .filter(Boolean)
-                                                            );
-                                                            console.log(`[CM Debug] AD ${ad.id} usedCharacterIds:`, Array.from(usedCharacterIds));
-                                                            console.log(`[CM Debug] Available characters:`, characters.map(c => ({ id: c.id, name: c.name })));
-                                                            
-                                                            const usedCharacters = characters.filter(char => usedCharacterIds.has(char.id));
-                                                            console.log(`[CM Debug] AD ${ad.id} usedCharacters:`, usedCharacters.map(c => c.name));
-                                                            
-                                                            if (usedCharacters.length > 0) {
-                                                              return (
-                                                                <div className="mt-1 flex flex-wrap gap-1">
-                                                                  {usedCharacters.map(char => (
-                                                                    <span key={char.id} className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded">
-                                                                      {char.name}
-                                                                    </span>
-                                                                  ))}
-                                                                </div>
-                                                              );
-                                                            }
-                                                            return null;
-                                                          })()}
-                                                        </div>
+                                                        <span className="flex-1 font-medium text-orange-900" onDoubleClick={() => startEdit('ad', ad.id, ad.name)}>
+                                                          {ad.name}
+                                                        </span>
+                                                        <span className="text-sm text-gray-500">{usedCharacters.length} Characters</span>
                                                         <div className="opacity-0 group-hover:opacity-100 flex gap-1">
                                                           <Button
                                                             size="sm"
@@ -613,6 +611,24 @@ export default function CategoryManagementPage({ currentUser }: CategoryManageme
                                                       </>
                                                     )}
                                                   </div>
+
+                                                  {/* Characters */}
+                                                  {isAdExpanded && (
+                                                    <div className="ml-8 mt-2 space-y-2">
+                                                      {usedCharacters.map((character) => (
+                                                        <div key={character.id} className="border-l-4 border-pink-500 pl-4">
+                                                          <div className="flex items-center gap-2 p-2 hover:bg-pink-50 rounded">
+                                                            <div className="w-6 h-6 flex items-center justify-center">
+                                                              <div className="w-2 h-2 rounded-full bg-pink-500"></div>
+                                                            </div>
+                                                            <span className="flex-1 text-pink-900">
+                                                              {character.name}
+                                                            </span>
+                                                          </div>
+                                                        </div>
+                                                      ))}
+                                                    </div>
+                                                  )}
                                                 </div>
                                               );
                                             })}

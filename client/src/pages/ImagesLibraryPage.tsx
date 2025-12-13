@@ -691,8 +691,11 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
     console.log('[MOVE ORDER] 🔄 Optimistically updated cache - new order:', 
       updatedAllImages.map(img => `${img.imageName}(${img.displayOrder})`).join(', '));
     
-    // Set optimistic data
-    utils.imageLibrary.list.setData({ userId: currentUser.id }, updatedAllImages);
+    // Set optimistic data - use callback to ensure React detects the change
+    utils.imageLibrary.list.setData({ userId: currentUser.id }, (oldData) => {
+      // Return a completely new array to trigger React re-render
+      return [...updatedAllImages];
+    });
 
     // Auto-switch to Custom Order view to show the new order
     setSortBy('order');
