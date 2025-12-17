@@ -6500,9 +6500,13 @@ const handlePrepareForMerge = async () => {
       }
       
       // Update videoName to append only the number suffix
-      // line.videoName already contains character name (e.g., "T2_C1_E1_AD2_HOOK1_ALINA")
-      // We just append "_1" or "_2" to get "T2_C1_E1_AD2_HOOK1_ALINA_1"
-      const updatedVideoName = imageSuffix ? `${line.videoName}_${imageSuffix}` : line.videoName;
+      // IMPORTANT: Remove old suffix from line.videoName before adding new one
+      // This prevents concatenation like "IOANA_2_1" when image is renamed from "_2" to "_1"
+      let baseVideoName = line.videoName;
+      // Remove any existing "_\d+" suffix at the end (e.g., "IOANA_2" → "IOANA")
+      baseVideoName = baseVideoName.replace(/_\d+$/, '');
+      // Now append the new suffix from the current image name
+      const updatedVideoName = imageSuffix ? `${baseVideoName}_${imageSuffix}` : baseVideoName;
       
       return {
         id: `combo-${index}`,
@@ -6662,6 +6666,8 @@ const handlePrepareForMerge = async () => {
 
     try {
       setCurrentStep(6); // Go to STEP 6 - Generate
+      
+      // Note: Selective cleanup happens in checkVideoStatus when each video regenerates successfully
       
       // Inițializează rezultatele
       const initialResults: VideoResult[] = combinations.map(combo => ({
@@ -6907,6 +6913,37 @@ const handlePrepareForMerge = async () => {
         if (isNewSuccess) {
           toast.success(`Video #${index + 1} generat cu succes!`);
           
+          // SELECTIVE CLEANUP: Remove merged videos that contain this regenerated video
+          const regeneratedVideoName = videoResults[index].videoName;
+          console.log(`[Selective Cleanup] 🧹 Video regenerated: ${regeneratedVideoName}`);
+          
+          // Detect if it's a HOOK or BODY video
+          const isHook = regeneratedVideoName.includes('HOOK');
+          const hookMatch = regeneratedVideoName.match(/HOOK(\d+)/);
+          
+          if (isHook && hookMatch) {
+            // It's a HOOK video → Remove only this specific HOOK from hookMergedVideos
+            const hookNum = hookMatch[1];
+            console.log(`[Selective Cleanup] 🎯 Detected HOOK${hookNum} regeneration`);
+            setHookMergedVideos(prev => {
+              const filtered = prev.filter(v => !v.videoName.includes(`HOOK${hookNum}M`));
+              console.log(`[Selective Cleanup] 🗑️ Removed HOOK${hookNum}M from hookMergedVideos (${prev.length} → ${filtered.length})`);
+              return filtered;
+            });
+          } else {
+            // It's a BODY video (MIRROR, TRANSFORMATION, CTA, etc.) → Clear bodyMergedVideoUrl
+            console.log(`[Selective Cleanup] 🎯 Detected BODY video regeneration (${regeneratedVideoName})`);
+            setBodyMergedVideoUrl(prev => {
+              if (prev) {
+                console.log(`[Selective Cleanup] 🗑️ Cleared bodyMergedVideoUrl`);
+              }
+              return null;
+            });
+          }
+          
+          // Note: finalVideos cleanup will happen via DB save + refetch
+          // We'll save empty hookMergedVideos/bodyMergedVideoUrl to DB, then refetch
+          
           // Save to DB immediately after success
           const updatedVideoResults = videoResults.map((v, i) =>
             i === index
@@ -6938,7 +6975,13 @@ const handlePrepareForMerge = async () => {
             deletedCombinations,
             videoResults: updatedVideoResults,
             reviewHistory,
+            hookMergedVideos, // Save cleaned hookMergedVideos
+            bodyMergedVideoUrl, // Save cleaned bodyMergedVideoUrl (may be null)
           });
+          
+          // Refetch from DB to update finalVideosFromDB (will be cleaned via backend logic)
+          await refetchContextSession();
+          console.log(`[Selective Cleanup] 🔄 Refetched from DB after cleanup`);
         } else if (isNewFailure) {
           toast.error(`Video #${index + 1} failed: ${errorMessage}`);
         }
