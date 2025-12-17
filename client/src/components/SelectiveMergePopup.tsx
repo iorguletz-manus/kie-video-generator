@@ -1,0 +1,173 @@
+import React, { useState, useEffect } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
+import { Button } from './ui/button';
+import { Checkbox } from './ui/checkbox';
+
+interface SelectiveMergePopupProps {
+  open: boolean;
+  onClose: () => void;
+  hookMergedVideos: Record<string, string>;
+  bodyMergedVideoUrl: string | null;
+  onConfirm: (selectedHooks: string[], selectedBody: boolean) => void;
+}
+
+export const SelectiveMergePopup: React.FC<SelectiveMergePopupProps> = ({
+  open,
+  onClose,
+  hookMergedVideos,
+  bodyMergedVideoUrl,
+  onConfirm,
+}) => {
+  const [selectedHooks, setSelectedHooks] = useState<string[]>([]);
+  const [selectedBody, setSelectedBody] = useState(false);
+
+  // Reset selections when popup opens
+  useEffect(() => {
+    if (open) {
+      setSelectedHooks([]);
+      setSelectedBody(false);
+    }
+  }, [open]);
+
+  const hookNames = Object.keys(hookMergedVideos);
+  const hasBody = bodyMergedVideoUrl !== null;
+
+  const handleSelectAll = () => {
+    setSelectedHooks(hookNames);
+    setSelectedBody(hasBody);
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedHooks([]);
+    setSelectedBody(false);
+  };
+
+  const handleConfirm = () => {
+    if (selectedHooks.length === 0 && !selectedBody) {
+      return; // Nothing selected
+    }
+    onConfirm(selectedHooks, selectedBody);
+    onClose();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-xl font-bold text-purple-900">
+            Select Videos to Re-Merge
+          </DialogTitle>
+          <DialogDescription>
+            You already have merged videos in Step 10. Select which ones you want to re-merge.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-6 mt-4">
+          {/* Select All / Deselect All Buttons */}
+          <div className="flex gap-2">
+            <Button
+              onClick={handleSelectAll}
+              variant="outline"
+              size="sm"
+              className="flex-1"
+            >
+              Select All
+            </Button>
+            <Button
+              onClick={handleDeselectAll}
+              variant="outline"
+              size="sm"
+              className="flex-1"
+            >
+              Deselect All
+            </Button>
+          </div>
+
+          {/* Body Section */}
+          {hasBody && (
+            <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+              <h3 className="font-semibold text-gray-900 mb-3">Body Video</h3>
+              <div className="flex items-center space-x-3">
+                <Checkbox
+                  id="body-checkbox"
+                  checked={selectedBody}
+                  onCheckedChange={(checked) => setSelectedBody(checked as boolean)}
+                />
+                <label
+                  htmlFor="body-checkbox"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                >
+                  BODY (Merged)
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* Hooks Section */}
+          {hookNames.length > 0 && (
+            <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+              <h3 className="font-semibold text-gray-900 mb-3">
+                Hook Videos ({hookNames.length})
+              </h3>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {hookNames.map((hookName) => {
+                  const isSelected = selectedHooks.includes(hookName);
+                  return (
+                    <div key={hookName} className="flex items-center space-x-3">
+                      <Checkbox
+                        id={`hook-${hookName}`}
+                        checked={isSelected}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedHooks([...selectedHooks, hookName]);
+                          } else {
+                            setSelectedHooks(selectedHooks.filter(h => h !== hookName));
+                          }
+                        }}
+                      />
+                      <label
+                        htmlFor={`hook-${hookName}`}
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                      >
+                        {hookName}
+                      </label>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Summary */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <p className="text-sm text-blue-900">
+              <span className="font-semibold">Selected:</span>{' '}
+              {selectedBody ? '1 Body' : '0 Body'}
+              {selectedBody && selectedHooks.length > 0 ? ', ' : ''}
+              {selectedHooks.length > 0 ? `${selectedHooks.length} Hook${selectedHooks.length > 1 ? 's' : ''}` : ''}
+              {!selectedBody && selectedHooks.length === 0 ? 'None' : ''}
+            </p>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-3 pt-2">
+            <Button
+              onClick={onClose}
+              variant="outline"
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirm}
+              disabled={selectedHooks.length === 0 && !selectedBody}
+              className="flex-1 bg-purple-600 hover:bg-purple-700"
+            >
+              Confirm & Re-Merge
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};

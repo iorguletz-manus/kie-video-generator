@@ -8,6 +8,7 @@ import { ProcessingModal } from '@/components/ProcessingModal';
 import MergeProgressModal from '@/components/MergeProgressModal';
 import MergeFinalProgressModal from '@/components/MergeFinalProgressModal';
 import DownloadZipProgressModal from '@/components/DownloadZipProgressModal';
+import { SelectiveMergePopup } from '@/components/SelectiveMergePopup';
 import { CreateItemDialog } from '@/components/CreateItemDialog';
 import { trpc } from '../lib/trpc';
 import mammoth from 'mammoth';
@@ -793,6 +794,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [selectedHooks, setSelectedHooks] = useState<string[]>([]);
   const [selectedBody, setSelectedBody] = useState<string | null>(null);
   const [isMergingStep10, setIsMergingStep10] = useState(false);
+  const [isSelectiveMergePopupOpen, setIsSelectiveMergePopupOpen] = useState(false);
   const [mergeStep10Progress, setMergeStep10Progress] = useState<{
     status: 'countdown' | 'processing' | 'complete' | 'partial' | 'error';
     message: string;
@@ -5570,6 +5572,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 const handlePrepareForMerge = async () => {
   console.log('[Prepare for Merge] 🚀 Starting NEW merge process...');
   
+  // CHECK: If merged videos already exist, show selective merge popup
+  const hasMergedVideos = Object.keys(hookMergedVideos).length > 0 || bodyMergedVideoUrl !== null;
+  
+  if (hasMergedVideos) {
+    console.log('[Prepare for Merge] 📋 Found existing merged videos - showing selective merge popup');
+    setIsSelectiveMergePopupOpen(true);
+    setIsMergingStep10(false);
+    return;
+  }
+  
   // 1. Filter trimmed videos
   const trimmedVideos = videoResults.filter(v => 
     v.trimmedVideoUrl &&
@@ -5930,6 +5942,338 @@ const handlePrepareForMerge = async () => {
     toast.error(`Merge failed: ${error.message}`);
   }
 };
+
+// Selective Merge - Re-merge only selected hooks and body
+const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boolean) => {
+  console.log('[Selective Merge] 🎯 Starting selective merge...', { selectedHooks, selectedBody });
+  
+  // 1. Filter trimmed videos
+  const trimmedVideos = videoResults.filter(v => 
+    v.trimmedVideoUrl &&
+    v.reviewStatus === 'accepted' && 
+    v.status === 'success'
+  );
+  
+  if (trimmedVideos.length === 0) {
+    toast.error('No trimmed videos to merge!');
+    setIsMergingStep10(false);
+    return;
+  }
+  
+  // 2. Separate BODY and HOOKS
+  const bodyVideos = trimmedVideos.filter(v => !v.videoName.match(/HOOK\d+[A-Z]?/));
+  const hookVideos = trimmedVideos.filter(v => v.videoName.match(/HOOK\d+[A-Z]?/));
+  
+  // 3. Group HOOKS by base name
+  const hookGroups: Record<string, typeof hookVideos> = {};
+  hookVideos.forEach(video => {
+    const hookMatch = video.videoName.match(/(.*)( HOOK\d+)[A-Z]?(.*)/); 
+    if (hookMatch) {
+      const prefix = hookMatch[1];
+      const hookBase = hookMatch[2];
+      const suffix = hookMatch[3];
+      const groupKey = `${prefix}${hookBase}${suffix}`;
+      
+      if (!hookGroups[groupKey]) {
+        hookGroups[groupKey] = [];
+      }
+      hookGroups[groupKey].push(video);
+    }
+  });
+  
+  // 4. Create merge tasks ONLY for selected items
+  interface MergeTask {
+    type: 'body' | 'hook';
+    name: string;
+    videos: typeof trimmedVideos;
+  }
+  
+  const mergeTasks: MergeTask[] = [];
+  
+  // Add BODY task if selected
+  if (selectedBody && bodyVideos.length > 0) {
+    mergeTasks.push({
+      type: 'body',
+      name: 'BODY',
+      videos: bodyVideos
+    });
+  }
+  
+  // Add selected HOOK tasks
+  selectedHooks.forEach(hookBaseName => {
+    const videos = hookGroups[hookBaseName];
+    if (videos && videos.length > 1) {
+      mergeTasks.push({
+        type: 'hook',
+        name: hookBaseName,
+        videos
+      });
+    }
+  });
+  
+  const totalFinalVideos = mergeTasks.length;
+  console.log('[Selective Merge] 📊 Total final videos to re-merge:', totalFinalVideos);
+  
+  if (totalFinalVideos === 0) {
+    toast.info('No videos selected for merging!');
+    setIsMergingStep10(false);
+    return;
+  }
+  
+  // 5. Create batches (max 10 final videos per batch)
+  const MAX_FINAL_VIDEOS_PER_BATCH = 10;
+  const batches: MergeTask[][] = [];
+  
+  for (let i = 0; i < mergeTasks.length; i += MAX_FINAL_VIDEOS_PER_BATCH) {
+    batches.push(mergeTasks.slice(i, i + MAX_FINAL_VIDEOS_PER_BATCH));
+  }
+  
+  console.log('[Selective Merge] 📦 Batches:', batches.length);
+  
+  // 6. Initialize progress
+  setMergeStep10Progress({
+    status: 'countdown',
+    message: 'Waiting 60s before starting...',
+    countdown: 60,
+    totalFinalVideos,
+    currentFinalVideo: 0,
+    currentBatch: 0,
+    totalBatches: batches.length,
+    hooksSuccess: [],
+    hooksFailed: [],
+    hooksInProgress: [],
+    bodySuccess: [],
+    bodyFailed: [],
+    bodyInProgress: [],
+    onSkipCountdown: undefined
+  });
+  
+  // 7. INITIAL COUNTDOWN: 60s with Skip button
+  console.log('[Selective Merge] ⏳ Initial countdown 60s...');
+  let skipCountdown = false;
+  
+  setMergeStep10Progress(prev => ({
+    ...prev,
+    onSkipCountdown: () => {
+      console.log('[Selective Merge] ⏩ User skipped countdown!');
+      skipCountdown = true;
+    }
+  }));
+  
+  for (let countdown = 60; countdown > 0; countdown--) {
+    if (skipCountdown) {
+      console.log('[Selective Merge] ⏩ Countdown skipped!');
+      break;
+    }
+    
+    setMergeStep10Progress(prev => ({
+      ...prev,
+      countdown,
+      message: `Waiting ${countdown}s before starting...`
+    }));
+    
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+  
+  // Clear countdown
+  setMergeStep10Progress(prev => ({
+    ...prev,
+    status: 'processing',
+    countdown: 0,
+    onSkipCountdown: undefined,
+    message: 'Starting selective merge...'
+  }));
+  
+  console.log('[Selective Merge] 🚀 Starting merge...');
+  
+  // 8. Process batches sequentially (same logic as handlePrepareForMerge)
+  try {
+    for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
+      const batch = batches[batchIdx];
+      const batchNum = batchIdx + 1;
+      
+      console.log(`[Selective Merge] 📦 Processing batch ${batchNum}/${batches.length} (${batch.length} final videos)...`);
+      
+      setMergeStep10Progress(prev => ({
+        ...prev,
+        currentBatch: batchNum,
+        message: `Processing batch ${batchNum}/${batches.length}...`
+      }));
+      
+      // Process all tasks in this batch in parallel
+      const batchPromises = batch.map(async (task) => {
+        console.log(`[Selective Merge] 🔄 Merging ${task.name} (${task.videos.length} videos)...`);
+        
+        // Add to in-progress
+        setMergeStep10Progress(prev => ({
+          ...prev,
+          hooksInProgress: task.type === 'hook' ? [...prev.hooksInProgress, { name: task.name }] : prev.hooksInProgress,
+          bodyInProgress: task.type === 'body' ? [...prev.bodyInProgress, { name: task.name }] : prev.bodyInProgress
+        }));
+        
+        try {
+          const videoUrls = task.videos.map(v => v.trimmedVideoUrl!).filter(Boolean);
+          
+          // Call merge API
+          const outputName = task.type === 'hook' 
+            ? task.name.replace(/(HOOK\d+)/, '$1M')
+            : task.name;
+          
+          const result = await mergeVideosMutation.mutateAsync({
+            videoUrls,
+            outputVideoName: outputName,
+            ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
+            addTextOverlay: false,
+            userId: localCurrentUser.id,
+            useSimpleMerge: true,
+            useLoudnorm: false,
+          });
+          
+          console.log(`[Selective Merge] ✅ ${task.name} SUCCESS:`, result.cdnUrl);
+          
+          // Save to hookMergedVideos or bodyMergedVideoUrl
+          if (task.type === 'hook') {
+            setHookMergedVideos(prev => ({ ...prev, [task.name]: result.cdnUrl }));
+            
+            // Update videoResults
+            const resetVideoResults = videoResults.map(v => {
+              if (v.videoName.startsWith(task.name)) {
+                return { ...v, isGroupedInMerge: false };
+              }
+              return v;
+            });
+            
+            const updatedVideoResults = resetVideoResults.map(v => {
+              if (task.videos.some(gv => gv.videoName === v.videoName)) {
+                return { ...v, isGroupedInMerge: true };
+              }
+              return v;
+            });
+            
+            const mergedVideo = {
+              videoName: outputName,
+              trimmedVideoUrl: result.cdnUrl,
+              text: task.videos.map(v => {
+                const text = v.text || '';
+                if (v.redStart !== undefined && v.redEnd !== undefined && v.redStart >= 0 && v.redEnd > v.redStart) {
+                  const beforeRed = text.substring(0, v.redStart);
+                  const afterRed = text.substring(v.redEnd);
+                  return (beforeRed + afterRed).trim();
+                }
+                return text.trim();
+              }).filter(t => t).join(' '),
+              section: task.videos[0]?.section || 'HOOKS',
+              status: 'success' as const,
+              isGroupedInMerge: false,
+              isMergedResult: true,
+            };
+            
+            const existingMergedIndex = updatedVideoResults.findIndex(v => v.videoName === outputName);
+            if (existingMergedIndex >= 0) {
+              updatedVideoResults[existingMergedIndex] = mergedVideo;
+            } else {
+              updatedVideoResults.push(mergedVideo);
+            }
+            
+            setVideoResults(updatedVideoResults);
+          } else if (task.type === 'body') {
+            setBodyMergedVideoUrl(result.cdnUrl);
+          }
+          
+          // Move from in-progress to success
+          setMergeStep10Progress(prev => ({
+            ...prev,
+            hooksSuccess: task.type === 'hook' 
+              ? [...prev.hooksSuccess, { name: task.name, videoCount: task.videos.length, videoNames: task.videos.map(v => v.videoName) }]
+              : prev.hooksSuccess,
+            hooksInProgress: task.type === 'hook' 
+              ? prev.hooksInProgress.filter(h => h.name !== task.name)
+              : prev.hooksInProgress,
+            bodySuccess: task.type === 'body' 
+              ? [...prev.bodySuccess, { name: task.name }]
+              : prev.bodySuccess,
+            bodyInProgress: task.type === 'body' 
+              ? prev.bodyInProgress.filter(b => b.name !== task.name)
+              : prev.bodyInProgress,
+            currentFinalVideo: prev.currentFinalVideo + 1
+          }));
+          
+          return { task, status: 'success', url: result.cdnUrl };
+          
+        } catch (error: any) {
+          console.error(`[Selective Merge] ❌ ${task.name} FAILED:`, error);
+          
+          // Move from in-progress to failed
+          setMergeStep10Progress(prev => ({
+            ...prev,
+            hooksFailed: task.type === 'hook' 
+              ? [...prev.hooksFailed, { name: task.name, error: error.message }]
+              : prev.hooksFailed,
+            hooksInProgress: task.type === 'hook' 
+              ? prev.hooksInProgress.filter(h => h.name !== task.name)
+              : prev.hooksInProgress,
+            bodyFailed: task.type === 'body' 
+              ? [...prev.bodyFailed, { name: task.name, error: error.message }]
+              : prev.bodyFailed,
+            bodyInProgress: task.type === 'body' 
+              ? prev.bodyInProgress.filter(b => b.name !== task.name)
+              : prev.bodyInProgress,
+            currentFinalVideo: prev.currentFinalVideo + 1
+          }));
+          
+          return { task, status: 'failed', error: error.message };
+        }
+      });
+      
+      await Promise.all(batchPromises);
+      
+      // Wait 60s AFTER batch (except last batch)
+      if (batchIdx < batches.length - 1) {
+        console.log(`[Selective Merge] ⏳ Waiting 60s after batch ${batchNum}...`);
+        for (let countdown = 60; countdown >= 0; countdown--) {
+          setMergeStep10Progress(prev => ({
+            ...prev,
+            message: `⏳ Waiting ${countdown}s before next batch...`,
+            countdown
+          }));
+          if (countdown > 0) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
+      }
+    }
+    
+    // Final status
+    const successCount = mergeStep10Progress.hooksSuccess.length + mergeStep10Progress.bodySuccess.length;
+    const failCount = mergeStep10Progress.hooksFailed.length + mergeStep10Progress.bodyFailed.length;
+    
+    setMergeStep10Progress(prev => ({
+      ...prev,
+      status: failCount > 0 ? 'partial' : 'complete',
+      message: failCount > 0 
+        ? `⚠️ ${successCount} succeeded, ${failCount} failed`
+        : `✅ All ${successCount} videos merged successfully!`,
+      countdown: 0
+    }));
+    
+    if (failCount > 0) {
+      toast.warning(`⚠️ Selective merge complete: ${successCount} success, ${failCount} failed`);
+    } else {
+      toast.success(`✅ All ${successCount} videos merged successfully!`);
+    }
+    
+  } catch (error: any) {
+    console.error('[Selective Merge] ❌ Fatal error:', error);
+    
+    setMergeStep10Progress(prev => ({
+      ...prev,
+      status: 'error',
+      message: `Fatal Error: ${error.message}`
+    }));
+    toast.error(`Selective merge failed: ${error.message}`);
+  }
+};
+
   // Retry failed merge items
   const handleRetryFailedMerge = async () => {
     const failedItems = mergeStep10Progress.failedItems || [];
@@ -8238,6 +8582,18 @@ const handlePrepareForMerge = async () => {
           if (mergeStep10Progress.status !== 'processing' && mergeStep10Progress.status !== 'countdown') {
             setIsMergingStep10(false);
           }
+        }}
+      />
+      
+      {/* Selective Merge Popup for Step 9 */}
+      <SelectiveMergePopup
+        open={isSelectiveMergePopupOpen}
+        onClose={() => setIsSelectiveMergePopupOpen(false)}
+        hookMergedVideos={hookMergedVideos}
+        bodyMergedVideoUrl={bodyMergedVideoUrl}
+        onConfirm={(selectedHooks, selectedBody) => {
+          setIsMergingStep10(true);
+          handleSelectiveMerge(selectedHooks, selectedBody);
         }}
       />
       
