@@ -197,6 +197,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // Step 8: Video Editing Processing
   const [showProcessingModal, setShowProcessingModal] = useState(false);
   const [showCuttingModeDialog, setShowCuttingModeDialog] = useState(false);
+  const [showReprocessWarning, setShowReprocessWarning] = useState(false);
   const [processingProgress, setProcessingProgress] = useState({ 
     ffmpeg: { current: 0, total: 0, status: 'idle' as 'idle' | 'processing' | 'complete', activeVideos: [] as string[] },
     whisper: { current: 0, total: 0, status: 'idle' as 'idle' | 'processing' | 'complete', activeVideos: [] as string[] },
@@ -6940,6 +6941,21 @@ const handlePrepareForMerge = async () => {
               return null;
             });
           }
+          
+          // STEP 8 CLEANUP: Remove processed data for this regenerated video
+          console.log(`[Selective Cleanup] 🧹 Cleaning Step 8 data for ${regeneratedVideoName}`);
+          setVideoResults(prev => prev.map(v => 
+            v.videoName === regeneratedVideoName
+              ? {
+                  ...v,
+                  trimmedVideoUrl: undefined, // Clear trimmed video
+                  audioWav: undefined, // Clear FFmpeg extracted audio
+                  cleanVoiceUrl: undefined, // Clear CleanVoice processed audio
+                  markers: undefined, // Clear Whisper markers
+                }
+              : v
+          ));
+          console.log(`[Selective Cleanup] 🗑️ Cleared: trimmedVideoUrl, audioWav, cleanVoiceUrl, markers`);
           
           // Note: finalVideos cleanup will happen via DB save + refetch
           // We'll save empty hookMergedVideos/bodyMergedVideoUrl to DB, then refetch
@@ -13848,20 +13864,22 @@ const handlePrepareForMerge = async () => {
                           return;
                         }
                         
-                        // Check if any videos already have cutting data (ffmpegWavUrl)
-                        const alreadyProcessedVideos = approvedVideos.filter(v => v.ffmpegWavUrl);
-                        const remainingVideos = approvedVideos.filter(v => !v.ffmpegWavUrl);
+                        // SMART LOGIC: Check if videos have FFmpeg WAV (audioWav)
+                        const videosWithWav = approvedVideos.filter(v => v.audioWav);
+                        const videosWithoutWav = approvedVideos.filter(v => !v.audioWav);
                         
-                        console.log(`[Video Editing] Already processed: ${alreadyProcessedVideos.length}, Remaining: ${remainingVideos.length}`);
+                        console.log(`[Video Editing] Videos with WAV: ${videosWithWav.length}, Without WAV: ${videosWithoutWav.length}`);
                         
-                        // If some videos are already processed, show dialog
-                        if (alreadyProcessedVideos.length > 0 && remainingVideos.length > 0) {
-                          setShowCuttingModeDialog(true);
+                        // CASE 1: ALL videos have WAV → Show WARNING popup for reprocess all
+                        if (videosWithoutWav.length === 0) {
+                          console.log('[Video Editing] ⚠️ ALL videos have WAV - showing reprocess warning');
+                          setShowReprocessWarning(true);
                           return;
                         }
                         
-                        // Process ALL approved videos (with or without red text)
-                        const videosToProcess = approvedVideos;
+                        // CASE 2: Some videos don't have WAV → Process only those without WAV (no warning)
+                        console.log(`[Video Editing] 🎯 Processing ${videosWithoutWav.length} videos without WAV`);
+                        const videosToProcess = videosWithoutWav;
                         
                         if (videosToProcess.length === 0) {
                           toast.error('❌ No accepted videos! Check Step 7.');
@@ -15926,6 +15944,105 @@ const handlePrepareForMerge = async () => {
             </svg>
           </button>
         </>
+      )}
+
+      {/* Reprocess Warning Dialog */}
+      {showReprocessWarning && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 shadow-xl border-4 border-red-500">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold text-red-600">⚠️ Warning: Reprocess All Videos</h3>
+            </div>
+            
+            <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6">
+              <p className="text-red-800 font-semibold mb-2">
+                Are you sure you want to reprocess all videos?
+              </p>
+              <p className="text-red-700 text-sm">
+                This will <strong>reset ALL markers</strong> for <strong>ALL videos</strong>!
+              </p>
+              <p className="text-red-700 text-sm mt-2">
+                All your manual marker adjustments will be lost and replaced with new automated markers.
+              </p>
+            </div>
+            
+            <div className="space-y-3">
+              <Button
+                onClick={async () => {
+                  setShowReprocessWarning(false);
+                  
+                  // Reprocess ALL approved videos (clear all Step 8 data)
+                  const approvedVideos = videoResults.filter(v => {
+                    return v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl;
+                  });
+                  const videosToProcess = approvedVideos;
+                  
+                  console.log(`[Video Editing] 🔄 REPROCESS ALL: Processing ${videosToProcess.length} videos`);
+                  
+                  // CLEAR ALL Step 8 data (markers, audio, etc.)
+                  setVideoResults(prev => prev.map(v => 
+                    approvedVideos.some(av => av.videoName === v.videoName)
+                      ? {
+                          ...v,
+                          audioWav: undefined, // Clear FFmpeg audio
+                          cleanVoiceUrl: undefined, // Clear CleanVoice
+                          markers: undefined, // Clear markers
+                          trimmedVideoUrl: undefined, // Clear trimmed video
+                          whisperTranscript: undefined,
+                          cutPoints: undefined,
+                          words: undefined,
+                          editStatus: null,
+                          trimStatus: null,
+                          acceptRejectStatus: null,
+                        }
+                      : v
+                  ));
+                  
+                  // Reset progress
+                  setProcessingProgress({ 
+                    ffmpeg: { current: 0, total: videosToProcess.length },
+                    whisper: { current: 0, total: videosToProcess.length },
+                    cleanvoice: { current: 0, total: videosToProcess.length },
+                    currentVideoName: '' 
+                  });
+                  setProcessingStep(null);
+                  
+                  setShowProcessingModal(true);
+                  
+                  try {
+                    await batchProcessVideosWithWhisper(videosToProcess);
+                    const failedCount = processingProgress.failedVideos.length;
+                    if (failedCount > 0) {
+                      toast.warning(`⚠️ Processing complete: ${processingProgress.successVideos.length} success, ${failedCount} failed.`);
+                    } else {
+                      toast.success(`✅ ${videosToProcess.length} videos reprocessed successfully!`);
+                    }
+                  } catch (error: any) {
+                    console.error('[Video Editing] Batch processing error:', error);
+                    setShowProcessingModal(false);
+                    toast.error(`Error reprocessing videos: ${error.message}`);
+                  }
+                }}
+                className="w-full bg-red-600 hover:bg-red-700 text-white py-3 font-bold"
+              >
+                🔄 Yes, Reprocess All Videos
+              </Button>
+              
+              <Button
+                onClick={() => setShowReprocessWarning(false)}
+                variant="outline"
+                className="w-full border-2"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Cutting Mode Dialog */}
