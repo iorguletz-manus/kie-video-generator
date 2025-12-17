@@ -7487,6 +7487,8 @@ const handlePrepareForMerge = async () => {
                 error: newResult.error,
                 videoUrl: undefined, // Reset videoUrl
                 reviewStatus: null, // Șterge Rejected/Approved când regenerăm
+                // PRESERVE internalNote from Step 7 when regenerating
+                internalNote: v.internalNote,
                 // Clear cutting data to force reprocessing in Step 8
                 ffmpegWavUrl: undefined,
                 whisperUrl: undefined,
