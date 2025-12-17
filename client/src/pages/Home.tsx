@@ -7754,6 +7754,63 @@ const handlePrepareForMerge = async () => {
     }
   }, [selectedTamId, selectedCoreBeliefId, selectedEmotionalAngleId, selectedAdId, selectedCharacterId]);
 
+  // Duplicate LINE in Step 2 with smart renaming
+  const duplicateLine = useCallback((lineIndex: number) => {
+    const line = adLines[lineIndex];
+    
+    // Extract base name and variation letter from videoName
+    // Format: T1_C1_E1_AD1_HOOK1B_TEST_ALINA_1
+    const match = line.videoName.match(/^(.*?)(HOOK\d+)([A-Z]?)(.*)$/);
+    if (!match) {
+      toast.error('Cannot duplicate this line');
+      return;
+    }
+    
+    const [_, prefix, hookBase, currentLetter, suffix] = match;
+    
+    // Find all variations of this hook in adLines
+    const hookPattern = new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}${hookBase}([A-Z]?)${suffix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
+    const variations = adLines
+      .map((l, i) => ({ line: l, index: i }))
+      .filter(({ line: l }) => hookPattern.test(l.videoName))
+      .sort((a, b) => {
+        const aLetter = a.line.videoName.match(hookPattern)?.[1] || '';
+        const bLetter = b.line.videoName.match(hookPattern)?.[1] || '';
+        return aLetter.localeCompare(bLetter);
+      });
+    
+    // Calculate new letter for duplicate
+    const currentLetterCode = currentLetter ? currentLetter.charCodeAt(0) : 64; // 64 = '@' (before 'A')
+    const newLetter = String.fromCharCode(currentLetterCode + 1);
+    
+    // Rename all variations after current one
+    const updatedLines = [...adLines];
+    variations.forEach(({ line: l, index: idx }) => {
+      const varLetter = l.videoName.match(hookPattern)?.[1] || '';
+      const varLetterCode = varLetter ? varLetter.charCodeAt(0) : 64;
+      
+      if (varLetterCode > currentLetterCode) {
+        // Shift this variation up by one letter
+        const nextLetter = String.fromCharCode(varLetterCode + 1);
+        const newVideoName = `${prefix}${hookBase}${nextLetter}${suffix}`;
+        updatedLines[idx] = { ...updatedLines[idx], videoName: newVideoName };
+      }
+    });
+    
+    // Create duplicate at current position + 1
+    const duplicateName = `${prefix}${hookBase}${newLetter}${suffix}`;
+    const duplicateLine: AdLine = {
+      ...line,
+      id: `line-${Date.now()}-${Math.random()}`,
+      videoName: duplicateName,
+    };
+    
+    updatedLines.splice(lineIndex + 1, 0, duplicateLine);
+    
+    setAdLines(updatedLines);
+    toast.success(`Duplicated: ${duplicateName}`);
+  }, [adLines]);
+
   const undoReview = useCallback(() => {
     if (reviewHistory.length === 0) {
       toast.error('No actions to undo');
@@ -10493,7 +10550,7 @@ const handlePrepareForMerge = async () => {
                       return (
                         <div key={line.id} className="ml-4" data-line-id={line.id}>
                           <div className="p-3 bg-white rounded border border-blue-200 text-sm relative">
-                            {/* Edit and Delete Buttons */}
+                            {/* Edit, Delete and Duplicate Buttons */}
                             <div className="absolute top-2 right-2 flex gap-2">
                               <Button
                                 onClick={() => {
@@ -10509,6 +10566,19 @@ const handlePrepareForMerge = async () => {
                                 className="border-red-300 text-red-700 hover:bg-red-50"
                               >
                                 Del
+                              </Button>
+                              <Button
+                                onClick={() => {
+                                  const lineIndex = adLines.findIndex(l => l.id === line.id);
+                                  if (lineIndex >= 0) {
+                                    duplicateLine(lineIndex);
+                                  }
+                                }}
+                                variant="outline"
+                                size="sm"
+                                className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                              >
+                                Dup
                               </Button>
                               <Button
                                 onClick={() => {
