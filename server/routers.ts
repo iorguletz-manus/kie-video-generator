@@ -2154,6 +2154,7 @@ export const appRouter = router({
           name: z.string(),
           startMs: z.number(),
           endMs: z.number(),
+          cleanVoiceAudioUrl: z.string().nullable().optional(),  // Optional CleanVoice audio URL
         })),
         ffmpegApiKey: z.string(),
       }))
@@ -2185,43 +2186,89 @@ export const appRouter = router({
           // 2. Upload all videos to the same directory
           const { uploadVideoToFFmpegAPI } = await import('./videoEditing');
           const uploadedPaths: string[] = [];
+          const uploadedAudioPaths: (string | null)[] = [];  // Track cleanVoice audio paths
           
           for (const video of input.videos) {
             const filePath = await uploadVideoToFFmpegAPI(video.url, `${video.name}_original.mp4`, input.ffmpegApiKey, dirId);
             uploadedPaths.push(filePath);
             console.log(`[cutAndMergeAllVideos] Uploaded: ${video.name} → ${filePath}`);
+            
+            // Upload cleanVoice audio if available
+            if (video.cleanVoiceAudioUrl) {
+              console.log(`[cutAndMergeAllVideos] Uploading cleanVoice audio for ${video.name}...`);
+              const audioPath = await uploadVideoToFFmpegAPI(video.cleanVoiceAudioUrl, `${video.name}_cleanvoice.mp3`, input.ffmpegApiKey, dirId);
+              uploadedAudioPaths.push(audioPath);
+              console.log(`[cutAndMergeAllVideos] CleanVoice audio uploaded: ${audioPath}`);
+            } else {
+              uploadedAudioPaths.push(null);
+            }
           }
           
           console.log('[cutAndMergeAllVideos] All videos uploaded to FFmpeg API');
           
           // 3. Build filter_complex - trim each video individually if needed
+          // Input layout: [video0, video1, ...videoN, audio0, audio1, ...audioM] where M = count of non-null audio
+          // Audio inputs start at index = input.videos.length
           console.log('[cutAndMergeAllVideos] Building filter_complex...');
           
           const trimFilters: string[] = [];
           const concatInputs: string[] = [];
+          const audioStartIndex = input.videos.length;  // Audio inputs start after all video inputs
+          
+          // Build mapping: video index → audio input index (only for videos with cleanVoice)
+          const videoToAudioInputMap: Map<number, number> = new Map();
+          let currentAudioInputIndex = audioStartIndex;
+          uploadedAudioPaths.forEach((audioPath, videoIndex) => {
+            if (audioPath !== null) {
+              videoToAudioInputMap.set(videoIndex, currentAudioInputIndex);
+              currentAudioInputIndex++;
+            }
+          });
+          
+          console.log('[cutAndMergeAllVideos] Audio input mapping:', Array.from(videoToAudioInputMap.entries()));
           
           input.videos.forEach((video, index) => {
             const needsTrim = video.startMs > 0 || video.endMs > 0;
+            const hasCleanVoice = uploadedAudioPaths[index] !== null;
+            const audioInputIndex = videoToAudioInputMap.get(index);  // Get actual audio input index
             
             if (needsTrim) {
               // Trim this specific video
               const startSec = video.startMs / 1000;
               const endSec = video.endMs / 1000;
               
-              console.log(`[cutAndMergeAllVideos] Video ${index} (${video.name}): TRIM from ${startSec}s to ${endSec}s`);
+              console.log(`[cutAndMergeAllVideos] Video ${index} (${video.name}): TRIM from ${startSec}s to ${endSec}s, cleanVoice: ${hasCleanVoice}`);
               
+              // Trim video
               trimFilters.push(
                 `[${index}:v]trim=start=${startSec.toFixed(3)}:end=${endSec.toFixed(3)},setpts=PTS-STARTPTS[v${index}]`
               );
-              trimFilters.push(
-                `[${index}:a]atrim=start=${startSec.toFixed(3)}:end=${endSec.toFixed(3)},asetpts=PTS-STARTPTS[a${index}]`
-              );
+              
+              // Trim audio (from cleanVoice if available, otherwise from original video)
+              if (hasCleanVoice) {
+                // Use cleanVoice audio (separate input)
+                trimFilters.push(
+                  `[${audioInputIndex}:a]atrim=start=${startSec.toFixed(3)}:end=${endSec.toFixed(3)},asetpts=PTS-STARTPTS[a${index}]`
+                );
+              } else {
+                // Use original video audio
+                trimFilters.push(
+                  `[${index}:a]atrim=start=${startSec.toFixed(3)}:end=${endSec.toFixed(3)},asetpts=PTS-STARTPTS[a${index}]`
+                );
+              }
               
               concatInputs.push(`[v${index}][a${index}]`);
             } else {
               // Use full video (no trim)
-              console.log(`[cutAndMergeAllVideos] Video ${index} (${video.name}): NO TRIM (use full video)`);
-              concatInputs.push(`[${index}:v][${index}:a]`);
+              console.log(`[cutAndMergeAllVideos] Video ${index} (${video.name}): NO TRIM (use full video), cleanVoice: ${hasCleanVoice}`);
+              
+              if (hasCleanVoice) {
+                // Use full video + cleanVoice audio
+                concatInputs.push(`[${index}:v][${audioInputIndex}:a]`);
+              } else {
+                // Use full video with original audio
+                concatInputs.push(`[${index}:v][${index}:a]`);
+              }
             }
           });
           
@@ -2236,8 +2283,16 @@ export const appRouter = router({
           
           console.log('[cutAndMergeAllVideos] Filter complex:', filterComplex);
           
-          // 3. Process with FFmpeg API
+          // 4. Process with FFmpeg API
           const outputFileName = `sample_merge_${Date.now()}.mp4`;
+          
+          // Build inputs array: [video files, then audio files]
+          const allInputs = [
+            ...uploadedPaths.map(path => ({ file_path: path })),  // Video inputs
+            ...uploadedAudioPaths.filter(path => path !== null).map(path => ({ file_path: path! }))  // Audio inputs (only non-null)
+          ];
+          
+          console.log(`[cutAndMergeAllVideos] Total inputs: ${allInputs.length} (${uploadedPaths.length} videos + ${uploadedAudioPaths.filter(p => p !== null).length} audio files)`);
           
           const processRes = await fetch(`${FFMPEG_API_BASE}/ffmpeg/process`, {
             method: 'POST',
@@ -2247,14 +2302,16 @@ export const appRouter = router({
             },
             body: JSON.stringify({
               task: {
-                inputs: uploadedPaths.map(path => ({ file_path: path })),
+                inputs: allInputs,
                 filter_complex: filterComplex,
                 outputs: [{
                   file: outputFileName,
                   options: [
                     '-c:v', 'libx264',
                     '-crf', '23',
-                    '-c:a', 'aac'
+                    '-c:a', 'aac',
+                    '-b:a', '192k',  // 192 kbps audio bitrate
+                    '-ar', '48000'   // 48 kHz sample rate
                   ],
                   maps: ['[outv]', '[outa]']
                 }]

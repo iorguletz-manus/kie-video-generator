@@ -13452,8 +13452,13 @@ const handlePrepareForMerge = async () => {
                               </div>
                             ) : (
                               <div className="flex items-center gap-2">
-                                <div className="flex-1 flex justify-center">
+                                <div className="flex-1 flex justify-center items-center gap-2">
                                   <h4 className="font-bold text-center px-5 py-2.5 bg-green-100 text-green-900 rounded-lg inline-block text-xs">{video.videoName}</h4>
+                                  {video.generationCount && video.generationCount > 0 && (
+                                    <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded font-semibold">
+                                      Regen: {video.generationCount}
+                                    </span>
+                                  )}
                                 </div>
                                 <button
                                   onClick={() => {
@@ -14132,6 +14137,8 @@ const handlePrepareForMerge = async () => {
                             isEndLocked: video.isEndLocked,
                             step9Note: video.step9Note,
                             editingDebugInfo: video.editingDebugInfo,
+                            trimmedVideoUrl: video.trimmedVideoUrl,
+                            generationCount: video.generationCount,
                             }}
                             previousVideo={(() => {
                               // Find current video in ALL approved videos (ignore filter)
@@ -14185,12 +14192,16 @@ const handlePrepareForMerge = async () => {
                                   const freshVideoResults = freshContext.videoResults as any;
                                   console.log('[Cut & Merge] ✅ Fresh videoResults loaded from DB:', Array.isArray(freshVideoResults) ? freshVideoResults.length : 'N/A');
                                   
-                                  // Update previousVideo, currentVideo, nextVideo with fresh cut points
+                                  // Update previousVideo, currentVideo, nextVideo with fresh cut points AND cleanVoiceUrl
                                   if (previousVideo) {
                                     const freshPrev = freshVideoResults.find((v: any) => v.videoName === previousVideo.videoName);
                                     if (freshPrev?.cutPoints) {
                                       console.log(`[Cut & Merge] 🔄 Updated previous cutPoints:`, freshPrev.cutPoints);
                                       previousVideo.cutPoints = freshPrev.cutPoints;
+                                    }
+                                    if (freshPrev?.cleanVoiceUrl) {
+                                      console.log(`[Cut & Merge] 🔄 Updated previous cleanVoiceUrl:`, freshPrev.cleanVoiceUrl);
+                                      previousVideo.cleanVoiceUrl = freshPrev.cleanVoiceUrl;
                                     }
                                   }
                                   
@@ -14199,12 +14210,20 @@ const handlePrepareForMerge = async () => {
                                     console.log(`[Cut & Merge] 🔄 Updated current cutPoints:`, freshCurrent.cutPoints);
                                     currentVideo.cutPoints = freshCurrent.cutPoints;
                                   }
+                                  if (freshCurrent?.cleanVoiceUrl) {
+                                    console.log(`[Cut & Merge] 🔄 Updated current cleanVoiceUrl:`, freshCurrent.cleanVoiceUrl);
+                                    currentVideo.cleanVoiceUrl = freshCurrent.cleanVoiceUrl;
+                                  }
                                   
                                   if (nextVideo) {
                                     const freshNext = freshVideoResults.find((v: any) => v.videoName === nextVideo.videoName);
                                     if (freshNext?.cutPoints) {
                                       console.log(`[Cut & Merge] 🔄 Updated next cutPoints:`, freshNext.cutPoints);
                                       nextVideo.cutPoints = freshNext.cutPoints;
+                                    }
+                                    if (freshNext?.cleanVoiceUrl) {
+                                      console.log(`[Cut & Merge] 🔄 Updated next cleanVoiceUrl:`, freshNext.cleanVoiceUrl);
+                                      nextVideo.cleanVoiceUrl = freshNext.cleanVoiceUrl;
                                     }
                                   }
                                 } else {
@@ -14306,6 +14325,7 @@ const handlePrepareForMerge = async () => {
                                   name: v.videoName,
                                   startMs: v.cutPoints.startKeep,
                                   endMs: v.cutPoints.endKeep,
+                                  cleanVoiceAudioUrl: v.cleanVoiceUrl || null,  // Pass cleanVoice audio URL
                                 }));
                                 
                                 console.log('[Cut & Merge] Merging', videos.length, 'videos:', videos.map(v => v.name).join(' + '));
@@ -14452,6 +14472,54 @@ const handlePrepareForMerge = async () => {
                                 toast.error(`Error: ${error.message}`);
                               } finally {
                                 setShowProcessingModal(false);
+                              }
+                            }}
+                            onMarkerModified={async (videoName) => {
+                              console.log('[Marker Modified] Marking video for recut:', videoName);
+                              
+                              // Update video status to 'recut' in Step 9
+                              setVideoResults(prev => prev.map(v =>
+                                v.videoName === videoName
+                                  ? { ...v, recutStatus: 'recut' }
+                                  : v
+                              ));
+                              
+                              // Save to database
+                              try {
+                                const currentVideoResults = await new Promise<typeof videoResults>((resolve) => {
+                                  setVideoResults(current => {
+                                    resolve(current);
+                                    return current;
+                                  });
+                                });
+                                
+                                await upsertContextSessionMutation.mutateAsync({
+                                  userId: localCurrentUser.id,
+                                  tamId: selectedTamId,
+                                  coreBeliefId: selectedCoreBeliefId,
+                                  emotionalAngleId: selectedEmotionalAngleId,
+                                  adId: selectedAdId,
+                                  characterId: selectedCharacterId,
+                                  currentStep,
+                                  rawTextAd,
+                                  processedTextAd,
+                                  adLines,
+                                  prompts,
+                                  images,
+                                  combinations,
+                                  deletedCombinations,
+                                  videoResults: currentVideoResults,
+                                  reviewHistory,
+                                  hookMergedVideos,
+                                  bodyMergedVideoUrl,
+                                  finalVideos,
+                                });
+                                
+                                console.log('[Marker Modified] ✅ Status updated to recut and saved to database');
+                                toast.success(`${videoName} marked for re-trimming`);
+                              } catch (error: any) {
+                                console.error('[Marker Modified] ❌ Database save failed:', error);
+                                toast.error(`Failed to update status: ${error.message}`);
                               }
                             }}
                             onTrimChange={(videoId, cutPoints, isStartLocked, isEndLocked) => {

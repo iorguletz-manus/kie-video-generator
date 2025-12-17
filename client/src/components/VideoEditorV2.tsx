@@ -24,6 +24,8 @@ interface VideoEditorV2Props {
     isEndLocked?: boolean;
     step9Note?: string | null;  // Note from Step 9
     editingDebugInfo?: any;  // Debug info from Whisper processing
+    trimmedVideoUrl?: string | null;  // Trimmed video URL (if already trimmed)
+    generationCount?: number;  // Number of successful generations for this video
   };
   previousVideo?: {
     videoName: string;
@@ -38,6 +40,7 @@ interface VideoEditorV2Props {
   onTrimChange?: (videoId: string, cutPoints: { startKeep: number; endKeep: number }, isStartLocked: boolean, isEndLocked: boolean) => void;
   onCutAndMerge?: (previousVideo: any | null, currentVideo: any, nextVideo: any | null) => Promise<void>;
   onReprocess?: (videoName: string) => void;  // Callback to re-process single video
+  onMarkerModified?: (videoName: string) => void;  // Callback when markers are modified on a trimmed video
   // Overlay Settings for HOOK videos
   overlaySettings?: {
     enabled: boolean;
@@ -76,7 +79,7 @@ interface VideoEditorV2Props {
   };
 }
 
-export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previousVideo, nextVideo, onTrimChange, onCutAndMerge, onReprocess, overlaySettings, onOverlaySettingsChange, previousVideoOverlaySettings }: VideoEditorV2Props) {
+export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previousVideo, nextVideo, onTrimChange, onCutAndMerge, onReprocess, onMarkerModified, overlaySettings, onOverlaySettingsChange, previousVideoOverlaySettings }: VideoEditorV2Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const zoomviewRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -704,10 +707,15 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
     <div className="border-2 border-purple-300 rounded-lg p-3 bg-white">
       {/* Video Player */}
       <div className="mb-3">
-        <div className="flex justify-center mb-3">
+        <div className="flex justify-center items-center gap-2 mb-3">
           <h3 className="text-base font-bold text-center px-5 py-2.5 bg-green-100 text-green-900 rounded-lg inline-block">
             {video.videoName}
           </h3>
+          {video.generationCount && video.generationCount > 0 && (
+            <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded font-semibold">
+              Regen: {video.generationCount}
+            </span>
+          )}
         </div>
         <div 
           className="relative bg-black rounded-lg overflow-hidden mx-auto" 
@@ -1215,6 +1223,14 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
             </div>
           )}
           
+          {/* WARNING Badge - For unprocessed videos */}
+          {onReprocess && (!video.audioWav || !video.markers || !video.cleanVoiceUrl) && (
+            <div className="px-3 py-1 bg-red-100 border-2 border-red-500 rounded text-xs font-bold text-red-700 flex items-center gap-1 animate-pulse">
+              <span>⚠️</span>
+              <span>WARNING: Please reprocess this video first</span>
+            </div>
+          )}
+          
           {/* Reprocesare Button - Far left */}
           {onReprocess && (
             <Button
@@ -1229,7 +1245,23 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
           
           {/* Lock START Button - Left of center */}
           <Button
-            onClick={() => {
+            onClick={async () => {
+              // Check if video is already trimmed and user is trying to lock (modify markers)
+              if (video.trimmedVideoUrl && !isStartLocked) {
+                const confirmed = window.confirm(
+                  'Are you sure you want to modify the markers? If you modify them, this video will need to be re-trimmed using the red button below to appear correctly in Step 10.'
+                );
+                
+                if (!confirmed) {
+                  return; // User cancelled
+                }
+                
+                // User confirmed - mark video for recut
+                if (onMarkerModified) {
+                  onMarkerModified(video.videoName);
+                }
+              }
+              
               const newLockState = !isStartLocked;
               setIsStartLocked(newLockState);
               // Trigger immediate save
@@ -1274,7 +1306,23 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
           
           {/* Lock END Button - Right of center */}
           <Button
-            onClick={() => {
+            onClick={async () => {
+              // Check if video is already trimmed and user is trying to lock (modify markers)
+              if (video.trimmedVideoUrl && !isEndLocked) {
+                const confirmed = window.confirm(
+                  'Are you sure you want to modify the markers? If you modify them, this video will need to be re-trimmed using the red button below to appear correctly in Step 10.'
+                );
+                
+                if (!confirmed) {
+                  return; // User cancelled
+                }
+                
+                // User confirmed - mark video for recut
+                if (onMarkerModified) {
+                  onMarkerModified(video.videoName);
+                }
+              }
+              
               const newLockState = !isEndLocked;
               setIsEndLocked(newLockState);
               // Trigger immediate save
