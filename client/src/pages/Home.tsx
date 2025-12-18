@@ -7361,8 +7361,26 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
             const hookNum = hookMatch[1];
             console.log(`[Selective Cleanup] 🎯 Detected HOOK${hookNum} regeneration`);
             setHookMergedVideos(prev => {
-              const filtered = prev.filter(v => !v.videoName.includes(`HOOK${hookNum}M`));
-              console.log(`[Selective Cleanup] 🗑️ Removed HOOK${hookNum}M from hookMergedVideos (${prev.length} → ${filtered.length})`);
+              if (!prev || typeof prev !== 'object') {
+                console.log(`[Selective Cleanup] ⚠️ hookMergedVideos is not an object, skipping cleanup`);
+                return prev;
+              }
+              
+              // hookMergedVideos is an OBJECT with keys like "T1_C1_E1_AD2_HOOK1_ELENA_1"
+              // We need to filter out keys that contain HOOK${hookNum}M
+              const filtered: Record<string, any> = {};
+              let removedCount = 0;
+              
+              Object.entries(prev).forEach(([key, value]) => {
+                if (!key.includes(`HOOK${hookNum}`) || key.includes(`HOOK${hookNum}M`)) {
+                  // Skip this entry if it's the regenerated HOOK
+                  removedCount++;
+                } else {
+                  filtered[key] = value;
+                }
+              });
+              
+              console.log(`[Selective Cleanup] 🗑️ Removed HOOK${hookNum} entries from hookMergedVideos (${Object.keys(prev).length} → ${Object.keys(filtered).length}, removed: ${removedCount})`);
               return filtered;
             });
           } else {
