@@ -1779,12 +1779,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // ========== COMPUTED VALUES (MEMOIZED) ==========
   // Filtered video lists (evită re-compute la fiecare render)
   const failedVideos = useMemo(
-    () => videoResults.filter(v => v.status === 'failed'),
+    () => (videoResults || []).filter(v => v.status === 'failed'),
     [videoResults]
   );
   
   const acceptedVideos = useMemo(
-    () => videoResults.filter(v => v.reviewStatus === 'accepted'),
+    () => (videoResults || []).filter(v => v.reviewStatus === 'accepted'),
     [videoResults]
   );
   
@@ -1936,9 +1936,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // Auto-remove is prevented by keeping filter value constant until user changes it
   const step6FilteredVideos = useMemo(() => {
     // Exclude merged results (HOOK2M) from Step 6-8
-    const filteredResults = videoResults.filter(v => !(v.isMergedResult ?? false));
-    const filteredAccepted = acceptedVideos.filter(v => !(v.isMergedResult ?? false));
-    const filteredFailed = failedVideos.filter(v => !(v.isMergedResult ?? false));
+    const filteredResults = (videoResults || []).filter(v => !(v.isMergedResult ?? false));
+    const filteredAccepted = (acceptedVideos || []).filter(v => !(v.isMergedResult ?? false));
+    const filteredFailed = (failedVideos || []).filter(v => !(v.isMergedResult ?? false));
     
     if (videoFilter === 'all') return filteredResults;
     if (videoFilter === 'accepted') return filteredAccepted;
@@ -1949,14 +1949,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   
   // Videos fără decizie (pentru statistici STEP 6)
   const videosWithoutDecision = useMemo(
-    () => videoResults.filter(v => !v.reviewStatus),
+    () => (videoResults || []).filter(v => !v.reviewStatus),
     [videoResults]
   );
   const videosWithoutDecisionCount = useMemo(() => videosWithoutDecision.length, [videosWithoutDecision]);
   
   // Accepted videos cu videoUrl (pentru download)
   const acceptedVideosWithUrl = useMemo(
-    () => videoResults.filter(v => v.reviewStatus === 'accepted' && v.videoUrl),
+    () => (videoResults || []).filter(v => v.reviewStatus === 'accepted' && v.videoUrl),
     [videoResults]
   );
   
