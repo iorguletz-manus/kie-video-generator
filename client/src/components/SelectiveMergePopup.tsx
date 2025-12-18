@@ -29,7 +29,7 @@ export const SelectiveMergePopup: React.FC<SelectiveMergePopupProps> = ({
     }
   }, [open]);
 
-  const hookNames = Object.keys(hookMergedVideos);
+  const hookNames = hookMergedVideos ? Object.keys(hookMergedVideos) : [];
   const hasBody = bodyMergedVideoUrl !== null;
 
   const handleSelectAll = () => {
