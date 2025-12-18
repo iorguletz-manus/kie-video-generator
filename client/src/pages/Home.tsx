@@ -223,10 +223,37 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [deletedCombinations, setDeletedCombinations] = useState<Combination[]>([]);
   
   // Step 5: Generate
-  const [videoResults, setVideoResults] = useState<VideoResult[]>([]);
+  const [videoResultsRaw, setVideoResultsRaw] = useState<VideoResult[]>([]);
   
-  // SAFETY: Ensure videoResults is always an array (prevent "it.filter is not a function" errors)
-  const safeVideoResults = Array.isArray(videoResults) ? videoResults : [];
+  // SAFETY WRAPPER: Validate and log all setVideoResults calls
+  const setVideoResults = (value: VideoResult[] | ((prev: VideoResult[]) => VideoResult[])) => {
+    if (typeof value === 'function') {
+      setVideoResultsRaw(prev => {
+        const result = value(prev);
+        if (!Array.isArray(result)) {
+          console.error('[setVideoResults] ❌ Attempted to set NON-ARRAY!', {
+            type: typeof result,
+            value: result,
+            stack: new Error().stack
+          });
+          return prev; // Keep previous value if invalid
+        }
+        return result;
+      });
+    } else {
+      if (!Array.isArray(value)) {
+        console.error('[setVideoResults] ❌ Attempted to set NON-ARRAY!', {
+          type: typeof value,
+          value: value,
+          stack: new Error().stack
+        });
+        return; // Don't update if invalid
+      }
+      setVideoResultsRaw(value);
+    }
+  };
+  
+  const videoResults = videoResultsRaw;
   const [modifyingVideoIndex, setModifyingVideoIndex] = useState<number | null>(null);
   const [modifyPromptType, setModifyPromptType] = useState<PromptType>('PROMPT_NEUTRAL');
   const [modifyPromptText, setModifyPromptText] = useState('');
