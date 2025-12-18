@@ -1079,11 +1079,38 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
   // Computed value: finalVideos from database (single source of truth for Step 10 & 11)
   const finalVideosFromDB = useMemo(() => {
-    if (!contextSession?.finalVideos) return [];
-    const parsed = typeof contextSession.finalVideos === 'string'
-      ? JSON.parse(contextSession.finalVideos)
-      : contextSession.finalVideos;
-    return parsed || [];
+    console.log('[useMemo finalVideosFromDB] contextSession.finalVideos:', {
+      exists: !!contextSession?.finalVideos,
+      type: typeof contextSession?.finalVideos,
+      isArray: Array.isArray(contextSession?.finalVideos),
+      value: contextSession?.finalVideos
+    });
+    
+    if (!contextSession?.finalVideos) {
+      console.log('[useMemo finalVideosFromDB] ✅ No finalVideos, returning empty array');
+      return [];
+    }
+    
+    let parsed;
+    try {
+      parsed = typeof contextSession.finalVideos === 'string'
+        ? JSON.parse(contextSession.finalVideos)
+        : contextSession.finalVideos;
+    } catch (error) {
+      console.error('[useMemo finalVideosFromDB] ❌ JSON parse error:', error);
+      return [];
+    }
+    
+    if (!Array.isArray(parsed)) {
+      console.error('[useMemo finalVideosFromDB] ❌ Parsed value is NOT an array!', {
+        type: typeof parsed,
+        value: parsed
+      });
+      return [];
+    }
+    
+    console.log('[useMemo finalVideosFromDB] ✅ Returning array with', parsed.length, 'videos');
+    return parsed;
   }, [contextSession?.finalVideos]);
 
   // Sort characters: UNUSED first, USED last
@@ -1965,6 +1992,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   
   // Filtered lists pentru STEP 5 (based on step5Filter)
   const step5FilteredVideos = useMemo(() => {
+    console.log('[useMemo step5FilteredVideos] videoResults type:', typeof videoResults, 'isArray:', Array.isArray(videoResults), 'length:', videoResults?.length);
+    if (!Array.isArray(videoResults)) {
+      console.error('[useMemo step5FilteredVideos] ❌ videoResults is NOT an array!', videoResults);
+      return [];
+    }
     // Exclude merged results (HOOK2M) from Step 5
     const filteredResults = videoResults.filter(v => !(v.isMergedResult ?? false));
     const filteredAccepted = acceptedVideos.filter(v => !(v.isMergedResult ?? false));
@@ -1980,8 +2012,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // NOTE: videoResults added to dependencies to update UI immediately after Accept/Regenerate
   // Auto-remove is prevented by keeping filter value constant until user changes it
   const step6FilteredVideos = useMemo(() => {
+    console.log('[useMemo step6FilteredVideos] videoResults type:', typeof videoResults, 'isArray:', Array.isArray(videoResults), 'length:', videoResults?.length);
+    if (!Array.isArray(videoResults)) {
+      console.error('[useMemo step6FilteredVideos] ❌ videoResults is NOT an array!', videoResults);
+      return [];
+    }
     // Exclude merged results (HOOK2M) from Step 6-8
-    const filteredResults = (videoResults || []).filter(v => !(v.isMergedResult ?? false));
+    const filteredResults = videoResults.filter(v => !(v.isMergedResult ?? false));
     const filteredAccepted = (acceptedVideos || []).filter(v => !(v.isMergedResult ?? false));
     const filteredFailed = (failedVideos || []).filter(v => !(v.isMergedResult ?? false));
     
@@ -1993,17 +2030,25 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   }, [videoFilter, videoResults, acceptedVideos, failedVideos]);
   
   // Videos fără decizie (pentru statistici STEP 6)
-  const videosWithoutDecision = useMemo(
-    () => (videoResults || []).filter(v => !v.reviewStatus),
-    [videoResults]
-  );
+  const videosWithoutDecision = useMemo(() => {
+    console.log('[useMemo videosWithoutDecision] videoResults type:', typeof videoResults, 'isArray:', Array.isArray(videoResults), 'length:', videoResults?.length);
+    if (!Array.isArray(videoResults)) {
+      console.error('[useMemo videosWithoutDecision] ❌ videoResults is NOT an array!', videoResults);
+      return [];
+    }
+    return videoResults.filter(v => v.reviewStatus === null && !(v.isMergedResult ?? false));
+  }, [videoResults]);
   const videosWithoutDecisionCount = useMemo(() => videosWithoutDecision.length, [videosWithoutDecision]);
   
   // Accepted videos cu videoUrl (pentru download)
-  const acceptedVideosWithUrl = useMemo(
-    () => (videoResults || []).filter(v => v.reviewStatus === 'accepted' && v.videoUrl),
-    [videoResults]
-  );
+  const acceptedVideosWithUrl = useMemo(() => {
+    console.log('[useMemo acceptedVideosWithUrl] videoResults type:', typeof videoResults, 'isArray:', Array.isArray(videoResults), 'length:', videoResults?.length);
+    if (!Array.isArray(videoResults)) {
+      console.error('[useMemo acceptedVideosWithUrl] ❌ videoResults is NOT an array!', videoResults);
+      return [];
+    }
+    return videoResults.filter(v => v.reviewStatus === 'accepted' && v.videoUrl && !(v.isMergedResult ?? false));
+  }, [videoResults]);
   
   // Final combinations count (Step 10)
   const finalCombinationsCount = useMemo(() => {
