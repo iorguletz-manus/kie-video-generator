@@ -224,6 +224,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   
   // Step 5: Generate
   const [videoResults, setVideoResults] = useState<VideoResult[]>([]);
+  
+  // SAFETY: Ensure videoResults is always an array (prevent "it.filter is not a function" errors)
+  const safeVideoResults = Array.isArray(videoResults) ? videoResults : [];
   const [modifyingVideoIndex, setModifyingVideoIndex] = useState<number | null>(null);
   const [modifyPromptType, setModifyPromptType] = useState<PromptType>('PROMPT_NEUTRAL');
   const [modifyPromptText, setModifyPromptText] = useState('');
@@ -1333,12 +1336,19 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       });
       
       if (session.videoResults) {
-        setVideoResults(session.videoResults);
+        // SAFETY: Ensure videoResults is always an array
+        const safeResults = Array.isArray(session.videoResults) ? session.videoResults : [];
+        console.log('[Session Loading] ✅ videoResults type check:', {
+          isArray: Array.isArray(session.videoResults),
+          type: typeof session.videoResults,
+          length: safeResults.length
+        });
+        setVideoResults(safeResults);
         
         // Load overlay settings from videoResults
-        console.log('[Overlay Settings] 🔄 Loading from DB... Total videos:', session.videoResults.length);
+        console.log('[Overlay Settings] 🔄 Loading from DB... Total videos:', safeResults.length);
         const loadedOverlaySettings: Record<string, any> = {};
-        session.videoResults.forEach(v => {
+        safeResults.forEach((v: any) => {
           console.log(`[Overlay Settings] 🔍 Checking ${v.videoName}:`, {
             hasOverlaySettings: !!v.overlaySettings,
             overlaySettings: v.overlaySettings
@@ -1778,15 +1788,23 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 
   // ========== COMPUTED VALUES (MEMOIZED) ==========
   // Filtered video lists (evită re-compute la fiecare render)
-  const failedVideos = useMemo(
-    () => (videoResults || []).filter(v => v.status === 'failed'),
-    [videoResults]
-  );
+  const failedVideos = useMemo(() => {
+    console.log('[useMemo failedVideos] videoResults type:', typeof videoResults, 'isArray:', Array.isArray(videoResults), 'length:', videoResults?.length);
+    if (!Array.isArray(videoResults)) {
+      console.error('[useMemo failedVideos] ❌ videoResults is NOT an array!', videoResults);
+      return [];
+    }
+    return videoResults.filter(v => v.status === 'failed');
+  }, [videoResults]);
   
-  const acceptedVideos = useMemo(
-    () => (videoResults || []).filter(v => v.reviewStatus === 'accepted'),
-    [videoResults]
-  );
+  const acceptedVideos = useMemo(() => {
+    console.log('[useMemo acceptedVideos] videoResults type:', typeof videoResults, 'isArray:', Array.isArray(videoResults), 'length:', videoResults?.length);
+    if (!Array.isArray(videoResults)) {
+      console.error('[useMemo acceptedVideos] ❌ videoResults is NOT an array!', videoResults);
+      return [];
+    }
+    return videoResults.filter(v => v.reviewStatus === 'accepted');
+  }, [videoResults]);
   
   // Step 10: Pre-select all hooks and body when entering Step 10
   useEffect(() => {
