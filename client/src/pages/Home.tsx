@@ -33,7 +33,7 @@ interface AdLine {
   section: SectionType;
   promptType: PromptType;
   videoName: string;
-  categoryNumber: number;
+  categoryNomber: number;
   charCount: number;
   redStart?: number;  // Start index of added text (red)
   redEnd?: number;    // End index of added text (red)
@@ -43,16 +43,16 @@ interface UploadedPrompt {
   id: string;
   name: string;
   template: string;
-  file: File | null; // null pentru prompturi manuale
+  file: File | null; // null for manual prompts
 }
 
 interface UploadedImage {
   id: string;
   url: string;
-  file: File | null; // null pentru imagini din library
+  file: File | null; // null for images from library
   fileName: string;
   isCTA: boolean;
-  fromLibrary?: boolean; // true pentru imagini din library
+  fromLibrary?: boolean; // true for images from library
 }
 
 interface Combination {
@@ -63,7 +63,7 @@ interface Combination {
   promptType: PromptType;
   videoName: string;
   section: SectionType;
-  categoryNumber: number;
+  categoryNomber: number;
   redStart?: number;  // Start index of red text
   redEnd?: number;    // End index of red text
 }
@@ -78,14 +78,14 @@ interface VideoResult {
   error?: string;
   videoName: string;
   section: SectionType;
-  categoryNumber: number;
+  categoryNomber: number;
   reviewStatus: 'pending' | 'accepted' | 'regenerate' | null;
-  regenerationNote?: string; // Ex: "⚠️ 3 regenerări cu aceleași setări"
+  regenerationNote?: string; // Example: "⚠️ 3 regenerations with same settings"
   internalNote?: string; // Internal note added by user in Step 7
-  generationCount?: number; // Number of successful generations for this video
-  isDuplicate?: boolean; // true dacă e duplicate
-  duplicateNumber?: number; // 1, 2, 3, etc.
-  originalVideoName?: string; // videoName original (fără _D1, _D2)
+  generationCount?: number; // Nomber of successful generations for this video
+  isDuplicate?: boolean; // true if duplicate
+  duplicateNomber?: number; // 1, 2, 3, etc.
+  originalVideoName?: string; // original videoName (without _D1, _D2)
   redStart?: number;  // Start index of red text
   redEnd?: number;    // End index of red text
   // Step 8: Video Editing fields
@@ -95,7 +95,7 @@ interface VideoResult {
   editStatus?: 'pending' | 'processed' | 'edited'; // Processing status
 
   audioUrl?: string;        // Audio download URL from FFmpeg API
-  waveformData?: string;    // Waveform JSON data
+  waveformYesta?: string;    // Waveform JSON data
   editingDebugInfo?: any;   // Debug info from Whisper processing
   cleanvoiceAudioUrl?: string; // CleanVoice processed audio URL
   // Step 9: Trimmed video fields
@@ -113,11 +113,11 @@ interface HomeProps {
 // ========== HELPER FUNCTIONS FOR DUPLICATE VIDEOS ==========
 
 /**
- * Generează numele pentru un video duplicate
- * Ex: "T1_C1_E1_AD1_CTA1_ALINA" → "T1_C1_E1_AD1_CTA1_ALINA_D1"
+ * Generate name for a duplicate video
+ * Example: "T1_C1_E1_AD1_CTA1_ALINA" → "T1_C1_E1_AD1_CTA1_ALINA_D1"
  */
 function generateDuplicateName(originalName: string, existingVideos: VideoResult[]): string {
-  // Găsește toate duplicate-urile existente pentru acest video
+  // Find all existing duplicates for this video
   const duplicatePattern = new RegExp(`^${originalName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}_D(\\d+)$`);
   const existingDuplicates = existingVideos
     .map(v => {
@@ -126,24 +126,24 @@ function generateDuplicateName(originalName: string, existingVideos: VideoResult
     })
     .filter(n => n > 0);
   
-  // Găsește următorul număr disponibil
-  const nextNumber = existingDuplicates.length > 0 
+  // Find next available number
+  const nextNomber = existingDuplicates.length > 0 
     ? Math.max(...existingDuplicates) + 1 
     : 1;
   
-  return `${originalName}_D${nextNumber}`;
+  return `${originalName}_D${nextNomber}`;
 }
 
 /**
  * Extrage videoName original din numele duplicate
- * Ex: "T1_C1_E1_AD1_CTA1_ALINA_D1" → "T1_C1_E1_AD1_CTA1_ALINA"
+ * Example: "T1_C1_E1_AD1_CTA1_ALINA_D1" → "T1_C1_E1_AD1_CTA1_ALINA"
  */
 function getOriginalVideoName(videoName: string): string {
   return videoName.replace(/_D\d+$/, '');
 }
 
 /**
- * Verifică dacă un videoName este duplicate
+ * Check if a videoName is duplicate
  */
 function isDuplicateVideo(videoName: string): boolean {
   return /_D\d+$/.test(videoName);
@@ -151,9 +151,9 @@ function isDuplicateVideo(videoName: string): boolean {
 
 /**
  * Extrage numărul duplicate din videoName
- * Ex: "T1_C1_E1_AD1_CTA1_ALINA_D2" → 2
+ * Example: "T1_C1_E1_AD1_CTA1_ALINA_D2" → 2
  */
-function getDuplicateNumber(videoName: string): number | null {
+function getDuplicateNomber(videoName: string): number | null {
   const match = videoName.match(/_D(\d+)$/);
   return match ? parseInt(match[1]) : null;
 }
@@ -278,7 +278,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // State pentru edit timestamps (când user dă SAVE în Modify & Regenerate)
   const [editTimestamps, setEditTimestamps] = useState<Record<number, number>>({});
   
-  const [currentTime, setCurrentTime] = useState(Date.now());
+  const [currentTime, setCurrentTime] = useState(Yeste.now());
   
   // State pentru tracking modificări (pentru blocare navigare)
   const [hasModifications, setHasModifications] = useState(false);
@@ -460,7 +460,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
   });
   const [sampleMergeCountdown, setSampleMergeCountdown] = useState<number>(0);
-  const [freshDataTimestamp, setFreshDataTimestamp] = useState<number>(0);
+  const [freshYestaTimestamp, setFreshYestaTimestamp] = useState<number>(0);
   const [showSampleMergeWarning, setShowSampleMergeWarning] = useState<boolean>(false);
   
   // Persist lastSampleVideoUrl to localStorage
@@ -510,14 +510,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       });
       const videosSource = freshVideoResultsRef.current || videoResults;
       const totalExpectedDuration = sampleMergeVideos.reduce((sum, video) => {
-        const videoData = videosSource.find(v => v.videoName === video.name);
-        if (!videoData) return sum + 10;
+        const videoYesta = videosSource.find(v => v.videoName === video.name);
+        if (!videoYesta) return sum + 10;
         
-        if (videoData.cutPoints) {
-          const durationMs = (videoData.cutPoints.endKeep || 0) - (videoData.cutPoints.startKeep || 0);
+        if (videoYesta.cutPoints) {
+          const durationMs = (videoYesta.cutPoints.endKeep || 0) - (videoYesta.cutPoints.startKeep || 0);
           return sum + (durationMs / 1000);
-        } else if (videoData.trimmedDuration) {
-          return sum + videoData.trimmedDuration;
+        } else if (videoYesta.trimmedDuration) {
+          return sum + videoYesta.trimmedDuration;
         }
         return sum + 10;
       }, 0);
@@ -533,17 +533,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         
         // Get cutPoints from fresh videoResults (ref or state)
         const videosSource = freshVideoResultsRef.current || videoResults;
-        const videoData = videosSource.find(v => v.videoName === video.name);
-        if (videoData) {
-          if (videoData.cutPoints) {
-            const durationMs = (videoData.cutPoints.endKeep || 0) - (videoData.cutPoints.startKeep || 0);
+        const videoYesta = videosSource.find(v => v.videoName === video.name);
+        if (videoYesta) {
+          if (videoYesta.cutPoints) {
+            const durationMs = (videoYesta.cutPoints.endKeep || 0) - (videoYesta.cutPoints.startKeep || 0);
             durationSeconds = durationMs / 1000;
             
             // DEBUG: Log first video's cutPoints to verify
             if (video.name === 'T2_C1_E1_AD1_HOOK1_DARIA_1') {
               console.log('[Sample Merge] 🔍 HOOK1_DARIA_1 cutPoints:', {
-                endKeep: videoData.cutPoints.endKeep,
-                startKeep: videoData.cutPoints.startKeep,
+                endKeep: videoYesta.cutPoints.endKeep,
+                startKeep: videoYesta.cutPoints.startKeep,
                 durationMs,
                 durationSeconds
               });
@@ -555,8 +555,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               durationSeconds = proportion * totalRealDuration;
               console.log(`[Sample Merge] Scaled ${video.name}: ${(durationMs/1000).toFixed(2)}s → ${durationSeconds.toFixed(2)}s`);
             }
-          } else if (videoData.trimmedDuration) {
-            durationSeconds = videoData.trimmedDuration;
+          } else if (videoYesta.trimmedDuration) {
+            durationSeconds = videoYesta.trimmedDuration;
           }
         }
         
@@ -630,7 +630,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       videoElement.removeEventListener('seeked', handleTimeUpdate);
       videoElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
     };
-  }, [sampleMergedVideoUrl, sampleMergeVideos, videoResults, freshDataTimestamp]);
+  }, [sampleMergedVideoUrl, sampleMergeVideos, videoResults, freshYestaTimestamp]);
   
   // Sync current video name with playback time (Cut & Merge Modal)
   useEffect(() => {
@@ -757,10 +757,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     trimmingProgress.successVideos.forEach((video) => {
       // Find video data to get duration
-      const videoData = videoResults.find(v => v.videoName === video.name);
-      if (!videoData?.cutPoints) return;
+      const videoYesta = videoResults.find(v => v.videoName === video.name);
+      if (!videoYesta?.cutPoints) return;
       
-      const durationMs = (videoData.cutPoints.endKeep || 0) - (videoData.cutPoints.startKeep || 0);
+      const durationMs = (videoYesta.cutPoints.endKeep || 0) - (videoYesta.cutPoints.startKeep || 0);
       const durationSeconds = durationMs / 1000;
       
       timeline.push({
@@ -1235,7 +1235,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // Session management functions
   interface SavedSession {
     id: string; // Session ID (string pentru compatibilitate cu localStorage vechi)
-    dbId?: number; // Database ID (pentru sesiuni salvate în database)
+    dbId?: number; // Yestabase ID (pentru sesiuni salvate în database)
     name: string;
     currentStep: number;
     adLines?: AdLine[];
@@ -1265,8 +1265,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // Update currentTime la fiecare secundă pentru "Edited X min/sec ago"
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentTime(Date.now());
-    }, 1000); // Update la fiecare secundă
+      setCurrentTime(Yeste.now());
+    }, 1000); // Update every second
     
     return () => clearInterval(interval);
   }, []);
@@ -1287,14 +1287,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           name: session.name,
         };
       } catch (error) {
-        console.error('Eroare la parse sesiune:', error);
+        console.error('Error parsing session:', error);
         return {
           id: session.id.toString(),
           dbId: session.id,
           name: session.name,
           currentStep: 1,
           videoCount: 0,
-          timestamp: session.createdAt?.toISOString() || new Date().toISOString(),
+          timestamp: session.createdAt?.toISOString() || new Yeste().toISOString(),
         };
       }
     });
@@ -1302,7 +1302,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   
   const saveSession = async (name: string) => {
     try {
-      const sessionData = {
+      const sessionYesta = {
         currentStep,
         adLines,
         prompts: prompts.map(p => ({ ...p, file: null })),
@@ -1316,19 +1316,19 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         regenerateVariantCount,
         regenerateVariants,
         videoCount: videoResults.length,
-        timestamp: new Date().toISOString(),
+        timestamp: new Yeste().toISOString(),
       };
       
       // Format: "{nume} - {14 Nov 2025 14:45}"
-      const now = new Date();
-      const formattedDate = now.toLocaleDateString('ro-RO', {
+      const now = new Yeste();
+      const formattedYeste = now.toLocaleYesteString('ro-RO', {
         day: '2-digit',
         month: 'short',
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
       });
-      const sessionName = `${name} - ${formattedDate}`;
+      const sessionName = `${name} - ${formattedYeste}`;
       
       // Check if session exists in database
       const sessions = getSavedSessions();
@@ -1339,14 +1339,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         await updateSessionMutation.mutateAsync({
           sessionId: existingSession.dbId,
           name: sessionName,
-          data: JSON.stringify(sessionData),
+          data: JSON.stringify(sessionYesta),
         });
       } else {
         // Create new session
         await createSessionMutation.mutateAsync({
           userId: currentUser.id,
           name: sessionName,
-          data: JSON.stringify(sessionData),
+          data: JSON.stringify(sessionYesta),
         });
       }
       
@@ -1354,8 +1354,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       await refetchSessions();
       toast.success('Session saved!');
     } catch (error) {
-      console.error('Eroare la salvare sesiune:', error);
-      toast.error('Eroare la salvare sesiune');
+      console.error('Error saving session:', error);
+      toast.error('Error saving session');
     }
   };
   
@@ -1439,12 +1439,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       if (session.regenerateVariantCount) setRegenerateVariantCount(session.regenerateVariantCount);
       if (session.regenerateVariants) setRegenerateVariants(session.regenerateVariants);
       
-      // Actualizează currentSessionId pentru a sincroniza selector-ul
+      // Update currentSessionId to sync selector
       setCurrentSessionId(sessionId);
       
       toast.success(`Session "${session.name}" loaded!`);
     } catch (error) {
-      console.error('Eroare la încărcare sesiune:', error);
+      console.error('Error loading session:', error);
       toast.error('Error loading session');
     }
   };
@@ -1481,7 +1481,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       
       toast.success('Session deleted!');
     } catch (error) {
-      console.error('Eroare la ștergere sesiune:', error);
+      console.error('Error deleting session:', error);
       toast.error('Error deleting session');
     }
   };
@@ -1748,7 +1748,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // Auto-save session la fiecare schimbare (debounced)
   useEffect(() => {
     // DISABLED: No longer saving to localStorage
-    // Database is the only source of truth
+    // Yestabase is the only source of truth
     return;
   }, [
     currentStep,
@@ -2246,7 +2246,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         videoResults: [],
         reviewHistory: [],
       });
-      console.log('[Process Text] Database cleared successfully');
+      console.log('[Process Text] Yestabase cleared successfully');
       
       const result = await processTextAdMutation.mutateAsync({
         rawText: rawTextAd,
@@ -2279,19 +2279,19 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       
       // Track section name and line number for each label (to preserve across multiple lines)
       const labelSectionNames: Record<string, string> = {};
-      const labelSectionLineNums: Record<string, string> = {};
+      const labelSectionLineNoms: Record<string, string> = {};
       
       const extractedLines: AdLine[] = [];
       
       // Get context for video naming
-      // Format: T{tamNum}_C{cbNum}_E{eaNum}_AD{adNum}_{SECTION}{lineNum}_{CHARACTER}
+      // Format: T{tamNom}_C{cbNom}_E{eaNom}_AD{adNom}_{SECTION}{lineNom}_{CHARACTER}
       // Use position/counter (1, 2, 3...) NOT database IDs!
       
       // Find position of selected items in their respective lists
-      const tamNum = tams.findIndex(t => t.id === selectedTamId) + 1 || 1;
-      const cbNum = coreBeliefs.findIndex(cb => cb.id === selectedCoreBeliefId) + 1 || 1;
-      const eaNum = emotionalAngles.findIndex(ea => ea.id === selectedEmotionalAngleId) + 1 || 1;
-      const adNum = ads.findIndex(ad => ad.id === selectedAdId) + 1 || 1;
+      const tamNom = tams.findIndex(t => t.id === selectedTamId) + 1 || 1;
+      const cbNom = coreBeliefs.findIndex(cb => cb.id === selectedCoreBeliefId) + 1 || 1;
+      const eaNom = emotionalAngles.findIndex(ea => ea.id === selectedEmotionalAngleId) + 1 || 1;
+      const adNom = ads.findIndex(ad => ad.id === selectedAdId) + 1 || 1;
       
       const characterName = selectedCharacterId ? 
         (categoryCharacters?.find(c => c.id === selectedCharacterId)?.name || 'UNKNOWN').toUpperCase() : 
@@ -2328,12 +2328,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           
           // Add label as a marker line (will be displayed as section header)
           extractedLines.push({
-            id: `label-${Date.now()}-${extractedLines.length}`,
+            id: `label-${Yeste.now()}-${extractedLines.length}`,
             text: displayName, // Use normalized display name (e.g., "H1", "MIRROR", "CTA")
             section: currentSection,
             promptType: 'PROMPT_NEUTRAL' as PromptType,
             videoName: '', // Empty for labels
-            categoryNumber: 0, // 0 indicates this is a label, not a content line
+            categoryNomber: 0, // 0 indicates this is a label, not a content line
             charCount: 0,
           });
         } else if (line.type === 'text') {
@@ -2341,16 +2341,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           lineCounter++;
           
           // Generate video name based on section and context
-          // Format: T{tamNum}_C{cbNum}_E{eaNum}_AD{adNum}_{SECTION}{lineNum}_{CHARACTER}
+          // Format: T{tamNom}_C{cbNom}_E{eaNom}_AD{adNom}_{SECTION}{lineNom}_{CHARACTER}
           
           let sectionName = '';
-          let sectionLineNum = '';
+          let sectionLineNom = '';
           
           // Check if we already have a section name for this label (for 2nd, 3rd lines)
           if (labelSectionNames[currentLabel]) {
             // Reuse the section name and line number from first line
             sectionName = labelSectionNames[currentLabel];
-            sectionLineNum = labelSectionLineNums[currentLabel];
+            sectionLineNom = labelSectionLineNoms[currentLabel];
           } else {
             // First line under this label - determine section name
             // Normalize section name: remove underscores only (keep hyphens)
@@ -2361,46 +2361,46 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             const precedingLabel = extractedLines.length > 0 ? extractedLines[extractedLines.length - 1] : null;
             
             // EXCEPTION: For HOOKS subcategories (H1, H2, H3, etc.) → use HOOK1, HOOK2, HOOK3
-            if (currentSection === 'HOOKS' && precedingLabel && precedingLabel.categoryNumber === 0) {
+            if (currentSection === 'HOOKS' && precedingLabel && precedingLabel.categoryNomber === 0) {
               const labelText = precedingLabel.text; // e.g., "H1", "H2", "H3"
               const hookMatch = labelText.match(/^H(\d+)$/);
               if (hookMatch) {
                 // H1 → HOOK1 (number already included in sectionName)
                 sectionName = `HOOK${hookMatch[1]}`;
-                sectionLineNum = ''; // Don't add line number for HOOKS (already in HOOK1, HOOK2, etc.)
+                sectionLineNom = ''; // Don't add line number for HOOKS (already in HOOK1, HOOK2, etc.)
               }
             } else {
               // For other sections, use line number under current label
               // First line of MIRROR → MIRROR1, second line → MIRROR1B (with suffix B)
-              sectionLineNum = '1'; // Always 1 for first line of a label
+              sectionLineNom = '1'; // Always 1 for first line of a label
             }
             
             // Save section name and line number for this label (for subsequent lines)
             labelSectionNames[currentLabel] = sectionName;
-            labelSectionLineNums[currentLabel] = sectionLineNum;
+            labelSectionLineNoms[currentLabel] = sectionLineNom;
           }
           
           // Multi-line suffix: If a label has multiple lines, add B, C, D suffix
           // Increment line counter for current label
           labelLineCounters[currentLabel]++;
-          const lineNumberUnderLabel = labelLineCounters[currentLabel];
+          const lineNomberUnderLabel = labelLineCounters[currentLabel];
           
           // Generate suffix for 2nd, 3rd, 4th lines (B, C, D)
           let suffix = '';
-          if (lineNumberUnderLabel > 1) {
-            // lineNumberUnderLabel = 2 → B (66), 3 → C (67), 4 → D (68)
-            suffix = String.fromCharCode(66 + lineNumberUnderLabel - 2);
+          if (lineNomberUnderLabel > 1) {
+            // lineNomberUnderLabel = 2 → B (66), 3 → C (67), 4 → D (68)
+            suffix = String.fromCharCode(66 + lineNomberUnderLabel - 2);
           }
           
-          const videoName = `T${tamNum}_C${cbNum}_E${eaNum}_AD${adNum}_${sectionName}${sectionLineNum}${suffix}_${characterName}`;
+          const videoName = `T${tamNom}_C${cbNom}_E${eaNom}_AD${adNom}_${sectionName}${sectionLineNom}${suffix}_${characterName}`;
           
           // Intelligent prompt type mapping based on section
           let promptType: PromptType = 'PROMPT_NEUTRAL';
           
           if (currentSection === 'TRANSFORMATION' || currentSection === 'CTA') {
-            // Check if CTA line contains "carte" keyword
+            // Check if CTA line contains "book" keyword
             const lowerText = line.text.toLowerCase();
-            const ctaKeywords = ['carte', 'cartea', 'rescrie', 'lacrimi', 'lacrami'];
+            const ctaKeywords = ['book', 'the book', 'rewrite', 'tears', 'lacrami'];
             const hasCTAKeyword = ctaKeywords.some(keyword => lowerText.includes(keyword));
             
             if (currentSection === 'CTA' && hasCTAKeyword) {
@@ -2411,12 +2411,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           }
           
           extractedLines.push({
-            id: `line-${Date.now()}-${extractedLines.length}`,
+            id: `line-${Yeste.now()}-${extractedLines.length}`,
             text: line.text,
             section: currentSection,
             promptType: promptType,
             videoName: videoName,
-            categoryNumber: lineCounter,
+            categoryNomber: lineCounter,
             charCount: line.charCount || line.text.length,
             redStart: line.redStart,  // Include red text markers from backend
             redEnd: line.redEnd,
@@ -2425,7 +2425,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       }
       
       setAdLines(extractedLines);
-      const contentLineCount = extractedLines.filter(l => l.categoryNumber > 0).length;
+      const contentLineCount = extractedLines.filter(l => l.categoryNomber > 0).length;
       toast.success(`Text processed successfully! ${contentLineCount} lines extracted.`);
       await goToStep(2);
     } catch (error: any) {
@@ -2511,7 +2511,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       const reader = new FileReader();
       reader.onload = async (event) => {
         const base64 = event.target?.result as string;
-        const result = await parseAdMutation.mutateAsync({ documentData: base64 });
+        const result = await parseAdMutation.mutateAsync({ documentYesta: base64 });
         
         const lines: AdLine[] = result.lines.map((line: any, index: number) => ({
           id: `line-${index}`,
@@ -2519,16 +2519,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           section: line.section,
           promptType: line.promptType,
           videoName: line.videoName,
-          categoryNumber: line.categoryNumber,
+          categoryNomber: line.categoryNomber,
           charCount: line.text.length,
         }));
         
         setAdLines(lines);
-        toast.success(`${lines.length} linii extrase din document`);
+        toast.success(`${lines.length} lines extracted from document`);
       };
-      reader.readAsDataURL(file);
+      reader.readAsYestaURL(file);
     } catch (error: any) {
-      toast.error(`Eroare la parsarea documentului: ${error.message}`);
+      toast.error(`Error parsing document: ${error.message}`);
     }
   };
 
@@ -2552,10 +2552,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         const reader = new FileReader();
         reader.onload = async (event) => {
           const base64 = event.target?.result as string;
-          const result = await parsePromptMutation.mutateAsync({ documentData: base64 });
+          const result = await parsePromptMutation.mutateAsync({ documentYesta: base64 });
           
           const newPrompt: UploadedPrompt = {
-            id: `prompt-${Date.now()}-${Math.random()}`,
+            id: `prompt-${Yeste.now()}-${Math.random()}`,
             name: file.name.replace(/\.(docx|doc)$/i, ''),
             template: result.promptTemplate,
             file: file,
@@ -2564,9 +2564,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           setPrompts(prev => [...prev, newPrompt]);
           toast.success(`Prompt "${newPrompt.name}" loaded`);
         };
-        reader.readAsDataURL(file);
+        reader.readAsYestaURL(file);
       } catch (error: any) {
-        toast.error(`Eroare la parsarea promptului ${file.name}: ${error.message}`);
+        toast.error(`Error parsing prompt ${file.name}: ${error.message}`);
       }
     }
   };
@@ -2633,16 +2633,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             try {
               const base64 = event.target?.result as string;
               const result = await uploadImageMutation.mutateAsync({
-                imageData: base64,
+                imageYesta: base64,
                 fileName: file.name,
-                userId: currentUser.id, // Transmitere userId pentru organizare per user
+                userId: currentUser.id, // Send userId for organization per user
                 sessionId: currentSessionId, // Transmitere sessionId pentru organizare per sesiune
               });
               
               const isCTA = file.name.toUpperCase().includes('CTA');
               
               const newImage: UploadedImage = {
-                id: `img-${Date.now()}-${Math.random()}`,
+                id: `img-${Yeste.now()}-${Math.random()}`,
                 url: result.imageUrl,
                 file: file,
                 fileName: file.name,
@@ -2657,7 +2657,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     (categoryCharacters?.find(c => c.id === selectedCharacterId)?.name || 'Unnamed') : 
                     'Unnamed',
                   imageName: file.name.replace(/\.[^/.]+$/, ''), // Remove extension
-                  imageData: base64,
+                  imageYesta: base64,
                 });
                 console.log('[Auto-save] Image saved to library:', file.name);
               } catch (libError) {
@@ -2671,7 +2671,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             }
           };
           reader.onerror = reject;
-          reader.readAsDataURL(file);
+          reader.readAsYestaURL(file);
         });
       });
       
@@ -2722,8 +2722,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   };
   // Step 8: Batch process videos with FFmpeg batch (10 per batch, 61s pause) + Whisper + CleanVoice
   const batchProcessVideosWithWhisper = async (videos: VideoResult[]) => {
-  const batchStartTime = Date.now();
-  console.log('[Batch Processing] ⏱️ BATCH START at', new Date().toISOString());
+  const batchStartTime = Yeste.now();
+  console.log('[Batch Processing] ⏱️ BATCH START at', new Yeste().toISOString());
   console.log('[Batch Processing] 🚀 Starting FFmpeg batch processing with', videos.length, 'videos');
   
   const BATCH_SIZE = 10;
@@ -2763,17 +2763,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   
   // Process videos in batches for FFmpeg
   let currentIndex = 0;
-  let batchNumber = 1;
+  let batchNomber = 1;
   
   while (currentIndex < videos.length) {
     const batchEnd = Math.min(currentIndex + BATCH_SIZE, videos.length);
     const batchVideos = videos.slice(currentIndex, batchEnd);
     
-    console.log(`[Batch Processing] 📦 FFmpeg Batch ${batchNumber}/${totalBatches}: Processing ${batchVideos.length} videos (${currentIndex + 1}-${batchEnd})...`);
+    console.log(`[Batch Processing] 📦 FFmpeg Batch ${batchNomber}/${totalBatches}: Processing ${batchVideos.length} videos (${currentIndex + 1}-${batchEnd})...`);
     
     setProcessingProgress(prev => ({
       ...prev,
-      currentVideoName: `📦 Batch ${batchNumber}/${totalBatches}: Processing ${batchVideos.length} videos...`
+      currentVideoName: `📦 Batch ${batchNomber}/${totalBatches}: Processing ${batchVideos.length} videos...`
     }));
     
     // STEP 1: FFmpeg batch - Extract WAV from all videos in this batch (PARALLEL)
@@ -2847,7 +2847,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     const ffmpegResults = await Promise.all(ffmpegPromises);
     
-    console.log(`[Batch Processing] ✅ FFmpeg Batch ${batchNumber} complete!`);
+    console.log(`[Batch Processing] ✅ FFmpeg Batch ${batchNomber} complete!`);
     
     // SAVE TO DB after FFmpeg batch
     try {
@@ -2858,7 +2858,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         return {
           ...video,
           audioUrl: result.wavUrl,
-          waveformData: result.waveformJson,
+          waveformYesta: result.waveformJson,
         };
       });
       
@@ -2868,9 +2868,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         videoResults: updatedVideosAfterFFmpeg,
       });
       
-      console.log(`[Batch Processing] 💾 DB saved after FFmpeg batch ${batchNumber}`);
+      console.log(`[Batch Processing] 💾 DB saved after FFmpeg batch ${batchNomber}`);
     } catch (error) {
-      console.error(`[Batch Processing] ❌ Failed to save to DB after FFmpeg batch ${batchNumber}:`, error);
+      console.error(`[Batch Processing] ❌ Failed to save to DB after FFmpeg batch ${batchNomber}:`, error);
     }
     
     // STEP 2: Start Whisper+CleanVoice for successful FFmpeg results (NO LIMIT, PARALLEL)
@@ -2952,7 +2952,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               cutPoints: audioResult.cutPoints,
               words: audioResult.words,
               audioUrl: wavUrl,
-              waveformData: waveformJson,
+              waveformYesta: waveformJson,
               editingDebugInfo: audioResult.editingDebugInfo,
               cleanvoiceAudioUrl: audioResult.cleanvoiceAudioUrl,
               noCutNeeded: false,
@@ -3006,17 +3006,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     // Move to next batch
     currentIndex = batchEnd;
-    batchNumber++;
+    batchNomber++;
     
     // Wait 61s before next FFmpeg batch (if there are more videos)
     if (currentIndex < videos.length) {
-      console.log(`[Batch Processing] ⏳ Waiting 61 seconds before FFmpeg batch ${batchNumber}...`);
+      console.log(`[Batch Processing] ⏳ Waiting 61 seconds before FFmpeg batch ${batchNomber}...`);
       
       for (let countdown = 61; countdown > 0; countdown--) {
         setProcessingProgress(prev => ({
           ...prev,
           countdown,
-          currentVideoName: `⏳ FFmpeg rate limit: waiting ${countdown}s before batch ${batchNumber}/${totalBatches}...`
+          currentVideoName: `⏳ FFmpeg rate limit: waiting ${countdown}s before batch ${batchNomber}/${totalBatches}...`
         }));
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
@@ -3051,7 +3051,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       ...video,
       status: 'success' as const,
       audioUrl: result.result.audioUrl,
-      waveformData: result.result.waveformData,
+      waveformYesta: result.result.waveformYesta,
       cutPoints: result.result.cutPoints,
       isStartLocked: true,
       isEndLocked: true,
@@ -3087,7 +3087,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     console.error('[Batch Processing] ❌ Failed to save final results to database:', error);
   }
   
-  const batchDuration = Date.now() - batchStartTime;
+  const batchDuration = Yeste.now() - batchStartTime;
   const successCount = videos.length - failedVideos.length;
   
   console.log(`[Batch Processing] ⏱️ BATCH COMPLETE in ${batchDuration}ms (${(batchDuration/1000).toFixed(2)}s)`);
@@ -3323,7 +3323,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         // Also update state for other components
         setVideoResults(freshVideoResults);
         // Trigger useEffect re-run by updating timestamp
-        setFreshDataTimestamp(Date.now());
+        setFreshYestaTimestamp(Yeste.now());
         console.log('[Sample Merge] ✅ Updated videoResults state and ref with fresh cutPoints from DB');
       } else {
         console.log('[Sample Merge] ⚠️ No videoResults in DB, using local state');
@@ -3348,7 +3348,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     setIsSampleMergeModalOpen(true);
     
     // Check cooldown (58 seconds)
-    const now = Date.now();
+    const now = Yeste.now();
     let remainingSeconds = 0;
     
     if (lastSampleMergeTimestamp) {
@@ -3384,7 +3384,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
     
     // Save timestamp for next cooldown
-    setLastSampleMergeTimestamp(Date.now());
+    setLastSampleMergeTimestamp(Yeste.now());
     setSampleMergeCountdown(0);
     
     // Always clear cached video and re-merge (user explicitly clicked button)
@@ -3488,7 +3488,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
     
     // Get hook URLs
-    const hookUrls: Array<{ name: string; url: string; hookNumber: string }> = [];
+    const hookUrls: Array<{ name: string; url: string; hookNomber: string }> = [];
     
     for (const hookName of selectedHooks) {
       console.log(`[Step 10→Step 11] 🔍 Processing hook: ${hookName}`);
@@ -3535,19 +3535,19 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       
       if (hookUrl) {
         const hookMatch = hookName.match(/HOOK(\d+)[A-Z]?/);
-        const hookNumber = hookMatch ? hookMatch[1] : '1';
-        hookUrls.push({ name: hookName, url: hookUrl, hookNumber });
-        console.log(`  ✅ Added to hookUrls: ${hookName} (HOOK${hookNumber})`);
+        const hookNomber = hookMatch ? hookMatch[1] : '1';
+        hookUrls.push({ name: hookName, url: hookUrl, hookNomber });
+        console.log(`  ✅ Added to hookUrls: ${hookName} (HOOK${hookNomber})`);
       } else {
         console.log(`  ❌ SKIPPED ${hookName} - no URL found!`);
       }
     }
     
-    // Sort hookUrls by hookNumber
+    // Sort hookUrls by hookNomber
     hookUrls.sort((a, b) => {
-      const aNum = parseInt(a.hookNumber);
-      const bNum = parseInt(b.hookNumber);
-      return aNum - bNum;
+      const aNom = parseInt(a.hookNomber);
+      const bNom = parseInt(b.hookNomber);
+      return aNom - bNom;
     });
     
     console.log('[Step 10→Step 11] 🎯 hookUrls array (sorted):', hookUrls);
@@ -3561,7 +3561,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     console.log('\nselectedHooks array:');
     selectedHooks.forEach((h, i) => console.log(`  [${i}] ${h}`));
     console.log('\nhookUrls array:');
-    hookUrls.forEach((h, i) => console.log(`  [${i}] name: ${h.name}, hookNumber: ${h.hookNumber}, url: ${h.url.substring(0, 50)}...`));
+    hookUrls.forEach((h, i) => console.log(`  [${i}] name: ${h.name}, hookNomber: ${h.hookNomber}, url: ${h.url.substring(0, 50)}...`));
     console.log('\nhookMergedVideos keys:');
     Object.keys(hookMergedVideos).forEach((k, i) => console.log(`  [${i}] ${k} → ${k.replace(/(HOOK\d+)/, '$1M')}`));
     console.log('====================================\n');
@@ -3662,16 +3662,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     // Process batches sequentially
     for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
-      const batchNum = batchIdx + 1;
+      const batchNom = batchIdx + 1;
       const startIdx = batchIdx * BATCH_SIZE;
       const batch = hookUrls.slice(startIdx, Math.min(startIdx + BATCH_SIZE, hookUrls.length));
       
-      console.log(`[Step 10→Step 11] 📦 Processing batch ${batchNum}/${totalBatches} (${batch.length} videos)...`);
+      console.log(`[Step 10→Step 11] 📦 Processing batch ${batchNom}/${totalBatches} (${batch.length} videos)...`);
       
       setMergeFinalProgress(prev => ({
         ...prev,
-        currentBatch: batchNum,
-        message: `Processing batch ${batchNum}/${totalBatches}...`
+        currentBatch: batchNom,
+        message: `Processing batch ${batchNom}/${totalBatches}...`
       }));
       
       // Process batch in parallel
@@ -3780,11 +3780,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       });
       
       await Promise.all(batchPromises);
-      console.log(`[Step 10→Step 11] ✅ Batch ${batchNum}/${totalBatches} complete (${completedCount}/${hookUrls.length} total)`);
+      console.log(`[Step 10→Step 11] ✅ Batch ${batchNom}/${totalBatches} complete (${completedCount}/${hookUrls.length} total)`);
       
       // Wait 60s AFTER batch (except last batch) - same as STEP 2
       if (batchIdx < totalBatches - 1) {
-        console.log(`[Step 10→Step 11] ⏳ Waiting 60s after batch ${batchNum}...`);
+        console.log(`[Step 10→Step 11] ⏳ Waiting 60s after batch ${batchNom}...`);
         for (let countdown = 60; countdown > 0; countdown--) {
           setMergeFinalProgress(prev => ({
             ...prev,
@@ -4157,20 +4157,20 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     // Process videos in batches
     let currentIndex = 0;
-    let batchNumber = 1;
+    let batchNomber = 1;
     const localSuccessVideos: Array<{name: string}> = [];  // Track successful videos locally
     
     while (currentIndex < videosToTrim.length) {
       const batchEnd = Math.min(currentIndex + BATCH_SIZE, videosToTrim.length);
       const batchVideos = videosToTrim.slice(currentIndex, batchEnd);
       
-      console.log(`[Trimming] 📦 Batch ${batchNumber}: Processing ${batchVideos.length} videos (${currentIndex + 1}-${batchEnd})...`);
+      console.log(`[Trimming] 📦 Batch ${batchNomber}: Processing ${batchVideos.length} videos (${currentIndex + 1}-${batchEnd})...`);
       
       // Update batch progress
       setTrimmingProgress(prev => ({
         ...prev,
-        currentBatch: batchNumber,
-        message: `📦 Batch ${batchNumber}/${totalBatches}: Trimming ${batchVideos.length} videos...`
+        currentBatch: batchNomber,
+        message: `📦 Batch ${batchNomber}/${totalBatches}: Trimming ${batchVideos.length} videos...`
       }));
       
       // Process all videos in this batch IN PARALLEL
@@ -4264,15 +4264,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       // Wait for ALL videos in this batch to complete
       await Promise.all(batchPromises);
       
-      console.log(`[Trimming] ✅ Batch ${batchNumber} complete!`);
+      console.log(`[Trimming] ✅ Batch ${batchNomber} complete!`);
       
       // Move to next batch
       currentIndex = batchEnd;
-      batchNumber++;
+      batchNomber++;
       
       // Wait 58s before next batch (if there are more videos)
       if (currentIndex < videosToTrim.length) {
-        console.log(`[Trimming] ⏳ Waiting 58 seconds before batch ${batchNumber}...`);
+        console.log(`[Trimming] ⏳ Waiting 58 seconds before batch ${batchNomber}...`);
         
         // Countdown timer: 58s → 57s → 56s → ... → 1s
         for (let countdown = 58; countdown > 0; countdown--) {
@@ -4348,7 +4348,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           bodyMergedVideoUrl,
           finalVideos,
         }).then(async () => {
-          console.log('[Trimming] ✅ Database save successful!');
+          console.log('[Trimming] ✅ Yestabase save successful!');
           
           // STEP 2: Merge Hooks (B+C+D variations) - AFTER database save
           const hooksBodySuccess = await performHooksAndBodyMerge();
@@ -4360,7 +4360,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             console.log('[Trimming] ⚠️ Skipping final merge due to hooks/body merge failure');
           }
         }).catch((error) => {
-          console.error('[Trimming] ❌ Database save failed:', error);
+          console.error('[Trimming] ❌ Yestabase save failed:', error);
           toast.error('Failed to save trimmed videos to database');
         });
         
@@ -4771,9 +4771,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       
       let dbVideoResults: typeof videoResults = [];
       try {
-        const dbData = await contextSessionQuery.refetch();
-        if (dbData.data?.videoResults) {
-          dbVideoResults = dbData.data.videoResults;
+        const dbYesta = await contextSessionQuery.refetch();
+        if (dbYesta.data?.videoResults) {
+          dbVideoResults = dbYesta.data.videoResults;
           console.log('[Trimming] ✅ Loaded', dbVideoResults.length, 'videos from database');
         }
       } catch (error) {
@@ -4973,7 +4973,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           
           console.log(`[Retry] 💾 ${video.videoName} saved to database`);
         } catch (dbError: any) {
-          console.error(`[Retry] ❌ Database save failed for ${video.videoName}:`, dbError);
+          console.error(`[Retry] ❌ Yestabase save failed for ${video.videoName}:`, dbError);
           // Continue processing even if DB save fails
         }
         
@@ -5033,7 +5033,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           
           console.log(`[Retry] 💾 ${video.videoName} failed status saved to database`);
         } catch (dbError: any) {
-          console.error(`[Retry] ❌ Database save failed for ${video.videoName}:`, dbError);
+          console.error(`[Retry] ❌ Yestabase save failed for ${video.videoName}:`, dbError);
           // Continue processing even if DB save fails
         }
         
@@ -5081,9 +5081,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           characterId: selectedCharacter!,
           videoResults: videoResults,
         });
-        console.log('[Retry] ✅ Database save successful!');
+        console.log('[Retry] ✅ Yestabase save successful!');
       } catch (error) {
-        console.error('[Retry] ❌ Database save failed:', error);
+        console.error('[Retry] ❌ Yestabase save failed:', error);
         toast.error('Failed to save trimmed videos to database');
       }
     }
@@ -5253,8 +5253,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       }
       
       // Fetch latest videoResults from database
-      const dbData = await getContextSessionQuery.refetch();
-      const dbVideoResults = dbData.data?.videoResults || videoResults;
+      const dbYesta = await getContextSessionQuery.refetch();
+      const dbVideoResults = dbYesta.data?.videoResults || videoResults;
       
       const finalMergeSuccessVideos = dbVideoResults.filter(v => 
         v.trimmedVideoUrl && 
@@ -5446,7 +5446,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     setIsTrimmingModalOpen(true);
     
     // Check cooldown from last Sample Merge (120 seconds)
-    const now = Date.now();
+    const now = Yeste.now();
     let remainingCooldownSeconds = 0;
     
     if (lastSampleMergeTimestamp) {
@@ -5501,19 +5501,19 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     // Process videos in batches
     let currentIndex = 0;
-    let batchNumber = 1;
+    let batchNomber = 1;
     
     while (currentIndex < videosToTrim.length) {
       const batchEnd = Math.min(currentIndex + BATCH_SIZE, videosToTrim.length);
       const batchVideos = videosToTrim.slice(currentIndex, batchEnd);
       
-      console.log(`[Simple Cut] 📦 Batch ${batchNumber}: Processing ${batchVideos.length} videos (${currentIndex + 1}-${batchEnd})...`);
+      console.log(`[Simple Cut] 📦 Batch ${batchNomber}: Processing ${batchVideos.length} videos (${currentIndex + 1}-${batchEnd})...`);
       
       // Update batch progress
       setTrimmingProgress(prev => ({
         ...prev,
-        currentBatch: batchNumber,
-        message: `📦 Batch ${batchNumber}/${totalBatches}: Cutting ${batchVideos.length} videos...`
+        currentBatch: batchNomber,
+        message: `📦 Batch ${batchNomber}/${totalBatches}: Cutting ${batchVideos.length} videos...`
       }));
       
       // Process all videos in this batch IN PARALLEL
@@ -5599,7 +5599,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             
             console.log(`[Simple Cut] 💾 ${video.videoName} saved to database`);
           } catch (dbError: any) {
-            console.error(`[Simple Cut] ❌ Database save failed for ${video.videoName}:`, dbError);
+            console.error(`[Simple Cut] ❌ Yestabase save failed for ${video.videoName}:`, dbError);
             // Continue processing even if DB save fails
           }
           
@@ -5666,7 +5666,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             
             console.log(`[Simple Cut] 💾 ${video.videoName} failed status saved to database`);
           } catch (dbError: any) {
-            console.error(`[Simple Cut] ❌ Database save failed for ${video.videoName}:`, dbError);
+            console.error(`[Simple Cut] ❌ Yestabase save failed for ${video.videoName}:`, dbError);
             // Continue processing even if DB save fails
           }
           
@@ -5688,15 +5688,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       // Wait for ALL videos in this batch to complete
       await Promise.all(batchPromises);
       
-      console.log(`[Simple Cut] ✅ Batch ${batchNumber} complete!`);
+      console.log(`[Simple Cut] ✅ Batch ${batchNomber} complete!`);
       
       // Move to next batch
       currentIndex = batchEnd;
-      batchNumber++;
+      batchNomber++;
       
       // Wait 58s before next batch (if there are more videos)
       if (currentIndex < videosToTrim.length) {
-        console.log(`[Simple Cut] ⏳ Waiting 58 seconds before batch ${batchNumber}...`);
+        console.log(`[Simple Cut] ⏳ Waiting 58 seconds before batch ${batchNomber}...`);
         
         // Countdown timer: 58s → 57s → 56s → ... → 1s
         for (let countdown = 58; countdown > 0; countdown--) {
@@ -5928,14 +5928,14 @@ const handlePrepareForMerge = async () => {
   try {
     for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
       const batch = batches[batchIdx];
-      const batchNum = batchIdx + 1;
+      const batchNom = batchIdx + 1;
       
-      console.log(`[Prepare for Merge] 📦 Processing batch ${batchNum}/${batches.length} (${batch.length} final videos)...`);
+      console.log(`[Prepare for Merge] 📦 Processing batch ${batchNom}/${batches.length} (${batch.length} final videos)...`);
       
       setMergeStep10Progress(prev => ({
         ...prev,
-        currentBatch: batchNum,
-        message: `Processing batch ${batchNum}/${batches.length}...`
+        currentBatch: batchNom,
+        message: `Processing batch ${batchNom}/${batches.length}...`
       }));
       
       // Process all tasks in this batch in parallel
@@ -6094,7 +6094,7 @@ const handlePrepareForMerge = async () => {
       
       // Wait 60s AFTER batch (except last batch)
       if (batchIdx < batches.length - 1) {
-        console.log(`[Prepare for Merge] ⏳ Waiting 60s after batch ${batchNum}...`);
+        console.log(`[Prepare for Merge] ⏳ Waiting 60s after batch ${batchNom}...`);
         for (let countdown = 60; countdown >= 0; countdown--) {
           setMergeStep10Progress(prev => ({
             ...prev,
@@ -6286,14 +6286,14 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
   try {
     for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
       const batch = batches[batchIdx];
-      const batchNum = batchIdx + 1;
+      const batchNom = batchIdx + 1;
       
-      console.log(`[Selective Merge] 📦 Processing batch ${batchNum}/${batches.length} (${batch.length} final videos)...`);
+      console.log(`[Selective Merge] 📦 Processing batch ${batchNom}/${batches.length} (${batch.length} final videos)...`);
       
       setMergeStep10Progress(prev => ({
         ...prev,
-        currentBatch: batchNum,
-        message: `Processing batch ${batchNum}/${batches.length}...`
+        currentBatch: batchNom,
+        message: `Processing batch ${batchNom}/${batches.length}...`
       }));
       
       // Process all tasks in this batch in parallel
@@ -6425,7 +6425,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
       
       // Wait 60s AFTER batch (except last batch)
       if (batchIdx < batches.length - 1) {
-        console.log(`[Selective Merge] ⏳ Waiting 60s after batch ${batchNum}...`);
+        console.log(`[Selective Merge] ⏳ Waiting 60s after batch ${batchNom}...`);
         for (let countdown = 60; countdown >= 0; countdown--) {
           setMergeStep10Progress(prev => ({
             ...prev,
@@ -6528,19 +6528,19 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
         
         // Retry failed chunks
         for (const failure of bodyChunkFailures) {
-          const chunkNum = parseInt(failure.name.replace('Chunk ', ''));
-          const chunk = bodyChunks[chunkNum - 1];
+          const chunkNom = parseInt(failure.name.replace('Chunk ', ''));
+          const chunk = bodyChunks[chunkNom - 1];
           
           if (!chunk) {
-            console.error('[Retry] Chunk not found:', chunkNum);
+            console.error('[Retry] Chunk not found:', chunkNom);
             continue;
           }
           
-          console.log(`[Retry] 📦 Retrying chunk ${chunkNum}...`);
+          console.log(`[Retry] 📦 Retrying chunk ${chunkNom}...`);
           
           setMergeStep10Progress(prev => ({
             ...prev,
-            message: `📺 BODY: Retrying Chunk ${chunkNum}/${bodyChunks.length}...`
+            message: `📺 BODY: Retrying Chunk ${chunkNom}/${bodyChunks.length}...`
           }));
           
           try {
@@ -6553,7 +6553,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
             };
             
             const chunkVideoUrls = chunk.map(v => extractOriginalUrl(v.trimmedVideoUrl!)).filter(Boolean);
-            const chunkOutputName = `BODY_CHUNK_${chunkNum}_${Date.now()}`;
+            const chunkOutputName = `BODY_CHUNK_${chunkNom}_${Yeste.now()}`;
             
             const result = await mergeVideosMutation.mutateAsync({
               videoUrls: chunkVideoUrls,
@@ -6562,7 +6562,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
               userId: localCurrentUser.id,
             });
             
-            console.log(`[Retry] ✅ Chunk ${chunkNum} SUCCESS:`, result.cdnUrl);
+            console.log(`[Retry] ✅ Chunk ${chunkNom} SUCCESS:`, result.cdnUrl);
             chunkUrls.push(result.cdnUrl);
             
             setMergeStep10Progress(prev => ({
@@ -6570,14 +6570,14 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
               bodyInfo: prev.bodyInfo ? {
                 ...prev.bodyInfo,
                 chunkResults: prev.bodyInfo.chunkResults.map(cr => 
-                  cr.chunkNum === chunkNum 
+                  cr.chunkNom === chunkNom 
                     ? { ...cr, status: 'success', url: result.cdnUrl, error: undefined }
                     : cr
                 )
               } : null,
               bodySuccessVideos: [
                 ...(prev.bodySuccessVideos || []),
-                ...chunk.map(v => ({ name: v.videoName, chunkNum }))
+                ...chunk.map(v => ({ name: v.videoName, chunkNom }))
               ],
               bodyFailedVideos: (prev.bodyFailedVideos || []).filter(fv => 
                 !chunk.some(cv => cv.videoName === fv.name)
@@ -6596,13 +6596,13 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
             }
             
           } catch (error: any) {
-            console.error(`[Retry] ❌ Chunk ${chunkNum} FAILED AGAIN:`, error);
+            console.error(`[Retry] ❌ Chunk ${chunkNom} FAILED AGAIN:`, error);
             
             setMergeStep10Progress(prev => ({
               ...prev,
               failedItems: [
                 ...(prev.failedItems || []),
-                { type: 'body_chunk', name: `Chunk ${chunkNum}`, error: error.message }
+                { type: 'body_chunk', name: `Chunk ${chunkNom}`, error: error.message }
               ],
               bodyFailedVideos: [
                 ...(prev.bodyFailedVideos || []),
@@ -6610,7 +6610,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                   const existingFail = (prev.bodyFailedVideos || []).find(fv => fv.name === v.videoName);
                   return {
                     name: v.videoName,
-                    chunkNum,
+                    chunkNom,
                     error: error.message,
                     retries: (existingFail?.retries || 0) + 1
                   };
@@ -6805,7 +6805,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
               ),
               hookSuccessGroups: [
                 ...(prev.hookSuccessGroups || []),
-                { baseName, videoCount: videos.length, videoNames: videos.map(v => v.videoName), batchNum: 0 }
+                { baseName, videoCount: videos.length, videoNames: videos.map(v => v.videoName), batchNom: 0 }
               ],
               hookFailedGroups: (prev.hookFailedGroups || []).filter(fg => fg.baseName !== baseName),
               hooksCurrent: (prev.hooksCurrent || 0) + 1
@@ -6906,7 +6906,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                   videoCount: videos.length,
                   error: error.message,
                   retries: ((prev.hookFailedGroups || []).find(fg => fg.baseName === baseName)?.retries || 0) + 1,
-                  batchNum: 0
+                  batchNom: 0
                 }
               ],
               failedItems: [
@@ -6958,9 +6958,9 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
       toast.error("Please upload at least one image");
       return;
     }
-    // Prompturile hardcodate sunt întotdeauna active, nu mai verificăm prompts.length
+    // Hardcoded prompts are always active, we no longer check prompts.length
 
-    // Găsește poza CTA (dacă există) - verifică dacă fileName conține 'CTA'
+    // Find CTA image (if exists) - check if fileName contains 'CTA'
     const ctaImage = images.find(img => 
       img.fileName?.toUpperCase().includes('CTA') || 
       img.imageName?.toUpperCase().includes('CTA')
@@ -6975,11 +6975,11 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
     console.log('[CTA Mapping] CTA Image found:', ctaImage ? ctaImage.fileName : 'NONE');
     console.log('[CTA Mapping] Default Image:', defaultImage ? defaultImage.fileName : 'NONE');
     
-    // Filter out labels (categoryNumber === 0) - only use actual text lines
-    const textLines = adLines.filter(line => line.categoryNumber > 0);
+    // Filter out labels (categoryNomber === 0) - only use actual text lines
+    const textLines = adLines.filter(line => line.categoryNomber > 0);
     
-    // Găsește prima linie care conține cuvintele cheie CTA
-    const ctaKeywords = ['rescrie', 'cartea', 'carte', 'lacrimi'];
+    // Find first line containing CTA keywords
+    const ctaKeywords = ['rewrite', 'the book', 'book', 'tears'];
     let firstCTAKeywordIndex = -1;
     
     for (let i = 0; i < textLines.length; i++) {
@@ -7057,7 +7057,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
         promptType: line.promptType, // Mapare automată inteligentă
         videoName: updatedVideoName,
         section: line.section,
-        categoryNumber: line.categoryNumber,
+        categoryNomber: line.categoryNomber,
         redStart: line.redStart,  // Copiază pozițiile red text din AdLine
         redEnd: line.redEnd,
       };
@@ -7173,7 +7173,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
     const combo = combinations.find(c => c.id === id);
     if (combo) {
       const currentIndex = combinations.findIndex(c => c.id === id);
-      // Salvează combinația cu indexul original
+      // Save combination with original index
       setDeletedCombinations(prev => [{ ...combo, originalIndex: currentIndex }, ...prev]);
       setCombinations(prev => prev.filter(c => c.id !== id));
     }
@@ -7203,7 +7203,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
       return;
     }
 
-    // Prompturile hardcodate sunt întotdeauna active, nu mai verificăm prompts.length
+    // Hardcoded prompts are always active, we no longer check prompts.length
 
     try {
       setCurrentStep(6); // Go to STEP 6 - Generate
@@ -7217,7 +7217,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
         status: 'pending' as const,
         videoName: combo.videoName,
         section: combo.section,
-        categoryNumber: combo.categoryNumber,
+        categoryNomber: combo.categoryNomber,
         reviewStatus: null,
         redStart: combo.redStart,  // Copiază pozițiile red text
         redEnd: combo.redEnd,
@@ -7237,7 +7237,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
         combinationsByPrompt[combo.promptType].push(combo);
       });
 
-      // Generează pentru fiecare tip de prompt cu batch processing (max 20 per batch)
+      // Generate for each prompt type with batch processing (max 20 per batch)
       const allResults: VideoResult[] = [];
       const BATCH_SIZE = 20; // Max 20 videos per batch
 
@@ -7262,8 +7262,8 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
           promptTemplate = customPrompt.template;
           promptName = customPrompt.name;
         } else {
-          // Folosește hardcoded prompt de pe backend
-          // Backend-ul va folosi HARDCODED_PROMPTS automat
+          // Use hardcoded prompt from backend
+          // Backend will use HARDCODED_PROMPTS automatically
           promptTemplate = `HARDCODED_${promptType}`;
           promptName = promptType;
         }
@@ -7291,7 +7291,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
           });
 
           const batchResults: VideoResult[] = result.results.map((r: any) => {
-            // Găsește combo-ul care corespunde textului returnat de API (nu by index!)
+            // Find combo that matches text returned by API (not by index!)
             const combo = batchCombos.find(c => c.text === r.text);
             if (!combo) {
               console.error('[CRITICAL] No matching combo found for API result text:', r.text?.substring(0, 50));
@@ -7305,7 +7305,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                 error: r.error,
                 videoName: fallbackCombo?.videoName || 'UNKNOWN',
                 section: fallbackCombo?.section || 'UNKNOWN',
-                categoryNumber: fallbackCombo?.categoryNumber || 0,
+                categoryNomber: fallbackCombo?.categoryNomber || 0,
                 reviewStatus: null,
                 redStart: fallbackCombo?.redStart,
                 redEnd: fallbackCombo?.redEnd,
@@ -7319,7 +7319,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
               error: r.error,
               videoName: combo.videoName,
               section: combo.section,
-              categoryNumber: combo.categoryNumber,
+              categoryNomber: combo.categoryNomber,
               reviewStatus: null,
               redStart: combo.redStart,  // Copiază pozițiile red text
               redEnd: combo.redEnd,
@@ -7347,7 +7347,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
       }
       
       // SAVE TO DATABASE after generation
-      console.log('[Database Save] Saving session after video generation...');
+      console.log('[Yestabase Save] Saving session after video generation...');
       upsertContextSessionMutation.mutate({
         userId: localCurrentUser.id,
         tamId: selectedTamId,
@@ -7367,15 +7367,15 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
         reviewHistory,
       }, {
         onSuccess: () => {
-          console.log('[Database Save] Session saved successfully after generation!');
+          console.log('[Yestabase Save] Session saved successfully after generation!');
         },
         onError: (error) => {
-          console.error('[Database Save] Failed to save session:', error);
+          console.error('[Yestabase Save] Failed to save session:', error);
           toast.error('Session could not be saved to database, but is saved locally');
         },
       });
     } catch (error: any) {
-      toast.error(`Eroare la generarea videourilo: ${error.message}`);
+      toast.error(`Error generating videos: ${error.message}`);
     }
   };
 
@@ -7412,7 +7412,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
           errorMessage = data.data.errorMessage || data.data.error || data.data.msg || 'Unknown error';
           console.log('Video FAILED - Error:', errorMessage);
         } else if (data.data.errorMessage || data.data.error) {
-          // Dacă există errorMessage dar successFlag nu e -1, tot considerăm failed
+          // Yescă există errorMessage dar successFlag nu e -1, tot considerăm failed
           status = 'failed';
           errorMessage = data.data.errorMessage || data.data.error;
           console.log('Video FAILED (detected via errorMessage) - Error:', errorMessage);
@@ -7464,8 +7464,8 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
           
           if (isHook && hookMatch) {
             // It's a HOOK video → Remove only this specific HOOK from hookMergedVideos
-            const hookNum = hookMatch[1];
-            console.log(`[Selective Cleanup] 🎯 Detected HOOK${hookNum} regeneration`);
+            const hookNom = hookMatch[1];
+            console.log(`[Selective Cleanup] 🎯 Detected HOOK${hookNom} regeneration`);
             setHookMergedVideos(prev => {
               if (!prev || typeof prev !== 'object') {
                 console.log(`[Selective Cleanup] ⚠️ hookMergedVideos is not an object, skipping cleanup`);
@@ -7473,12 +7473,12 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
               }
               
               // hookMergedVideos is an OBJECT with keys like "T1_C1_E1_AD2_HOOK1_ELENA_1"
-              // We need to filter out keys that contain HOOK${hookNum}M
+              // We need to filter out keys that contain HOOK${hookNom}M
               const filtered: Record<string, any> = {};
               let removedCount = 0;
               
               Object.entries(prev).forEach(([key, value]) => {
-                if (!key.includes(`HOOK${hookNum}`) || key.includes(`HOOK${hookNum}M`)) {
+                if (!key.includes(`HOOK${hookNom}`) || key.includes(`HOOK${hookNom}M`)) {
                   // Skip this entry if it's the regenerated HOOK
                   removedCount++;
                 } else {
@@ -7486,7 +7486,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                 }
               });
               
-              console.log(`[Selective Cleanup] 🗑️ Removed HOOK${hookNum} entries from hookMergedVideos (${Object.keys(prev).length} → ${Object.keys(filtered).length}, removed: ${removedCount})`);
+              console.log(`[Selective Cleanup] 🗑️ Removed HOOK${hookNom} entries from hookMergedVideos (${Object.keys(prev).length} → ${Object.keys(filtered).length}, removed: ${removedCount})`);
               return filtered;
             });
           } else {
@@ -7559,13 +7559,13 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
         } else if (isNewFailure) {
           toast.error(`Video #${index + 1} failed: ${errorMessage}`);
         }
-        // Nu mai afișăm toast pentru pending - doar UI update
+        // No mai afișăm toast pentru pending - doar UI update
       } else {
         toast.error(`Invalid response from API: ${data.msg || 'Unknown error'}`);
       }
     } catch (error: any) {
       console.error('Error checking video status:', error);
-      toast.error(`Eroare la verificarea statusului: ${error.message}`);
+      toast.error(`Error checking status: ${error.message}`);
     }
   };
 
@@ -7577,7 +7577,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
   // TEMPORARY: Load sample videos for testing when Kie.ai is down
   const loadSampleVideos = async () => {
     // Task IDs și URL-uri hardcodate (furnizate de user)
-    const sampleData = [
+    const sampleYesta = [
       {
         taskId: '352a1aaaaba3352b6652305f2469718d',
         videoUrl: 'https://tempfile.aiquickdraw.com/v/352a1aaaaba3352b6652305f2469718d_1763136934.mp4',
@@ -7599,7 +7599,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
       {
         taskId: '155a3426ecbf0f4548030f333716f597',
         videoUrl: 'https://tempfile.aiquickdraw.com/v/155a3426ecbf0f4548030f333716f597_1763116288.mp4',
-        text: "Dacă simți că viața ta e doar despre supraviețuire, cheltuieli, stres și lipsuri, ascultă-mă un minut.",
+        text: "Yescă simți că viața ta e doar despre supraviețuire, cheltuieli, stres și lipsuri, ascultă-mă un minut.",
         section: 'TRANSITION' as SectionType,
       },
     ];
@@ -7608,22 +7608,22 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
     
     try {
       // Creează videoResults cu videoUrl deja completat (hardcodat)
-      const sampleResults: VideoResult[] = sampleData.map((data, index) => {
-        // Pentru HOOKS folosește HOOK (singular) în nume
+      const sampleResults: VideoResult[] = sampleYesta.map((data, index) => {
+        // For HOOKS use HOOK (singular) in name
         const categoryName = data.section === 'HOOKS' ? 'HOOK' : data.section;
         // Video names are now generated in STEP 2 based on full context
         // For sample videos, use a placeholder format
-        const categoryNumber = 1;
+        const categoryNomber = 1;
         
         return {
           taskId: data.taskId,
-          videoName: `SAMPLE_${categoryName}${categoryNumber}`,
+          videoName: `SAMPLE_${categoryName}${categoryNomber}`,
           text: data.text,
           imageUrl: 'https://via.placeholder.com/270x480/blue/white?text=Sample',
           status: 'success' as const,
           videoUrl: data.videoUrl,
           section: data.section,
-          categoryNumber: categoryNumber,
+          categoryNomber: categoryNomber,
           reviewStatus: null,
         };
       });
@@ -7631,11 +7631,11 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
       setVideoResults(sampleResults);
       
       // Creează și combinations pentru sample videos
-      const sampleCombinations: Combination[] = sampleData.map((data, index) => {
-        // Pentru HOOKS folosește HOOK (singular) în nume
+      const sampleCombinations: Combination[] = sampleYesta.map((data, index) => {
+        // For HOOKS use HOOK (singular) in name
         const categoryName = data.section === 'HOOKS' ? 'HOOK' : data.section;
-        // Toate sample videos sunt prima linie din categoria lor (categoryNumber = 1)
-        const categoryNumber = 1;
+        // All sample videos sunt prima linie din categoria lor (categoryNomber = 1)
+        const categoryNomber = 1;
         
         return {
           id: `sample-${index}`,
@@ -7643,9 +7643,9 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
           imageUrl: 'https://via.placeholder.com/270x480/blue/white?text=Sample',
           imageId: `sample-img-${index}`,
           promptType: 'PROMPT_NEUTRAL' as PromptType,
-          videoName: `SAMPLE_${categoryName}${categoryNumber}`,
+          videoName: `SAMPLE_${categoryName}${categoryNomber}`,
           section: data.section,
-          categoryNumber: categoryNumber,
+          categoryNomber: categoryNomber,
         };
       });
       
@@ -7697,7 +7697,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
       let successCount = 0;
       let failCount = 0;
 
-      // Regenerează pentru fiecare tip de prompt
+      // Regenerate for each prompt type
       for (const [promptType, items] of Object.entries(combinationsByPrompt)) {
         if (items.length === 0) continue;
 
@@ -7728,7 +7728,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
           })),
         });
 
-        // Actualizează videoResults
+        // Update videoResults
         result.results.forEach((newResult: any, i: number) => {
           const originalIndex = items[i].index;
           
@@ -7762,7 +7762,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
         toast.error(`${failCount} videos failed again`);
       }
     } catch (error: any) {
-      toast.error(`Eroare la regenerare batch: ${error.message}`);
+      toast.error(`Error batch regeneration: ${error.message}`);
     }
   };
 
@@ -7788,7 +7788,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
       return;
     }
     
-    // Generează nume duplicate
+    // Generate duplicate name
     const originalName = getOriginalVideoName(videoName);
     const duplicateName = generateDuplicateName(originalName, videoResults);
     
@@ -7804,7 +7804,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
       status: null, // null = not generated yet
       reviewStatus: null, // null = no review yet
       isDuplicate: true,
-      duplicateNumber: getDuplicateNumber(duplicateName),
+      duplicateNomber: getDuplicateNomber(duplicateName),
       originalVideoName: originalName,
     };
     
@@ -7820,11 +7820,11 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
     // Creează duplicate combination
     const duplicateCombo: Combination = {
       ...originalCombo,
-      id: `combo-duplicate-${Date.now()}`,
+      id: `combo-duplicate-${Yeste.now()}`,
       videoName: duplicateName,
     };
     
-    // Adaugă duplicate după originalul său
+    // Add duplicate after its original
     setVideoResults(prev => {
       const newResults = [...prev];
       newResults.splice(videoIndex + 1, 0, duplicateVideoResult);
@@ -7841,13 +7841,13 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
   }, [videoResults, combinations]);
 
   /**
-   * Șterge un video card (duplicate sau original)
-   * Permite ștergerea oricărui video card
+   * Delete a video card (duplicate or original)
+   * Allow deletion of any video card
    */
   const deleteDuplicate = useCallback((videoName: string) => {
     // Allow deleting any video card, not just duplicates
     // if (!isDuplicateVideo(videoName)) {
-    //   toast.error('Poți șterge doar duplicate-uri (videoName cu _D1, _D2, etc.)');
+    //   toast.error('You can only delete duplicates (videoName with _D1, _D2, etc.)');
     //   return;
     // }
     
@@ -7858,7 +7858,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
       return;
     }
     
-    // Șterge din videoResults și combinations
+    // Delete from videoResults and combinations
     setVideoResults(prev => prev.filter((_, i) => i !== videoIndex));
     setCombinations(prev => prev.filter((_, i) => i !== videoIndex));
     
@@ -7900,11 +7900,11 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
       // Determină prompt template
       let promptTemplate: string;
       
-      // Dacă utilizatorul a editat promptul custom, folosește-l
+      // Yescă utilizatorul a editat promptul custom, folosește-l
       if (modifyPromptText.trim().length > 0) {
         promptTemplate = modifyPromptText;
       } else {
-        // Altfel, folosește prompt type selectat
+        // Otherwise, use selected prompt type
         let customPrompt;
         if (modifyPromptType === 'PROMPT_NEUTRAL') {
           customPrompt = prompts.find(p => p.name.toUpperCase().includes('NEUTRAL'));
@@ -7925,14 +7925,14 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
         userId: currentUser.id,
         promptTemplate: promptTemplate,
         combinations: [{
-          text: modifyDialogueText, // Folosește textul din state
+          text: modifyDialogueText, // Use text from state
           imageUrl: combo.imageUrl,
         }],
       });
 
       const newResult = result.results[0];
       
-      // Actualizează videoResults și combinations cu noul text
+      // Update videoResults și combinations cu noul text
       setVideoResults(prev =>
         prev.map((v, i) =>
           i === index
@@ -7983,7 +7983,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
       if (newResult.success) {
         toast.success(`Video #${index + 1} resubmitted with changes`);
       } else {
-        toast.error(`Eroare la retrimite video #${index + 1}: ${newResult.error}`);
+        toast.error(`Error resending video #${index + 1}: ${newResult.error}`);
       }
     } catch (error: any) {
       toast.error(`Error regenerating with changes: ${error.message}`);
@@ -8034,7 +8034,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
 
       const newResult = result.results[0];
       
-      // Actualizează videoResults cu noul taskId ȘI șterge reviewStatus (forțează re-render)
+      // Update videoResults cu noul taskId ȘI șterge reviewStatus (forțează re-render)
       setVideoResults(prev => [
         ...prev.map((v, i) =>
           i === index
@@ -8066,10 +8066,10 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
       if (newResult.success) {
         toast.success(`Video #${index + 1} retrimis pentru generare`);
       } else {
-        toast.error(`Eroare la retrimite video #${index + 1}: ${newResult.error}`);
+        toast.error(`Error resending video #${index + 1}: ${newResult.error}`);
       }
     } catch (error: any) {
-      toast.error(`Eroare la regenerare: ${error.message}`);
+      toast.error(`Regeneration error: ${error.message}`);
     }
   };
   // Auto-check video status pentru videouri pending (polling)
@@ -8203,7 +8203,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
       newStatus: 'accepted',
     }]);
     
-    toast.success(`Video ${videoName} acceptat!`);
+    toast.success(`Video ${videoName} accepted!`);
   }, [videoResults]);
 
   const regenerateVideo = useCallback((videoName: string) => {
@@ -8253,10 +8253,10 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
       // Extract number: "HOOK3" → "3"
       const oldCategoryPart = parts[4];
       const numberMatch = oldCategoryPart.match(/\d+$/);
-      const categoryNumber = numberMatch ? numberMatch[0] : '1';
+      const categoryNomber = numberMatch ? numberMatch[0] : '1';
       
       // Create new videoName: "HOOK3" → "MIRROR3"
-      parts[4] = newSection + categoryNumber;
+      parts[4] = newSection + categoryNomber;
       const newVideoName = parts.join('_');
       
       console.log('[Category Change]', videoName, '→', newVideoName);
@@ -8311,7 +8311,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
         emotionalAngleId: selectedEmotionalAngleId,
         adId: selectedAdId,
         characterId: selectedCharacterId,
-        timestamp: Date.now(),
+        timestamp: Yeste.now(),
       };
       localStorage.setItem('selectionHistory', JSON.stringify(selectionHistory));
       console.log('[Selection History] Saved to localStorage:', selectionHistory);
@@ -8365,7 +8365,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
     const duplicateName = `${prefix}${hookBase}${newLetter}${suffix}`;
     const duplicateLine: AdLine = {
       ...line,
-      id: `line-${Date.now()}-${Math.random()}`,
+      id: `line-${Yeste.now()}-${Math.random()}`,
       videoName: duplicateName,
     };
     
@@ -8418,18 +8418,18 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
     
     // FORCE RELOAD from DB to get latest data
     console.log('[goToCheckVideos] 🔄 Forcing reload from DB...');
-    const freshData = await refetchContextSession();
-    if (freshData.data?.videoResults) {
+    const freshYesta = await refetchContextSession();
+    if (freshYesta.data?.videoResults) {
       const parseJsonField = (field: any) => {
         if (!field) return [];
         const parsed = typeof field === 'string' ? JSON.parse(field) : field;
         return Array.isArray(parsed) ? parsed : [];
       };
-      const freshVideoResults = parseJsonField(freshData.data.videoResults);
+      const freshVideoResults = parseJsonField(freshYesta.data.videoResults);
       console.log('[goToCheckVideos] ✅ Loaded fresh videoResults from DB:', freshVideoResults.length);
       setVideoResults(freshVideoResults);
-      setAdLines(parseJsonField(freshData.data.adLines));
-      setCombinations(parseJsonField(freshData.data.combinations));
+      setAdLines(parseJsonField(freshYesta.data.adLines));
+      setCombinations(parseJsonField(freshYesta.data.combinations));
     }
   };
 
@@ -8468,10 +8468,10 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
     if (step === 2) {
       // Step 2: Reload adLines and sync with combinations
       console.log('[goToStep] 🔄 Forcing reload from DB for Step 2...');
-      const freshData = await refetchContextSession();
-      if (freshData.data) {
-        const freshAdLines = parseJsonField(freshData.data.adLines);
-        const freshCombinations = parseJsonField(freshData.data.combinations);
+      const freshYesta = await refetchContextSession();
+      if (freshYesta.data) {
+        const freshAdLines = parseJsonField(freshYesta.data.adLines);
+        const freshCombinations = parseJsonField(freshYesta.data.combinations);
         
         // ✅ SYNC adLines videoName with combinations
         const syncedAdLines = freshAdLines.map((line: any) => {
@@ -8492,17 +8492,17 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
     } else if (step === 4) {
       // Step 4: Reload images and adLines, sync with combinations
       console.log('[goToStep] 🔄 Forcing reload from DB for Step 4...');
-      const freshData = await refetchContextSession();
-      if (freshData.data) {
-        let freshImages = parseJsonField(freshData.data.images);
-        const freshAdLines = parseJsonField(freshData.data.adLines);
-        const freshCombinations = parseJsonField(freshData.data.combinations);
+      const freshYesta = await refetchContextSession();
+      if (freshYesta.data) {
+        let freshImages = parseJsonField(freshYesta.data.images);
+        const freshAdLines = parseJsonField(freshYesta.data.adLines);
+        const freshCombinations = parseJsonField(freshYesta.data.combinations);
         
         // Sync image names with Image Library (userImages)
-        const libraryImagesData = await refetchLibraryImages();
-        if (libraryImagesData.data) {
+        const libraryImagesYesta = await refetchLibraryImages();
+        if (libraryImagesYesta.data) {
           freshImages = freshImages.map((img: any) => {
-            const libraryImage = libraryImagesData.data.find((libImg: any) => libImg.id === img.id);
+            const libraryImage = libraryImagesYesta.data.find((libImg: any) => libImg.id === img.id);
             if (libraryImage) {
               return { ...img, fileName: libraryImage.fileName }; // ✅ Update fileName from Image Library
             }
@@ -8534,17 +8534,17 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
     } else if (step === 5) {
       // Step 5: Reload images and combinations, sync with videoResults
       console.log('[goToStep] 🔄 Forcing reload from DB for Step 5...');
-      const freshData = await refetchContextSession();
-      if (freshData.data) {
-        let freshImages = parseJsonField(freshData.data.images);
-        const freshCombinations = parseJsonField(freshData.data.combinations);
-        const freshVideoResults = parseJsonField(freshData.data.videoResults);
+      const freshYesta = await refetchContextSession();
+      if (freshYesta.data) {
+        let freshImages = parseJsonField(freshYesta.data.images);
+        const freshCombinations = parseJsonField(freshYesta.data.combinations);
+        const freshVideoResults = parseJsonField(freshYesta.data.videoResults);
         
         // Sync image names with Image Library (userImages)
-        const libraryImagesData = await refetchLibraryImages();
-        if (libraryImagesData.data) {
+        const libraryImagesYesta = await refetchLibraryImages();
+        if (libraryImagesYesta.data) {
           freshImages = freshImages.map((img: any) => {
-            const libraryImage = libraryImagesData.data.find((libImg: any) => libImg.id === img.id);
+            const libraryImage = libraryImagesYesta.data.find((libImg: any) => libImg.id === img.id);
             if (libraryImage) {
               return { ...img, fileName: libraryImage.fileName }; // ✅ Update fileName from Image Library
             }
@@ -8580,7 +8580,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
 
   const goBack = () => {
     if (currentStep > 1) {
-      // Dacă sunt modificări, întreabă user
+      // Yescă sunt modificări, întreabă user
       if (hasModifications) {
         if (!confirm('Ai modificări nesalvate. Sigur vrei să te întorci?')) {
           return;
@@ -8770,7 +8770,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
             }
           } catch (error: any) {
             console.error('[Retry Failed] Error:', error);
-            toast.error(`Eroare la retry: ${error.message}`);
+            toast.error(`Error on retry: ${error.message}`);
           }
         }}
       />
@@ -9200,8 +9200,8 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                         ? trimmingProgress.successVideos[currentIdx - 1] 
                         : null;
                       if (!prevVideo) return null;
-                      const videoData = videoResults.find(v => v.videoName === prevVideo.name);
-                      const note = videoData?.step9Note || '';
+                      const videoYesta = videoResults.find(v => v.videoName === prevVideo.name);
+                      const note = videoYesta?.step9Note || '';
                       const isEditing = editingNoteId === prevVideo.name;
                       
                       return (
@@ -9294,8 +9294,8 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                     {/* Current Video */}
                     {(() => {
                       const videoName = trimmingCurrentVideoName || trimmingProgress.successVideos[0]?.name || 'Loading...';
-                      const videoData = videoResults.find(v => v.videoName === videoName);
-                      const note = videoData?.step9Note || '';
+                      const videoYesta = videoResults.find(v => v.videoName === videoName);
+                      const note = videoYesta?.step9Note || '';
                       const isEditing = editingNoteId === videoName;
                       
                       return (
@@ -9394,8 +9394,8 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                         ? trimmingProgress.successVideos[currentIdx + 1] 
                         : null;
                       if (!nextVideo) return null;
-                      const videoData = videoResults.find(v => v.videoName === nextVideo.name);
-                      const note = videoData?.step9Note || '';
+                      const videoYesta = videoResults.find(v => v.videoName === nextVideo.name);
+                      const note = videoYesta?.step9Note || '';
                       const isEditing = editingNoteId === nextVideo.name;
                       
                       return (
@@ -9494,8 +9494,8 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                     {trimmingProgress.successVideos
                       .filter(video => !video.name.includes('(Hooks merged)') && !video.name.includes('(Body merged)'))
                       .map((video) => {
-                      const videoData = videoResults.find(v => v.videoName === video.name);
-                      const note = videoData?.step9Note || '';
+                      const videoYesta = videoResults.find(v => v.videoName === video.name);
+                      const note = videoYesta?.step9Note || '';
                       
                       return (
                         <div key={video.name} className="flex items-start justify-between gap-3 p-3 bg-gray-50 rounded-lg">
@@ -9601,8 +9601,8 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
               {trimmingProgress.status !== 'processing' && 
                trimmingProgress.successVideos.length > 0 && 
                trimmingProgress.successVideos.some(v => {
-                 const videoData = videoResults.find(vd => vd.videoName === v.name);
-                 return videoData?.trimmedVideoUrl;
+                 const videoYesta = videoResults.find(vd => vd.videoName === v.name);
+                 return videoYesta?.trimmedVideoUrl;
                }) && (
                 <button
                   onClick={() => {
@@ -9626,8 +9626,8 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
               {trimmingProgress.status !== 'processing' && 
                trimmingProgress.successVideos.length > 0 && 
                trimmingProgress.successVideos.some(v => {
-                 const videoData = videoResults.find(vd => vd.videoName === v.name);
-                 return videoData?.trimmedVideoUrl;
+                 const videoYesta = videoResults.find(vd => vd.videoName === v.name);
+                 return videoYesta?.trimmedVideoUrl;
                }) && (
                 <hr className="border-gray-300" />
               )}
@@ -10935,7 +10935,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                         placeholder="Paste Google Doc link here (e.g., https://docs.google.com/document/d/...)" 
                         className="w-full p-4 border-2 border-blue-300 rounded-lg focus:border-blue-500 focus:outline-none mb-4"
                         onPaste={async (e) => {
-                          const link = e.clipboardData.getData('text');
+                          const link = e.clipboardYesta.getYesta('text');
                           if (link.includes('docs.google.com/document')) {
                             try {
                               // Extract document ID from link
@@ -11047,7 +11047,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                 onChange={handleAdDocumentSelect}
               />
               
-              {/* Buton șterge document */}
+              {/* Delete document button */}
               {adDocument && (
                 <div className="mt-4">
                   <Button
@@ -11089,13 +11089,13 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                   )}
                   <div className="flex items-center justify-between mb-3">
                     <p className="font-medium text-blue-900">
-                      {adLines.filter(l => l.categoryNumber > 0).length} linii extrase:
+                      {adLines.filter(l => l.categoryNomber > 0).length} linii extrase:
                     </p>
                   </div>
                   <div className="space-y-2">
                     {adLines.map((line) => {
-                      // If categoryNumber is 0, this is a label (section header)
-                      if (line.categoryNumber === 0) {
+                      // If categoryNomber is 0, this is a label (section header)
+                      if (line.categoryNomber === 0) {
                         // Check if this is a subcategory (H1-H100) or main category
                         const isSubcategory = /^H\d+$/.test(line.text);
                         
@@ -11453,7 +11453,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                   <div className="text-sm text-green-700 space-y-1">
                     <p>✓ PROMPT_NEUTRAL - pentru secțiuni până la TRANSFORMATION</p>
                     <p>✓ PROMPT_SMILING - pentru TRANSFORMATION și CTA</p>
-                    <p>✓ PROMPT_CTA - pentru CTA cu carte</p>
+                    <p>✓ PROMPT_CTA - pentru CTA cu book</p>
                   </div>
                 </div>
               )}
@@ -11474,7 +11474,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                   <p className="text-blue-900 font-medium mb-2">
                     Drop prompt documents here or click to upload
                   </p>
-                  <p className="text-sm text-gray-500 italic">Suportă .docx, .doc (maxim 3 fișiere)</p>
+                  <p className="text-sm text-gray-500 italic">Supports .docx, .doc (max 3 files)</p>
                   <input
                     id="prompt-upload"
                     type="file"
@@ -11529,12 +11529,12 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                 <div className="mb-4">
                   <div className="border-2 border-blue-300 rounded-lg p-4 bg-white">
                     <label className="block text-sm font-medium text-blue-900 mb-2">
-                      Scrie prompt manual (trebuie să conțină [INSERT TEXT]):
+                      Write manual prompt (must contain [INSERT TEXT]):
                     </label>
                     <textarea
                       value={manualPromptText}
                       onChange={(e) => setManualPromptText(e.target.value)}
-                      placeholder="Exemplu: Generate a video with the following text: [INSERT TEXT]. Make it engaging and professional."
+                      placeholder="Example: Generate a video with the following text: [INSERT TEXT]. Make it engaging and professional."
                       className="w-full h-32 p-3 border border-blue-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                     <Button
@@ -11544,15 +11544,15 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                           return;
                         }
                         if (manualPromptText.trim().length === 0) {
-                          toast.error('Promptul nu poate fi gol');
+                          toast.error('Prompt cannot be empty');
                           return;
                         }
                         
                         const newPrompt: UploadedPrompt = {
-                          id: `manual-${Date.now()}`,
+                          id: `manual-${Yeste.now()}`,
                           name: `Custom Prompt #${prompts.length + 1}`,
                           template: manualPromptText,
-                          file: null, // Prompt manual, fără fișier
+                          file: null, // Manual prompt, without file
                         };
                         
                         setPrompts(prev => [...prev, newPrompt]);
@@ -11617,7 +11617,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                 <div className="text-sm text-green-700 space-y-1">
                   <p>✓ PROMPT_NEUTRAL - pentru secțiuni până la TRANSFORMATION</p>
                   <p>✓ PROMPT_SMILING - pentru TRANSFORMATION și CTA</p>
-                  <p>✓ PROMPT_CTA - pentru CTA cu carte</p>
+                  <p>✓ PROMPT_CTA - pentru CTA cu book</p>
                 </div>
               </div>
 
@@ -11635,7 +11635,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                   <p className="text-blue-900 font-medium mb-2">
                     Drop prompt documents here or click to upload
                   </p>
-                  <p className="text-sm text-gray-500 italic">Suportă .docx, .doc (maxim 3 fișiere)</p>
+                  <p className="text-sm text-gray-500 italic">Supports .docx, .doc (max 3 files)</p>
                   <input
                     id="prompt-upload"
                     type="file"
@@ -12028,7 +12028,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                   className="bg-blue-600 hover:bg-blue-700 px-8 py-8 text-lg"
                 >
                   <Grid3x3 className="w-5 h-5 mr-2" />
-                  Next: Create Mappings ({adLines.filter(l => l.categoryNumber > 0).length})
+                  Next: Create Mappings ({adLines.filter(l => l.categoryNomber > 0).length})
                   <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
@@ -12165,7 +12165,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                   {generateBatchMutation.isPending ? (
                     <>
                       <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      Se generează...
+                      Generating...
                     </>
                   ) : (
                     <>
@@ -12191,7 +12191,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                 STEP 6 - Videouri Generate
               </CardTitle>
               <CardDescription>
-                Urmărește progresul generării videourilo și descarcă-le.
+                Track video generation progress and download them.
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-4 md:pt-6 px-3 md:px-6">
@@ -12203,8 +12203,8 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                   onChange={(e) => setStep5Filter(e.target.value as 'all' | 'accepted' | 'regenerate')}
                   className="px-4 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="all">Afișează Toate ({videoResults.length})</option>
-                  <option value="accepted">Doar Acceptate ({acceptedCount})</option>
+                  <option value="all">Afișează All ({videoResults.length})</option>
+                  <option value="accepted">Doar Accepted ({acceptedCount})</option>
                   <option value="regenerate">Pentru Regenerare ({regenerateCount})</option>
                 </select>
               </div>
@@ -12304,7 +12304,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                       
                                       // Încărcă prompt text by default
                                       if (currentPromptType === 'PROMPT_CUSTOM' && customPrompts[realIndex]) {
-                                        // Dacă video are PROMPT_CUSTOM salvat → afișează-l
+                                        // Yescă video are PROMPT_CUSTOM salvat → afișează-l
                                         setModifyPromptText(customPrompts[realIndex]);
                                       } else {
                                         // Încărcă template-ul promptului din Prompt Library
@@ -12386,7 +12386,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                       
                                       // Încărcă prompt text by default
                                       if (currentPromptType === 'PROMPT_CUSTOM' && customPrompts[realIndex]) {
-                                        // Dacă video are PROMPT_CUSTOM salvat → afișează-l
+                                        // Yescă video are PROMPT_CUSTOM salvat → afișează-l
                                         setModifyPromptText(customPrompts[realIndex]);
                                       } else {
                                         // Încărcă template-ul promptului din Prompt Library
@@ -12486,7 +12486,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                             }}
                                             className="w-4 h-4"
                                           />
-                                          <span className="text-sm">Nu</span>
+                                          <span className="text-sm">No</span>
                                         </label>
                                         <label className="flex items-center gap-2 cursor-pointer">
                                           <input
@@ -12510,12 +12510,12 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                             }}
                                             className="w-4 h-4"
                                           />
-                                          <span className="text-sm">Da</span>
+                                          <span className="text-sm">Yes</span>
                                         </label>
                                       </div>
                                     </div> */}
                                     
-                                    {/* Selector număr regenerări (dacă Da) */}
+                                    {/* Selector număr regenerări (dacă Yes) */}
                                     {regenerateMultiple && (
                                       <div>
                                         <label className="text-sm font-medium text-gray-700 block mb-1">Câte regenerări vrei? (1-10):</label>
@@ -12528,7 +12528,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                             // Ajustează array-ul de variante
                                             const currentVariants = [...regenerateVariants];
                                             if (count > currentVariants.length) {
-                                              // Adaugă variante noi (copie după prima)
+                                              // Add new variants (copy after first)
                                               const idx = modifyingVideoIndex !== null ? modifyingVideoIndex : 0;
                                               const template = currentVariants[0] || {
                                                 promptType: modifyPromptType,
@@ -12540,7 +12540,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                                 currentVariants.push({ ...template });
                                               }
                                             } else {
-                                              // Șterge variante în plus
+                                              // Delete extra variants
                                               currentVariants.splice(count);
                                             }
                                             setRegenerateVariants(currentVariants);
@@ -12554,9 +12554,9 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                       </div>
                                     )}
                                     
-                                    {/* Rendering dinamic: 1 secțiune (Nu) sau N secțiuni (Da) */}
+                                    {/* Rendering dinamic: 1 secțiune (No) sau N secțiuni (Yes) */}
                                     {!regenerateMultiple ? (
-                                      /* Mod single (Nu) - 1 secțiune */
+                                      /* Mod single (No) - 1 secțiune */
                                       <>
                                     {/* Select Prompt Type */}
                                     <div>
@@ -12567,11 +12567,11 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                           const newType = e.target.value as PromptType;
                                           setModifyPromptType(newType);
                                           
-                                          // Când user selectează PROMPT_CUSTOM → încarcă textul salvat
+                                          // When user selects PROMPT_CUSTOM → load saved text
                                           if (newType === 'PROMPT_CUSTOM' && customPrompts[modifyingVideoIndex!]) {
                                             setModifyPromptText(customPrompts[modifyingVideoIndex!]);
                                           } else if (newType !== 'PROMPT_CUSTOM') {
-                                            // Încarcă template din Prompt Library (database)
+                                            // Load template from Prompt Library (database)
                                             const promptFromLibrary = promptLibrary.find(p => p.promptName === newType);
                                             if (promptFromLibrary?.promptTemplate) {
                                               setModifyPromptText(promptFromLibrary.promptTemplate);
@@ -12603,14 +12603,14 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                           const newText = e.target.value;
                                           setModifyPromptText(newText);
                                           
-                                          // Când user editează prompt text → switch automat la PROMPT_CUSTOM și salvează în sesiune
+                                          // When user edits prompt text → automatically switch to PROMPT_CUSTOM and save to session
                                           if (newText.trim().length > 0) {
-                                            // Verifică dacă textul este diferit de template-ul original
+                                            // Check if text is different from original template
                                             const originalPrompt = promptLibrary.find(p => p.promptName === modifyPromptType);
                                             const isModified = !originalPrompt || newText !== originalPrompt.promptTemplate;
                                             
                                             if (isModified && modifyPromptType !== 'PROMPT_CUSTOM') {
-                                              // Switch la PROMPT_CUSTOM și salvează în sesiune
+                                              // Switch to PROMPT_CUSTOM and save to session
                                               setModifyPromptType('PROMPT_CUSTOM');
                                               if (modifyingVideoIndex !== null) {
                                                 setCustomPrompts(prev => ({
@@ -12624,7 +12624,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                         placeholder={
                                           modifyPromptType === 'PROMPT_CUSTOM'
                                             ? 'Enter custom prompt here'
-                                            : `Editează ${modifyPromptType} sau lasă gol pentru a folosi promptul hardcodat`
+                                            : `Edit ${modifyPromptType} or leave empty to use hardcoded prompt`
                                         }
                                         rows={3}
                                         className="text-sm min-h-[60px] max-h-[150px] resize-y overflow-y-auto"
@@ -12642,7 +12642,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                         onSelect={(e: any) => {
                                           const start = e.target.selectionStart;
                                           const end = e.target.selectionEnd;
-                                          // Salvează selecția pentru marcare roșu
+                                          // Save selection for red marking
                                           if (end > start) {
                                             (window as any).__textSelection = { start, end };
                                           }
@@ -12797,16 +12797,16 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                       <Button
                                         size="sm"
                                         onClick={() => {
-                                          // SAVE: salvează modificări fără regenerare
+                                          // SAVE: save changes without regeneration
                                           const index = modifyingVideoIndex;
                                           console.log('[Save Modify] Starting save | index:', index, '| videoResults.length:', videoResults.length, '| step5Filter:', step5Filter);
                                           
                                           // Text și pozițiile roșu sunt deja în state (modifyDialogueText, modifyRedStart, modifyRedEnd)
                                           console.log('[Save Modify] Saving text with red positions:', modifyRedStart, '-', modifyRedEnd);
                                           
-                                          // Dacă user a editat prompt text → salvează ca PROMPT_CUSTOM DOAR în sesiune (nu în database)
+                                          // Yescă user a editat prompt text → salvează ca PROMPT_CUSTOM DOAR în sesiune (nu în database)
                                           if (modifyPromptType === 'PROMPT_CUSTOM' && modifyPromptText.trim().length > 0) {
-                                            // Salvează în state pentru sesiune (dispare la expirarea sesiunii)
+                                            // Save in state for session (disappears when session expires)
                                             setCustomPrompts(prev => ({
                                               ...prev,
                                               [index]: modifyPromptText,
@@ -12847,7 +12847,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                                 text: modifyDialogueText,
                                                 redStart: modifyRedStart,
                                                 redEnd: modifyRedEnd,
-                                                _forceUpdate: Date.now(), // Force React to detect change
+                                                _forceUpdate: Yeste.now(), // Force React to detect change
                                               } : v
                                             );
                                             console.log('[Save Modify] BEFORE return - Updated text for index', index, ':', modifyDialogueText.substring(0, 50));
@@ -12856,14 +12856,14 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                           
                                           console.log('[Save Modify] AFTER setVideoResults - Updated videoResults[' + index + '] with red text:', modifyRedStart, '-', modifyRedEnd);
                                           
-                                          // Salvează timestamp pentru "Edited X min ago"
+                                          // Save timestamp for "Edited X min ago"
                                           setEditTimestamps(prev => ({
                                             ...prev,
-                                            [index]: Date.now(),
+                                            [index]: Yeste.now(),
                                           }));
                                           
                                           // SAVE TO DATABASE with captured updated state
-                                          console.log('[Database Save] Saving after text modification...');
+                                          console.log('[Yestabase Save] Saving after text modification...');
                                           
                                           upsertContextSessionMutation.mutate({
                                             userId: localCurrentUser.id,
@@ -12884,10 +12884,10 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                             reviewHistory,
                                           }, {
                                             onSuccess: () => {
-                                              console.log('[Database Save] Modifications saved to database!');
+                                              console.log('[Yestabase Save] Modifications saved to database!');
                                             },
                                             onError: (error) => {
-                                              console.error('[Database Save] Failed:', error);
+                                              console.error('[Yestabase Save] Failed:', error);
                                             },
                                           });
                                           
@@ -12917,7 +12917,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                         {generateBatchMutation.isPending ? (
                                           <>
                                             <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                                            Se trimite...
+                                            Sending...
                                           </>
                                         ) : (
                                           'Save & Regenerate'
@@ -12934,7 +12934,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                     </div>
                                     </>
                                     ) : (
-                                      /* Mod multiple (Da) - N secțiuni */
+                                      /* Mod multiple (Yes) - N secțiuni */
                                       <>
                                         {regenerateVariants.map((variant, variantIndex) => (
                                           <div key={variantIndex} className="p-3 bg-gray-50 border border-gray-300 rounded space-y-2">
@@ -12959,7 +12959,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                                          updated[variantIndex].promptText = data[0].result.data.promptText;
                                                       }
                                                     } catch (error) {
-                                                      console.error('Eroare la încărcare prompt:', error);
+                                                      console.error('Error loading prompt:', error);
                                                     }
                                                   }
                                                   
@@ -13034,8 +13034,8 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                             <Button
                                               size="sm"
                                               onClick={() => {
-                                                // SAVE toate variantele
-                                                toast.success(`${regenerateVariants.length} variante salvate!`);
+                                                // SAVE all variants
+                                                toast.success(`${regenerateVariants.length} variants saved!`);
                                                 setModifyingVideoIndex(null);
                                               }}
                                               className="flex-1 bg-green-600 hover:bg-green-700"
@@ -13052,7 +13052,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                             </Button>
                                           </div>
                                           
-                                          {/* Regenerate All - trimite toate variantele pentru generare
+                                          {/* Regenerate All - send all variants for generation
                                           <Button
                                             size="sm"
                                             onClick={async () => {
@@ -13072,7 +13072,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                               }
                                               
                                               try {
-                                                // Detectare setări identice
+                                                // Detect identical settings
                                                 const firstVariant = regenerateVariants[0];
                                                 const allIdentical = regenerateVariants.every(v => 
                                                   v.promptType === firstVariant.promptType &&
@@ -13095,15 +13095,15 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                                   imageUrl: variant.imageUrl,
                                                 }));
                                                 
-                                                // Trimite toate variantele la backend pentru generare paralelă
+                                                // Send all variants to backend for parallel generation
                                                 const result = await generateMultipleVariantsMutation.mutateAsync({
                                                   variants: variantsForBackend,
                                                 });
                                                 
                                                 // Procesează rezultatele
                                                 if (allIdentical && regenerateVariants.length > 1) {
-                                                  // Setări identice: TOATE regenerările înlocuiesc același video (nu creăm duplicate)
-                                                  // Folosim doar prima variantă (toate sunt identice)
+                                                  // Identical settings: ALL regenerations replace same video (we don't create duplicates)
+                                                  // Use only first variant (all are identical)
                                                   const firstResult = result.results[0];
                                                   const firstVariant = regenerateVariants[0];
                                                   
@@ -13119,7 +13119,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                                               status: 'pending' as const,
                                                               error: undefined,
                                                               videoUrl: undefined,
-                                                              regenerationNote: `${regenerateVariants.length} regenerări cu aceleași setări`,
+                                                              regenerationNote: `${regenerateVariants.length} regenerations with same settings`,
                                                             }
                                                           : v
                                                       )
@@ -13139,13 +13139,13 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                                     );
                                                   }
                                                 } else {
-                                                  // Setări diferite: creăm duplicate pentru variantele 2, 3, etc.
+                                                  // Different settings: create duplicates for variants 2, 3, etc.
                                                   for (let variantIndex = 0; variantIndex < result.results.length; variantIndex++) {
                                                     const newResult = result.results[variantIndex];
                                                     const variant = regenerateVariants[variantIndex];
                                                     
                                                     if (variantIndex === 0 && newResult.success) {
-                                                      // Prima variantă înlocuiește videoul original
+                                                      // First variant replaces original video
                                                       setVideoResults(prev =>
                                                         prev.map((v, i) =>
                                                           i === modifyingVideoIndex
@@ -13176,7 +13176,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                                         )
                                                       );
                                                     } else if (variantIndex > 0 && newResult.success) {
-                                                      // Variantele următoare se adaugă ca videouri noi
+                                                      // Next variants are added as new videos
                                                       const originalVideo = videoResults[modifyingVideoIndex];
                                                       const originalCombo = combinations[modifyingVideoIndex];
                                                       
@@ -13190,7 +13190,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                                           error: undefined,
                                                           videoName: `${originalVideo.videoName}_V${variantIndex + 1}`,
                                                           section: originalVideo.section,
-                                                          categoryNumber: originalVideo.categoryNumber,
+                                                          categoryNomber: originalVideo.categoryNomber,
                                                           reviewStatus: null,
                                                         },
                                                       ]);
@@ -13209,7 +13209,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                                   }
                                                 }
                                                 
-                                                // Toast final cu rezultate
+                                                // Final toast with results
                                                 const successCount = result.results.filter((r: any) => r.success).length;
                                                 const failCount = result.results.filter((r: any) => !r.success).length;
                                                 
@@ -13224,7 +13224,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                                 setModifyingVideoIndex(null);
                                                 setRegenerateVariants([]);
                                               } catch (error: any) {
-                                                toast.error(`Eroare la regenerare: ${error.message}`);
+                                                toast.error(`Regeneration error: ${error.message}`);
                                               }
                                             }}
                                             disabled={generateMultipleVariantsMutation.isPending}
@@ -13233,7 +13233,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                             {generateMultipleVariantsMutation.isPending ? (
                                               <>
                                                 <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                                                Se regenerează...
+                                                Regenerating...
                                               </>
                                             ) : (
                                               `Regenerate All (${regenerateVariants.length} variante)`
@@ -13256,7 +13256,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                 <div className="flex items-center gap-2 bg-gray-50 border-2 border-gray-400 px-3 py-2 rounded-lg mb-2">
                                   <Clock className="w-5 h-5 text-gray-600" />
                                   <span className="text-sm text-gray-700 font-bold">
-                                    Not Generated Yet (Duplicate {result.duplicateNumber})
+                                    Not Generated Yet (Duplicate {result.duplicateNomber})
                                   </span>
                                 </div>
                                 <div className="hidden">
@@ -13270,7 +13270,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                       
                                       // Încărcă prompt text by default
                                       if (currentPromptType === 'PROMPT_CUSTOM' && customPrompts[realIndex]) {
-                                        // Dacă video are PROMPT_CUSTOM salvat → afișează-l
+                                        // Yescă video are PROMPT_CUSTOM salvat → afișează-l
                                         setModifyPromptText(customPrompts[realIndex]);
                                       } else {
                                         // Încărcă template-ul promptului din Prompt Library
@@ -13443,7 +13443,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                     {generateBatchMutation.isPending ? (
                       <>
                         <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                        Se regenerează...
+                        Regenerating...
                       </>
                     ) : (
                       <>
@@ -13489,7 +13489,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
           </Card>
         )}
 
-        {/* STEP 7 REMOVED - Nu mai există, funcționalitatea e în STEP 5 */}
+        {/* STEP 7 REMOVED - No mai există, funcționalitatea e în STEP 5 */}
         {false && (
           <Card className="mb-8 border-2 border-orange-200">
             <CardHeader className="bg-orange-50">
@@ -13498,7 +13498,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                 STEP 7 - Regenerare Avansată
               </CardTitle>
               <CardDescription>
-                Regenerează videouri cu setări personalizate. Poți crea multiple variante pentru fiecare video.
+                Regenerate videos with custom settings. You can create multiple variants for each video.
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-4 md:pt-6 px-3 md:px-6">
@@ -13559,7 +13559,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                           }}
                           className="w-4 h-4"
                         />
-                        <span className="text-orange-900">Nu</span>
+                        <span className="text-orange-900">No</span>
                       </label>
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
@@ -13569,7 +13569,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                           onChange={() => setRegenerateMultiple(true)}
                           className="w-4 h-4"
                         />
-                        <span className="text-orange-900">Da</span>
+                        <span className="text-orange-900">Yes</span>
                       </label>
                     </div>
 
@@ -13760,13 +13760,13 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                             let promptText: string | undefined = undefined;
                             
                             if (variant.promptText.trim().length > 0) {
-                              // Folosește prompt custom scris manual
+                              // Use custom prompt written manually
                               promptText = variant.promptText;
                             } else if (variant.promptType === 'custom') {
                               // Skip - va fi gestionat de backend
                               promptText = '';
                             } else {
-                              // Folosește prompt custom din listă
+                              // Use custom prompt from list
                               const customPrompt = prompts.find(p => p.id === variant.promptType);
                               if (customPrompt) {
                                 promptText = customPrompt.template;
@@ -13781,7 +13781,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                             };
                           });
                           
-                          // Trimite toate variantele la backend pentru generare paralelă
+                          // Send all variants to backend for parallel generation
                           const result = await generateMultipleVariantsMutation.mutateAsync({
                             variants: variantsForBackend,
                           });
@@ -13791,9 +13791,9 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                             const newResult = result.results[variantIndex];
                             const variant = regenerateVariants[variantIndex];
                             
-                            // Actualizează videoResults: adaugă sau înlocuiește
+                            // Update videoResults: add or replace
                             if (variantIndex === 0 && newResult.success) {
-                              // Prima variantă înlocuiește videoul original
+                              // First variant replaces original video
                               setVideoResults(prev =>
                                 prev.map((v, i) =>
                                   i === selectedVideoIndex
@@ -13823,7 +13823,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                 )
                               );
                             } else if (variantIndex > 0 && newResult.success) {
-                              // Variantele următoare se adaugă ca videouri noi
+                              // Next variants are added as new videos
                               const originalVideo = videoResults[selectedVideoIndex];
                               const originalCombo = combinations[selectedVideoIndex];
                               
@@ -13837,7 +13837,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                   error: undefined,
                                   videoName: `${originalVideo.videoName}_V${variantIndex + 1}`,
                                   section: originalVideo.section,
-                                  categoryNumber: originalVideo.categoryNumber,
+                                  categoryNomber: originalVideo.categoryNomber,
                                   reviewStatus: null,
                                 },
                               ]);
@@ -13854,7 +13854,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                             }
                           }
                           
-                          // Toast final cu rezultate
+                          // Final toast with results
                           const successCount = result.results.filter((r: any) => r.success).length;
                           const failCount = result.results.filter((r: any) => !r.success).length;
                           
@@ -13871,11 +13871,11 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                           setRegenerateMultiple(false);
                           setRegenerateVariantCount(1);
                           
-                          // Revino la STEP 6 pentru a verifica progresul
+                          // Return to STEP 6 to check progress
                           setCurrentStep(6);
                           toast.success('Regeneration complete! Check progress at STEP 6.');
                         } catch (error: any) {
-                          toast.error(`Eroare la regenerare: ${error.message}`);
+                          toast.error(`Regeneration error: ${error.message}`);
                         }
                       }}
                       disabled={generateBatchMutation.isPending || selectedVideoIndex < 0}
@@ -13884,7 +13884,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                       {generateBatchMutation.isPending ? (
                         <>
                           <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                          Se regenerează...
+                          Regenerating...
                         </>
                       ) : (
                         <>
@@ -13931,8 +13931,8 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                     onChange={(e) => setVideoFilter(e.target.value as 'all' | 'accepted' | 'failed' | 'no_decision')}
                     className="px-4 py-2 border border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                   >
-                    <option value="all">Afișează Toate ({videoResults.length})</option>
-                    <option value="accepted">Doar Acceptate ({acceptedCount})</option>
+                    <option value="all">Afișează All ({videoResults.length})</option>
+                    <option value="accepted">Doar Accepted ({acceptedCount})</option>
                     <option value="failed">Doar Failed/Pending ({failedCount})</option>
                     <option value="no_decision">Doar Fără Decizie ({videosWithoutDecisionCount})</option>
                   </select>
@@ -13958,7 +13958,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
 
               {/* Organizare pe categorii */}
               {['HOOKS', 'MIRROR', 'DCS', 'TRANSITION', 'NEW_CAUSE', 'MECHANISM', 'EMOTIONAL_PROOF', 'TRANSFORMATION', 'CTA'].map(category => {
-                // Filtrare videouri: doar cele generate cu succes (status === 'success' și videoUrl există)
+                // Filter videos: only successfully generated ones (status === 'success' and videoUrl exists)
                 // Use step6FilteredVideos to prevent auto-remove on decision change
                 let categoryVideos = step6FilteredVideos.filter(v => 
                   v.section === category && 
@@ -14024,7 +14024,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                     const newVideoName = editedVideoNameText.trim();
                                     
                                     if (!newVideoName) {
-                                      toast.error('Numele video nu poate fi gol!');
+                                      toast.error('Nomele video nu poate fi gol!');
                                       return;
                                     }
                                     
@@ -14051,7 +14051,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                         emotionalAngleId: selectedEmotionalAngleId!,
                                         adId: selectedAdId!,
                                         characterId: selectedCharacterId!,
-                                        sessionData: {
+                                        sessionYesta: {
                                           currentStep,
                                           rawTextAd,
                                           processedTextAd,
@@ -14072,15 +14072,15 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                         }
                                       }, {
                                         onSuccess: () => {
-                                          toast.success(`Nume video actualizat: ${newVideoName}`);
+                                          toast.success(`Nome video actualizat: ${newVideoName}`);
                                           setEditingVideoName(null);
                                         },
                                         onError: (error: any) => {
-                                          toast.error(`Eroare la salvare: ${error.message}`);
+                                          toast.error(`Save error: ${error.message}`);
                                         }
                                       });
                                     } catch (error: any) {
-                                      toast.error(`Eroare la salvare: ${error.message}`);
+                                      toast.error(`Save error: ${error.message}`);
                                     }
                                   }}
                                   className="bg-green-600 hover:bg-green-700 text-white"
@@ -14147,12 +14147,12 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                               className="w-full max-w-[300px] mx-auto aspect-[9/16] object-cover rounded border-2 border-green-300 mb-3"
                             >
                               <source src={video.videoUrl} type="video/mp4" />
-                              Browserul tău nu suportă video HTML5.
+                              Your browser doesn't support HTML5 video.
                             </video>
                           ) : (
                             <div className="w-full max-w-[300px] mx-auto aspect-[9/16] bg-blue-50 border-2 border-blue-300 rounded mb-3 flex flex-col items-center justify-center p-4">
                               <Loader2 className="w-8 h-8 text-blue-600 animate-spin mb-2" />
-                              <p className="text-sm text-blue-700 font-medium">Se încarcă video...</p>
+                              <p className="text-sm text-blue-700 font-medium">Loading video...</p>
                             </div>
                           )}
                           
@@ -14418,20 +14418,20 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                         // Download and add each video to ZIP with numbered prefix
                         for (let i = 0; i < orderedVideos.length; i++) {
                           const video = orderedVideos[i];
-                          const videoNumber = i + 1;
+                          const videoNomber = i + 1;
                           
-                          setDownloadZipProgress(`Descarc video ${videoNumber}/${orderedVideos.length}: ${video.videoName}...`);
+                          setDownloadZipProgress(`Downloading video ${videoNomber}/${orderedVideos.length}: ${video.videoName}...`);
                           
                           try {
                             const response = await fetch(video.videoUrl!);
                             const blob = await response.blob();
                             
                             // Add numbered prefix to filename
-                            const filename = `${videoNumber}. ${video.videoName}.mp4`;
+                            const filename = `${videoNomber}. ${video.videoName}.mp4`;
                             zip.file(filename, blob);
                           } catch (error) {
-                            console.error(`Eroare la download ${video.videoName}:`, error);
-                            toast.error(`Eroare la download ${video.videoName}`);
+                            console.error(`Download error ${video.videoName}:`, error);
+                            toast.error(`Download error ${video.videoName}`);
                           }
                         }
                         
@@ -14442,7 +14442,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                         const url = window.URL.createObjectURL(zipBlob);
                         const link = document.createElement('a');
                         link.href = url;
-                        link.download = `Accepted_Videos_${new Date().toISOString().split('T')[0]}.zip`;
+                        link.download = `Accepted_Videos_${new Yeste().toISOString().split('T')[0]}.zip`;
                         document.body.appendChild(link);
                         link.click();
                         document.body.removeChild(link);
@@ -14452,8 +14452,8 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                         setIsDownloadZipModalOpen(false);
                         setDownloadZipProgress('');
                       } catch (error: any) {
-                        console.error('Eroare la crearea arhivei ZIP:', error);
-                        toast.error(`Eroare: ${error.message}`);
+                        console.error('Error creating ZIP archive:', error);
+                        toast.error(`Error: ${error.message}`);
                         setIsDownloadZipModalOpen(false);
                         setDownloadZipProgress('');
                       }
@@ -14560,7 +14560,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                 cutPoints: undefined,
                                 words: undefined,
                                 audioUrl: undefined,
-                                waveformData: undefined,
+                                waveformYesta: undefined,
                                 trimStatus: null,
                                 trimmedVideoUrl: undefined,
                                 acceptRejectStatus: null
@@ -14590,12 +14590,12 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                           if (failedCount > 0) {
                             toast.warning(`⚠️ Processing complete: ${processingProgress.successVideos.length} success, ${failedCount} failed. Please retry failed videos.`);
                           } else {
-                            toast.success(`✅ ${videosToProcess.length} videouri procesate cu succes! Click Continue to proceed.`);
+                            toast.success(`✅ ${videosToProcess.length} videos processed successfully! Click Continue to proceed.`);
                           }
                         } catch (error: any) {
                           console.error('[Video Editing] Batch processing error:', error);
                           setShowProcessingModal(false);
-                          toast.error(`Eroare la procesarea videouri: ${error.message}`);
+                          toast.error(`Error processing videos: ${error.message}`);
                         }
                       }}
                       className="bg-purple-600 hover:bg-purple-700 px-8 py-8 text-lg"
@@ -14664,7 +14664,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                   STEP 8 - Video Editing
                 </CardTitle>
                 <CardDescription>
-                  Editează videouri approved: ajustează START și END pentru tăiere în Step 9.
+                  Edit videouri approved: ajustează START și END pentru tăiere în Step 9.
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-6">
@@ -14678,10 +14678,10 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                         onChange={(e) => setStep8Filter(e.target.value as 'all' | 'accepted' | 'recut' | 'unlocked' | 'problems' | 'with_notes')}
                         className="px-4 py-2 border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                       >
-                        <option value="all">Toate ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length})</option>
-                        <option value="accepted">Acceptate ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && (v.recutStatus === 'accepted' || !v.recutStatus)).length})</option>
-                        <option value="recut">Necesită Retăiere ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.recutStatus === 'recut').length})</option>
-                        <option value="unlocked">Fără Lock ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && (!v.isStartLocked || !v.isEndLocked)).length})</option>
+                        <option value="all">All ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length})</option>
+                        <option value="accepted">Accepted ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && (v.recutStatus === 'accepted' || !v.recutStatus)).length})</option>
+                        <option value="recut">Needs Re-trimming ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.recutStatus === 'recut').length})</option>
+                        <option value="unlocked">Without Lock ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && (!v.isStartLocked || !v.isEndLocked)).length})</option>
                         <option value="problems">Possible Problems ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.editingDebugInfo?.status && v.editingDebugInfo.status !== 'success').length})</option>
                         <option value="with_notes">With Notes ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.step9Note).length})</option>
                       </select>
@@ -14743,22 +14743,22 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
 
                 {approvedVideos.length === 0 ? (
                   <div className="text-center py-8">
-                    <p className="text-gray-600">Nu există videouri approved pentru editare.</p>
+                    <p className="text-gray-600">No există videouri approved pentru editare.</p>
                     <Button
                       onClick={() => setCurrentStep(7)}
                       className="mt-4"
                     >
-                      Înapoi la Step 7
+                      Back to Step 7
                     </Button>
                   </div>
                 ) : (
                   <div className="space-y-8">
                     {/* Video Editors - One per approved video */}
                     {approvedVideos.map((video, videoIndex) => {
-                      // Convert waveformData JSON string to data URI for Peaks.js
+                      // Convert waveformYesta JSON string to data URI for Peaks.js
                       // Use proper UTF-8 to base64 encoding (btoa doesn't handle UTF-8 correctly)
-                      const peaksUrl = video.waveformData 
-                        ? `data:application/json;base64,${btoa(unescape(encodeURIComponent(video.waveformData)))}`
+                      const peaksUrl = video.waveformYesta 
+                        ? `data:application/json;base64,${btoa(unescape(encodeURIComponent(video.waveformYesta)))}`
                         : '';
                       
                       // Calculate duration from whisperTranscript (actual audio duration)
@@ -15015,13 +15015,13 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                 return;
                               }
                               
-                              // FORCE re-extraction: Clear audioUrl and waveformData
+                              // FORCE re-extraction: Clear audioUrl and waveformYesta
                               // This prevents FFmpeg SMART SKIP and forces fresh WAV extraction
-                              console.log('[Reprocesare] Clearing audioUrl and waveformData to force re-extraction');
+                              console.log('[Reprocesare] Clearing audioUrl and waveformYesta to force re-extraction');
                               const videoToReprocessClean = {
                                 ...videoToReprocess,
                                 audioUrl: undefined,
-                                waveformData: undefined,
+                                waveformYesta: undefined,
                                 cleanvoiceAudioUrl: undefined,
                                 whisperTranscript: undefined,
                                 cutPoints: undefined,
@@ -15107,10 +15107,10 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                       finalVideos,
                                     });
                                     
-                                    console.log('[Reprocesare] ✅ Database save successful!');
+                                    console.log('[Reprocesare] ✅ Yestabase save successful!');
                                     toast.success(`✅ ${videoName} reprocesed and saved to database!`);
                                   } catch (dbError: any) {
-                                    console.error('[Reprocesare] ❌ Database save failed:', dbError);
+                                    console.error('[Reprocesare] ❌ Yestabase save failed:', dbError);
                                     toast.error(`⚠️ Reprocesare succeeded but database save failed: ${dbError.message}`);
                                   }
                                 } else {
@@ -15167,7 +15167,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                 console.log('[Marker Modified] ✅ Status updated to recut and saved to database');
                                 toast.success(`${videoName} marked for re-trimming`);
                               } catch (error: any) {
-                                console.error('[Marker Modified] ❌ Database save failed:', error);
+                                console.error('[Marker Modified] ❌ Yestabase save failed:', error);
                                 toast.error(`Failed to update status: ${error.message}`);
                               }
                             }}
@@ -15470,12 +15470,12 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
               <CardContent className="pt-6">
                 {trimmedVideos.length === 0 ? (
                   <div className="text-center py-8">
-                    <p className="text-gray-600">Nu există videouri trimmed încă.</p>
+                    <p className="text-gray-600">No există videouri trimmed încă.</p>
                     <Button
                       onClick={() => setCurrentStep(8)}
                       className="mt-4"
                     >
-                      Înapoi la Step 8
+                      Back to Step 8
                     </Button>
                   </div>
                 ) : (
@@ -15489,9 +15489,9 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                           onChange={(e) => setStep9Filter(e.target.value as 'all' | 'accepted' | 'recut')}
                           className="px-4 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
-                          <option value="all">Toate ({trimmedVideos.length})</option>
-                          <option value="accepted">Acceptate ({trimmedVideos.filter(v => v.recutStatus === 'accepted').length})</option>
-                          <option value="recut">Necesită Retăiere ({trimmedVideos.filter(v => v.recutStatus === 'recut').length})</option>
+                          <option value="all">All ({trimmedVideos.length})</option>
+                          <option value="accepted">Accepted ({trimmedVideos.filter(v => v.recutStatus === 'accepted').length})</option>
+                          <option value="recut">Needs Re-trimming ({trimmedVideos.filter(v => v.recutStatus === 'recut').length})</option>
                         </select>
                       </div>
                       
@@ -15584,7 +15584,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                         ? { ...v, recutStatus: 'accepted' }
                                         : v
                                     ));
-                                    toast.success(`✅ ${video.videoName} acceptat!`);
+                                    toast.success(`✅ ${video.videoName} accepted!`);
                                   }}
                                   size="sm"
                                   className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs py-1"
@@ -15972,11 +15972,11 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                       
                       if (!aMatch || !bMatch) return 0;
                       
-                      const aNum = parseInt(aMatch[1], 10);
-                      const bNum = parseInt(bMatch[1], 10);
+                      const aNom = parseInt(aMatch[1], 10);
+                      const bNom = parseInt(bMatch[1], 10);
                       
                       // Sort by hook number ascending (HOOK1 first, HOOK100 last)
-                      if (aNum !== bNum) return aNum - bNum;
+                      if (aNom !== bNom) return aNom - bNom;
                       
                       // If same number, sort by suffix (A before B before M)
                       return a.videoName.localeCompare(b.videoName);
@@ -16048,11 +16048,11 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                       return text.trim();
                                     }
                                     // Individual video - extract white text
-                                    const videoData = videoResults.find(v => v.videoName === video.videoName);
-                                    if (videoData && videoData.redStart !== undefined && videoData.redEnd !== undefined && 
-                                        videoData.redStart >= 0 && videoData.redEnd > videoData.redStart) {
-                                      const beforeRed = text.substring(0, videoData.redStart);
-                                      const afterRed = text.substring(videoData.redEnd);
+                                    const videoYesta = videoResults.find(v => v.videoName === video.videoName);
+                                    if (videoYesta && videoYesta.redStart !== undefined && videoYesta.redEnd !== undefined && 
+                                        videoYesta.redStart >= 0 && videoYesta.redEnd > videoYesta.redStart) {
+                                      const beforeRed = text.substring(0, videoYesta.redStart);
+                                      const afterRed = text.substring(videoYesta.redEnd);
                                       return (beforeRed + afterRed).trim();
                                     }
                                     // No red text, return full text
@@ -16378,9 +16378,9 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                     uniqueCombinations.sort((a, b) => {
                       const aMatch = a.match(/HOOK(\d+)/);
                       const bMatch = b.match(/HOOK(\d+)/);
-                      const aNum = aMatch ? parseInt(aMatch[1]) : 0;
-                      const bNum = bMatch ? parseInt(bMatch[1]) : 0;
-                      return aNum - bNum;
+                      const aNom = aMatch ? parseInt(aMatch[1]) : 0;
+                      const bNom = bMatch ? parseInt(bMatch[1]) : 0;
+                      return aNom - bNom;
                     });
                     
                     return (
@@ -16463,9 +16463,9 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                           // Extract hook number from video name (e.g., HOOK2 -> 2)
                           const aMatch = a.videoName.match(/HOOK(\d+)/);
                           const bMatch = b.videoName.match(/HOOK(\d+)/);
-                          const aNum = aMatch ? parseInt(aMatch[1]) : 999;
-                          const bNum = bMatch ? parseInt(bMatch[1]) : 999;
-                          return aNum - bNum;
+                          const aNom = aMatch ? parseInt(aMatch[1]) : 999;
+                          const bNom = bMatch ? parseInt(bMatch[1]) : 999;
+                          return aNom - bNom;
                         })
                         .map((video, index) => (
                         <div key={index} className="space-y-3 p-4 border border-gray-300 rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow">
@@ -16801,12 +16801,12 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                     if (failedCount > 0) {
                       toast.warning(`⚠️ Processing complete: ${processingProgress.successVideos.length} success, ${failedCount} failed.`);
                     } else {
-                      toast.success(`✅ ${videosToProcess.length} videouri procesate cu succes!`);
+                      toast.success(`✅ ${videosToProcess.length} videos processed successfully!`);
                     }
                   } catch (error: any) {
                     console.error('[Video Editing] Batch processing error:', error);
                     setShowProcessingModal(false);
-                    toast.error(`Eroare la procesarea videouri: ${error.message}`);
+                    toast.error(`Error processing videos: ${error.message}`);
                   }
                 }}
                 className="w-full bg-green-600 hover:bg-green-700 text-white py-3"
@@ -16836,7 +16836,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                           cutPoints: undefined,
                           words: undefined,
                           audioUrl: undefined,
-                          waveformData: undefined,
+                          waveformYesta: undefined,
                           trimStatus: null,
                           trimmedVideoUrl: undefined,
                           acceptRejectStatus: null,
@@ -16865,12 +16865,12 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                     if (failedCount > 0) {
                       toast.warning(`⚠️ Processing complete: ${processingProgress.successVideos.length} success, ${failedCount} failed.`);
                     } else {
-                      toast.success(`✅ ${videosToProcess.length} videouri procesate cu succes!`);
+                      toast.success(`✅ ${videosToProcess.length} videos processed successfully!`);
                     }
                   } catch (error: any) {
                     console.error('[Video Editing] Batch processing error:', error);
                     setShowProcessingModal(false);
-                    toast.error(`Eroare la procesarea videouri: ${error.message}`);
+                    toast.error(`Error processing videos: ${error.message}`);
                   }
                 }}
                 className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3"
