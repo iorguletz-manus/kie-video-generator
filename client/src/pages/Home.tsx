@@ -7947,6 +7947,11 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                 whisperUrl: undefined,
                 cleanvoiceUrl: undefined,
                 cutPoints: undefined,
+                // Clear trim-related fields to force re-trim
+                recutStatus: null,
+                trimmedVideoUrl: undefined,
+                isStartLocked: false,
+                isEndLocked: false,
               }
             : v
         )
