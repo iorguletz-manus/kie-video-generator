@@ -80,7 +80,7 @@ interface VideoEditorV2Props {
   };
 }
 
-export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previousVideo, nextVideo, onTrimChange, onCutAndMerge, onReprocess, onMarkerModified, overlaySettings, onOverlaySettingsChange, previousVideoOverlaySettings }: VideoEditorV2Props) {
+export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previousVideo, nextVideo, onTrimChange, onCutAndMerge, onTestOverlay, onReprocess, onMarkerModified, overlaySettings, onOverlaySettingsChange, previousVideoOverlaySettings }: VideoEditorV2Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const zoomviewRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
