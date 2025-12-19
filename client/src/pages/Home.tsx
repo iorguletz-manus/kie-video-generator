@@ -1653,15 +1653,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           console.error('❌ MISMATCH! hookMergedVideos is from DIFFERENT CONTEXT!');
           console.error('  Expected:', { selectedTamId, selectedCoreBeliefId, selectedEmotionalAngleId, selectedAdId, selectedCharacterId });
           console.error('  Got:', { tamId: contextSession.tamId, coreBeliefId: contextSession.coreBeliefId, emotionalAngleId: contextSession.emotionalAngleId, adId: contextSession.adId, characterId: contextSession.characterId });
-          // DO NOT LOAD - it's from wrong context!
-          return;
+          // RESET to empty - it's from wrong context!
+          setHookMergedVideos({});
+          console.log('[Context Session] 🔄 Reset hookMergedVideos to empty (wrong context)');
+        } else {
+          const parsedHookMerged = typeof contextSession.hookMergedVideos === 'string' 
+            ? JSON.parse(contextSession.hookMergedVideos) 
+            : contextSession.hookMergedVideos;
+          setHookMergedVideos(parsedHookMerged || {});
+          console.log('[Context Session] ✅ Loaded hookMergedVideos (context verified):', parsedHookMerged);
         }
-        
-        const parsedHookMerged = typeof contextSession.hookMergedVideos === 'string' 
-          ? JSON.parse(contextSession.hookMergedVideos) 
-          : contextSession.hookMergedVideos;
-        setHookMergedVideos(parsedHookMerged || {});
-        console.log('[Context Session] ✅ Loaded hookMergedVideos (context verified):', parsedHookMerged);
+
       } else {
         console.log('[Context Session] ℹ️ No hookMergedVideos in session');
       }
@@ -1697,12 +1699,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           console.error('❌ MISMATCH! bodyMergedVideoUrl is from DIFFERENT CONTEXT!');
           console.error('  Expected:', { selectedTamId, selectedCoreBeliefId, selectedEmotionalAngleId, selectedAdId, selectedCharacterId });
           console.error('  Got:', { tamId: contextSession.tamId, coreBeliefId: contextSession.coreBeliefId, emotionalAngleId: contextSession.emotionalAngleId, adId: contextSession.adId, characterId: contextSession.characterId });
-          // DO NOT LOAD - it's from wrong context!
-          return;
+          // RESET to null - it's from wrong context!
+          setBodyMergedVideoUrl(null);
+          console.log('[Context Session] 🔄 Reset bodyMergedVideoUrl to null (wrong context)');
+        } else {
+          setBodyMergedVideoUrl(contextSession.bodyMergedVideoUrl);
+          console.log('[Context Session] ✅ Loaded bodyMergedVideoUrl (context verified):', contextSession.bodyMergedVideoUrl);
         }
-        
-        setBodyMergedVideoUrl(contextSession.bodyMergedVideoUrl);
-        console.log('[Context Session] ✅ Loaded bodyMergedVideoUrl (context verified):', contextSession.bodyMergedVideoUrl);
       } else {
         console.log('[Context Session] ℹ️ No bodyMergedVideoUrl in session');
       }
@@ -4620,9 +4623,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             const contextName = contextMatch ? contextMatch[1] : 'MERGED';
             
             // Extract character and imageName
-            const nameMatch = firstVideoName.match(/_([ A-Z]+)_([A-Z]+_\d+)$/);
+            console.log('[BODY Merge] 🔍 Extracting character from:', firstVideoName);
+            const nameMatch = firstVideoName.match(/_(\w+)_(\w+_\d+)$/);
+            console.log('[BODY Merge] 🔍 Regex match result:', nameMatch);
             const character = nameMatch ? nameMatch[1] : 'TEST';
             const imageName = nameMatch ? nameMatch[2] : 'ALINA_1';
+            console.log('[BODY Merge] 🔍 Extracted character:', character, 'imageName:', imageName);
             
             const outputName = `${contextName}_BODY_${character}_${imageName}`;
             
