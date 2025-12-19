@@ -8,6 +8,7 @@ interface SelectiveMergePopupProps {
   onClose: () => void;
   hookMergedVideos: Record<string, string>;
   bodyMergedVideoUrl: string | null;
+  allHookGroups?: Record<string, number>; // All hook groups with video count (including single videos)
   onConfirm: (selectedHooks: string[], selectedBody: boolean) => void;
 }
 
@@ -16,6 +17,7 @@ export const SelectiveMergePopup: React.FC<SelectiveMergePopupProps> = ({
   onClose,
   hookMergedVideos,
   bodyMergedVideoUrl,
+  allHookGroups,
   onConfirm,
 }) => {
   const [selectedHooks, setSelectedHooks] = useState<string[]>([]);
@@ -31,6 +33,13 @@ export const SelectiveMergePopup: React.FC<SelectiveMergePopupProps> = ({
 
   const hookNames = hookMergedVideos ? Object.keys(hookMergedVideos) : [];
   const hasBody = bodyMergedVideoUrl !== null;
+
+  // Calculate hooks that don't need merge (only 1 video in group)
+  const hooksNoMerge = allHookGroups 
+    ? Object.entries(allHookGroups)
+        .filter(([hookName, count]) => count === 1)
+        .map(([hookName]) => hookName)
+    : [];
 
   const handleSelectAll = () => {
     setSelectedHooks(hookNames);
@@ -134,6 +143,29 @@ export const SelectiveMergePopup: React.FC<SelectiveMergePopupProps> = ({
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          )}
+
+          {/* Hooks that don't need merge (only 1 video) */}
+          {hooksNoMerge.length > 0 && (
+            <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+              <h3 className="font-semibold text-gray-900 mb-3">
+                The following videos don't need merge:
+              </h3>
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {hooksNoMerge.map((hookName) => (
+                  <div key={hookName} className="flex items-center space-x-3">
+                    <div className="flex-shrink-0 w-4 h-4 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </div>
+                    <span className="text-sm text-gray-700">
+                      {hookName}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           )}

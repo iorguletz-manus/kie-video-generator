@@ -2050,6 +2050,35 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     return videoResults.filter(v => v.reviewStatus === 'accepted' && v.videoUrl && !(v.isMergedResult ?? false));
   }, [videoResults]);
   
+  // All hook groups with video count (for Selective Merge Popup)
+  const allHookGroups = useMemo(() => {
+    const trimmedVideos = (videoResults || []).filter(v => 
+      v.trimmedVideoUrl &&
+      v.reviewStatus === 'accepted' && 
+      v.status === 'success'
+    );
+    
+    const hookVideos = trimmedVideos.filter(v => v.videoName.match(/HOOK\d+[A-Z]?/));
+    
+    const hookGroups: Record<string, number> = {};
+    hookVideos.forEach(video => {
+      const hookMatch = video.videoName.match(/(.*)(HOOK\d+)[A-Z]?(.*)/);
+      if (hookMatch) {
+        const prefix = hookMatch[1];
+        const hookBase = hookMatch[2];
+        const suffix = hookMatch[3];
+        const groupKey = `${prefix}${hookBase}${suffix}`;
+        
+        if (!hookGroups[groupKey]) {
+          hookGroups[groupKey] = 0;
+        }
+        hookGroups[groupKey]++;
+      }
+    });
+    
+    return hookGroups;
+  }, [videoResults]);
+  
   // Final combinations count (Step 10)
   const finalCombinationsCount = useMemo(() => {
     if (selectedHooks.length === 0 || !selectedBody) return 0;
@@ -8705,6 +8734,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
         onClose={() => setIsSelectiveMergePopupOpen(false)}
         hookMergedVideos={hookMergedVideos}
         bodyMergedVideoUrl={bodyMergedVideoUrl}
+        allHookGroups={allHookGroups}
         onConfirm={(selectedHooks, selectedBody) => {
           setIsMergingStep10(true);
           handleSelectiveMerge(selectedHooks, selectedBody);
