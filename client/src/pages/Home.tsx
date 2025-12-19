@@ -7938,7 +7938,8 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                 status: newResult.success ? 'pending' as const : 'failed' as const,
                 error: newResult.error,
                 videoUrl: undefined, // Reset videoUrl
-                reviewStatus: null, // Șterge Rejected/Approved când regenerăm
+                // PRESERVE reviewStatus if video was already accepted (so it stays in trim flow)
+                reviewStatus: v.reviewStatus === 'accepted' ? 'accepted' : null,
                 // PRESERVE internalNote from Step 7 when regenerating
                 internalNote: v.internalNote,
                 // Clear cutting data to force reprocessing in Step 8
