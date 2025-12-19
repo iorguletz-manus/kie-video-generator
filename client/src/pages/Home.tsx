@@ -15014,10 +15014,18 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                               console.log('[Test Overlay] Overlay settings:', overlaySettings);
                               
                               try {
+                                // Get original video URL from videoResults (not proxy URL)
+                                const originalVideo = videoResults.find(v => v.videoName === video.videoName);
+                                if (!originalVideo?.videoUrl) {
+                                  throw new Error('Original video URL not found');
+                                }
+                                
+                                console.log('[Test Overlay] Original URL:', originalVideo.videoUrl);
+                                
                                 // Call cutVideo with overlay settings
                                 const result = await cutVideoMutation.mutateAsync({
                                   userId: localCurrentUser.id,
-                                  videoUrl: video.videoUrl,
+                                  videoUrl: originalVideo.videoUrl,
                                   videoName: video.videoName,
                                   startTimeMs: video.cutPoints.startKeep,
                                   endTimeMs: video.cutPoints.endKeep,
