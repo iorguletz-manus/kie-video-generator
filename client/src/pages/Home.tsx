@@ -95,7 +95,7 @@ interface VideoResult {
   editStatus?: 'pending' | 'processed' | 'edited'; // Processing status
 
   audioUrl?: string;        // Audio download URL from FFmpeg API
-  waveformYesta?: string;    // Waveform JSON data
+  waveformData?: string;    // Waveform JSON data
   editingDebugInfo?: any;   // Debug info from Whisper processing
   cleanvoiceAudioUrl?: string; // CleanVoice processed audio URL
   // Step 9: Trimmed video fields
@@ -278,7 +278,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // State for edit timestamps (when user clicks SAVE in Modify & Regenerate)
   const [editTimestamps, setEditTimestamps] = useState<Record<number, number>>({});
   
-  const [currentTime, setCurrentTime] = useState(Yeste.now());
+  const [currentTime, setCurrentTime] = useState(Date.now());
   
   // State for tracking changes (for navigation blocking)
   const [hasModifications, setHasModifications] = useState(false);
@@ -460,7 +460,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
   });
   const [sampleMergeCountdown, setSampleMergeCountdown] = useState<number>(0);
-  const [freshYestaTimestamp, setFreshYestaTimestamp] = useState<number>(0);
+  const [freshDataTimestamp, setFreshDataTimestamp] = useState<number>(0);
   const [showSampleMergeWarning, setShowSampleMergeWarning] = useState<boolean>(false);
   
   // Persist lastSampleVideoUrl to localStorage
@@ -510,14 +510,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       });
       const videosSource = freshVideoResultsRef.current || videoResults;
       const totalExpectedDuration = sampleMergeVideos.reduce((sum, video) => {
-        const videoYesta = videosSource.find(v => v.videoName === video.name);
-        if (!videoYesta) return sum + 10;
+        const videoData = videosSource.find(v => v.videoName === video.name);
+        if (!videoData) return sum + 10;
         
-        if (videoYesta.cutPoints) {
-          const durationMs = (videoYesta.cutPoints.endKeep || 0) - (videoYesta.cutPoints.startKeep || 0);
+        if (videoData.cutPoints) {
+          const durationMs = (videoData.cutPoints.endKeep || 0) - (videoData.cutPoints.startKeep || 0);
           return sum + (durationMs / 1000);
-        } else if (videoYesta.trimmedDuration) {
-          return sum + videoYesta.trimmedDuration;
+        } else if (videoData.trimmedDuration) {
+          return sum + videoData.trimmedDuration;
         }
         return sum + 10;
       }, 0);
@@ -533,17 +533,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         
         // Get cutPoints from fresh videoResults (ref or state)
         const videosSource = freshVideoResultsRef.current || videoResults;
-        const videoYesta = videosSource.find(v => v.videoName === video.name);
-        if (videoYesta) {
-          if (videoYesta.cutPoints) {
-            const durationMs = (videoYesta.cutPoints.endKeep || 0) - (videoYesta.cutPoints.startKeep || 0);
+        const videoData = videosSource.find(v => v.videoName === video.name);
+        if (videoData) {
+          if (videoData.cutPoints) {
+            const durationMs = (videoData.cutPoints.endKeep || 0) - (videoData.cutPoints.startKeep || 0);
             durationSeconds = durationMs / 1000;
             
             // DEBUG: Log first video's cutPoints to verify
             if (video.name === 'T2_C1_E1_AD1_HOOK1_DARIA_1') {
               console.log('[Sample Merge] 🔍 HOOK1_DARIA_1 cutPoints:', {
-                endKeep: videoYesta.cutPoints.endKeep,
-                startKeep: videoYesta.cutPoints.startKeep,
+                endKeep: videoData.cutPoints.endKeep,
+                startKeep: videoData.cutPoints.startKeep,
                 durationMs,
                 durationSeconds
               });
@@ -555,8 +555,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               durationSeconds = proportion * totalRealDuration;
               console.log(`[Sample Merge] Scaled ${video.name}: ${(durationMs/1000).toFixed(2)}s → ${durationSeconds.toFixed(2)}s`);
             }
-          } else if (videoYesta.trimmedDuration) {
-            durationSeconds = videoYesta.trimmedDuration;
+          } else if (videoData.trimmedDuration) {
+            durationSeconds = videoData.trimmedDuration;
           }
         }
         
@@ -630,7 +630,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       videoElement.removeEventListener('seeked', handleTimeUpdate);
       videoElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
     };
-  }, [sampleMergedVideoUrl, sampleMergeVideos, videoResults, freshYestaTimestamp]);
+  }, [sampleMergedVideoUrl, sampleMergeVideos, videoResults, freshDataTimestamp]);
   
   // Sync current video name with playback time (Cut & Merge Modal)
   useEffect(() => {
@@ -757,10 +757,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     trimmingProgress.successVideos.forEach((video) => {
       // Find video data to get duration
-      const videoYesta = videoResults.find(v => v.videoName === video.name);
-      if (!videoYesta?.cutPoints) return;
+      const videoData = videoResults.find(v => v.videoName === video.name);
+      if (!videoData?.cutPoints) return;
       
-      const durationMs = (videoYesta.cutPoints.endKeep || 0) - (videoYesta.cutPoints.startKeep || 0);
+      const durationMs = (videoData.cutPoints.endKeep || 0) - (videoData.cutPoints.startKeep || 0);
       const durationSeconds = durationMs / 1000;
       
       timeline.push({
@@ -1265,7 +1265,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // Update currentTime every second for "Edited X min/sec ago"
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentTime(Yeste.now());
+      setCurrentTime(Date.now());
     }, 1000); // Update every second
     
     return () => clearInterval(interval);
@@ -1294,7 +1294,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           name: session.name,
           currentStep: 1,
           videoCount: 0,
-          timestamp: session.createdAt?.toISOString() || new Yeste().toISOString(),
+          timestamp: session.createdAt?.toISOString() || new Date().toISOString(),
         };
       }
     });
@@ -1302,7 +1302,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   
   const saveSession = async (name: string) => {
     try {
-      const sessionYesta = {
+      const sessionData = {
         currentStep,
         adLines,
         prompts: prompts.map(p => ({ ...p, file: null })),
@@ -1316,19 +1316,19 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         regenerateVariantCount,
         regenerateVariants,
         videoCount: videoResults.length,
-        timestamp: new Yeste().toISOString(),
+        timestamp: new Date().toISOString(),
       };
       
       // Format: "{nume} - {14 Nov 2025 14:45}"
-      const now = new Yeste();
-      const formattedYeste = now.toLocaleYesteString('ro-RO', {
+      const now = new Date();
+      const formattedDate = now.toLocaleDateString('ro-RO', {
         day: '2-digit',
         month: 'short',
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
       });
-      const sessionName = `${name} - ${formattedYeste}`;
+      const sessionName = `${name} - ${formattedDate}`;
       
       // Check if session exists in database
       const sessions = getSavedSessions();
@@ -1339,14 +1339,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         await updateSessionMutation.mutateAsync({
           sessionId: existingSession.dbId,
           name: sessionName,
-          data: JSON.stringify(sessionYesta),
+          data: JSON.stringify(sessionData),
         });
       } else {
         // Create new session
         await createSessionMutation.mutateAsync({
           userId: currentUser.id,
           name: sessionName,
-          data: JSON.stringify(sessionYesta),
+          data: JSON.stringify(sessionData),
         });
       }
       
@@ -1748,7 +1748,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // Auto-save session la fiecare schimbare (debounced)
   useEffect(() => {
     // DISABLED: No longer saving to localStorage
-    // Yestabase is the only source of truth
+    // Database is the only source of truth
     return;
   }, [
     currentStep,
@@ -2246,7 +2246,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         videoResults: [],
         reviewHistory: [],
       });
-      console.log('[Process Text] Yestabase cleared successfully');
+      console.log('[Process Text] Database cleared successfully');
       
       const result = await processTextAdMutation.mutateAsync({
         rawText: rawTextAd,
@@ -2328,7 +2328,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           
           // Add label as a marker line (will be displayed as section header)
           extractedLines.push({
-            id: `label-${Yeste.now()}-${extractedLines.length}`,
+            id: `label-${Date.now()}-${extractedLines.length}`,
             text: displayName, // Use normalized display name (e.g., "H1", "MIRROR", "CTA")
             section: currentSection,
             promptType: 'PROMPT_NEUTRAL' as PromptType,
@@ -2411,7 +2411,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           }
           
           extractedLines.push({
-            id: `line-${Yeste.now()}-${extractedLines.length}`,
+            id: `line-${Date.now()}-${extractedLines.length}`,
             text: line.text,
             section: currentSection,
             promptType: promptType,
@@ -2511,7 +2511,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       const reader = new FileReader();
       reader.onload = async (event) => {
         const base64 = event.target?.result as string;
-        const result = await parseAdMutation.mutateAsync({ documentYesta: base64 });
+        const result = await parseAdMutation.mutateAsync({ documentData: base64 });
         
         const lines: AdLine[] = result.lines.map((line: any, index: number) => ({
           id: `line-${index}`,
@@ -2526,7 +2526,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         setAdLines(lines);
         toast.success(`${lines.length} lines extracted from document`);
       };
-      reader.readAsYestaURL(file);
+      reader.readAsDataURL(file);
     } catch (error: any) {
       toast.error(`Error parsing document: ${error.message}`);
     }
@@ -2552,10 +2552,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         const reader = new FileReader();
         reader.onload = async (event) => {
           const base64 = event.target?.result as string;
-          const result = await parsePromptMutation.mutateAsync({ documentYesta: base64 });
+          const result = await parsePromptMutation.mutateAsync({ documentData: base64 });
           
           const newPrompt: UploadedPrompt = {
-            id: `prompt-${Yeste.now()}-${Math.random()}`,
+            id: `prompt-${Date.now()}-${Math.random()}`,
             name: file.name.replace(/\.(docx|doc)$/i, ''),
             template: result.promptTemplate,
             file: file,
@@ -2564,7 +2564,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           setPrompts(prev => [...prev, newPrompt]);
           toast.success(`Prompt "${newPrompt.name}" loaded`);
         };
-        reader.readAsYestaURL(file);
+        reader.readAsDataURL(file);
       } catch (error: any) {
         toast.error(`Error parsing prompt ${file.name}: ${error.message}`);
       }
@@ -2633,7 +2633,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             try {
               const base64 = event.target?.result as string;
               const result = await uploadImageMutation.mutateAsync({
-                imageYesta: base64,
+                imageData: base64,
                 fileName: file.name,
                 userId: currentUser.id, // Send userId for organization per user
                 sessionId: currentSessionId, // Transmitere sessionId pentru organizare per sesiune
@@ -2642,7 +2642,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               const isCTA = file.name.toUpperCase().includes('CTA');
               
               const newImage: UploadedImage = {
-                id: `img-${Yeste.now()}-${Math.random()}`,
+                id: `img-${Date.now()}-${Math.random()}`,
                 url: result.imageUrl,
                 file: file,
                 fileName: file.name,
@@ -2657,7 +2657,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
                     (categoryCharacters?.find(c => c.id === selectedCharacterId)?.name || 'Unnamed') : 
                     'Unnamed',
                   imageName: file.name.replace(/\.[^/.]+$/, ''), // Remove extension
-                  imageYesta: base64,
+                  imageData: base64,
                 });
                 console.log('[Auto-save] Image saved to library:', file.name);
               } catch (libError) {
@@ -2671,7 +2671,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             }
           };
           reader.onerror = reject;
-          reader.readAsYestaURL(file);
+          reader.readAsDataURL(file);
         });
       });
       
@@ -2722,8 +2722,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   };
   // Step 8: Batch process videos with FFmpeg batch (10 per batch, 61s pause) + Whisper + CleanVoice
   const batchProcessVideosWithWhisper = async (videos: VideoResult[]) => {
-  const batchStartTime = Yeste.now();
-  console.log('[Batch Processing] ⏱️ BATCH START at', new Yeste().toISOString());
+  const batchStartTime = Date.now();
+  console.log('[Batch Processing] ⏱️ BATCH START at', new Date().toISOString());
   console.log('[Batch Processing] 🚀 Starting FFmpeg batch processing with', videos.length, 'videos');
   
   const BATCH_SIZE = 10;
@@ -2858,7 +2858,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         return {
           ...video,
           audioUrl: result.wavUrl,
-          waveformYesta: result.waveformJson,
+          waveformData: result.waveformJson,
         };
       });
       
@@ -2952,7 +2952,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               cutPoints: audioResult.cutPoints,
               words: audioResult.words,
               audioUrl: wavUrl,
-              waveformYesta: waveformJson,
+              waveformData: waveformJson,
               editingDebugInfo: audioResult.editingDebugInfo,
               cleanvoiceAudioUrl: audioResult.cleanvoiceAudioUrl,
               noCutNeeded: false,
@@ -3051,7 +3051,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       ...video,
       status: 'success' as const,
       audioUrl: result.result.audioUrl,
-      waveformYesta: result.result.waveformYesta,
+      waveformData: result.result.waveformData,
       cutPoints: result.result.cutPoints,
       isStartLocked: true,
       isEndLocked: true,
@@ -3087,7 +3087,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     console.error('[Batch Processing] ❌ Failed to save final results to database:', error);
   }
   
-  const batchDuration = Yeste.now() - batchStartTime;
+  const batchDuration = Date.now() - batchStartTime;
   const successCount = videos.length - failedVideos.length;
   
   console.log(`[Batch Processing] ⏱️ BATCH COMPLETE in ${batchDuration}ms (${(batchDuration/1000).toFixed(2)}s)`);
@@ -3323,7 +3323,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         // Also update state for other components
         setVideoResults(freshVideoResults);
         // Trigger useEffect re-run by updating timestamp
-        setFreshYestaTimestamp(Yeste.now());
+        setFreshDataTimestamp(Date.now());
         console.log('[Sample Merge] ✅ Updated videoResults state and ref with fresh cutPoints from DB');
       } else {
         console.log('[Sample Merge] ⚠️ No videoResults in DB, using local state');
@@ -3348,7 +3348,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     setIsSampleMergeModalOpen(true);
     
     // Check cooldown (58 seconds)
-    const now = Yeste.now();
+    const now = Date.now();
     let remainingSeconds = 0;
     
     if (lastSampleMergeTimestamp) {
@@ -3384,7 +3384,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
     
     // Save timestamp for next cooldown
-    setLastSampleMergeTimestamp(Yeste.now());
+    setLastSampleMergeTimestamp(Date.now());
     setSampleMergeCountdown(0);
     
     // Always clear cached video and re-merge (user explicitly clicked button)
@@ -4348,7 +4348,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           bodyMergedVideoUrl,
           finalVideos,
         }).then(async () => {
-          console.log('[Trimming] ✅ Yestabase save successful!');
+          console.log('[Trimming] ✅ Database save successful!');
           
           // STEP 2: Merge Hooks (B+C+D variations) - AFTER database save
           const hooksBodySuccess = await performHooksAndBodyMerge();
@@ -4360,7 +4360,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             console.log('[Trimming] ⚠️ Skipping final merge due to hooks/body merge failure');
           }
         }).catch((error) => {
-          console.error('[Trimming] ❌ Yestabase save failed:', error);
+          console.error('[Trimming] ❌ Database save failed:', error);
           toast.error('Failed to save trimmed videos to database');
         });
         
@@ -4771,9 +4771,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       
       let dbVideoResults: typeof videoResults = [];
       try {
-        const dbYesta = await contextSessionQuery.refetch();
-        if (dbYesta.data?.videoResults) {
-          dbVideoResults = dbYesta.data.videoResults;
+        const dbData = await contextSessionQuery.refetch();
+        if (dbData.data?.videoResults) {
+          dbVideoResults = dbData.data.videoResults;
           console.log('[Trimming] ✅ Loaded', dbVideoResults.length, 'videos from database');
         }
       } catch (error) {
@@ -4973,7 +4973,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           
           console.log(`[Retry] 💾 ${video.videoName} saved to database`);
         } catch (dbError: any) {
-          console.error(`[Retry] ❌ Yestabase save failed for ${video.videoName}:`, dbError);
+          console.error(`[Retry] ❌ Database save failed for ${video.videoName}:`, dbError);
           // Continue processing even if DB save fails
         }
         
@@ -5033,7 +5033,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           
           console.log(`[Retry] 💾 ${video.videoName} failed status saved to database`);
         } catch (dbError: any) {
-          console.error(`[Retry] ❌ Yestabase save failed for ${video.videoName}:`, dbError);
+          console.error(`[Retry] ❌ Database save failed for ${video.videoName}:`, dbError);
           // Continue processing even if DB save fails
         }
         
@@ -5081,9 +5081,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           characterId: selectedCharacter!,
           videoResults: videoResults,
         });
-        console.log('[Retry] ✅ Yestabase save successful!');
+        console.log('[Retry] ✅ Database save successful!');
       } catch (error) {
-        console.error('[Retry] ❌ Yestabase save failed:', error);
+        console.error('[Retry] ❌ Database save failed:', error);
         toast.error('Failed to save trimmed videos to database');
       }
     }
@@ -5253,8 +5253,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       }
       
       // Fetch latest videoResults from database
-      const dbYesta = await getContextSessionQuery.refetch();
-      const dbVideoResults = dbYesta.data?.videoResults || videoResults;
+      const dbData = await getContextSessionQuery.refetch();
+      const dbVideoResults = dbData.data?.videoResults || videoResults;
       
       const finalMergeSuccessVideos = dbVideoResults.filter(v => 
         v.trimmedVideoUrl && 
@@ -5446,7 +5446,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     setIsTrimmingModalOpen(true);
     
     // Check cooldown from last Sample Merge (120 seconds)
-    const now = Yeste.now();
+    const now = Date.now();
     let remainingCooldownSeconds = 0;
     
     if (lastSampleMergeTimestamp) {
@@ -5599,7 +5599,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             
             console.log(`[Simple Cut] 💾 ${video.videoName} saved to database`);
           } catch (dbError: any) {
-            console.error(`[Simple Cut] ❌ Yestabase save failed for ${video.videoName}:`, dbError);
+            console.error(`[Simple Cut] ❌ Database save failed for ${video.videoName}:`, dbError);
             // Continue processing even if DB save fails
           }
           
@@ -5666,7 +5666,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             
             console.log(`[Simple Cut] 💾 ${video.videoName} failed status saved to database`);
           } catch (dbError: any) {
-            console.error(`[Simple Cut] ❌ Yestabase save failed for ${video.videoName}:`, dbError);
+            console.error(`[Simple Cut] ❌ Database save failed for ${video.videoName}:`, dbError);
             // Continue processing even if DB save fails
           }
           
@@ -6553,7 +6553,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
             };
             
             const chunkVideoUrls = chunk.map(v => extractOriginalUrl(v.trimmedVideoUrl!)).filter(Boolean);
-            const chunkOutputName = `BODY_CHUNK_${chunkNom}_${Yeste.now()}`;
+            const chunkOutputName = `BODY_CHUNK_${chunkNom}_${Date.now()}`;
             
             const result = await mergeVideosMutation.mutateAsync({
               videoUrls: chunkVideoUrls,
@@ -7347,7 +7347,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
       }
       
       // SAVE TO DATABASE after generation
-      console.log('[Yestabase Save] Saving session after video generation...');
+      console.log('[Database Save] Saving session after video generation...');
       upsertContextSessionMutation.mutate({
         userId: localCurrentUser.id,
         tamId: selectedTamId,
@@ -7367,10 +7367,10 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
         reviewHistory,
       }, {
         onSuccess: () => {
-          console.log('[Yestabase Save] Session saved successfully after generation!');
+          console.log('[Database Save] Session saved successfully after generation!');
         },
         onError: (error) => {
-          console.error('[Yestabase Save] Failed to save session:', error);
+          console.error('[Database Save] Failed to save session:', error);
           toast.error('Session could not be saved to database, but is saved locally');
         },
       });
@@ -7577,7 +7577,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
   // TEMPORARY: Load sample videos for testing when Kie.ai is down
   const loadSampleVideos = async () => {
     // Task IDs and hardcoded URLs (provided by user)
-    const sampleYesta = [
+    const sampleData = [
       {
         taskId: '352a1aaaaba3352b6652305f2469718d',
         videoUrl: 'https://tempfile.aiquickdraw.com/v/352a1aaaaba3352b6652305f2469718d_1763136934.mp4',
@@ -7608,7 +7608,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
     
     try {
       // Create videoResults with videoUrl already filled (hardcoded)
-      const sampleResults: VideoResult[] = sampleYesta.map((data, index) => {
+      const sampleResults: VideoResult[] = sampleData.map((data, index) => {
         // For HOOKS use HOOK (singular) in name
         const categoryName = data.section === 'HOOKS' ? 'HOOK' : data.section;
         // Video names are now generated in STEP 2 based on full context
@@ -7631,7 +7631,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
       setVideoResults(sampleResults);
       
       // Create combinations for sample videos too
-      const sampleCombinations: Combination[] = sampleYesta.map((data, index) => {
+      const sampleCombinations: Combination[] = sampleData.map((data, index) => {
         // For HOOKS use HOOK (singular) in name
         const categoryName = data.section === 'HOOKS' ? 'HOOK' : data.section;
         // All sample videos sunt prima linie din categoria lor (categoryNomber = 1)
@@ -7820,7 +7820,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
     // Create duplicate combination
     const duplicateCombo: Combination = {
       ...originalCombo,
-      id: `combo-duplicate-${Yeste.now()}`,
+      id: `combo-duplicate-${Date.now()}`,
       videoName: duplicateName,
     };
     
@@ -8311,7 +8311,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
         emotionalAngleId: selectedEmotionalAngleId,
         adId: selectedAdId,
         characterId: selectedCharacterId,
-        timestamp: Yeste.now(),
+        timestamp: Date.now(),
       };
       localStorage.setItem('selectionHistory', JSON.stringify(selectionHistory));
       console.log('[Selection History] Saved to localStorage:', selectionHistory);
@@ -8365,7 +8365,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
     const duplicateName = `${prefix}${hookBase}${newLetter}${suffix}`;
     const duplicateLine: AdLine = {
       ...line,
-      id: `line-${Yeste.now()}-${Math.random()}`,
+      id: `line-${Date.now()}-${Math.random()}`,
       videoName: duplicateName,
     };
     
@@ -8418,18 +8418,18 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
     
     // FORCE RELOAD from DB to get latest data
     console.log('[goToCheckVideos] 🔄 Forcing reload from DB...');
-    const freshYesta = await refetchContextSession();
-    if (freshYesta.data?.videoResults) {
+    const freshData = await refetchContextSession();
+    if (freshData.data?.videoResults) {
       const parseJsonField = (field: any) => {
         if (!field) return [];
         const parsed = typeof field === 'string' ? JSON.parse(field) : field;
         return Array.isArray(parsed) ? parsed : [];
       };
-      const freshVideoResults = parseJsonField(freshYesta.data.videoResults);
+      const freshVideoResults = parseJsonField(freshData.data.videoResults);
       console.log('[goToCheckVideos] ✅ Loaded fresh videoResults from DB:', freshVideoResults.length);
       setVideoResults(freshVideoResults);
-      setAdLines(parseJsonField(freshYesta.data.adLines));
-      setCombinations(parseJsonField(freshYesta.data.combinations));
+      setAdLines(parseJsonField(freshData.data.adLines));
+      setCombinations(parseJsonField(freshData.data.combinations));
     }
   };
 
@@ -8468,10 +8468,10 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
     if (step === 2) {
       // Step 2: Reload adLines and sync with combinations
       console.log('[goToStep] 🔄 Forcing reload from DB for Step 2...');
-      const freshYesta = await refetchContextSession();
-      if (freshYesta.data) {
-        const freshAdLines = parseJsonField(freshYesta.data.adLines);
-        const freshCombinations = parseJsonField(freshYesta.data.combinations);
+      const freshData = await refetchContextSession();
+      if (freshData.data) {
+        const freshAdLines = parseJsonField(freshData.data.adLines);
+        const freshCombinations = parseJsonField(freshData.data.combinations);
         
         // ✅ SYNC adLines videoName with combinations
         const syncedAdLines = freshAdLines.map((line: any) => {
@@ -8492,17 +8492,17 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
     } else if (step === 4) {
       // Step 4: Reload images and adLines, sync with combinations
       console.log('[goToStep] 🔄 Forcing reload from DB for Step 4...');
-      const freshYesta = await refetchContextSession();
-      if (freshYesta.data) {
-        let freshImages = parseJsonField(freshYesta.data.images);
-        const freshAdLines = parseJsonField(freshYesta.data.adLines);
-        const freshCombinations = parseJsonField(freshYesta.data.combinations);
+      const freshData = await refetchContextSession();
+      if (freshData.data) {
+        let freshImages = parseJsonField(freshData.data.images);
+        const freshAdLines = parseJsonField(freshData.data.adLines);
+        const freshCombinations = parseJsonField(freshData.data.combinations);
         
         // Sync image names with Image Library (userImages)
-        const libraryImagesYesta = await refetchLibraryImages();
-        if (libraryImagesYesta.data) {
+        const libraryImagesData = await refetchLibraryImages();
+        if (libraryImagesData.data) {
           freshImages = freshImages.map((img: any) => {
-            const libraryImage = libraryImagesYesta.data.find((libImg: any) => libImg.id === img.id);
+            const libraryImage = libraryImagesData.data.find((libImg: any) => libImg.id === img.id);
             if (libraryImage) {
               return { ...img, fileName: libraryImage.fileName }; // ✅ Update fileName from Image Library
             }
@@ -8534,17 +8534,17 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
     } else if (step === 5) {
       // Step 5: Reload images and combinations, sync with videoResults
       console.log('[goToStep] 🔄 Forcing reload from DB for Step 5...');
-      const freshYesta = await refetchContextSession();
-      if (freshYesta.data) {
-        let freshImages = parseJsonField(freshYesta.data.images);
-        const freshCombinations = parseJsonField(freshYesta.data.combinations);
-        const freshVideoResults = parseJsonField(freshYesta.data.videoResults);
+      const freshData = await refetchContextSession();
+      if (freshData.data) {
+        let freshImages = parseJsonField(freshData.data.images);
+        const freshCombinations = parseJsonField(freshData.data.combinations);
+        const freshVideoResults = parseJsonField(freshData.data.videoResults);
         
         // Sync image names with Image Library (userImages)
-        const libraryImagesYesta = await refetchLibraryImages();
-        if (libraryImagesYesta.data) {
+        const libraryImagesData = await refetchLibraryImages();
+        if (libraryImagesData.data) {
           freshImages = freshImages.map((img: any) => {
-            const libraryImage = libraryImagesYesta.data.find((libImg: any) => libImg.id === img.id);
+            const libraryImage = libraryImagesData.data.find((libImg: any) => libImg.id === img.id);
             if (libraryImage) {
               return { ...img, fileName: libraryImage.fileName }; // ✅ Update fileName from Image Library
             }
@@ -9200,8 +9200,8 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                         ? trimmingProgress.successVideos[currentIdx - 1] 
                         : null;
                       if (!prevVideo) return null;
-                      const videoYesta = videoResults.find(v => v.videoName === prevVideo.name);
-                      const note = videoYesta?.step9Note || '';
+                      const videoData = videoResults.find(v => v.videoName === prevVideo.name);
+                      const note = videoData?.step9Note || '';
                       const isEditing = editingNoteId === prevVideo.name;
                       
                       return (
@@ -9294,8 +9294,8 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                     {/* Current Video */}
                     {(() => {
                       const videoName = trimmingCurrentVideoName || trimmingProgress.successVideos[0]?.name || 'Loading...';
-                      const videoYesta = videoResults.find(v => v.videoName === videoName);
-                      const note = videoYesta?.step9Note || '';
+                      const videoData = videoResults.find(v => v.videoName === videoName);
+                      const note = videoData?.step9Note || '';
                       const isEditing = editingNoteId === videoName;
                       
                       return (
@@ -9394,8 +9394,8 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                         ? trimmingProgress.successVideos[currentIdx + 1] 
                         : null;
                       if (!nextVideo) return null;
-                      const videoYesta = videoResults.find(v => v.videoName === nextVideo.name);
-                      const note = videoYesta?.step9Note || '';
+                      const videoData = videoResults.find(v => v.videoName === nextVideo.name);
+                      const note = videoData?.step9Note || '';
                       const isEditing = editingNoteId === nextVideo.name;
                       
                       return (
@@ -9494,8 +9494,8 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                     {trimmingProgress.successVideos
                       .filter(video => !video.name.includes('(Hooks merged)') && !video.name.includes('(Body merged)'))
                       .map((video) => {
-                      const videoYesta = videoResults.find(v => v.videoName === video.name);
-                      const note = videoYesta?.step9Note || '';
+                      const videoData = videoResults.find(v => v.videoName === video.name);
+                      const note = videoData?.step9Note || '';
                       
                       return (
                         <div key={video.name} className="flex items-start justify-between gap-3 p-3 bg-gray-50 rounded-lg">
@@ -9601,8 +9601,8 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
               {trimmingProgress.status !== 'processing' && 
                trimmingProgress.successVideos.length > 0 && 
                trimmingProgress.successVideos.some(v => {
-                 const videoYesta = videoResults.find(vd => vd.videoName === v.name);
-                 return videoYesta?.trimmedVideoUrl;
+                 const videoData = videoResults.find(vd => vd.videoName === v.name);
+                 return videoData?.trimmedVideoUrl;
                }) && (
                 <button
                   onClick={() => {
@@ -9626,8 +9626,8 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
               {trimmingProgress.status !== 'processing' && 
                trimmingProgress.successVideos.length > 0 && 
                trimmingProgress.successVideos.some(v => {
-                 const videoYesta = videoResults.find(vd => vd.videoName === v.name);
-                 return videoYesta?.trimmedVideoUrl;
+                 const videoData = videoResults.find(vd => vd.videoName === v.name);
+                 return videoData?.trimmedVideoUrl;
                }) && (
                 <hr className="border-gray-300" />
               )}
@@ -10935,7 +10935,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                         placeholder="Paste Google Doc link here (e.g., https://docs.google.com/document/d/...)" 
                         className="w-full p-4 border-2 border-blue-300 rounded-lg focus:border-blue-500 focus:outline-none mb-4"
                         onPaste={async (e) => {
-                          const link = e.clipboardYesta.getYesta('text');
+                          const link = e.clipboardData.getData('text');
                           if (link.includes('docs.google.com/document')) {
                             try {
                               // Extract document ID from link
@@ -11549,7 +11549,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                         }
                         
                         const newPrompt: UploadedPrompt = {
-                          id: `manual-${Yeste.now()}`,
+                          id: `manual-${Date.now()}`,
                           name: `Custom Prompt #${prompts.length + 1}`,
                           template: manualPromptText,
                           file: null, // Manual prompt, without file
@@ -12847,7 +12847,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                                 text: modifyDialogueText,
                                                 redStart: modifyRedStart,
                                                 redEnd: modifyRedEnd,
-                                                _forceUpdate: Yeste.now(), // Force React to detect change
+                                                _forceUpdate: Date.now(), // Force React to detect change
                                               } : v
                                             );
                                             console.log('[Save Modify] BEFORE return - Updated text for index', index, ':', modifyDialogueText.substring(0, 50));
@@ -12859,11 +12859,11 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                           // Save timestamp for "Edited X min ago"
                                           setEditTimestamps(prev => ({
                                             ...prev,
-                                            [index]: Yeste.now(),
+                                            [index]: Date.now(),
                                           }));
                                           
                                           // SAVE TO DATABASE with captured updated state
-                                          console.log('[Yestabase Save] Saving after text modification...');
+                                          console.log('[Database Save] Saving after text modification...');
                                           
                                           upsertContextSessionMutation.mutate({
                                             userId: localCurrentUser.id,
@@ -12884,10 +12884,10 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                             reviewHistory,
                                           }, {
                                             onSuccess: () => {
-                                              console.log('[Yestabase Save] Modifications saved to database!');
+                                              console.log('[Database Save] Modifications saved to database!');
                                             },
                                             onError: (error) => {
-                                              console.error('[Yestabase Save] Failed:', error);
+                                              console.error('[Database Save] Failed:', error);
                                             },
                                           });
                                           
@@ -14051,7 +14051,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                         emotionalAngleId: selectedEmotionalAngleId!,
                                         adId: selectedAdId!,
                                         characterId: selectedCharacterId!,
-                                        sessionYesta: {
+                                        sessionData: {
                                           currentStep,
                                           rawTextAd,
                                           processedTextAd,
@@ -14442,7 +14442,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                         const url = window.URL.createObjectURL(zipBlob);
                         const link = document.createElement('a');
                         link.href = url;
-                        link.download = `Accepted_Videos_${new Yeste().toISOString().split('T')[0]}.zip`;
+                        link.download = `Accepted_Videos_${new Date().toISOString().split('T')[0]}.zip`;
                         document.body.appendChild(link);
                         link.click();
                         document.body.removeChild(link);
@@ -14560,7 +14560,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                 cutPoints: undefined,
                                 words: undefined,
                                 audioUrl: undefined,
-                                waveformYesta: undefined,
+                                waveformData: undefined,
                                 trimStatus: null,
                                 trimmedVideoUrl: undefined,
                                 acceptRejectStatus: null
@@ -14755,10 +14755,10 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                   <div className="space-y-8">
                     {/* Video Editors - One per approved video */}
                     {approvedVideos.map((video, videoIndex) => {
-                      // Convert waveformYesta JSON string to data URI for Peaks.js
+                      // Convert waveformData JSON string to data URI for Peaks.js
                       // Use proper UTF-8 to base64 encoding (btoa doesn't handle UTF-8 correctly)
-                      const peaksUrl = video.waveformYesta 
-                        ? `data:application/json;base64,${btoa(unescape(encodeURIComponent(video.waveformYesta)))}`
+                      const peaksUrl = video.waveformData 
+                        ? `data:application/json;base64,${btoa(unescape(encodeURIComponent(video.waveformData)))}`
                         : '';
                       
                       // Calculate duration from whisperTranscript (actual audio duration)
@@ -15015,13 +15015,13 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                 return;
                               }
                               
-                              // FORCE re-extraction: Clear audioUrl and waveformYesta
+                              // FORCE re-extraction: Clear audioUrl and waveformData
                               // This prevents FFmpeg SMART SKIP and forces fresh WAV extraction
-                              console.log('[Reprocesare] Clearing audioUrl and waveformYesta to force re-extraction');
+                              console.log('[Reprocesare] Clearing audioUrl and waveformData to force re-extraction');
                               const videoToReprocessClean = {
                                 ...videoToReprocess,
                                 audioUrl: undefined,
-                                waveformYesta: undefined,
+                                waveformData: undefined,
                                 cleanvoiceAudioUrl: undefined,
                                 whisperTranscript: undefined,
                                 cutPoints: undefined,
@@ -15107,10 +15107,10 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                       finalVideos,
                                     });
                                     
-                                    console.log('[Reprocesare] ✅ Yestabase save successful!');
+                                    console.log('[Reprocesare] ✅ Database save successful!');
                                     toast.success(`✅ ${videoName} reprocesed and saved to database!`);
                                   } catch (dbError: any) {
-                                    console.error('[Reprocesare] ❌ Yestabase save failed:', dbError);
+                                    console.error('[Reprocesare] ❌ Database save failed:', dbError);
                                     toast.error(`⚠️ Reprocesare succeeded but database save failed: ${dbError.message}`);
                                   }
                                 } else {
@@ -15167,7 +15167,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                 console.log('[Marker Modified] ✅ Status updated to recut and saved to database');
                                 toast.success(`${videoName} marked for re-trimming`);
                               } catch (error: any) {
-                                console.error('[Marker Modified] ❌ Yestabase save failed:', error);
+                                console.error('[Marker Modified] ❌ Database save failed:', error);
                                 toast.error(`Failed to update status: ${error.message}`);
                               }
                             }}
@@ -16048,11 +16048,11 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                       return text.trim();
                                     }
                                     // Individual video - extract white text
-                                    const videoYesta = videoResults.find(v => v.videoName === video.videoName);
-                                    if (videoYesta && videoYesta.redStart !== undefined && videoYesta.redEnd !== undefined && 
-                                        videoYesta.redStart >= 0 && videoYesta.redEnd > videoYesta.redStart) {
-                                      const beforeRed = text.substring(0, videoYesta.redStart);
-                                      const afterRed = text.substring(videoYesta.redEnd);
+                                    const videoData = videoResults.find(v => v.videoName === video.videoName);
+                                    if (videoData && videoData.redStart !== undefined && videoData.redEnd !== undefined && 
+                                        videoData.redStart >= 0 && videoData.redEnd > videoData.redStart) {
+                                      const beforeRed = text.substring(0, videoData.redStart);
+                                      const afterRed = text.substring(videoData.redEnd);
                                       return (beforeRed + afterRed).trim();
                                     }
                                     // No red text, return full text
@@ -16836,7 +16836,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                           cutPoints: undefined,
                           words: undefined,
                           audioUrl: undefined,
-                          waveformYesta: undefined,
+                          waveformData: undefined,
                           trimStatus: null,
                           trimmedVideoUrl: undefined,
                           acceptRejectStatus: null,
