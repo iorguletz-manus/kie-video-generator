@@ -1625,21 +1625,21 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       // Load merged videos from database
       if (contextSession.hookMergedVideos) {
         console.log('[Context Session] 🔍 LOADING hookMergedVideos - FULL CONTEXT:');
-        console.log('  Current context:', {
+        console.log('  Current context:', JSON.stringify({
           selectedTamId,
           selectedCoreBeliefId,
           selectedEmotionalAngleId,
           selectedAdId,
           selectedCharacterId
-        });
-        console.log('  Session from DB:', {
+        }));
+        console.log('  Session from DB:', JSON.stringify({
           sessionId: contextSession.id,
           tamId: contextSession.tamId,
           coreBeliefId: contextSession.coreBeliefId,
           emotionalAngleId: contextSession.emotionalAngleId,
           adId: contextSession.adId,
           characterId: contextSession.characterId
-        });
+        }));
         
         // VERIFY: Check if session matches current context
         const isCorrectContext = 
@@ -1668,21 +1668,21 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       
       if (contextSession.bodyMergedVideoUrl) {
         console.log('[Context Session] 🔍 LOADING bodyMergedVideoUrl - FULL CONTEXT:');
-        console.log('  Current context:', {
+        console.log('  Current context:', JSON.stringify({
           selectedTamId,
           selectedCoreBeliefId,
           selectedEmotionalAngleId,
           selectedAdId,
           selectedCharacterId
-        });
-        console.log('  Session from DB:', {
+        }));
+        console.log('  Session from DB:', JSON.stringify({
           sessionId: contextSession.id,
           tamId: contextSession.tamId,
           coreBeliefId: contextSession.coreBeliefId,
           emotionalAngleId: contextSession.emotionalAngleId,
           adId: contextSession.adId,
           characterId: contextSession.characterId
-        });
+        }));
         console.log('  bodyMergedVideoUrl:', contextSession.bodyMergedVideoUrl);
         
         // VERIFY: Check if session matches current context
