@@ -5,7 +5,7 @@ import { Play, Pause, ZoomIn, ZoomOut, Lock, Unlock } from 'lucide-react';
 import { WaveSurferEditor } from './WaveSurferEditor';
 
 // OVERLAY FEATURE FLAG - Set to false to disable overlay completely
-const OVERLAY_ENABLED = false;
+const OVERLAY_ENABLED = true;
 
 interface VideoEditorV2Props {
   video: {
@@ -39,6 +39,7 @@ interface VideoEditorV2Props {
   } | null;
   onTrimChange?: (videoId: string, cutPoints: { startKeep: number; endKeep: number }, isStartLocked: boolean, isEndLocked: boolean) => void;
   onCutAndMerge?: (previousVideo: any | null, currentVideo: any, nextVideo: any | null) => Promise<void>;
+  onTestOverlay?: (video: any, overlaySettings: any) => Promise<void>;  // Callback to test overlay with FFmpeg
   onReprocess?: (videoName: string) => void;  // Callback to re-process single video
   onMarkerModified?: (videoName: string) => void;  // Callback when markers are modified on a trimmed video
   // Overlay Settings for HOOK videos
@@ -1374,6 +1375,30 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
               className="ml-3 h-7 text-xs px-3 border-blue-500 text-blue-700 hover:bg-blue-50"
             >
               {isMerging ? 'Merging...' : 'Cut & Merge (test)'}
+            </Button>
+          )}
+          
+          {/* Test Overlay Button - Only for HOOK videos with enabled overlay */}
+          {OVERLAY_ENABLED && isHookVideo && localOverlaySettings.enabled && onTestOverlay && (
+            <Button
+              onClick={async () => {
+                setIsMerging(true);
+                setMergeProgress('Testing overlay...');
+                try {
+                  await onTestOverlay(video, localOverlaySettings);
+                } catch (error) {
+                  console.error('[Test Overlay] Error:', error);
+                } finally {
+                  setIsMerging(false);
+                  setMergeProgress('');
+                }
+              }}
+              disabled={isMerging}
+              size="sm"
+              variant="outline"
+              className="ml-3 h-7 text-xs px-3 border-purple-500 text-purple-700 hover:bg-purple-50"
+            >
+              {isMerging ? 'Testing...' : '🎨 Test Overlay'}
             </Button>
           )}
         </div>

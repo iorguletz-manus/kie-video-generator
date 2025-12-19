@@ -15009,6 +15009,39 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                 setIsMergeModalOpen(false);
                               }
                             }}
+                            onTestOverlay={async (video, overlaySettings) => {
+                              console.log('[Test Overlay] Starting test for:', video.videoName);
+                              console.log('[Test Overlay] Overlay settings:', overlaySettings);
+                              
+                              try {
+                                // Call cutVideo with overlay settings
+                                const result = await cutVideoMutation.mutateAsync({
+                                  userId: localCurrentUser.id,
+                                  videoUrl: video.videoUrl,
+                                  videoName: video.videoName,
+                                  startTimeMs: video.cutPoints.startKeep,
+                                  endTimeMs: video.cutPoints.endKeep,
+                                  ffmpegApiKey: localCurrentUser.ffmpegApiKey || '',
+                                  cleanVoiceAudioUrl: videoResults.find(v => v.videoName === video.videoName)?.cleanvoiceUrl || null,
+                                  overlaySettings: {
+                                    ...overlaySettings,
+                                    videoWidth: 1080,
+                                    videoHeight: 1920,
+                                    scaleFactor: 1080 / 400,  // Assuming player width is 400px
+                                  },
+                                });
+                                
+                                // Open popup with test video
+                                setTrimmingMergedVideoUrl(result.downloadUrl);
+                                setTrimmingCurrentVideoName(video.videoName + ' (Overlay Test)');
+                                setIsTrimmingModalOpen(true);
+                                
+                                toast.success('🎨 Overlay test ready!');
+                              } catch (error: any) {
+                                console.error('[Test Overlay] Error:', error);
+                                toast.error(`Test failed: ${error.message}`);
+                              }
+                            }}
                             onReprocess={async (videoName) => {
                               console.log('[Reprocesare] Starting re-processing for:', videoName);
                               
