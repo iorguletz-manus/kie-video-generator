@@ -3208,7 +3208,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           const firstVideoName = bodyVideos[0].videoName;
           const contextMatch = firstVideoName.match(/^(T\d+_C\d+_E\d+_AD\d+)/);
           const context = contextMatch ? contextMatch[1] : 'MERGED';
-          const characterMatch = firstVideoName.match(/_([^_]+)$/);
+          // Extract character from format: T1_C1_E1_AD1_MIRROR_ALINA_1 → character = ALINA
+          const characterMatch = firstVideoName.match(/_(\w+)_(\d+)$/);
           const characterName = characterMatch ? characterMatch[1] : 'TEST';
           const outputName = `${context}_BODY_${characterName}`;
           
@@ -3582,7 +3583,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
     
     const contextMatch = referenceVideo.videoName.match(/^(T\d+_C\d+_E\d+_AD\d+)/);
-    const characterMatch = referenceVideo.videoName.match(/_([^_]+)$/);
+    // Extract character from format: T1_C1_E1_AD1_MIRROR_ALINA_1 → character = ALINA
+    const characterMatch = referenceVideo.videoName.match(/_(\w+)_(\d+)$/);
     const context = contextMatch ? contextMatch[1] : 'MERGED';
     const character = characterMatch ? characterMatch[1] : 'TEST';
     
@@ -4623,11 +4625,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             const contextName = contextMatch ? contextMatch[1] : 'MERGED';
             
             // Extract character and imageName
+            // Format: T1_C1_E1_AD1_MIRROR_ALINA_1 → character = ALINA, imageName = ALINA_1
             console.log('[BODY Merge] 🔍 Extracting character from:', firstVideoName);
-            const nameMatch = firstVideoName.match(/_(\w+)_(\w+_\d+)$/);
+            const nameMatch = firstVideoName.match(/_(\w+)_(\d+)$/);
             console.log('[BODY Merge] 🔍 Regex match result:', nameMatch);
             const character = nameMatch ? nameMatch[1] : 'TEST';
-            const imageName = nameMatch ? nameMatch[2] : 'ALINA_1';
+            const imageName = nameMatch ? `${nameMatch[1]}_${nameMatch[2]}` : 'ALINA_1';
             console.log('[BODY Merge] 🔍 Extracted character:', character, 'imageName:', imageName);
             
             const outputName = `${contextName}_BODY_${character}_${imageName}`;
@@ -6640,9 +6643,10 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
               const contextMatch = firstVideoName.match(/^(T\d+_C\d+_E\d+_AD\d+)/);
               const contextName = contextMatch ? contextMatch[1] : 'MERGED';
               
-              const nameMatch = firstVideoName.match(/_([ A-Z]+)_([A-Z]+_\d+)$/);
-              const character = nameMatch ? nameMatch[1] : 'TEST';
-              const imageName = nameMatch ? nameMatch[2] : 'ALINA_1';
+                 // Format: T1_C1_E1_AD1_MIRROR_ALINA_1 → character = ALINA, imageName = ALINA_1
+            const nameMatch = firstVideoName.match(/_(\w+)_(\d+)$/);
+            const character = nameMatch ? nameMatch[1] : 'TEST';
+            const imageName = nameMatch ? `${nameMatch[1]}_${nameMatch[2]}` : 'ALINA_1';
               
               const outputName = `${contextName}_BODY_${character}_${imageName}`;
               
@@ -16091,11 +16095,11 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                         const context = contextMatch ? contextMatch[1] : '';
                         
                         // Extract character and imageName from video name
-                        // Format: T1_C1_E1_AD1_MIRROR_TEST_ALINA_1
-                        // Extract: TEST (character) and ALINA_1 (imageName)
-                        const nameMatch = firstBodyVideo.videoName.match(/_([A-Z]+)_([A-Z]+_\d+)$/);
+                        // Format: T1_C1_E1_AD1_MIRROR_ALINA_1
+                        // Extract: ALINA (character) and ALINA_1 (imageName)
+                        const nameMatch = firstBodyVideo.videoName.match(/_(\w+)_(\d+)$/);
                         const character = nameMatch ? nameMatch[1] : 'TEST';
-                        const imageName = nameMatch ? nameMatch[2] : '';
+                        const imageName = nameMatch ? `${nameMatch[1]}_${nameMatch[2]}` : '';
                         
                         // Construct full merged body name
                         mergedBodyName = imageName 
@@ -16235,7 +16239,8 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                         const hookVideo = videoResults.find(v => v.videoName === firstHookName);
                         if (hookVideo) {
                           const contextMatch = hookVideo.videoName.match(/^(T\d+_C\d+_E\d+_AD\d+)/);
-                          const characterMatch = hookVideo.videoName.match(/_([^_]+)$/);
+                          // Extract character from format: T1_C1_E1_AD1_HOOK1_ALINA_1 → character = ALINA
+                          const characterMatch = hookVideo.videoName.match(/_(\w+)_(\d+)$/);
                           const context = contextMatch ? contextMatch[1] : 'MERGED';
                           const character = characterMatch ? characterMatch[1] : 'TEST';
                           
@@ -16289,7 +16294,8 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                         }
                       } else if (referenceVideo) {
                         const contextMatch = referenceVideo.videoName.match(/^(T\d+_C\d+_E\d+_AD\d+)/);
-                        const characterMatch = referenceVideo.videoName.match(/_([^_]+)$/);
+                        // Extract character from format: T1_C1_E1_AD1_MIRROR_ALINA_1 → character = ALINA
+                        const characterMatch = referenceVideo.videoName.match(/_(\w+)_(\d+)$/);
                         const context = contextMatch ? contextMatch[1] : 'MERGED';
                         const character = characterMatch ? characterMatch[1] : 'TEST';
                         
