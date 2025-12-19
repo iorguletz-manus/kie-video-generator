@@ -1624,16 +1624,87 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       
       // Load merged videos from database
       if (contextSession.hookMergedVideos) {
+        console.log('[Context Session] 🔍 LOADING hookMergedVideos - FULL CONTEXT:');
+        console.log('  Current context:', {
+          selectedTamId,
+          selectedCoreBeliefId,
+          selectedEmotionalAngleId,
+          selectedAdId,
+          selectedCharacterId
+        });
+        console.log('  Session from DB:', {
+          sessionId: contextSession.id,
+          tamId: contextSession.tamId,
+          coreBeliefId: contextSession.coreBeliefId,
+          emotionalAngleId: contextSession.emotionalAngleId,
+          adId: contextSession.adId,
+          characterId: contextSession.characterId
+        });
+        
+        // VERIFY: Check if session matches current context
+        const isCorrectContext = 
+          contextSession.tamId === selectedTamId &&
+          contextSession.coreBeliefId === selectedCoreBeliefId &&
+          contextSession.emotionalAngleId === selectedEmotionalAngleId &&
+          contextSession.adId === selectedAdId &&
+          contextSession.characterId === selectedCharacterId;
+        
+        if (!isCorrectContext) {
+          console.error('❌ MISMATCH! hookMergedVideos is from DIFFERENT CONTEXT!');
+          console.error('  Expected:', { selectedTamId, selectedCoreBeliefId, selectedEmotionalAngleId, selectedAdId, selectedCharacterId });
+          console.error('  Got:', { tamId: contextSession.tamId, coreBeliefId: contextSession.coreBeliefId, emotionalAngleId: contextSession.emotionalAngleId, adId: contextSession.adId, characterId: contextSession.characterId });
+          // DO NOT LOAD - it's from wrong context!
+          return;
+        }
+        
         const parsedHookMerged = typeof contextSession.hookMergedVideos === 'string' 
           ? JSON.parse(contextSession.hookMergedVideos) 
           : contextSession.hookMergedVideos;
         setHookMergedVideos(parsedHookMerged || {});
-        console.log('[Context Session] 📥 Loaded hookMergedVideos:', parsedHookMerged);
+        console.log('[Context Session] ✅ Loaded hookMergedVideos (context verified):', parsedHookMerged);
+      } else {
+        console.log('[Context Session] ℹ️ No hookMergedVideos in session');
       }
       
       if (contextSession.bodyMergedVideoUrl) {
+        console.log('[Context Session] 🔍 LOADING bodyMergedVideoUrl - FULL CONTEXT:');
+        console.log('  Current context:', {
+          selectedTamId,
+          selectedCoreBeliefId,
+          selectedEmotionalAngleId,
+          selectedAdId,
+          selectedCharacterId
+        });
+        console.log('  Session from DB:', {
+          sessionId: contextSession.id,
+          tamId: contextSession.tamId,
+          coreBeliefId: contextSession.coreBeliefId,
+          emotionalAngleId: contextSession.emotionalAngleId,
+          adId: contextSession.adId,
+          characterId: contextSession.characterId
+        });
+        console.log('  bodyMergedVideoUrl:', contextSession.bodyMergedVideoUrl);
+        
+        // VERIFY: Check if session matches current context
+        const isCorrectContext = 
+          contextSession.tamId === selectedTamId &&
+          contextSession.coreBeliefId === selectedCoreBeliefId &&
+          contextSession.emotionalAngleId === selectedEmotionalAngleId &&
+          contextSession.adId === selectedAdId &&
+          contextSession.characterId === selectedCharacterId;
+        
+        if (!isCorrectContext) {
+          console.error('❌ MISMATCH! bodyMergedVideoUrl is from DIFFERENT CONTEXT!');
+          console.error('  Expected:', { selectedTamId, selectedCoreBeliefId, selectedEmotionalAngleId, selectedAdId, selectedCharacterId });
+          console.error('  Got:', { tamId: contextSession.tamId, coreBeliefId: contextSession.coreBeliefId, emotionalAngleId: contextSession.emotionalAngleId, adId: contextSession.adId, characterId: contextSession.characterId });
+          // DO NOT LOAD - it's from wrong context!
+          return;
+        }
+        
         setBodyMergedVideoUrl(contextSession.bodyMergedVideoUrl);
-        console.log('[Context Session] 📥 Loaded bodyMergedVideoUrl:', contextSession.bodyMergedVideoUrl);
+        console.log('[Context Session] ✅ Loaded bodyMergedVideoUrl (context verified):', contextSession.bodyMergedVideoUrl);
+      } else {
+        console.log('[Context Session] ℹ️ No bodyMergedVideoUrl in session');
       }
       
       console.log('[Context Session] 🔍 Checking finalVideos in DB:', contextSession.finalVideos ? 'EXISTS' : 'NULL');
