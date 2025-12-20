@@ -10591,9 +10591,9 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
               const isMobileHidden = step.num < currentStep - 2 || step.num > currentStep + 2;
               
               return (
-              <div key={step.num} className={`contents ${isMobileHidden ? 'hidden md:contents' : ''}`}>
+              <React.Fragment key={step.num}>
                 {/* Step Container */}
-                <div className="flex flex-col items-center gap-2 relative group">
+                <div className={`flex flex-col items-center gap-2 relative group ${isMobileHidden ? 'hidden md:flex' : ''}`}>
                   {/* Badge */}
                   <button
                     onClick={() => goToStep(step.num)}
@@ -10648,8 +10648,13 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                 </div>
                 
                 {/* Connector Line */}
-                {index < array.length - 1 && (
-                  <div className="flex-1 flex items-center px-2">
+                {index < array.length - 1 && (() => {
+                  const nextStep = array[index + 1];
+                  const isNextMobileHidden = nextStep.num < currentStep - 2 || nextStep.num > currentStep + 2;
+                  const hideConnector = isMobileHidden || isNextMobileHidden;
+                  
+                  return (
+                  <div className={`flex-1 flex items-center px-2 ${hideConnector ? 'hidden md:flex' : ''}`}>
                     <div className={`
                       h-1 w-full rounded-full
                       transition-all duration-300
@@ -10658,8 +10663,9 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                       }
                     `} />
                   </div>
-                )}
-              </div>
+                  );
+                })()}
+              </React.Fragment>
             );
             })}
           </div>
@@ -12072,7 +12078,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                   </div>
                   
                   {/* Images Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 max-h-[400px] overflow-y-auto mb-6 p-3 bg-green-50 rounded-lg border-2 border-green-200">
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-6 gap-2 md:gap-3 max-h-[400px] overflow-y-auto mb-6 p-2 md:p-3 bg-green-50 rounded-lg border-2 border-green-200">
                     {libraryImages
                       .filter((img) => {
                         const query = librarySearchQuery.toLowerCase();
@@ -16848,16 +16854,16 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
         )}
       </div>
       
-      {/* Scroll to Top/Bottom Buttons (only for STEP 6-11) */}
-      {currentStep >= 6 && currentStep <= 11 && (
+      {/* Scroll to Top/Bottom Buttons (only for STEP 2-11) */}
+      {currentStep >= 2 && currentStep <= 11 && (
         <>
           {/* Scroll to Top - Fixed Bottom Left */}
           <button
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="fixed bottom-11 left-6 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg transition-all hover:scale-110 z-50"
+            className="fixed bottom-20 md:bottom-11 left-4 md:left-6 bg-blue-600 hover:bg-blue-700 text-white p-2 md:p-3 rounded-full shadow-lg transition-all hover:scale-110 z-50"
             title="Scroll to Top"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
             </svg>
           </button>
@@ -16865,10 +16871,10 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
           {/* Scroll to Bottom - Fixed Bottom Right */}
           <button
             onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })}
-            className="fixed bottom-11 right-6 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg transition-all hover:scale-110 z-50"
+            className="fixed bottom-20 md:bottom-11 right-4 md:right-6 bg-blue-600 hover:bg-blue-700 text-white p-2 md:p-3 rounded-full shadow-lg transition-all hover:scale-110 z-50"
             title="Scroll to Bottom"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
             </svg>
           </button>
