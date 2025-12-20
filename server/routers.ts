@@ -2552,13 +2552,13 @@ export const appRouter = router({
             );
           } else {
             // Step 10: Complex merge (filter_complex, re-encode + loudnorm)
-            // USE LOCAL FFMPEG instead of FFmpeg API (fixes video freezing at 4s)
-            const { mergeVideosWithFilterComplexLocal } = await import('./videoEditing.js');
-            console.log(`[mergeVideos] 📤 Calling mergeVideosWithFilterComplexLocal (Step 10 - LOCAL FFMPEG)...`);
+            const { mergeVideosWithFilterComplex } = await import('./videoEditing.js');
+            console.log(`[mergeVideos] 📤 Calling mergeVideosWithFilterComplex (Step 10)...`);
             
-            cdnUrl = await mergeVideosWithFilterComplexLocal(
+            cdnUrl = await mergeVideosWithFilterComplex(
               input.videoUrls,
               input.outputVideoName,
+              input.ffmpegApiKey,
               input.userId,
               input.folder || 'merged',
               input.useLoudnorm ?? true

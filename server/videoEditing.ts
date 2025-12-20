@@ -2098,7 +2098,8 @@ export async function mergeVideosWithFilterComplex(
     const BUNNYCDN_STORAGE_ZONE = 'manus-storage';
     const BUNNYCDN_PULL_ZONE_URL = 'https://manus.b-cdn.net';
     
-    const bunnyFileName = `${outputVideoName}.mp4`;
+    // Use outputFileName which already has timestamp from line 2006
+    const bunnyFileName = outputFileName;
     const targetFolder = folder || 'prepare-for-merge';
     const mergedPath = userId ? `user-${userId}/videos/${targetFolder}/${bunnyFileName}` : `videos/${targetFolder}/${bunnyFileName}`;
     const storageUrl = `https://storage.bunnycdn.com/${BUNNYCDN_STORAGE_ZONE}/${mergedPath}`;
