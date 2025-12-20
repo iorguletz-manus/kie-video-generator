@@ -2013,13 +2013,15 @@ export async function mergeVideosWithFilterComplex(
           file: outputFileName,
           maps: ['[v]', '[a]'],
           options: [
+            '-fflags', '+genpts',  // Regenerate timestamps to fix audio/video sync
             '-c:v', 'libx264',
             '-crf', '18',  // High quality (18 = visually lossless)
             '-preset', 'medium',
             // NOTE: -movflags faststart REMOVED - causes video freezing at 4s for complex merges (HOOK+BODY with loudnorm)
             '-c:a', 'aac',
             '-ar', '48000',
-            '-ac', '2'
+            '-ac', '1',  // Keep MONO audio (same as input videos) to prevent sync issues
+            '-shortest'  // End output when shortest stream ends (fixes audio/video duration mismatch)
             // NO -af here! Audio comes from [outa] via maps
           ]
         }
