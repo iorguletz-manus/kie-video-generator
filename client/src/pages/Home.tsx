@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import JSZip from 'jszip';
 import { useLocation } from "wouter";
 import EditProfileModal from '@/components/EditProfileModal';
@@ -6458,22 +6458,31 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
     }
     
     // Final status
-    const successCount = mergeStep10Progress.hooksSuccess.length + mergeStep10Progress.bodySuccess.length;
-    const failCount = mergeStep10Progress.hooksFailed.length + mergeStep10Progress.bodyFailed.length;
+    setMergeStep10Progress(prev => {
+      const successCount = prev.hooksSuccess.length + prev.bodySuccess.length;
+      const failCount = prev.hooksFailed.length + prev.bodyFailed.length;
+      
+      return {
+        ...prev,
+        status: failCount > 0 ? 'partial' : 'complete',
+        message: failCount > 0 
+          ? `⚠️ ${successCount} succeeded, ${failCount} failed`
+          : `✅ All ${successCount} videos merged successfully!`,
+        countdown: 0
+      };
+    });
     
-    setMergeStep10Progress(prev => ({
-      ...prev,
-      status: failCount > 0 ? 'partial' : 'complete',
-      message: failCount > 0 
-        ? `⚠️ ${successCount} succeeded, ${failCount} failed`
-        : `✅ All ${successCount} videos merged successfully!`,
-      countdown: 0
-    }));
+    // Get final counts for toast
+    const finalSuccessCount = mergeStep10Progress.hooksSuccess.length + mergeStep10Progress.bodySuccess.length;
+    const finalFailCount = mergeStep10Progress.hooksFailed.length + mergeStep10Progress.bodyFailed.length;
     
-    if (failCount > 0) {
-      toast.warning(`⚠️ Selective merge complete: ${successCount} success, ${failCount} failed`);
+    // Wait for state update
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    if (finalFailCount > 0) {
+      toast.warning(`⚠️ Selective merge complete: ${totalFinalVideos - finalFailCount} success, ${finalFailCount} failed`);
     } else {
-      toast.success(`✅ All ${successCount} videos merged successfully!`);
+      toast.success(`✅ All ${totalFinalVideos} videos merged successfully!`);
     }
     
   } catch (error: any) {
