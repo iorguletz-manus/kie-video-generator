@@ -6219,7 +6219,8 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
   // Add selected HOOK tasks
   selectedHooks.forEach(hookBaseName => {
     const videos = hookGroups[hookBaseName];
-    if (videos && videos.length > 1) {
+    if (videos && videos.length > 0) {
+      // Include hook even if only 1 video (could be already merged or single video)
       mergeTasks.push({
         type: 'hook',
         name: hookBaseName,
