@@ -3996,6 +3996,16 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         retrySuccessCount++;
         console.log(`[Retry Failed Final Merge] ✅ ${videoName} SUCCESS`);
         
+        // Update progress modal - add to successVideos
+        setMergeFinalProgress(prev => ({
+          ...prev,
+          successVideos: [...prev.successVideos, { 
+            name: videoName, 
+            hookName: videoName, 
+            bodyName: selectedBody || 'body_merged' 
+          }]
+        }));
+        
       } catch (error: any) {
         console.error(`[Retry Failed Final Merge] ❌ ${videoName} FAILED:`, error);
         retryFailedCount++;
@@ -12056,7 +12066,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                   </div>
                   
                   {/* Images Grid */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 max-h-[400px] overflow-y-auto mb-6 p-3 bg-green-50 rounded-lg border-2 border-green-200">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 max-h-[400px] overflow-y-auto mb-6 p-3 bg-green-50 rounded-lg border-2 border-green-200">
                     {libraryImages
                       .filter((img) => {
                         const query = librarySearchQuery.toLowerCase();
@@ -12140,7 +12150,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                     <ImageIcon className="w-5 h-5" />
                     Selected Images ({images.length})
                   </h4>
-                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
                     {images.map((image) => (
                       <div key={image.id} className="relative group">
                         <img

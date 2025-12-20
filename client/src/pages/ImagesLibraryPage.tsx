@@ -1446,9 +1446,9 @@ export default function ImagesLibraryPage({ currentUser }: ImagesLibraryPageProp
               </h2>
             )}
             <div className={`grid gap-2 ${
-            gridSize === 'small' ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6' :
-            gridSize === 'medium' ? 'grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12' :
-            'grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 xl:grid-cols-14'
+            gridSize === 'small' ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5' :
+            gridSize === 'medium' ? 'grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10' :
+            'grid-cols-3 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12'
           }`}>
             {filteredImages.map((image) => (
               <div
