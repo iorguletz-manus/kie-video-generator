@@ -15990,25 +15990,25 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                     </div>
                     
                     {/* Navigation Buttons */}
-                    <div className="flex justify-between items-center mt-6">
+                    <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 mt-6">
                       <Button
                         onClick={() => setCurrentStep(8)}
                         variant="outline"
-                        className="px-8 py-6 text-base"
+                        className="w-full sm:w-auto px-4 sm:px-8 py-4 sm:py-6 text-sm sm:text-base order-2 sm:order-1"
                       >
-                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                         </svg>
                         Back
                       </Button>
                       
-                      <div className="flex flex-col items-center gap-0">
+                      <div className="flex flex-col items-center gap-0 order-1 sm:order-2">
                       <Button
                         onClick={() => {
                           setIsMergingStep10(true);
                           handlePrepareForMerge();
                         }}
-                        className="bg-purple-600 hover:bg-purple-700 px-8 py-8 text-base"
+                        className="w-full sm:w-auto bg-purple-600 hover:bg-purple-700 px-4 sm:px-8 py-6 sm:py-8 text-sm sm:text-base"
                         disabled={isMergingStep10}
                       >
                         {isMergingStep10 ? (
@@ -16021,15 +16021,15 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                             </svg>
-                            Next: Prepare for Merge ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.trimmedVideoUrl).length})
-                            <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <span className="text-xs sm:text-sm md:text-base">Next: Prepare for Merge ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.trimmedVideoUrl).length})</span>
+                            <svg className="w-4 h-4 sm:w-5 sm:h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                             </svg>
                           </>
                         )}
                       </Button>
                       {!isMergingStep10 && (
-                        <div className="text-center mt-0">
+                        <div className="text-center mt-1">
                           <span className="text-xs text-purple-600">GO TO STEP 10</span>
                         </div>
                       )}
@@ -16621,33 +16621,33 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                 </div>
                 
                 {/* Navigation Buttons */}
-                <div className="flex justify-between items-center mt-6">
+                <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 mt-6">
                   <Button
                     onClick={() => setCurrentStep(9)}
                     variant="outline"
-                    className="px-8 py-6 text-base"
+                    className="w-full sm:w-auto px-4 sm:px-8 py-4 sm:py-6 text-sm sm:text-base order-2 sm:order-1"
                   >
-                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                     </svg>
                     Back
                   </Button>
                   
-                  <div className="flex flex-col items-center gap-0">
+                  <div className="flex flex-col items-center gap-0 order-1 sm:order-2">
                     <Button
                       onClick={handleMergeFinalVideos}
-                      className="bg-green-600 hover:bg-green-700 px-8 py-8 text-base"
+                      className="w-full sm:w-auto bg-green-600 hover:bg-green-700 px-4 sm:px-8 py-6 sm:py-8 text-sm sm:text-base"
                       disabled={selectedHooks.length === 0 || !selectedBody || isMergingFinalVideos}
                     >
-                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>
-                      Next: Merge Final Videos ({finalCombinationsCount})
-                      <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <span className="text-xs sm:text-sm md:text-base">Next: Merge Final Videos ({finalCombinationsCount})</span>
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
                     </Button>
-                    <div className="text-center mt-0">
+                    <div className="text-center mt-1">
                       <span className="text-xs text-green-600">GO TO STEP 11</span>
                     </div>
                   </div>
