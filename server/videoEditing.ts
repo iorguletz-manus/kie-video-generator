@@ -1991,14 +1991,16 @@ export async function mergeVideosWithFilterComplex(
     // Build concat filter: [0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a0]
     // Then apply loudnorm: [a0]loudnorm=I=-14:TP=-1.5:LRA=11[a]
     const inputStreams = uploadedFilePaths.map((_, i) => `[${i}:v][${i}:a]`).join('');
-    const filterComplex = useLoudnorm
+    // TEMPORARILY DISABLE LOUDNORM FOR TESTING 4s FREEZE ISSUE
+    const useLoudnormOverride = false;  // TODO: Remove after testing
+    const filterComplex = useLoudnormOverride
       ? `${inputStreams}concat=n=${videoUrls.length}:v=1:a=1[v][a0];[a0]loudnorm=I=-14:TP=-1.5:LRA=11[a]`
       : `${inputStreams}concat=n=${videoUrls.length}:v=1:a=1[v][a]`;
     
     console.log(`\n========================================`);
     console.log(`[mergeVideosWithFilterComplex] 📝 STEP 5: Building filter_complex`);
     console.log(`========================================`);
-    console.log(`[mergeVideosWithFilterComplex] Loudnorm: ${useLoudnorm ? 'ENABLED' : 'DISABLED'}`);
+    console.log(`[mergeVideosWithFilterComplex] Loudnorm: ${useLoudnormOverride ? 'ENABLED' : 'DISABLED (OVERRIDE FOR TESTING)'}`);
     console.log(`[mergeVideosWithFilterComplex] Filter: ${filterComplex}`);
     console.log(`========================================\n`);
     
