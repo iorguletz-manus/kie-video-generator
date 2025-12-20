@@ -12400,15 +12400,17 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                         className="w-20 sm:w-12 flex-shrink-0 aspect-[9/16] object-cover rounded border-2 border-blue-300"
                       />
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="text-xs text-blue-600 font-bold">
-                            {result.videoName}
-                          </p>
-                          {result.generationCount && result.generationCount > 0 && (
-                            <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded font-semibold">
-                              Gen: {result.generationCount}
-                            </span>
-                          )}
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mb-1">
+                          <div className="flex items-center gap-2">
+                            <p className="text-[10px] sm:text-xs text-blue-600 font-bold break-all">
+                              {result.videoName}
+                            </p>
+                            {result.generationCount && result.generationCount > 0 && (
+                              <span className="text-[10px] sm:text-xs bg-gray-200 text-gray-700 px-1.5 sm:px-2 py-0.5 rounded font-semibold whitespace-nowrap">
+                                Gen: {result.generationCount}
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <p className="text-sm text-blue-900 mb-2">
                           <span className="font-medium">Text:</span>{' '}
@@ -14776,17 +14778,17 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                           toast.error(`Error processing videos: ${error.message}`);
                         }
                       }}
-                      className="bg-purple-600 hover:bg-purple-700 px-8 py-8 text-lg"
+                      className="w-full bg-purple-600 hover:bg-purple-700 px-4 md:px-8 py-6 md:py-8 text-base md:text-lg"
                       disabled={acceptedVideosWithUrl.length === 0}
                     >
-                      <div className="flex items-center">
-                        Next: Auto-Prepare for Cutting ({acceptedVideosWithUrl.length})
-                        <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="flex items-center justify-center">
+                        <span className="text-sm md:text-base">Next: Auto-Prepare for Cutting ({acceptedVideosWithUrl.length})</span>
+                        <svg className="w-4 h-4 md:w-5 md:h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>
                       </div>
                     </Button>
-                    <div className="text-center mt-0">
+                    <div className="text-center mt-1">
                       <span className="text-xs opacity-70 font-normal">GO TO STEP 8</span>
                     </div>
                     </div>
@@ -14848,13 +14850,13 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
               <CardContent className="pt-6">
                 {/* Filter Dropdown */}
                 <div className="mb-6 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 w-full">
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 w-full lg:w-auto">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                       <label className="text-sm font-medium text-purple-900">Filter videos:</label>
                       <select
                         value={step8Filter}
                         onChange={(e) => setStep8Filter(e.target.value as 'all' | 'accepted' | 'recut' | 'unlocked' | 'problems' | 'with_notes')}
-                        className="px-4 py-2 border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        className="px-4 py-2 border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 w-full sm:w-auto"
                       >
                         <option value="all">All ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl).length})</option>
                         <option value="accepted">Accepted ({videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && (v.recutStatus === 'accepted' || !v.recutStatus)).length})</option>
@@ -14865,11 +14867,11 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                       </select>
                     </div>
                     
-                    {/* Check Video with Problems link */}
+                    {/* Check Video with Problems link - below filter on mobile */}
                     {videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl && v.editingDebugInfo?.status && v.editingDebugInfo.status !== 'success').length > 0 && (
                       <button
                         onClick={() => setStep8Filter('problems')}
-                        className="text-sm text-red-600 hover:text-red-700 underline font-medium"
+                        className="text-sm text-red-600 hover:text-red-700 underline font-medium text-left sm:text-center"
                       >
                         Check Video with Problems
                       </button>
