@@ -846,6 +846,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     bodyInProgress: Array<{ name: string }>;
     // Callbacks
     onSkipCountdown?: () => void;
+    onCancel?: () => void;
   }>({ 
     status: 'countdown', 
     message: '',
@@ -5902,16 +5903,34 @@ const handlePrepareForMerge = async () => {
   // 7. INITIAL COUNTDOWN: 60s with Skip button
   console.log('[Prepare for Merge] ⏳ Initial countdown 60s...');
   let skipCountdown = false;
+  let cancelProcess = false;
   
   setMergeStep10Progress(prev => ({
     ...prev,
     onSkipCountdown: () => {
       console.log('[Prepare for Merge] ⏩ User skipped countdown!');
       skipCountdown = true;
+    },
+    onCancel: () => {
+      console.log('[Prepare for Merge] ❌ User cancelled process!');
+      cancelProcess = true;
+      skipCountdown = true; // Also skip countdown
     }
   }));
   
   for (let countdown = 60; countdown > 0; countdown--) {
+    if (cancelProcess) {
+      console.log('[Prepare for Merge] ❌ Process cancelled by user!');
+      setMergeStep10Progress(prev => ({
+        ...prev,
+        status: 'error',
+        message: '❌ Process cancelled by user',
+        countdown: 0
+      }));
+      setIsMergingStep10(false);
+      return;
+    }
+    
     if (skipCountdown) {
       console.log('[Prepare for Merge] ⏩ Countdown skipped!');
       break;
@@ -6176,12 +6195,14 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
   // 3. Group HOOKS by base name
   const hookGroups: Record<string, typeof hookVideos> = {};
   hookVideos.forEach(video => {
-    const hookMatch = video.videoName.match(/(.*)( HOOK\d+)[A-Z]?(.*)/); 
+    const hookMatch = video.videoName.match(/(.*)(HOOK\d+)[A-Z]?(.*)/);
+    console.log('[Selective Merge] 🔍 Matching hook:', video.videoName, '→ match:', hookMatch ? 'YES' : 'NO'); 
     if (hookMatch) {
       const prefix = hookMatch[1];
       const hookBase = hookMatch[2];
       const suffix = hookMatch[3];
       const groupKey = `${prefix}${hookBase}${suffix}`;
+      console.log('[Selective Merge] 📦 Group key:' , groupKey);
       
       if (!hookGroups[groupKey]) {
         hookGroups[groupKey] = [];
@@ -8921,6 +8942,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
         bodyFailed={mergeStep10Progress.bodyFailed}
         bodyInProgress={mergeStep10Progress.bodyInProgress}
         onSkipCountdown={mergeStep10Progress.onSkipCountdown}
+        onCancel={mergeStep10Progress.onCancel}
         onRetryFailed={handleRetryFailedMerge}
         onContinue={() => {
           setIsMergingStep10(false);
@@ -8928,7 +8950,12 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
           toast.success('✅ Proceeding to Step 10');
         }}
         onClose={() => {
-          if (mergeStep10Progress.status !== 'processing' && mergeStep10Progress.status !== 'countdown') {
+          // Allow closing during countdown (will trigger cancel)
+          if (mergeStep10Progress.status === 'countdown' && mergeStep10Progress.onCancel) {
+            mergeStep10Progress.onCancel();
+          }
+          // Allow closing if not processing
+          if (mergeStep10Progress.status !== 'processing') {
             setIsMergingStep10(false);
           }
         }}

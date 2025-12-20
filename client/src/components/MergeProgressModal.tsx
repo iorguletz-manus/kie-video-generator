@@ -26,6 +26,7 @@ interface MergeProgressModalProps {
   
   // Callbacks
   onSkipCountdown?: () => void;
+  onCancel?: () => void;
   onRetryFailed?: () => void;
   onContinue?: () => void;
   onClose?: () => void;
@@ -47,6 +48,7 @@ export function MergeProgressModal({
   bodyFailed = [],
   bodyInProgress = [],
   onSkipCountdown,
+  onCancel,
   onRetryFailed,
   onContinue,
   onClose
