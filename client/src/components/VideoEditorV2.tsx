@@ -968,7 +968,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
 
       {/* Overlay Settings Dropdown - Only for HOOK videos */}
       {OVERLAY_ENABLED && isHookVideo && isOverlaySettingsVisible && (
-        <div className="mb-3 p-2 bg-purple-50 border border-purple-300 rounded text-xs mx-auto" style={{ width: '30%' }}>
+        <div className="mb-3 p-3 bg-purple-50 border border-purple-300 rounded text-xs mx-auto w-full md:w-[60%] lg:w-[40%]">
           <div className="space-y-2">
             {/* Text Input */}
             <div>

@@ -10585,8 +10585,12 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
               { num: 9, label: "Trimmed", fullLabel: "Trimmed Videos" },
               { num: 10, label: "Merge", fullLabel: "Merge Videos" },
               { num: 11, label: "Final", fullLabel: "Final Videos" },
-            ].map((step, index, array) => (
-              <div key={step.num} className="contents">
+            ].map((step, index, array) => {
+              // On mobile, only show current step and 2 steps before/after
+              const isMobileHidden = step.num < currentStep - 2 || step.num > currentStep + 2;
+              
+              return (
+              <div key={step.num} className={`contents ${isMobileHidden ? 'hidden md:contents' : ''}`}>
                 {/* Step Container */}
                 <div className="flex flex-col items-center gap-2 relative group">
                   {/* Badge */}
@@ -10655,7 +10659,8 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                   </div>
                 )}
               </div>
-            ))}
+            );
+            })}
           </div>
         </div>
         )}
@@ -11537,7 +11542,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                       );
                     })}
                   </div>
-                  <div className="mt-6 flex justify-between items-center">
+                  <div className="mt-6 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
                     <Button
                       variant="outline"
                       onClick={() => setCurrentStep(1)}
@@ -11735,7 +11740,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
               )}
 
               {/* Continue button - always visible */}
-              <div className="mt-6 flex justify-between items-center">
+              <div className="mt-6 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
                 <Button
                   variant="outline"
                   onClick={() => setCurrentStep(1)}
@@ -11857,7 +11862,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
               )}
 
               {/* Continue Button */}
-              <div className="mt-6 flex justify-between items-center">
+              <div className="mt-6 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
                 <Button
                   variant="outline"
                   onClick={() => goToStep(2)}
@@ -12179,7 +12184,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
               )}
               
               {/* Next Button */}
-              <div className="mt-6 flex justify-between items-center">
+              <div className="mt-6 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
                 <Button
                   variant="outline"
                   onClick={() => setCurrentStep(3)}
@@ -12314,7 +12319,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                 </p>
               </div>
 
-              <div className="mt-6 flex justify-between items-center">
+              <div className="mt-6 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
                 <Button
                   variant="outline"
                   onClick={() => goToStep(4)}
@@ -13630,7 +13635,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
 
               {/* Buton pentru a trece la STEP 7 */}
               {videoResults.some(v => v.status === 'success') && (
-                <div className="mt-6 flex justify-between items-center">
+                <div className="mt-6 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
                   <Button
                     variant="outline"
                     onClick={() => goToStep(5)}
@@ -14268,7 +14273,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                             ) : (
                               <div className="flex items-center gap-2">
                                 <div className="flex-1 flex justify-center items-center gap-2">
-                                  <h4 className="font-bold text-center px-5 py-2.5 bg-green-100 text-green-900 rounded-lg inline-block text-xs">{video.videoName}</h4>
+                                  <h4 className="font-bold text-center px-3 py-2 bg-green-100 text-green-900 rounded-lg inline-block text-[10px] sm:text-xs">{video.videoName}</h4>
                                   {video.generationCount && video.generationCount > 0 && (
                                     <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded font-semibold">
                                       Regen: {video.generationCount}
@@ -14323,7 +14328,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                           )}
                           
                           {/* BUTOANE ACCEPT/REGENERATE/DOWNLOAD */}
-                          <div className="space-y-2">
+                          <div className="space-y-2 mt-2">
                             {/* Accept/Regenerate buttons - disappear after click */}
                             {!video.reviewStatus ? (
                               <div className="flex gap-2">
@@ -15533,7 +15538,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
 
                     {/* Navigation Buttons */}
                     <div className="flex flex-col gap-3">
-                      <div className="flex justify-between items-center">
+                      <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4">
                         <Button
                           onClick={() => setCurrentStep(7)}
                           variant="outline"
@@ -15544,7 +15549,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                         </Button>
 
                         {/* Center buttons group */}
-                        <div className="flex flex-row items-center gap-2 flex-nowrap">
+                        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2 w-full md:w-auto">
                           {/* Sample Merge Video button */}
                           {videoResults.some(v => v.trimmedVideoUrl) && (
                             <div className="flex flex-col items-end gap-1">
