@@ -3208,10 +3208,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           const firstVideoName = bodyVideos[0].videoName;
           const contextMatch = firstVideoName.match(/^(T\d+_C\d+_E\d+_AD\d+)/);
           const context = contextMatch ? contextMatch[1] : 'MERGED';
-          // Extract character from format: T1_C1_E1_AD1_MIRROR_ALINA_1 → character = ALINA
-          const characterMatch = firstVideoName.match(/_([A-Z]+)_(\d+)$/);
-          const characterName = characterMatch ? characterMatch[1] : 'TEST';
-          const outputName = `${context}_BODY_${characterName}`;
+          // Extract character and number from format: T1_C1_E1_AD1_MIRROR_ALINA_1 → ALINA_1
+          const nameMatch = firstVideoName.match(/_([A-Z]+)_(\d+)$/);
+          const imageName = nameMatch ? `${nameMatch[1]}_${nameMatch[2]}` : 'TEST_1';
+          const outputName = `${context}_BODY_${imageName}`;
           
           const result = await mergeVideosMutation.mutateAsync({
             videoUrls: bodyVideoUrls,
@@ -4629,11 +4629,10 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             console.log('[BODY Merge] 🔍 Extracting character from:', firstVideoName);
             const nameMatch = firstVideoName.match(/_([A-Z]+)_(\d+)$/);
             console.log('[BODY Merge] 🔍 Regex match result:', nameMatch);
-            const character = nameMatch ? nameMatch[1] : 'TEST';
-            const imageName = nameMatch ? `${nameMatch[1]}_${nameMatch[2]}` : 'ALINA_1';
-            console.log('[BODY Merge] 🔍 Extracted character:', character, 'imageName:', imageName);
+            const imageName = nameMatch ? `${nameMatch[1]}_${nameMatch[2]}` : 'TEST_1';
+            console.log('[BODY Merge] 🔍 Extracted imageName:', imageName);
             
-            const outputName = `${contextName}_BODY_${character}_${imageName}`;
+            const outputName = `${contextName}_BODY_${imageName}`;
             
             // BATCH MERGE: Split into batches of 5 videos to avoid FFmpeg crash
             const BATCH_SIZE = 5;
@@ -6644,11 +6643,10 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
               const contextName = contextMatch ? contextMatch[1] : 'MERGED';
               
                  // Format: T1_C1_E1_AD1_MIRROR_ALINA_1 → character = ALINA, imageName = ALINA_1
-            const nameMatch = firstVideoName.match(/_([A-Z]+)_(\d+)$/);
-            const character = nameMatch ? nameMatch[1] : 'TEST';
-            const imageName = nameMatch ? `${nameMatch[1]}_${nameMatch[2]}` : 'ALINA_1';
+             const nameMatch = firstVideoName.match(/_([A-Z]+)_(\d+)$/);
+            const imageName = nameMatch ? `${nameMatch[1]}_${nameMatch[2]}` : 'TEST_1';
               
-              const outputName = `${contextName}_BODY_${character}_${imageName}`;
+              const outputName = `${contextName}_BODY_${imageName}`;
               
               const result = await mergeVideosMutation.mutateAsync({
                 videoUrls: allChunkUrls,
@@ -16152,13 +16150,10 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                         // Format: T1_C1_E1_AD1_MIRROR_ALINA_1
                         // Extract: ALINA (character) and ALINA_1 (imageName)
                         const nameMatch = firstBodyVideo.videoName.match(/_([A-Z]+)_(\d+)$/);
-                        const character = nameMatch ? nameMatch[1] : 'TEST';
-                        const imageName = nameMatch ? `${nameMatch[1]}_${nameMatch[2]}` : '';
+                        const imageName = nameMatch ? `${nameMatch[1]}_${nameMatch[2]}` : 'TEST_1';
                         
                         // Construct full merged body name
-                        mergedBodyName = imageName 
-                          ? `${context}_BODY_${character}_${imageName}`
-                          : `${context}_BODY_${character}`;
+                        mergedBodyName = `${context}_BODY_${imageName}`;
                       }
                       
                       return (
