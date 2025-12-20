@@ -2555,17 +2555,19 @@ export async function mergeVideosWithFilterComplexLocal(
         ? `${inputStreams}concat=n=${videoUrls.length}:v=1:a=1[v][a0];[a0]loudnorm=I=-14:TP=-1.5:LRA=11[a]`
         : `${inputStreams}concat=n=${videoUrls.length}:v=1:a=1[v][a]`;
       
-      // Output options (same as FFmpeg API)
+      // Output options (Railway-compatible: ULTRAFAST preset for low-resource environments)
       const outputOptions = [
         '-map "[v]"',
         '-map "[a]"',
         '-fflags +genpts',
         '-c:v libx264',
-        '-crf 18',
-        '-preset medium',
+        '-preset ultrafast',  // Fastest encoding, minimal CPU
+        '-crf 23',  // Slightly lower quality but faster
+        '-pix_fmt yuv420p',
         '-c:a aac',
         '-ar 48000',
         '-ac 1',
+        '-b:a 128k',
         '-shortest',
         '-y'
       ].join(' ');
@@ -2578,27 +2580,42 @@ export async function mergeVideosWithFilterComplexLocal(
       console.log(ffmpegCommand);
       console.log(`========================================\n`);
       
-      // 4. Execute FFmpeg
+      // 4. Execute FFmpeg with proper error handling
       console.log(`[mergeVideosWithFilterComplexLocal] Executing FFmpeg...`);
       const startTime = Date.now();
       
-      const { stdout, stderr } = await exec(ffmpegCommand, {
-        maxBuffer: 50 * 1024 * 1024 // 50MB buffer for FFmpeg output
-      });
-      
-      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-      console.log(`[mergeVideosWithFilterComplexLocal] ✅ FFmpeg completed in ${duration}s`);
-      
-      // Log FFmpeg output (last 30 lines)
-      if (stderr) {
-        const lines = stderr.split('\n').slice(-30);
-        console.log(`[mergeVideosWithFilterComplexLocal] FFmpeg output (last 30 lines):`);
-        lines.forEach(line => console.log(`  ${line}`));
+      try {
+        const { stdout, stderr } = await exec(ffmpegCommand, {
+          maxBuffer: 50 * 1024 * 1024
+        });
+        
+        const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+        console.log(`[mergeVideosWithFilterComplexLocal] ✅ FFmpeg completed in ${duration}s`);
+        
+        if (stderr) {
+          const lines = stderr.split('\n').slice(-50);
+          console.log(`[mergeVideosWithFilterComplexLocal] FFmpeg stderr (last 50 lines):`);
+          lines.forEach(line => console.log(`  ${line}`));
+        }
+      } catch (execError: any) {
+        console.error(`[mergeVideosWithFilterComplexLocal] ❌ FFmpeg failed:`, execError.message);
+        if (execError.stderr) {
+          console.error(`[mergeVideosWithFilterComplexLocal] ❌ FFmpeg stderr:`, execError.stderr);
+        }
+        throw new Error(`FFmpeg execution failed: ${execError.message}`);
       }
       
       // 5. Verify output file exists
-      const stats = await fs.promises.stat(outputPath);
-      console.log(`[mergeVideosWithFilterComplexLocal] ✅ Output file created: ${(stats.size / 1024 / 1024).toFixed(2)} MB`);
+      let stats;
+      try {
+        stats = await fs.promises.stat(outputPath);
+        console.log(`[mergeVideosWithFilterComplexLocal] ✅ Output file created: ${(stats.size / 1024 / 1024).toFixed(2)} MB`);
+      } catch (statError: any) {
+        console.error(`[mergeVideosWithFilterComplexLocal] ❌ Output file NOT created: ${outputPath}`);
+        const tempFiles = await fs.promises.readdir(tempDir);
+        console.error(`[mergeVideosWithFilterComplexLocal] 📁 Temp dir contents:`, tempFiles);
+        throw new Error(`FFmpeg did not create output file`);
+      }
       
       // 6. Upload to Bunny CDN
       const videoBuffer = await fs.promises.readFile(outputPath);
