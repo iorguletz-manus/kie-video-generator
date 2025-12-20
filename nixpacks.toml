@@ -1,3 +1,3 @@
-# Force rebuild: audiowaveform installation
+# Force rebuild: audiowaveform + ffmpeg installation
 [phases.setup]
-nixPkgs = ['audiowaveform']
+nixPkgs = ['audiowaveform', 'ffmpeg']

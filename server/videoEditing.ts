@@ -1,4 +1,4 @@
-import * as fs from 'fs/promises';
+import * as fs from 'fs';
 import { writeFileSync } from 'fs';
 import * as path from 'path';
 import { exec as execCallback } from 'child_process';
@@ -1991,16 +1991,14 @@ export async function mergeVideosWithFilterComplex(
     // Build concat filter: [0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a0]
     // Then apply loudnorm: [a0]loudnorm=I=-14:TP=-1.5:LRA=11[a]
     const inputStreams = uploadedFilePaths.map((_, i) => `[${i}:v][${i}:a]`).join('');
-    // TEMPORARILY DISABLE LOUDNORM FOR TESTING 4s FREEZE ISSUE
-    const useLoudnormOverride = false;  // TODO: Remove after testing
-    const filterComplex = useLoudnormOverride
+    const filterComplex = useLoudnorm
       ? `${inputStreams}concat=n=${videoUrls.length}:v=1:a=1[v][a0];[a0]loudnorm=I=-14:TP=-1.5:LRA=11[a]`
       : `${inputStreams}concat=n=${videoUrls.length}:v=1:a=1[v][a]`;
     
     console.log(`\n========================================`);
     console.log(`[mergeVideosWithFilterComplex] 📝 STEP 5: Building filter_complex`);
     console.log(`========================================`);
-    console.log(`[mergeVideosWithFilterComplex] Loudnorm: ${useLoudnormOverride ? 'ENABLED' : 'DISABLED (OVERRIDE FOR TESTING)'}`);
+    console.log(`[mergeVideosWithFilterComplex] Loudnorm: ${useLoudnorm ? 'ENABLED' : 'DISABLED'}`);
     console.log(`[mergeVideosWithFilterComplex] Filter: ${filterComplex}`);
     console.log(`========================================\n`);
     
@@ -2478,6 +2476,220 @@ export async function mergeVideosSimple(
     return cdnUrl;
   } catch (error) {
     console.error(`[mergeVideosSimple] ❌ Error:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Merge videos using LOCAL FFmpeg (Step 10 only)
+ * This replaces FFmpeg API which was corrupting videos at 4 seconds
+ * 
+ * @param videoUrls - Array of video URLs to merge (from Bunny CDN)
+ * @param outputVideoName - Output video name (without extension)
+ * @param userId - User ID for folder structure
+ * @param folder - Target folder (default: 'merged')
+ * @param useLoudnorm - Enable loudnorm audio normalization (default: true)
+ * @returns CDN URL of merged video
+ */
+export async function mergeVideosWithFilterComplexLocal(
+  videoUrls: string[],
+  outputVideoName: string,
+  userId?: number,
+  folder: string = 'merged',
+  useLoudnorm: boolean = true
+): Promise<string> {
+  try {
+    console.log('\n\n========================================');
+    console.log('[mergeVideosWithFilterComplexLocal] 🚀 LOCAL MERGE STARTED');
+    console.log(`[mergeVideosWithFilterComplexLocal] Output name: ${outputVideoName}`);
+    console.log(`[mergeVideosWithFilterComplexLocal] Video count: ${videoUrls.length}`);
+    console.log(`[mergeVideosWithFilterComplexLocal] Video URLs:`, videoUrls);
+    console.log(`[mergeVideosWithFilterComplexLocal] Loudnorm: ${useLoudnorm ? 'ENABLED' : 'DISABLED'}`);
+    console.log('========================================\n');
+    
+    if (videoUrls.length === 0) {
+      throw new Error('No videos provided for merging');
+    }
+    
+    if (videoUrls.length === 1) {
+      console.log(`[mergeVideosWithFilterComplexLocal] Only 1 video, returning original URL`);
+      return videoUrls[0];
+    }
+    
+    // 1. Create temp directory for downloads
+    const tempDir = path.join('/tmp', `ffmpeg_merge_${Date.now()}`);
+    await fs.promises.mkdir(tempDir, { recursive: true });
+    console.log(`[mergeVideosWithFilterComplexLocal] Created temp directory: ${tempDir}`);
+    
+    try {
+      // 2. Download all videos to temp directory
+      const localPaths: string[] = [];
+      
+      for (let i = 0; i < videoUrls.length; i++) {
+        const url = videoUrls[i];
+        const localPath = path.join(tempDir, `input_${i}.mp4`);
+        
+        console.log(`[mergeVideosWithFilterComplexLocal] Downloading ${i + 1}/${videoUrls.length}: ${url}`);
+        
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Failed to download video ${i}: ${response.statusText}`);
+        }
+        
+        const buffer = Buffer.from(await response.arrayBuffer());
+        await fs.promises.writeFile(localPath, buffer);
+        
+        console.log(`[mergeVideosWithFilterComplexLocal] ✅ Downloaded ${(buffer.length / 1024 / 1024).toFixed(2)} MB to ${localPath}`);
+        localPaths.push(localPath);
+      }
+      
+      // 3. Build FFmpeg command
+      const outputPath = path.join(tempDir, 'output.mp4');
+      
+      // Input files: -i input_0.mp4 -i input_1.mp4 ...
+      const inputArgs = localPaths.map(p => `-i "${p}"`).join(' ');
+      
+      // Filter complex: [0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a0];[a0]loudnorm=I=-14:TP=-1.5:LRA=11[a]
+      const inputStreams = localPaths.map((_, i) => `[${i}:v][${i}:a]`).join('');
+      const filterComplex = useLoudnorm
+        ? `${inputStreams}concat=n=${videoUrls.length}:v=1:a=1[v][a0];[a0]loudnorm=I=-14:TP=-1.5:LRA=11[a]`
+        : `${inputStreams}concat=n=${videoUrls.length}:v=1:a=1[v][a]`;
+      
+      // Output options (same as FFmpeg API)
+      const outputOptions = [
+        '-map "[v]"',
+        '-map "[a]"',
+        '-fflags +genpts',
+        '-c:v libx264',
+        '-crf 18',
+        '-preset medium',
+        '-c:a aac',
+        '-ar 48000',
+        '-ac 1',
+        '-shortest',
+        '-y'
+      ].join(' ');
+      
+      const ffmpegCommand = `ffmpeg ${inputArgs} -filter_complex "${filterComplex}" ${outputOptions} "${outputPath}"`;
+      
+      console.log(`\n========================================`);
+      console.log(`[mergeVideosWithFilterComplexLocal] 🎬 FFmpeg Command:`);
+      console.log(`========================================`);
+      console.log(ffmpegCommand);
+      console.log(`========================================\n`);
+      
+      // 4. Execute FFmpeg
+      console.log(`[mergeVideosWithFilterComplexLocal] Executing FFmpeg...`);
+      const startTime = Date.now();
+      
+      const { stdout, stderr } = await exec(ffmpegCommand, {
+        maxBuffer: 50 * 1024 * 1024 // 50MB buffer for FFmpeg output
+      });
+      
+      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+      console.log(`[mergeVideosWithFilterComplexLocal] ✅ FFmpeg completed in ${duration}s`);
+      
+      // Log FFmpeg output (last 30 lines)
+      if (stderr) {
+        const lines = stderr.split('\n').slice(-30);
+        console.log(`[mergeVideosWithFilterComplexLocal] FFmpeg output (last 30 lines):`);
+        lines.forEach(line => console.log(`  ${line}`));
+      }
+      
+      // 5. Verify output file exists
+      const stats = await fs.promises.stat(outputPath);
+      console.log(`[mergeVideosWithFilterComplexLocal] ✅ Output file created: ${(stats.size / 1024 / 1024).toFixed(2)} MB`);
+      
+      // 6. Upload to Bunny CDN
+      const videoBuffer = await fs.promises.readFile(outputPath);
+      
+      const BUNNYCDN_STORAGE_PASSWORD = '4c9257d6-aede-4ff1-bb0f9fc95279-997e-412b';
+      const BUNNYCDN_STORAGE_ZONE = 'manus-storage';
+      const BUNNYCDN_PULL_ZONE_URL = 'https://manus.b-cdn.net';
+      
+      const bunnyFileName = `${outputVideoName}.mp4`;
+      const mergedPath = userId ? `user-${userId}/videos/${folder}/${bunnyFileName}` : `videos/${folder}/${bunnyFileName}`;
+      const storageUrl = `https://storage.bunnycdn.com/${BUNNYCDN_STORAGE_ZONE}/${mergedPath}`;
+      
+      console.log(`[mergeVideosWithFilterComplexLocal] Uploading to Bunny CDN: ${mergedPath}`);
+      
+      // Delete old video with same name (without timestamp) if exists
+      try {
+        const folderPath = userId ? `user-${userId}/videos/${folder}` : `videos/${folder}`;
+        const listUrl = `https://storage.bunnycdn.com/${BUNNYCDN_STORAGE_ZONE}/${folderPath}/`;
+        
+        console.log(`[mergeVideosWithFilterComplexLocal] 🗑️ Checking for old videos to delete in: ${folderPath}`);
+        
+        const listResponse = await fetch(listUrl, {
+          method: 'GET',
+          headers: {
+            'AccessKey': BUNNYCDN_STORAGE_PASSWORD,
+          },
+        });
+        
+        if (listResponse.ok) {
+          const files = await listResponse.json();
+          const baseNameWithoutTimestamp = outputVideoName.replace(/_\d{13}$/, ''); // Remove timestamp
+          
+          for (const file of files) {
+            if (file.ObjectName && file.ObjectName.startsWith(baseNameWithoutTimestamp) && file.ObjectName !== bunnyFileName) {
+              const oldFilePath = `${folderPath}/${file.ObjectName}`;
+              const deleteUrl = `https://storage.bunnycdn.com/${BUNNYCDN_STORAGE_ZONE}/${oldFilePath}`;
+              
+              console.log(`[mergeVideosWithFilterComplexLocal] 🗑️ Deleting old video: ${file.ObjectName}`);
+              
+              const deleteResponse = await fetch(deleteUrl, {
+                method: 'DELETE',
+                headers: {
+                  'AccessKey': BUNNYCDN_STORAGE_PASSWORD,
+                },
+              });
+              
+              if (deleteResponse.ok || deleteResponse.status === 404) {
+                console.log(`[mergeVideosWithFilterComplexLocal] ✅ Deleted: ${file.ObjectName}`);
+              } else {
+                console.warn(`[mergeVideosWithFilterComplexLocal] ⚠️ Failed to delete ${file.ObjectName}: ${deleteResponse.status}`);
+              }
+            }
+          }
+        }
+      } catch (cleanupError) {
+        console.warn(`[mergeVideosWithFilterComplexLocal] ⚠️ Cleanup failed (non-fatal):`, cleanupError);
+      }
+      
+      // Upload to Bunny CDN
+      const uploadResponse = await fetch(storageUrl, {
+        method: 'PUT',
+        headers: {
+          'AccessKey': BUNNYCDN_STORAGE_PASSWORD,
+          'Content-Type': 'video/mp4',
+        },
+        body: videoBuffer,
+      });
+      
+      if (!uploadResponse.ok) {
+        throw new Error(`BunnyCDN upload failed: ${uploadResponse.statusText}`);
+      }
+      
+      const publicUrl = `${BUNNYCDN_PULL_ZONE_URL}/${mergedPath}`;
+      console.log(`[mergeVideosWithFilterComplexLocal] ✅ Upload successful: ${publicUrl}`);
+      
+      return publicUrl;
+      
+    } finally {
+      // 7. Cleanup temp directory
+      try {
+        console.log(`[mergeVideosWithFilterComplexLocal] Cleaning up temp directory: ${tempDir}`);
+        await fs.promises.rm(tempDir, { recursive: true, force: true });
+        console.log(`[mergeVideosWithFilterComplexLocal] ✅ Cleanup complete`);
+      } catch (cleanupError) {
+        console.warn(`[mergeVideosWithFilterComplexLocal] ⚠️ Cleanup failed (non-fatal):`, cleanupError);
+      }
+    }
+    
+  } catch (error: any) {
+    console.error('[mergeVideosWithFilterComplexLocal] ❌ Error:', error);
+    console.error('[mergeVideosWithFilterComplexLocal] ❌ Stack:', error.stack);
     throw error;
   }
 }
