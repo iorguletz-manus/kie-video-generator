@@ -2624,7 +2624,10 @@ export async function mergeVideosWithFilterComplexLocal(
       const BUNNYCDN_STORAGE_ZONE = 'manus-storage';
       const BUNNYCDN_PULL_ZONE_URL = 'https://manus.b-cdn.net';
       
-      const bunnyFileName = `${outputVideoName}.mp4`;
+      // Add timestamp to filename to bust Bunny CDN cache
+      const timestamp = Date.now();
+      const bunnyFileName = `${outputVideoName}_${timestamp}.mp4`;
+      console.log(`[mergeVideosWithFilterComplexLocal] 🕐 Added timestamp to filename: ${bunnyFileName}`);
       const mergedPath = userId ? `user-${userId}/videos/${folder}/${bunnyFileName}` : `videos/${folder}/${bunnyFileName}`;
       const storageUrl = `https://storage.bunnycdn.com/${BUNNYCDN_STORAGE_ZONE}/${mergedPath}`;
       
@@ -2646,7 +2649,8 @@ export async function mergeVideosWithFilterComplexLocal(
         
         if (listResponse.ok) {
           const files = await listResponse.json();
-          const baseNameWithoutTimestamp = outputVideoName.replace(/_\d{13}$/, ''); // Remove timestamp
+          // Extract base name without timestamp (format: NAME_1 or NAME_1_timestamp)
+          const baseNameWithoutTimestamp = outputVideoName.replace(/_\d+$/, ''); // Remove any trailing numbers
           
           for (const file of files) {
             if (file.ObjectName && file.ObjectName.startsWith(baseNameWithoutTimestamp) && file.ObjectName !== bunnyFileName) {
