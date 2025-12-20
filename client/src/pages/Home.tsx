@@ -3750,7 +3750,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
               emotionalAngleId: selectedEmotionalAngleId,
               adId: selectedAdId,
               characterId: selectedCharacterId,
-              currentStep: 11,
+              currentStep: 10,  // Stay in Step 10, user will click Continue
               rawTextAd,
               processedTextAd,
               adLines,
@@ -3830,6 +3830,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         emotionalAngleId: selectedEmotionalAngleId!,
         adId: selectedAdId!,
         characterId: selectedCharacterId!,
+        currentStep: 10,  // Stay in Step 10, user will click Continue
         rawTextAd,
         processedTextAd,
         adLines,
@@ -3974,7 +3975,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
             emotionalAngleId: selectedEmotionalAngleId,
             adId: selectedAdId,
             characterId: selectedCharacterId,
-            currentStep: 11,
+            currentStep: 10,  // Stay in Step 10, user will click Continue
             rawTextAd,
             processedTextAd,
             adLines,
