@@ -5832,9 +5832,17 @@ const handlePrepareForMerge = async () => {
   
   // Add BODY task (if exists)
   if (bodyVideos.length > 0) {
+    // Extract context and character from first BODY video name
+    const firstBodyVideo = bodyVideos[0].videoName;
+    const contextMatch = firstBodyVideo.match(/^(T\d+_C\d+_E\d+_AD\d+)/);
+    const context = contextMatch ? contextMatch[1] : 'MERGED';
+    const nameMatch = firstBodyVideo.match(/_([A-Z]+)_(\d+)$/);
+    const imageName = nameMatch ? `${nameMatch[1]}_${nameMatch[2]}` : 'TEST_1';
+    const bodyName = `${context}_BODY_${imageName}`;
+    
     mergeTasks.push({
       type: 'body',
-      name: 'BODY',
+      name: bodyName,
       videos: bodyVideos
     });
   }
@@ -6190,9 +6198,17 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
   
   // Add BODY task if selected
   if (selectedBody && bodyVideos.length > 0) {
+    // Extract context and character from first BODY video name
+    const firstBodyVideo = bodyVideos[0].videoName;
+    const contextMatch = firstBodyVideo.match(/^(T\d+_C\d+_E\d+_AD\d+)/);
+    const context = contextMatch ? contextMatch[1] : 'MERGED';
+    const nameMatch = firstBodyVideo.match(/_([A-Z]+)_(\d+)$/);
+    const imageName = nameMatch ? `${nameMatch[1]}_${nameMatch[2]}` : 'TEST_1';
+    const bodyName = `${context}_BODY_${imageName}`;
+    
     mergeTasks.push({
       type: 'body',
-      name: 'BODY',
+      name: bodyName,
       videos: bodyVideos
     });
   }

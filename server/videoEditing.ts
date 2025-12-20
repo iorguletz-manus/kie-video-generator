@@ -2103,6 +2103,50 @@ export async function mergeVideosWithFilterComplex(
     
     console.log(`[mergeVideosWithFilterComplex] Uploading to Bunny CDN: merged-videos/${bunnyFileName}`);
     
+    // Delete old video with same name (without timestamp) if exists
+    try {
+      const folderPath = userId ? `user-${userId}/videos/${targetFolder}` : `videos/${targetFolder}`;
+      const listUrl = `https://storage.bunnycdn.com/${BUNNYCDN_STORAGE_ZONE}/${folderPath}/`;
+      
+      console.log(`[mergeVideosWithFilterComplex] 🗑️ Checking for old videos to delete in: ${folderPath}`);
+      
+      const listResponse = await fetch(listUrl, {
+        method: 'GET',
+        headers: {
+          'AccessKey': BUNNYCDN_STORAGE_PASSWORD,
+        },
+      });
+      
+      if (listResponse.ok) {
+        const files = await listResponse.json();
+        const baseNameWithoutTimestamp = outputVideoName.replace(/_\d{13}$/, ''); // Remove timestamp
+        
+        for (const file of files) {
+          if (file.ObjectName && file.ObjectName.startsWith(baseNameWithoutTimestamp) && file.ObjectName !== bunnyFileName) {
+            const oldFilePath = `${folderPath}/${file.ObjectName}`;
+            const deleteUrl = `https://storage.bunnycdn.com/${BUNNYCDN_STORAGE_ZONE}/${oldFilePath}`;
+            
+            console.log(`[mergeVideosWithFilterComplex] 🗑️ Deleting old video: ${file.ObjectName}`);
+            
+            const deleteResponse = await fetch(deleteUrl, {
+              method: 'DELETE',
+              headers: {
+                'AccessKey': BUNNYCDN_STORAGE_PASSWORD,
+              },
+            });
+            
+            if (deleteResponse.ok || deleteResponse.status === 404) {
+              console.log(`[mergeVideosWithFilterComplex] ✅ Deleted: ${file.ObjectName}`);
+            } else {
+              console.warn(`[mergeVideosWithFilterComplex] ⚠️ Failed to delete ${file.ObjectName}: ${deleteResponse.status}`);
+            }
+          }
+        }
+      }
+    } catch (cleanupError) {
+      console.warn(`[mergeVideosWithFilterComplex] ⚠️ Cleanup failed (non-fatal):`, cleanupError);
+    }
+    
     const uploadResponse = await fetch(storageUrl, {
       method: 'PUT',
       body: videoBuffer,
@@ -2363,6 +2407,53 @@ export async function mergeVideosSimple(
       : `videos/${folder}/${outputFileName}`;
     
     console.log(`[mergeVideosSimple] 📁 Upload path: ${mergedPath} (userId: ${userId}, folder: ${folder})`);
+    
+    // Delete old video with same name (without timestamp) if exists
+    try {
+      const BUNNYCDN_STORAGE_PASSWORD = '4c9257d6-aede-4ff1-bb0f9fc95279-997e-412b';
+      const BUNNYCDN_STORAGE_ZONE = 'manus-storage';
+      
+      const folderPath = userId ? `user-${userId}/videos/${folder}` : `videos/${folder}`;
+      const listUrl = `https://storage.bunnycdn.com/${BUNNYCDN_STORAGE_ZONE}/${folderPath}/`;
+      
+      console.log(`[mergeVideosSimple] 🗑️ Checking for old videos to delete in: ${folderPath}`);
+      
+      const listResponse = await fetch(listUrl, {
+        method: 'GET',
+        headers: {
+          'AccessKey': BUNNYCDN_STORAGE_PASSWORD,
+        },
+      });
+      
+      if (listResponse.ok) {
+        const files = await listResponse.json();
+        const baseNameWithoutTimestamp = outputFileName.replace(/_\d{13}\.mp4$/, ''); // Remove timestamp and .mp4
+        
+        for (const file of files) {
+          if (file.ObjectName && file.ObjectName.startsWith(baseNameWithoutTimestamp) && file.ObjectName !== outputFileName) {
+            const oldFilePath = `${folderPath}/${file.ObjectName}`;
+            const deleteUrl = `https://storage.bunnycdn.com/${BUNNYCDN_STORAGE_ZONE}/${oldFilePath}`;
+            
+            console.log(`[mergeVideosSimple] 🗑️ Deleting old video: ${file.ObjectName}`);
+            
+            const deleteResponse = await fetch(deleteUrl, {
+              method: 'DELETE',
+              headers: {
+                'AccessKey': BUNNYCDN_STORAGE_PASSWORD,
+              },
+            });
+            
+            if (deleteResponse.ok || deleteResponse.status === 404) {
+              console.log(`[mergeVideosSimple] ✅ Deleted: ${file.ObjectName}`);
+            } else {
+              console.warn(`[mergeVideosSimple] ⚠️ Failed to delete ${file.ObjectName}: ${deleteResponse.status}`);
+            }
+          }
+        }
+      }
+    } catch (cleanupError) {
+      console.warn(`[mergeVideosSimple] ⚠️ Cleanup failed (non-fatal):`, cleanupError);
+    }
     
     const cdnUrl = await uploadToBunnyCDN(
       Buffer.from(videoBuffer),
