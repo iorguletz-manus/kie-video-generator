@@ -31,7 +31,18 @@ export const SelectiveMergePopup: React.FC<SelectiveMergePopupProps> = ({
     }
   }, [open]);
 
-  const hookNames = hookMergedVideos ? Object.keys(hookMergedVideos) : [];
+  const hookNames = hookMergedVideos ? Object.keys(hookMergedVideos).sort((a, b) => {
+    // Extract HOOK number from names like "T1_C1_E1_AD1_HOOK1M" or "T1_C1_E1_AD1_HOOK10M"
+    const hookNumA = a.match(/HOOK(\d+)/)?.[1];
+    const hookNumB = b.match(/HOOK(\d+)/)?.[1];
+    
+    if (hookNumA && hookNumB) {
+      return parseInt(hookNumA) - parseInt(hookNumB);
+    }
+    
+    // Fallback to alphabetical
+    return a.localeCompare(b);
+  }) : [];
   const hasBody = bodyMergedVideoUrl !== null;
 
   // Calculate hooks that don't need merge (only 1 video in group)
