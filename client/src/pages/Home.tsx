@@ -820,6 +820,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     }
   });
   
+  // UI State
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
   // Step 10: Merge Videos
   const [selectedHooks, setSelectedHooks] = useState<string[]>([]);
   const [selectedBody, setSelectedBody] = useState<string | null>(null);
@@ -8629,8 +8632,6 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
       </div>
     );
   }
-
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100">
