@@ -10562,7 +10562,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
         {/* Breadcrumbs - Professional & Consistent */}
         {selectedTamId && selectedCoreBeliefId && selectedEmotionalAngleId && selectedAdId && selectedCharacterId && (
         <div className="w-full mb-8">
-          <div className="flex items-center justify-between px-6 py-6 bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="flex items-center gap-3 md:gap-4 lg:justify-between px-4 md:px-6 py-6 bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
             {[
               { num: 1, label: "Prepare", fullLabel: "Prepare Ad" },
               { num: 2, label: "Extract", fullLabel: "Extracted Lines" },
@@ -10584,7 +10584,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                     onClick={() => goToStep(step.num)}
                     title={step.fullLabel}
                     className={`
-                      w-14 h-14 rounded-full 
+                      w-10 h-10 md:w-14 md:h-14 rounded-full flex-shrink-0 
                       flex items-center justify-center 
                       font-bold text-lg
                       transition-all duration-200

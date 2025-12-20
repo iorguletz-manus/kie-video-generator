@@ -849,7 +849,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
         />
 
         {/* Play/Pause Controls */}
-        <div className="flex justify-center mt-2 gap-2">
+        <div className="flex flex-col sm:flex-row justify-center mt-2 gap-2">
           <Button
             onClick={handlePlayPause}
             size="sm"
@@ -1214,7 +1214,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
 
       {/* Waveform Timeline */}
       <div className="mb-2">
-        <div className="flex items-center justify-center gap-4 mb-1">
+        <div className="flex flex-wrap items-center justify-center gap-2 md:gap-4 mb-1">
           
           {/* NO CUT NEEDED Badge - Left of Lock START */}
           {video.noCutNeeded && (
@@ -1238,7 +1238,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
               onClick={() => onReprocess(video.videoName)}
               size="sm"
               variant="outline"
-              className="h-7 text-xs px-2 border-blue-500 text-blue-700 hover:bg-blue-50"
+              className="h-6 md:h-7 text-[10px] md:text-xs px-2 border-blue-500 text-blue-700 hover:bg-blue-50"
             >
               🔄 Reprocesare
             </Button>
@@ -1372,7 +1372,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
               disabled={isMerging}
               size="sm"
               variant="outline"
-              className="ml-3 h-7 text-xs px-3 border-blue-500 text-blue-700 hover:bg-blue-50"
+              className="ml-2 md:ml-3 h-6 md:h-7 text-[10px] md:text-xs px-2 md:px-3 border-blue-500 text-blue-700 hover:bg-blue-50"
             >
               {isMerging ? 'Merging...' : 'Cut & Merge (test)'}
             </Button>
@@ -1396,7 +1396,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
               disabled={isMerging}
               size="sm"
               variant="outline"
-              className="ml-3 h-7 text-xs px-3 border-purple-500 text-purple-700 hover:bg-purple-50"
+              className="ml-2 md:ml-3 h-6 md:h-7 text-[10px] md:text-xs px-2 md:px-3 border-purple-500 text-purple-700 hover:bg-purple-50"
             >
               {isMerging ? 'Testing...' : '🎨 Test Overlay'}
             </Button>
