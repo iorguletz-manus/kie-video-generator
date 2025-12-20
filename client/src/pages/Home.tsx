@@ -8621,6 +8621,8 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
     );
   }
 
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100">
       {/* Header Navigation Bar */}
@@ -8630,10 +8632,26 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
             {/* Logo + Brand */}
             <div className="flex items-center gap-3">
               <Sparkles className="w-6 h-6 text-yellow-300" />
-              <span className="text-white font-bold text-lg">A.I Ads Engine</span>
+              <span className="text-white font-bold text-sm md:text-lg">A.I Ads Engine</span>
             </div>
             
-            {/* Navigation Links */}
+            {/* Mobile Menu Button */}
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="md:hidden flex items-center justify-center w-10 h-10 rounded-lg hover:bg-blue-800 transition-colors"
+            >
+              {isMobileMenuOpen ? (
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              ) : (
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              )}
+            </button>
+            
+            {/* Desktop Navigation Links */}
             <div className="hidden md:flex items-center gap-6">
               <button
                 onClick={() => setLocation("/images-library")}
@@ -8711,9 +8729,78 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
             </DropdownMenu>
           </div>
         </div>
+        
+        {/* Mobile Menu Dropdown */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden bg-blue-700 border-t border-blue-600">
+            <div className="container max-w-6xl mx-auto px-4 py-4 space-y-3">
+              <button
+                onClick={() => {
+                  setLocation("/images-library");
+                  setIsMobileMenuOpen(false);
+                }}
+                className="flex items-center gap-3 text-white hover:text-yellow-300 transition-colors text-sm font-medium w-full py-2"
+              >
+                <Images className="w-5 h-5" />
+                Images Library
+              </button>
+              <button
+                onClick={() => {
+                  setLocation("/prompts-library");
+                  setIsMobileMenuOpen(false);
+                }}
+                className="flex items-center gap-3 text-white hover:text-yellow-300 transition-colors text-sm font-medium w-full py-2"
+              >
+                <MessageSquare className="w-5 h-5" />
+                Prompts Library
+              </button>
+              <button
+                onClick={() => {
+                  setLocation("/category-management");
+                  setIsMobileMenuOpen(false);
+                }}
+                className="flex items-center gap-3 text-white hover:text-yellow-300 transition-colors text-sm font-medium w-full py-2"
+              >
+                <Folder className="w-5 h-5" />
+                Ads Management
+              </button>
+              <button
+                onClick={async () => {
+                  // Refetch user from database to get latest API keys
+                  try {
+                    const freshUser = await trpc.appAuth.getMe.query({ userId: localCurrentUser.id });
+                    if (freshUser) {
+                      setLocalCurrentUser(freshUser);
+                      localStorage.setItem('currentUser', JSON.stringify(freshUser));
+                      console.log('[Settings] Refreshed user from DB:', freshUser);
+                    }
+                  } catch (error) {
+                    console.error('[Settings] Failed to refresh user:', error);
+                  }
+                  setIsEditProfileOpen(true);
+                  setIsMobileMenuOpen(false);
+                }}
+                className="flex items-center gap-3 text-white hover:text-yellow-300 transition-colors text-sm font-medium w-full py-2"
+              >
+                <SettingsIcon className="w-5 h-5" />
+                Settings
+              </button>
+              <button
+                onClick={() => {
+                  onLogout();
+                  setIsMobileMenuOpen(false);
+                }}
+                className="flex items-center gap-3 text-red-300 hover:text-red-100 transition-colors text-sm font-medium w-full py-2 border-t border-blue-600 pt-3"
+              >
+                <LogOut className="w-5 h-5" />
+                Logout
+              </button>
+            </div>
+          </div>
+        )}
       </div>
       
-      <div className="container max-w-6xl mx-auto py-4 md:py-8 px-2 md:px-4">
+      <div className="container max-w-6xl mx-auto py-4 md:py-8 px-4 md:px-4">
       
       {/* Edit Profile Modal */}
       <EditProfileModal

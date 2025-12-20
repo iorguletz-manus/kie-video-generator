@@ -720,7 +720,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
         </div>
         <div 
           className="relative bg-black rounded-lg overflow-hidden mx-auto" 
-          style={{ aspectRatio: '9/16', width: '300px' }}
+          style={{ aspectRatio: '9/16', width: '100%', maxWidth: '300px' }}
         >
           <video
             ref={videoRef}

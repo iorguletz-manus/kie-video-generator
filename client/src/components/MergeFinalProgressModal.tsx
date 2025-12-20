@@ -68,7 +68,7 @@ export function MergeFinalProgressModal({
         onClose();
       }
     }}>
-      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto" onInteractOutside={(e) => {
+      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto w-[95vw] sm:w-full" onInteractOutside={(e) => {
         if (isProcessing) e.preventDefault();
       }}>
         <DialogHeader>

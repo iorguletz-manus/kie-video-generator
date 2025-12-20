@@ -61,7 +61,7 @@ export const SelectiveMergePopup: React.FC<SelectiveMergePopupProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto w-[95vw] sm:w-full">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-purple-900">
             Select Videos to Re-Merge

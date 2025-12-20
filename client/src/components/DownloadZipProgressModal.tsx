@@ -25,7 +25,7 @@ export function DownloadZipProgressModal({
 
   return (
     <Dialog open={open} onOpenChange={() => {}} >
-      <DialogContent className="max-w-md" onInteractOutside={(e) => {
+      <DialogContent className="max-w-md w-[95vw] sm:w-full" onInteractOutside={(e) => {
         if (isProcessing) e.preventDefault();
       }}>
         <DialogHeader>

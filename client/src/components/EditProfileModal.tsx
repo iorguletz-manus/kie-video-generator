@@ -110,7 +110,7 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md w-[95vw] sm:w-full">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold text-blue-900">Settings</DialogTitle>
         </DialogHeader>
