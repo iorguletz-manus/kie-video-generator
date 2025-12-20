@@ -8643,7 +8643,20 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                 Ads Management
               </button>
               <button
-                onClick={() => setIsEditProfileOpen(true)}
+                onClick={async () => {
+                  // Refetch user from database to get latest API keys
+                  try {
+                    const freshUser = await trpc.appAuth.getMe.query({ userId: localCurrentUser.id });
+                    if (freshUser) {
+                      setLocalCurrentUser(freshUser);
+                      localStorage.setItem('currentUser', JSON.stringify(freshUser));
+                      console.log('[Settings] Refreshed user from DB:', freshUser);
+                    }
+                  } catch (error) {
+                    console.error('[Settings] Failed to refresh user:', error);
+                  }
+                  setIsEditProfileOpen(true);
+                }}
                 className="flex items-center gap-2 text-white hover:text-yellow-300 transition-colors text-sm font-medium"
               >
                 <SettingsIcon className="w-4 h-4" />
