@@ -3047,10 +3047,21 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // SAVE TO DB after all Whisper+CleanVoice
   const updatedResults = videos.map(video => {
     const result = resultsMap.get(video.videoName);
-    if (!result || !result.success) {
-      return { ...video, status: 'failed' as const };
+    
+    // If video was not processed (no result in map), preserve original state
+    if (!result) {
+      console.log(`[Batch Processing] ⚠️ No result for ${video.videoName}, preserving original state`);
+      return video; // Keep original video unchanged
     }
     
+    // If processing failed, mark as failed
+    if (!result.success) {
+      console.log(`[Batch Processing] ❌ Failed processing for ${video.videoName}:`, result.error);
+      return { ...video, status: 'failed' as const, error: result.error };
+    }
+    
+    // Success - update with new data
+    console.log(`[Batch Processing] ✅ Success for ${video.videoName}`);
     return {
       ...video,
       status: 'success' as const,

@@ -229,7 +229,15 @@ async function extractAudioWithFFmpegAPI(
     if (!processRes.ok) {
       const errorText = await processRes.text();
       console.error('[FFmpeg API] Error response:', errorText.substring(0, 500));
-      throw new Error(`FFmpeg API processing failed: ${processRes.statusText}`);
+      console.error('[FFmpeg API] Status code:', processRes.status);
+      console.error('[FFmpeg API] Status text:', processRes.statusText);
+      
+      // Specific handling for 403 Forbidden
+      if (processRes.status === 403) {
+        throw new Error(`FFmpeg API Forbidden (403): API key may be invalid or rate limited. Please check your FFmpeg API credentials.`);
+      }
+      
+      throw new Error(`FFmpeg API processing failed: ${processRes.statusText} (${processRes.status})`);
     }
     
     const responseText = await processRes.text();
@@ -293,7 +301,15 @@ async function extractWAVWithFFmpegAPI(
     if (!processRes.ok) {
       const errorText = await processRes.text();
       console.error('[FFmpeg API] Error response:', errorText.substring(0, 500));
-      throw new Error(`FFmpeg API processing failed: ${processRes.statusText}`);
+      console.error('[FFmpeg API] Status code:', processRes.status);
+      console.error('[FFmpeg API] Status text:', processRes.statusText);
+      
+      // Specific handling for 403 Forbidden
+      if (processRes.status === 403) {
+        throw new Error(`FFmpeg API Forbidden (403): API key may be invalid or rate limited. Please check your FFmpeg API credentials.`);
+      }
+      
+      throw new Error(`FFmpeg API processing failed: ${processRes.statusText} (${processRes.status})`);
     }
     
     const responseText = await processRes.text();
@@ -1263,7 +1279,15 @@ export async function cutVideoWithFFmpegAPI(
     if (!processRes.ok) {
       const errorText = await processRes.text();
       console.error('[FFmpeg API] Error response:', errorText.substring(0, 500));
-      throw new Error(`FFmpeg API processing failed: ${processRes.statusText}`);
+      console.error('[FFmpeg API] Status code:', processRes.status);
+      console.error('[FFmpeg API] Status text:', processRes.statusText);
+      
+      // Specific handling for 403 Forbidden
+      if (processRes.status === 403) {
+        throw new Error(`FFmpeg API Forbidden (403): API key may be invalid or rate limited. Please check your FFmpeg API credentials.`);
+      }
+      
+      throw new Error(`FFmpeg API processing failed: ${processRes.statusText} (${processRes.status})`);
     }
     
     const responseText = await processRes.text();
