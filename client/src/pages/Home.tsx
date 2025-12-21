@@ -197,6 +197,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   
   // Step 8: Video Editing Processing
   const [showProcessingModal, setShowProcessingModal] = useState(false);
+  const stopProcessingRef = useRef(false);
   const [showCuttingModeDialog, setShowCuttingModeDialog] = useState(false);
   const [showReprocessWarning, setShowReprocessWarning] = useState(false);
   const [processingProgress, setProcessingProgress] = useState({ 
@@ -2726,6 +2727,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   };
   // Step 8: Batch process videos with FFmpeg batch (10 per batch, 61s pause) + Whisper + CleanVoice
   const batchProcessVideosWithWhisper = async (videos: VideoResult[]) => {
+  // Reset stop flag at start
+  stopProcessingRef.current = false;
+  
   const batchStartTime = Date.now();
   console.log('[Batch Processing] ⏱️ BATCH START at', new Date().toISOString());
   console.log('[Batch Processing] 🚀 Starting FFmpeg batch processing with', videos.length, 'videos');
@@ -2770,6 +2774,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   let batchNomber = 1;
   
   while (currentIndex < videos.length) {
+    // Check if user clicked STOP
+    if (stopProcessingRef.current) {
+      console.log('[Batch Processing] 🛑 STOPPED by user');
+      toast.info('⏸️ Processing stopped by user');
+      break;
+    }
+    
     const batchEnd = Math.min(currentIndex + BATCH_SIZE, videos.length);
     const batchVideos = videos.slice(currentIndex, batchEnd);
     
@@ -8887,6 +8898,11 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
         cleanvoiceSuccess={processingProgress.cleanvoiceSuccess}
         cleanvoiceFailed={processingProgress.cleanvoiceFailed}
         onClose={() => setShowProcessingModal(false)}
+        onStop={() => {
+          console.log('[STOP] User clicked STOP button');
+          stopProcessingRef.current = true;
+          toast.info('🛑 Stopping processing... (current batch will finish)');
+        }}
         onContinue={() => {
           setShowProcessingModal(false);
           setCurrentStep(8);

@@ -26,6 +26,7 @@ interface ProcessingModalProps {
   onClose?: () => void;
   onContinue?: () => void;
   onSampleMerge?: () => void;
+  onStop?: () => void;
 }
 
 export function ProcessingModal({
@@ -48,7 +49,8 @@ export function ProcessingModal({
   onRetryFailed,
   onClose,
   onContinue,
-  onSampleMerge
+  onSampleMerge,
+  onStop
 }: ProcessingModalProps) {
   const ffmpegPercent = ffmpegProgress.total > 0 ? (ffmpegProgress.current / ffmpegProgress.total) * 100 : 0;
   const whisperPercent = whisperProgress.total > 0 ? (whisperProgress.current / whisperProgress.total) * 100 : 0;
@@ -374,6 +376,16 @@ export function ProcessingModal({
 
           {/* ========== Action Buttons ========== */}
           <div className="flex gap-2 pt-4">
+            {/* STOP Button - only visible when processing */}
+            {isProcessing && onStop && (
+              <button
+                onClick={onStop}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              >
+                🛑 STOP Processing
+              </button>
+            )}
+            
             {/* Continue Button - only if processing complete AND no failures */}
             {!isProcessing && totalCompleted === totalVideos && totalVideos > 0 && failedVideos.length === 0 && onContinue && (
               <button
