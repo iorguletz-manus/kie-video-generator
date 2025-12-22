@@ -1735,6 +1735,22 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
         previousCharacterIdRef.current = selectedCharacterId;
       }
       
+      // ✅ RESET bodyMergedVideoUrl and hookMergedVideos if context changed
+      // This prevents cross-contamination when switching between characters/ads
+      const contextChanged = 
+        contextSession.adId !== selectedAdId ||
+        contextSession.emotionalAngleId !== selectedEmotionalAngleId ||
+        contextSession.characterId !== selectedCharacterId;
+      
+      if (contextChanged) {
+        console.log('[Context Session] ⚠️ Context mismatch detected - resetting merged videos');
+        console.log('[Context Session] Expected:', { selectedAdId, selectedEmotionalAngleId, selectedCharacterId });
+        console.log('[Context Session] Got:', { adId: contextSession.adId, emotionalAngleId: contextSession.emotionalAngleId, characterId: contextSession.characterId });
+        setBodyMergedVideoUrl(null);
+        setHookMergedVideos({});
+        console.log('[Context Session] ✅ Reset bodyMergedVideoUrl and hookMergedVideos');
+      }
+      
       // toast.success('Context data loaded from database!'); // Hidden per user request
     } else {
       // No context session in database - reset to empty state
@@ -14172,7 +14188,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
               )}
 
               {/* Organizare pe categorii */}
-              {['HOOKS', 'MIRROR', 'DCS', 'TRANSITION', 'NEW_CAUSE', 'MECHANISM', 'EMOTIONAL_PROOF', 'TRANSFORMATION', 'CTA'].map(category => {
+              {['HOOKS', 'MIRROR', 'DCS', 'TRANSITION', 'NEW_CAUSE', 'MECHANISM', 'TRANSFORMATION', 'CTA'].map(category => {
                 // Filter videos: only successfully generated ones (status === 'success' and videoUrl exists)
                 // Use step6FilteredVideos to prevent auto-remove on decision change
                 let categoryVideos = step6FilteredVideos.filter(v => 
@@ -14621,8 +14637,8 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                       try {
                         const zip = new JSZip();
                         
-                        // Order videos by category: HOOKS, MIRROR, DCS, TRANZITION, NEW_CAUSE, MECHANISM, EMOTIONAL_PROOF, TRANSFORMATION, CTA
-                        const categoryOrder = ['HOOKS', 'MIRROR', 'DCS', 'TRANSITION', 'NEW_CAUSE', 'MECHANISM', 'EMOTIONAL_PROOF', 'TRANSFORMATION', 'CTA'];
+                        // Order videos by category: HOOKS, MIRROR, DCS, TRANSITION, NEW_CAUSE, MECHANISM, TRANSFORMATION, CTA
+                        const categoryOrder = ['HOOKS', 'MIRROR', 'DCS', 'TRANSITION', 'NEW_CAUSE', 'MECHANISM', 'TRANSFORMATION', 'CTA'];
                         const orderedVideos: typeof acceptedVideos = [];
                         
                         categoryOrder.forEach(category => {
