@@ -3099,7 +3099,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     // Success - update with new data
     console.log(`[Batch Processing] ✅ Success for ${video.videoName}`);
-    return {
+    console.log(`[Batch Processing] 🔍 Preserving recutStatus:`, video.recutStatus);
+    const updatedVideo = {
       ...video,
       audioProcessingStatus: 'success' as const, // Audio processing succeeded
       audioUrl: result.result.audioUrl,
@@ -3111,6 +3112,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       editingDebugInfo: result.result.editingDebugInfo,
       cleanvoiceAudioUrl: result.result.cleanvoiceAudioUrl,
     };
+    console.log(`[Batch Processing] 🔍 After update, recutStatus:`, updatedVideo.recutStatus);
+    return updatedVideo;
   });
   
   // Capture new state before database save
@@ -15366,7 +15369,13 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                 confidence: updatedVideoToReprocess.cutPoints?.confidence
                               });
                               console.log('[Reprocesare] Cleared: audioUrl, waveformData, trimmedVideoUrl, cutPoints');
-                              console.log('[Reprocesare] Set recutStatus to:', updatedVideoToReprocess.recutStatus);
+                              console.log('[Reprocesare] ✅ Set recutStatus to:', updatedVideoToReprocess.recutStatus);
+                              console.log('[Reprocesare] 🔍 Full updated video:', {
+                                videoName: updatedVideoToReprocess.videoName,
+                                recutStatus: updatedVideoToReprocess.recutStatus,
+                                hasAudioUrl: !!updatedVideoToReprocess.audioUrl,
+                                hasTrimmedVideoUrl: !!updatedVideoToReprocess.trimmedVideoUrl
+                              });
                               
                               // Reset progress and open modal
                               setProcessingProgress({ 
@@ -15404,6 +15413,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                       confidence: updatedVideo?.cutPoints?.confidence
                                     });
                                     console.log('[Reprocesare] AFTER (in state) - cleanvoiceAudioUrl:', updatedVideo?.cleanvoiceAudioUrl);
+                                    console.log('[Reprocesare] 🔍 AFTER (in state) - recutStatus:', updatedVideo?.recutStatus);
                                   }, 100);
                                   
                                   // SAVE TO DATABASE after reprocesare
