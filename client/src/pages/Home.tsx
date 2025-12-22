@@ -5857,17 +5857,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
 const handlePrepareForMerge = async () => {
   console.log('[Prepare for Merge] 🚀 Starting NEW merge process...');
   
-  // CHECK: If merged videos already exist, show selective merge popup
-  const hasMergedVideos = Object.keys(hookMergedVideos).length > 0 || bodyMergedVideoUrl !== null;
-  
-  if (hasMergedVideos) {
-    console.log('[Prepare for Merge] 📋 Found existing merged videos - showing selective merge popup');
-    setIsSelectiveMergePopupOpen(true);
-    setIsMergingStep10(false);
-    return;
-  }
-  
-  // 1. Filter trimmed videos
+  // 1. Filter trimmed videos FIRST (needed for both new merge and selective merge)
   const trimmedVideos = videoResults.filter(v => 
     v.trimmedVideoUrl &&
     v.reviewStatus === 'accepted' && 
@@ -5917,6 +5907,17 @@ const handlePrepareForMerge = async () => {
   
   console.log('[Prepare for Merge] 📺 BODY videos:', bodyVideos.length);
   console.log('[Prepare for Merge] 🎣 HOOK groups:', hookGroupsToMerge.length);
+  
+  // CHECK: If merged videos already exist, show selective merge popup (AFTER detecting new hooks)
+  const hasMergedVideos = Object.keys(hookMergedVideos).length > 0 || bodyMergedVideoUrl !== null;
+  
+  if (hasMergedVideos) {
+    console.log('[Prepare for Merge] 📋 Found existing merged videos - showing selective merge popup');
+    console.log('[Prepare for Merge] 📋 New hooks to merge:', hookGroupsToMerge.length);
+    setIsSelectiveMergePopupOpen(true);
+    setIsMergingStep10(false);
+    return;
+  }
   
   // 4. Create list of ALL merge tasks (BODY + HOOKS)
   interface MergeTask {

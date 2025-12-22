@@ -31,8 +31,19 @@ export const SelectiveMergePopup: React.FC<SelectiveMergePopupProps> = ({
     }
   }, [open]);
 
-  const hookNames = hookMergedVideos ? Object.keys(hookMergedVideos).sort((a, b) => {
-    // Extract HOOK number from names like "T1_C1_E1_AD1_HOOK1M" or "T1_C1_E1_AD1_HOOK10M"
+  // Get ALREADY merged hooks (from hookMergedVideos)
+  const mergedHookNames = hookMergedVideos ? Object.keys(hookMergedVideos) : [];
+  
+  // Get NEW hooks that NEED merging (from allHookGroups with count > 1)
+  const newHooksToMerge = allHookGroups
+    ? Object.entries(allHookGroups)
+        .filter(([hookName, count]) => count > 1 && !mergedHookNames.includes(hookName + 'M'))
+        .map(([hookName]) => hookName)
+    : [];
+  
+  // Combine BOTH: merged hooks (for re-merge) + new hooks (for first merge)
+  const allHooksToShow = [...mergedHookNames, ...newHooksToMerge].sort((a, b) => {
+    // Extract HOOK number from names
     const hookNumA = a.match(/HOOK(\d+)/)?.[1];
     const hookNumB = b.match(/HOOK(\d+)/)?.[1];
     
@@ -42,7 +53,9 @@ export const SelectiveMergePopup: React.FC<SelectiveMergePopupProps> = ({
     
     // Fallback to alphabetical
     return a.localeCompare(b);
-  }) : [];
+  });
+  
+  const hookNames = allHooksToShow;
   const hasBody = bodyMergedVideoUrl !== null;
 
   // Calculate hooks that don't need merge (only 1 video in group)
