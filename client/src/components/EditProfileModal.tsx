@@ -220,20 +220,6 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
             />
           </div>
 
-          {/* CleanVoice API Key */}
-          <div>
-            <label className="block text-sm font-medium text-blue-900 mb-2">
-              CleanVoice API Key
-            </label>
-            <input
-              type="text"
-              value={cleanvoiceApiKey}
-              onChange={(e) => setCleanvoiceApiKey(e.target.value)}
-              className="w-full px-4 py-3 bg-white border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Enter your API key from CleanVoice"
-            />
-          </div>
-
           {/* FFmpeg Batch Size */}
           <div>
             <label className="block text-sm font-medium text-blue-900 mb-2">
@@ -251,6 +237,20 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
             <p className="text-xs text-gray-600 mt-1">
               Number of videos to process simultaneously (default: 15)
             </p>
+          </div>
+
+          {/* CleanVoice API Key */}
+          <div>
+            <label className="block text-sm font-medium text-blue-900 mb-2">
+              CleanVoice API Key
+            </label>
+            <input
+              type="text"
+              value={cleanvoiceApiKey}
+              onChange={(e) => setCleanvoiceApiKey(e.target.value)}
+              className="w-full px-4 py-3 bg-white border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Enter your API key from CleanVoice"
+            />
           </div>
 
           {/* Buttons */}

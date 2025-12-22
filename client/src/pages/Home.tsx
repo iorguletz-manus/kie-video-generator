@@ -15329,18 +15329,22 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                 return;
                               }
                               
-                              // FORCE re-extraction: Clear audioUrl and waveformData
-                              // This prevents FFmpeg SMART SKIP and forces fresh WAV extraction
-                              console.log('[Reprocesare] Clearing audioUrl and waveformData to force re-extraction');
-                              const videoToReprocessClean = {
-                                ...videoToReprocess,
-                                audioUrl: undefined,
-                                waveformData: undefined,
-                                cleanvoiceAudioUrl: undefined,
-                                whisperTranscript: undefined,
-                                cutPoints: undefined,
-                                editingDebugInfo: undefined
-                              };
+                              // Update videoResults state BEFORE reprocessing to clear fields
+                              setVideoResults(prev => prev.map(v =>
+                                v.videoName === videoName
+                                  ? {
+                                      ...v,
+                                      audioUrl: undefined,
+                                      waveformData: undefined,
+                                      cleanvoiceAudioUrl: undefined,
+                                      whisperTranscript: undefined,
+                                      cutPoints: undefined,
+                                      editingDebugInfo: undefined,
+                                      trimmedVideoUrl: undefined, // Clear trimmed video (no longer valid)
+                                      recutStatus: 'recut', // Mark as RECUT for Step 9
+                                    }
+                                  : v
+                              ));
                               
                               // Log BEFORE reprocesare
                               console.log('[Reprocesare] BEFORE - cutPoints:', {
@@ -15349,6 +15353,8 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                 redPosition: videoToReprocess.cutPoints?.redPosition,
                                 confidence: videoToReprocess.cutPoints?.confidence
                               });
+                              console.log('[Reprocesare] Cleared: audioUrl, waveformData, trimmedVideoUrl, cutPoints');
+                              console.log('[Reprocesare] Set recutStatus to: RECUT');
                               
                               // Reset progress and open modal
                               setProcessingProgress({ 
