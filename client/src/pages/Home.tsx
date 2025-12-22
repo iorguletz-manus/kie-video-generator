@@ -10,6 +10,7 @@ import MergeFinalProgressModal from '@/components/MergeFinalProgressModal';
 import DownloadZipProgressModal from '@/components/DownloadZipProgressModal';
 import { SelectiveMergePopup } from '@/components/SelectiveMergePopup';
 import { SelectiveAutopreparePopup } from '@/components/SelectiveAutopreparePopup';
+import { RegenerateVideoConfirmModal } from '@/components/RegenerateVideoConfirmModal';
 import { CreateItemDialog } from '@/components/CreateItemDialog';
 import { trpc } from '../lib/trpc';
 import mammoth from 'mammoth';
@@ -815,6 +816,17 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   
   // Download ZIP progress (old modal - kept for compatibility)
   const [isDownloadZipModalOpen, setIsDownloadZipModalOpen] = useState(false);
+  
+  // Regenerate Video Confirmation Modal (Step 6)
+  const [isRegenerateConfirmModalOpen, setIsRegenerateConfirmModalOpen] = useState(false);
+  const [regenerateVideoIndex, setRegenerateVideoIndex] = useState<number | null>(null);
+  const [regenerateModalData, setRegenerateModalData] = useState<{
+    videoName: string;
+    isHook: boolean;
+    hasProcessingData: boolean;
+    mergedVideoName: string | null;
+    finalVideosCount: number;
+  } | null>(null);
   
   // Initial videos hash for smart cache (tracks original marker values from DB)
   const [initialVideosHash, setInitialVideosHash] = useState<string | null>(null);
@@ -8114,6 +8126,73 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
       return;
     }
 
+    // Check if video has processing data (audio or trimmed video)
+    const hasProcessingData = !!(video.audioUrl || video.audioWav || video.trimmedVideoUrl);
+    
+    // If NO processing data → regenerate directly without modal
+    if (!hasProcessingData) {
+      console.log('[Regenerate] No processing data, regenerating directly');
+      await performRegeneration(index);
+      return;
+    }
+    
+    // Has processing data → show confirmation modal
+    // Detect scenario
+    const isHook = video.videoName.includes('_HOOK') || video.videoName.includes('HOOK');
+    
+    // Check for merged video
+    let mergedVideoName: string | null = null;
+    if (isHook) {
+      // Extract HOOK number (e.g., HOOK1, HOOK2, HOOK3)
+      const hookMatch = video.videoName.match(/HOOK(\d+[A-Z]?)/);
+      if (hookMatch) {
+        const hookId = hookMatch[1];
+        const mergedName = `HOOK${hookId}M`;
+        // Check if merged video exists in hookMergedVideos
+        const mergedExists = hookMergedVideos.some(hv => hv.videoName === mergedName);
+        if (mergedExists) {
+          mergedVideoName = mergedName;
+        }
+      }
+    } else {
+      // Non-HOOK → check for BODY merged video
+      if (bodyMergedVideoUrl) {
+        mergedVideoName = 'BODY'; // Placeholder, will be displayed as "BODY merged video"
+      }
+    }
+    
+    // Check for final videos
+    let finalVideosCount = 0;
+    if (isHook && mergedVideoName) {
+      // Count final videos that use this HOOK
+      finalVideosCount = finalVideos.filter(fv => fv.videoName.includes(mergedVideoName!)).length;
+    } else if (!isHook && bodyMergedVideoUrl) {
+      // ALL final videos use the merged body
+      finalVideosCount = finalVideos.length;
+    }
+    
+    // Set modal data and show modal
+    setRegenerateModalData({
+      videoName: video.videoName,
+      isHook,
+      hasProcessingData,
+      mergedVideoName,
+      finalVideosCount,
+    });
+    setRegenerateVideoIndex(index);
+    setIsRegenerateConfirmModalOpen(true);
+  };
+  
+  // Perform actual regeneration (called after modal confirmation or directly if no processing data)
+  const performRegeneration = async (index: number) => {
+    const video = videoResults[index];
+    const combo = combinations[index];
+    
+    if (!combo) {
+      toast.error('Combination not found');
+      return;
+    }
+
     try {
       // Close modal IMMEDIATELY (don't wait after API call)
       setModifyingVideoIndex(null);
@@ -8148,7 +8227,44 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
 
       const newResult = result.results[0];
       
-      // Update videoResults with new taskId AND delete reviewStatus (force re-render)
+      // Delete merged/final videos if needed
+      const video = videoResults[index];
+      const isHook = video.videoName.includes('_HOOK') || video.videoName.includes('HOOK');
+      
+      if (isHook) {
+        // Delete merged HOOK video if exists
+        const hookMatch = video.videoName.match(/HOOK(\d+[A-Z]?)/);
+        if (hookMatch) {
+          const hookId = hookMatch[1];
+          const mergedName = `HOOK${hookId}M`;
+          setHookMergedVideos(prev => prev.filter(hv => hv.videoName !== mergedName));
+          console.log(`[Regenerate] Deleted merged HOOK video: ${mergedName}`);
+          
+          // Delete final videos that use this HOOK
+          setFinalVideos(prev => {
+            const filtered = prev.filter(fv => !fv.videoName.includes(mergedName));
+            const deletedCount = prev.length - filtered.length;
+            if (deletedCount > 0) {
+              console.log(`[Regenerate] Deleted ${deletedCount} final video(s) using ${mergedName}`);
+            }
+            return filtered;
+          });
+        }
+      } else {
+        // Delete BODY merged video
+        if (bodyMergedVideoUrl) {
+          setBodyMergedVideoUrl(null);
+          console.log('[Regenerate] Deleted BODY merged video');
+        }
+        
+        // Delete ALL final videos (they all use the merged body)
+        if (finalVideos.length > 0) {
+          console.log(`[Regenerate] Deleted ALL ${finalVideos.length} final video(s)`);
+          setFinalVideos([]);
+        }
+      }
+      
+      // Update videoResults with new taskId AND clear ALL processing data
       setVideoResults(prev => [
         ...prev.map((v, i) =>
           i === index
@@ -8162,16 +8278,27 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                 reviewStatus: v.reviewStatus === 'accepted' ? 'accepted' : null,
                 // PRESERVE internalNote from Step 7 when regenerating
                 internalNote: v.internalNote,
-                // Clear cutting data to force reprocessing in Step 8
+                // Clear ALL Step 7 audio processing data
+                audioUrl: undefined,
+                audioWav: undefined,
+                waveformData: undefined,
+                cleanvoiceAudioUrl: undefined,
+                whisperTranscript: undefined,
+                audioProcessingStatus: undefined,
+                audioProcessingError: undefined,
+                // Clear ALL Step 8 cutting data
                 ffmpegWavUrl: undefined,
                 whisperUrl: undefined,
                 cleanvoiceUrl: undefined,
                 cutPoints: undefined,
-                // Clear trim-related fields to force re-trim
-                recutStatus: null,
-                trimmedVideoUrl: undefined,
+                editingDebugInfo: undefined,
                 isStartLocked: false,
                 isEndLocked: false,
+                // Clear ALL Step 9 data
+                recutStatus: null,
+                trimmedVideoUrl: undefined,
+                trimmedDuration: undefined,
+                step9Note: undefined,
               }
             : v
         )
@@ -9100,6 +9227,29 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
             setShowProcessingModal(false);
             toast.error(`Error processing videos: ${error.message}`);
           }
+        }}
+      />
+      
+      {/* Regenerate Video Confirmation Modal (Step 6) */}
+      <RegenerateVideoConfirmModal
+        isOpen={isRegenerateConfirmModalOpen}
+        videoName={regenerateModalData?.videoName || ''}
+        isHook={regenerateModalData?.isHook || false}
+        hasProcessingData={regenerateModalData?.hasProcessingData || false}
+        mergedVideoName={regenerateModalData?.mergedVideoName || null}
+        finalVideosCount={regenerateModalData?.finalVideosCount || 0}
+        onConfirm={async () => {
+          setIsRegenerateConfirmModalOpen(false);
+          if (regenerateVideoIndex !== null) {
+            await performRegeneration(regenerateVideoIndex);
+            setRegenerateVideoIndex(null);
+            setRegenerateModalData(null);
+          }
+        }}
+        onCancel={() => {
+          setIsRegenerateConfirmModalOpen(false);
+          setRegenerateVideoIndex(null);
+          setRegenerateModalData(null);
         }}
       />
       
