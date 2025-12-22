@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
@@ -9,18 +9,37 @@ interface VideoResult {
   [key: string]: any;
 }
 
+interface HookMergedVideo {
+  videoName: string;
+  [key: string]: any;
+}
+
+interface FinalVideo {
+  videoName: string;
+  hookName?: string;
+  [key: string]: any;
+}
+
 interface SelectiveAutopreparePopupProps {
   open: boolean;
   onClose: () => void;
   videoResults: VideoResult[];
+  hookMergedVideos: HookMergedVideo[];
+  bodyMergedVideoUrl: string | null;
+  finalVideos: FinalVideo[];
   onConfirm: (selectedVideoNames: string[]) => void;
+  onDeleteMergedVideos: (mergedToDelete: string[], deleteAllFinal: boolean) => void;
 }
 
 export const SelectiveAutopreparePopup: React.FC<SelectiveAutopreparePopupProps> = ({
   open,
   onClose,
   videoResults,
+  hookMergedVideos,
+  bodyMergedVideoUrl,
+  finalVideos,
   onConfirm,
+  onDeleteMergedVideos,
 }) => {
   const [selectedVideos, setSelectedVideos] = useState<string[]>([]);
   const [enableReprocessing, setEnableReprocessing] = useState(false);
@@ -55,10 +74,61 @@ export const SelectiveAutopreparePopup: React.FC<SelectiveAutopreparePopupProps>
     }
   };
 
+  // Detect what will be deleted based on selected videos
+  const warningInfo = useMemo(() => {
+    const mergedToDelete: string[] = [];
+    const finalVideosToDelete: FinalVideo[] = [];
+    let hasBodyVideo = false;
+
+    selectedVideos.forEach(videoName => {
+      const isHook = videoName.includes('_HOOK') || videoName.includes('HOOK');
+      
+      if (isHook) {
+        // Extract HOOK number (e.g., HOOK1, HOOK2, HOOK3)
+        const hookMatch = videoName.match(/HOOK(\d+[A-Z]?)/);
+        if (hookMatch) {
+          const hookId = hookMatch[1];
+          const mergedName = `HOOK${hookId}M`;
+          
+          // Check if merged HOOK exists
+          const mergedExists = hookMergedVideos.some(hv => hv.videoName.includes(mergedName));
+          if (mergedExists && !mergedToDelete.includes(mergedName)) {
+            mergedToDelete.push(mergedName);
+            
+            // Find final videos using this HOOK
+            const finalUsingHook = finalVideos.filter(fv => fv.hookName?.includes(mergedName));
+            finalVideosToDelete.push(...finalUsingHook);
+          }
+        }
+      } else {
+        // NON-HOOK video (body category)
+        hasBodyVideo = true;
+      }
+    });
+
+    // If any non-HOOK video selected and BODY merged exists
+    const deleteBodyMerged = hasBodyVideo && bodyMergedVideoUrl;
+    const deleteAllFinal = deleteBodyMerged && finalVideos.length > 0;
+
+    return {
+      mergedToDelete,
+      finalVideosToDelete,
+      deleteBodyMerged,
+      deleteAllFinal,
+      finalCount: deleteAllFinal ? finalVideos.length : finalVideosToDelete.length,
+    };
+  }, [selectedVideos, hookMergedVideos, bodyMergedVideoUrl, finalVideos]);
+
   const handleConfirm = () => {
     if (selectedVideos.length === 0) {
       return; // Nothing selected
     }
+    
+    // Delete merged/final videos if needed
+    if (warningInfo.mergedToDelete.length > 0 || warningInfo.deleteBodyMerged) {
+      onDeleteMergedVideos(warningInfo.mergedToDelete, warningInfo.deleteAllFinal || false);
+    }
+    
     onConfirm(selectedVideos);
     onClose();
   };
@@ -176,6 +246,41 @@ export const SelectiveAutopreparePopup: React.FC<SelectiveAutopreparePopupProps>
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          )}
+
+          {/* Warning about merged/final videos deletion */}
+          {(warningInfo.mergedToDelete.length > 0 || warningInfo.deleteBodyMerged || warningInfo.finalCount > 0) && (
+            <div className="bg-orange-50 border-2 border-orange-300 rounded-lg p-4">
+              <div className="flex items-start gap-2">
+                <svg className="w-5 h-5 text-orange-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-orange-900 mb-2">⚠️ Warning: Reprocessing selected videos will delete:</p>
+                  <ul className="text-sm text-orange-800 space-y-1 list-disc list-inside">
+                    {warningInfo.mergedToDelete.map(mergedName => (
+                      <li key={mergedName}>Merged {mergedName} video in Step 10</li>
+                    ))}
+                    {warningInfo.deleteBodyMerged && (
+                      <li>BODY merged video in Step 10</li>
+                    )}
+                    {warningInfo.finalCount > 0 && (
+                      <li>
+                        {warningInfo.deleteAllFinal 
+                          ? `ALL final videos in Step 11 (${warningInfo.finalCount} videos) - they all use the merged body`
+                          : `${warningInfo.finalCount} final video${warningInfo.finalCount !== 1 ? 's' : ''} in Step 11`
+                        }
+                      </li>
+                    )}
+                  </ul>
+                  {(warningInfo.deleteBodyMerged || warningInfo.mergedToDelete.length > 0) && (
+                    <p className="text-xs text-orange-700 mt-2 font-medium">
+                      These videos will need to be re-merged and re-processed.
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           )}

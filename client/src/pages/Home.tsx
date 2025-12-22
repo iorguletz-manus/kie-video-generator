@@ -9175,6 +9175,33 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
         open={isSelectiveAutopreparePopupOpen}
         onClose={() => setIsSelectiveAutopreparePopupOpen(false)}
         videoResults={videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl)}
+        hookMergedVideos={hookMergedVideos}
+        bodyMergedVideoUrl={bodyMergedVideoUrl}
+        finalVideos={finalVideos}
+        onDeleteMergedVideos={(mergedToDelete, deleteAllFinal) => {
+          console.log('[Step 7 Autoprepare] Deleting merged/final videos:', { mergedToDelete, deleteAllFinal });
+          
+          // Delete merged HOOK videos
+          if (mergedToDelete.length > 0) {
+            setHookMergedVideos(prev => prev.filter(hv => 
+              !mergedToDelete.some(name => hv.videoName.includes(name))
+            ));
+          }
+          
+          // Delete BODY merged video if needed
+          if (deleteAllFinal) {
+            setBodyMergedVideoUrl(null);
+          }
+          
+          // Delete final videos
+          if (deleteAllFinal) {
+            setFinalVideos([]);
+          } else if (mergedToDelete.length > 0) {
+            setFinalVideos(prev => prev.filter(fv => 
+              !mergedToDelete.some(name => fv.hookName?.includes(name))
+            ));
+          }
+        }}
         onConfirm={async (selectedVideoNames) => {
           setIsSelectiveAutopreparePopupOpen(false);
           
@@ -9188,19 +9215,32 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
             return;
           }
           
-          // Clear old Step 8 data for selected videos
+          // Clear old Step 7-9 data for selected videos
           setVideoResults(prev => prev.map(v => 
             selectedVideoNames.includes(v.videoName)
               ? { 
                   ...v, 
-                  editStatus: null,
-                  whisperTranscript: undefined,
-                  cutPoints: undefined,
-                  words: undefined,
+                  // Step 7 - Audio processing
                   audioUrl: undefined,
+                  audioWav: undefined,
                   waveformData: undefined,
-                  trimStatus: null,
+                  cleanvoiceAudioUrl: undefined,
+                  whisperTranscript: undefined,
+                  audioProcessingStatus: undefined,
+                  audioProcessingError: undefined,
+                  // Step 8 - Editing
+                  cutPoints: undefined,
+                  editingDebugInfo: undefined,
+                  isStartLocked: false,
+                  isEndLocked: false,
+                  editStatus: null,
+                  words: undefined,
+                  // Step 9 - Trimming
                   trimmedVideoUrl: undefined,
+                  trimmedDuration: undefined,
+                  trimStatus: null,
+                  recutStatus: null,
+                  step9Note: undefined,
                   acceptRejectStatus: null
                 }
               : v
