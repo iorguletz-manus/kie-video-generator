@@ -7929,6 +7929,8 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
       // RESET status and reviewStatus - duplicate is an ungenerated video
       status: null, // null = not generated yet
       reviewStatus: null, // null = no review yet
+      // RESET generationCount - duplicate hasn't been regenerated yet
+      generationCount: 0,
       isDuplicate: true,
       duplicateNomber: getDuplicateNomber(duplicateName),
       originalVideoName: originalName,
