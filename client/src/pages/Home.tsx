@@ -202,6 +202,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // Step 8: Video Editing Processing
   const [showProcessingModal, setShowProcessingModal] = useState(false);
   const stopProcessingRef = useRef(false);
+  const [showVideoSelectionModal, setShowVideoSelectionModal] = useState(false);
+  const [unprocessedVideos, setUnprocessedVideos] = useState<VideoResult[]>([]);
+  const [processedVideos, setProcessedVideos] = useState<VideoResult[]>([]);
+  const [selectedUnprocessed, setSelectedUnprocessed] = useState<Set<string>>(new Set());
+  const [selectedProcessed, setSelectedProcessed] = useState<Set<string>>(new Set());
+  const [processedVideosUnlocked, setProcessedVideosUnlocked] = useState(false);
   const [showCuttingModeDialog, setShowCuttingModeDialog] = useState(false);
   const [showReprocessWarning, setShowReprocessWarning] = useState(false);
   const [processingProgress, setProcessingProgress] = useState({ 
@@ -8903,6 +8909,178 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
         }}
       />
       
+      {/* Video Selection Modal for Step 7 Autoprepare */}
+      {showVideoSelectionModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h2 className="text-2xl font-bold mb-4">Select Videos to Process</h2>
+              
+              {/* GRUPUL 1: Unprocessed Videos */}
+              {unprocessedVideos.length > 0 && (
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-semibold text-green-700">
+                      🆕 Unprocessed Videos ({unprocessedVideos.length})
+                    </h3>
+                    <div className="space-x-2">
+                      <button
+                        onClick={() => setSelectedUnprocessed(new Set(unprocessedVideos.map(v => v.videoName)))}
+                        className="text-sm px-3 py-1 bg-blue-100 hover:bg-blue-200 rounded"
+                      >
+                        Select All
+                      </button>
+                      <button
+                        onClick={() => setSelectedUnprocessed(new Set())}
+                        className="text-sm px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded"
+                      >
+                        Deselect All
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-2 max-h-60 overflow-y-auto border rounded p-3">
+                    {unprocessedVideos.map(video => (
+                      <label key={video.videoName} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                        <input
+                          type="checkbox"
+                          checked={selectedUnprocessed.has(video.videoName)}
+                          onChange={(e) => {
+                            const newSet = new Set(selectedUnprocessed);
+                            if (e.target.checked) {
+                              newSet.add(video.videoName);
+                            } else {
+                              newSet.delete(video.videoName);
+                            }
+                            setSelectedUnprocessed(newSet);
+                          }}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm">{video.videoName}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* GRUPUL 2: Processed Videos */}
+              {processedVideos.length > 0 && (
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-semibold text-blue-700">
+                      ✅ Processed Videos ({processedVideos.length})
+                    </h3>
+                    <button
+                      onClick={() => setProcessedVideosUnlocked(!processedVideosUnlocked)}
+                      className={`text-sm px-3 py-1 rounded ${
+                        processedVideosUnlocked
+                          ? 'bg-red-100 hover:bg-red-200 text-red-700'
+                          : 'bg-yellow-100 hover:bg-yellow-200 text-yellow-700'
+                      }`}
+                    >
+                      {processedVideosUnlocked ? '🔒 Lock' : '🔓 Unlock for Reprocessing'}
+                    </button>
+                  </div>
+                  <div className="space-y-2 max-h-60 overflow-y-auto border rounded p-3">
+                    {processedVideos.map(video => (
+                      <label key={video.videoName} className={`flex items-center space-x-2 p-2 rounded ${
+                        processedVideosUnlocked ? 'cursor-pointer hover:bg-gray-50' : 'cursor-not-allowed opacity-50'
+                      }`}>
+                        <input
+                          type="checkbox"
+                          checked={selectedProcessed.has(video.videoName)}
+                          disabled={!processedVideosUnlocked}
+                          onChange={(e) => {
+                            if (!processedVideosUnlocked) return;
+                            const newSet = new Set(selectedProcessed);
+                            if (e.target.checked) {
+                              newSet.add(video.videoName);
+                            } else {
+                              newSet.delete(video.videoName);
+                            }
+                            setSelectedProcessed(newSet);
+                          }}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm">{video.videoName}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Action Buttons */}
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  onClick={() => setShowVideoSelectionModal(false)}
+                  className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    const selectedVideos = [
+                      ...unprocessedVideos.filter(v => selectedUnprocessed.has(v.videoName)),
+                      ...processedVideos.filter(v => selectedProcessed.has(v.videoName))
+                    ];
+                    
+                    if (selectedVideos.length === 0) {
+                      toast.error('Please select at least one video to process');
+                      return;
+                    }
+                    
+                    console.log(`[Video Selection] Processing ${selectedVideos.length} selected videos`);
+                    
+                    // Close selection modal
+                    setShowVideoSelectionModal(false);
+                    
+                    // Reset progress
+                    setProcessingProgress({ 
+                      ffmpeg: { current: 0, total: selectedVideos.length, status: 'idle', activeVideos: [] },
+                      whisper: { current: 0, total: selectedVideos.length, status: 'idle', activeVideos: [] },
+                      cleanvoice: { current: 0, total: selectedVideos.length, status: 'idle', activeVideos: [] },
+                      currentVideoName: '',
+                      countdown: 0,
+                      estimatedMinutes: 0,
+                      successVideos: [],
+                      failedVideos: [],
+                      ffmpegSuccess: [],
+                      ffmpegFailed: [],
+                      whisperSuccess: [],
+                      whisperFailed: [],
+                      cleanvoiceSuccess: [],
+                      cleanvoiceFailed: []
+                    });
+                    setProcessingStep(null);
+                    
+                    // Open ProcessingModal and start batch processing
+                    setShowProcessingModal(true);
+                    
+                    try {
+                      await batchProcessVideosWithWhisper(selectedVideos);
+                      
+                      const failedCount = processingProgress.failedVideos.length;
+                      if (failedCount > 0) {
+                        toast.warning(`⚠️ Processing complete: ${processingProgress.successVideos.length} success, ${failedCount} failed.`);
+                      } else {
+                        toast.success(`✅ ${selectedVideos.length} videos processed successfully!`);
+                      }
+                    } catch (error: any) {
+                      console.error('[Video Editing] Batch processing error:', error);
+                      setShowProcessingModal(false);
+                      toast.error(`Error processing videos: ${error.message}`);
+                    }
+                  }}
+                  className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded font-semibold"
+                  disabled={selectedUnprocessed.size === 0 && selectedProcessed.size === 0}
+                >
+                  Start Processing ({selectedUnprocessed.size + selectedProcessed.size})
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Processing Modal for Step 8 batch processing */}
       <ProcessingModal
         open={showProcessingModal}
@@ -14749,22 +14927,16 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                           return;
                         }
                         
-                        // SMART LOGIC: Check if videos have FFmpeg WAV (audioWav)
-                        const videosWithWav = approvedVideos.filter(v => v.audioWav);
-                        const videosWithoutWav = approvedVideos.filter(v => !v.audioWav);
+                        // SMART LOGIC: Check if videos have FFmpeg WAV (audioUrl)
+                        const videosWithAudio = approvedVideos.filter(v => v.audioUrl);
+                        const videosWithoutAudio = approvedVideos.filter(v => !v.audioUrl);
                         
-                        console.log(`[Video Editing] Videos with WAV: ${videosWithWav.length}, Without WAV: ${videosWithoutWav.length}`);
+                        console.log(`[Video Editing] Videos with audio: ${videosWithAudio.length}, Without audio: ${videosWithoutAudio.length}`);
                         
-                        // CASE 1: ALL videos have WAV → Show WARNING popup for reprocess all
-                        if (videosWithoutWav.length === 0) {
-                          console.log('[Video Editing] ⚠️ ALL videos have WAV - showing reprocess warning');
-                          setShowReprocessWarning(true);
-                          return;
-                        }
-                        
-                        // CASE 2: Some videos don't have WAV → Process only those without WAV (no warning)
-                        console.log(`[Video Editing] 🎯 Processing ${videosWithoutWav.length} videos without WAV`);
-                        const videosToProcess = videosWithoutWav;
+                        // CASE 1: NO videos have audio → Process ALL directly (no selection popup)
+                        if (videosWithAudio.length === 0) {
+                          console.log('[Video Editing] ✅ No processed videos - processing all directly');
+                          const videosToProcess = videosWithoutAudio;
                         
                         if (videosToProcess.length === 0) {
                           toast.error('❌ No accepted videos! Check Step 7.');
@@ -14828,6 +15000,18 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                           setShowProcessingModal(false);
                           toast.error(`Error processing videos: ${error.message}`);
                         }
+                          return; // Exit after processing
+                        }
+                        
+                        // CASE 2: Some videos have audio → Show selection popup
+                        console.log('[Video Editing] 📋 Some videos processed - showing selection popup');
+                        setUnprocessedVideos(videosWithoutAudio);
+                        setProcessedVideos(videosWithAudio);
+                        // Select all unprocessed by default
+                        setSelectedUnprocessed(new Set(videosWithoutAudio.map(v => v.videoName)));
+                        setSelectedProcessed(new Set());
+                        setProcessedVideosUnlocked(false);
+                        setShowVideoSelectionModal(true);
                       }}
                       className="w-full bg-purple-600 hover:bg-purple-700 px-4 md:px-8 py-6 md:py-8 text-base md:text-lg"
                       disabled={acceptedVideosWithUrl.length === 0}
