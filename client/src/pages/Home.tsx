@@ -111,7 +111,7 @@ interface VideoResult {
 }
 
 interface HomeProps {
-  currentUser: { id: number; username: string; profileImageUrl: string | null; kieApiKey: string | null; openaiApiKey: string | null; ffmpegApiKey: string | null; cleanvoiceApiKey: string | null };
+  currentUser: { id: number; username: string; profileImageUrl: string | null; kieApiKey: string | null; openaiApiKey: string | null; ffmpegApiKey: string | null; cleanvoiceApiKey: string | null; ffmpegBatchSize: number };
   onLogout: () => void;
 }
 
@@ -2756,7 +2756,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   console.log('[Batch Processing] ⏱️ BATCH START at', new Date().toISOString());
   console.log('[Batch Processing] 🚀 Starting FFmpeg batch processing with', videos.length, 'videos');
   
-  const BATCH_SIZE = 10;
+  const BATCH_SIZE = localCurrentUser?.ffmpegBatchSize || 15; // From database settings (default: 15)
   const DELAY_BETWEEN_BATCHES = 61000; // 61 seconds
   
   // Calculate total batches
@@ -3652,8 +3652,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       bodyName: string;
     }> = [];
     
-    // Batch processing: Max 10 FINAL videos per batch (same as STEP 2)
-    const BATCH_SIZE = 10;
+    // Batch processing: Max FINAL videos per batch (from database settings)
+    const BATCH_SIZE = localCurrentUser?.ffmpegBatchSize || 15; // From database settings (default: 15)
     const totalBatches = Math.ceil(hookUrls.length / BATCH_SIZE);
     
     console.log(`[Step 10→Step 11] 📊 Batching: ${hookUrls.length} final videos in ${totalBatches} batches (max ${BATCH_SIZE} per batch)`);
@@ -4117,8 +4117,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     console.log('[Trimming] Starting SIMPLE batch process for', videosToTrim.length, 'videos (10 per batch, 58s wait)');
     
-    // SIMPLE BATCH PROCESSING: 10 at once → wait 58s → next 10 → wait 58s → rest
-    const BATCH_SIZE = 10;
+    // SIMPLE BATCH PROCESSING: batch at once → wait 58s → next batch → wait 58s → rest
+    const BATCH_SIZE = localCurrentUser?.ffmpegBatchSize || 15; // From database settings (default: 15)
     const DELAY_BETWEEN_BATCHES = 58000; // 58 seconds
     
     // Open modal immediately
@@ -5466,8 +5466,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     console.log('[Simple Cut] Starting batch process for', videosToTrim.length, 'videos (10 per batch, 58s wait)');
     
-    // SIMPLE BATCH PROCESSING: 10 at once → wait 58s → next 10 → wait 58s → rest
-    const BATCH_SIZE = 10;
+    // SIMPLE BATCH PROCESSING: batch at once → wait 58s → next batch → wait 58s → rest
+    const BATCH_SIZE = localCurrentUser?.ffmpegBatchSize || 15; // From database settings (default: 15)
     const DELAY_BETWEEN_BATCHES = 58000; // 58 seconds
     
     // Calculate total batches and FFmpeg requests FIRST (before opening modal)
@@ -5928,8 +5928,8 @@ const handlePrepareForMerge = async () => {
     return;
   }
   
-  // 5. Create batches (max 10 final videos per batch)
-  const MAX_FINAL_VIDEOS_PER_BATCH = 10;
+  // 5. Create batches (max final videos per batch from database settings)
+  const MAX_FINAL_VIDEOS_PER_BATCH = localCurrentUser?.ffmpegBatchSize || 15; // From database settings (default: 15)
   const batches: MergeTask[][] = [];
   
   for (let i = 0; i < mergeTasks.length; i += MAX_FINAL_VIDEOS_PER_BATCH) {
@@ -6318,8 +6318,8 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
     return;
   }
   
-  // 5. Create batches (max 10 final videos per batch)
-  const MAX_FINAL_VIDEOS_PER_BATCH = 10;
+  // 5. Create batches (max final videos per batch from database settings)
+  const MAX_FINAL_VIDEOS_PER_BATCH = localCurrentUser?.ffmpegBatchSize || 15; // From database settings (default: 15)
   const batches: MergeTask[][] = [];
   
   for (let i = 0; i < mergeTasks.length; i += MAX_FINAL_VIDEOS_PER_BATCH) {

@@ -7,8 +7,8 @@ import { toast } from 'sonner';
 interface EditProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
-  currentUser: { id: number; username: string; profileImageUrl: string | null; kieApiKey: string | null; openaiApiKey: string | null; ffmpegApiKey: string | null; cleanvoiceApiKey: string | null };
-  onProfileUpdated: (user: { id: number; username: string; profileImageUrl: string | null; kieApiKey: string | null; openaiApiKey: string | null; ffmpegApiKey: string | null; cleanvoiceApiKey: string | null }) => void;
+  currentUser: { id: number; username: string; profileImageUrl: string | null; kieApiKey: string | null; openaiApiKey: string | null; ffmpegApiKey: string | null; cleanvoiceApiKey: string | null; ffmpegBatchSize: number };
+  onProfileUpdated: (user: { id: number; username: string; profileImageUrl: string | null; kieApiKey: string | null; openaiApiKey: string | null; ffmpegApiKey: string | null; cleanvoiceApiKey: string | null; ffmpegBatchSize: number }) => void;
 }
 
 export default function EditProfileModal({ isOpen, onClose, currentUser, onProfileUpdated }: EditProfileModalProps) {
@@ -20,6 +20,7 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
   const [openaiApiKey, setOpenaiApiKey] = useState(currentUser.openaiApiKey || '');
   const [ffmpegApiKey, setFfmpegApiKey] = useState(currentUser.ffmpegApiKey || '');
   const [cleanvoiceApiKey, setCleanvoiceApiKey] = useState(currentUser.cleanvoiceApiKey || '');
+  const [ffmpegBatchSize, setFfmpegBatchSize] = useState(currentUser.ffmpegBatchSize || 15);
 
   const updateProfileMutation = trpc.appAuth.updateProfile.useMutation();
   const uploadImageMutation = trpc.video.uploadImage.useMutation();
@@ -72,6 +73,7 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
               openaiApiKey: openaiApiKey || undefined,
               ffmpegApiKey: ffmpegApiKey || undefined,
               cleanvoiceApiKey: cleanvoiceApiKey || undefined,
+              ffmpegBatchSize: ffmpegBatchSize,
             });
 
             if (updateResult.success && updateResult.user) {
@@ -94,6 +96,7 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
           openaiApiKey: openaiApiKey || undefined,
           ffmpegApiKey: ffmpegApiKey || undefined,
           cleanvoiceApiKey: cleanvoiceApiKey || undefined,
+          ffmpegBatchSize: ffmpegBatchSize,
         });
 
         if (updateResult.success && updateResult.user) {
@@ -229,6 +232,25 @@ export default function EditProfileModal({ isOpen, onClose, currentUser, onProfi
               className="w-full px-4 py-3 bg-white border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Enter your API key from CleanVoice"
             />
+          </div>
+
+          {/* FFmpeg Batch Size */}
+          <div>
+            <label className="block text-sm font-medium text-blue-900 mb-2">
+              FFmpeg Batch Size
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="50"
+              value={ffmpegBatchSize}
+              onChange={(e) => setFfmpegBatchSize(parseInt(e.target.value) || 15)}
+              className="w-full px-4 py-3 bg-white border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Default: 15"
+            />
+            <p className="text-xs text-gray-600 mt-1">
+              Number of videos to process simultaneously (default: 15)
+            </p>
           </div>
 
           {/* Buttons */}

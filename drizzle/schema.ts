@@ -38,6 +38,7 @@ export const appUsers = mysqlTable("app_users", {
   openaiApiKey: text("openaiApiKey"), // OpenAI API key per user
   ffmpegApiKey: text("ffmpegApiKey"), // FFMPEG API key per user
   cleanvoiceApiKey: text("cleanvoiceApiKey"), // CleanVoice API key per user
+  ffmpegBatchSize: int("ffmpegBatchSize").default(15).notNull(), // FFmpeg batch size for processing (default: 15)
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

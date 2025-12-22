@@ -101,6 +101,7 @@ export const appRouter = router({
             openaiApiKey: user.openaiApiKey,
             ffmpegApiKey: user.ffmpegApiKey,
             cleanvoiceApiKey: user.cleanvoiceApiKey,
+            ffmpegBatchSize: user.ffmpegBatchSize,
           },
         };
       }),
@@ -124,6 +125,7 @@ export const appRouter = router({
           openaiApiKey: user.openaiApiKey,
           ffmpegApiKey: user.ffmpegApiKey,
           cleanvoiceApiKey: user.cleanvoiceApiKey,
+          ffmpegBatchSize: user.ffmpegBatchSize,
         };
       }),
 
@@ -137,15 +139,17 @@ export const appRouter = router({
         openaiApiKey: z.string().optional(),
         ffmpegApiKey: z.string().optional(),
         cleanvoiceApiKey: z.string().optional(),
+        ffmpegBatchSize: z.number().optional(),
       }))
       .mutation(async ({ input }) => {
-        const updateData: Partial<{ password: string; profileImageUrl: string | null; kieApiKey: string | null; openaiApiKey: string | null; ffmpegApiKey: string | null; cleanvoiceApiKey: string | null }> = {};
+        const updateData: Partial<{ password: string; profileImageUrl: string | null; kieApiKey: string | null; openaiApiKey: string | null; ffmpegApiKey: string | null; cleanvoiceApiKey: string | null; ffmpegBatchSize: number }> = {};
         if (input.password) updateData.password = input.password;
         if (input.profileImageUrl !== undefined) updateData.profileImageUrl = input.profileImageUrl;
         if (input.kieApiKey !== undefined) updateData.kieApiKey = input.kieApiKey;
         if (input.openaiApiKey !== undefined) updateData.openaiApiKey = input.openaiApiKey;
         if (input.ffmpegApiKey !== undefined) updateData.ffmpegApiKey = input.ffmpegApiKey;
         if (input.cleanvoiceApiKey !== undefined) updateData.cleanvoiceApiKey = input.cleanvoiceApiKey;
+        if (input.ffmpegBatchSize !== undefined) updateData.ffmpegBatchSize = input.ffmpegBatchSize;
 
         await updateAppUser(input.userId, updateData);
 
@@ -160,6 +164,7 @@ export const appRouter = router({
             openaiApiKey: user.openaiApiKey,
             ffmpegApiKey: user.ffmpegApiKey,
             cleanvoiceApiKey: user.cleanvoiceApiKey,
+            ffmpegBatchSize: user.ffmpegBatchSize,
           } : null,
         };
       }),
