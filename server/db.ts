@@ -10,12 +10,40 @@ export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
       _db = drizzle(process.env.DATABASE_URL);
+      
+      // Run auto-migrations on first connection
+      await runAutoMigrations(_db);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
     }
   }
   return _db;
+}
+
+// Auto-migrations: Run schema changes automatically on startup
+async function runAutoMigrations(db: ReturnType<typeof drizzle>) {
+  try {
+    console.log('[Database] Running auto-migrations...');
+    
+    // Migration 1: Add ffmpegBatchSize column if not exists
+    try {
+      await db.execute(`
+        ALTER TABLE app_users 
+        ADD COLUMN IF NOT EXISTS ffmpegBatchSize INT NOT NULL DEFAULT 15
+      `);
+      console.log('[Database] ✅ Migration: ffmpegBatchSize column added/verified');
+    } catch (error: any) {
+      // Ignore "Duplicate column" errors (MySQL)
+      if (!error.message?.includes('Duplicate column')) {
+        console.error('[Database] ⚠️ Migration failed (ffmpegBatchSize):', error);
+      }
+    }
+    
+    console.log('[Database] ✅ All auto-migrations completed');
+  } catch (error) {
+    console.error('[Database] ❌ Auto-migrations failed:', error);
+  }
 }
 
 export async function upsertUser(user: InsertUser): Promise<void> {

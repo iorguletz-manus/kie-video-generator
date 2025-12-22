@@ -3,6 +3,7 @@ import Peaks, { PeaksInstance, Segment } from 'peaks.js';
 import { Button } from './ui/button';
 import { Play, Pause, ZoomIn, ZoomOut, Lock, Unlock } from 'lucide-react';
 import { WaveSurferEditor } from './WaveSurferEditor';
+import MarkerModificationConfirmModal from './MarkerModificationConfirmModal';
 
 // OVERLAY FEATURE FLAG - Set to false to disable overlay completely
 const OVERLAY_ENABLED = true;
@@ -114,6 +115,10 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
   // Snap guides state
   const [showSnapGuides, setShowSnapGuides] = useState({ horizontal: false, vertical: false });
   const SNAP_THRESHOLD = 3; // 3% threshold for snapping
+  
+  // Marker modification confirmation modal state
+  const [showMarkerConfirmModal, setShowMarkerConfirmModal] = useState(false);
+  const [pendingMarkerAction, setPendingMarkerAction] = useState<'start' | 'end' | null>(null);
   
   // Local overlay settings state (initialize from props or defaults)
   // Default overlay settings
@@ -1249,18 +1254,10 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
             onClick={async () => {
               // Check if video is already trimmed and user is trying to lock (modify markers)
               if (video.trimmedVideoUrl && !isStartLocked) {
-                const confirmed = window.confirm(
-                  'Are you sure you want to modify the markers? If you modify them, this video will need to be re-trimmed using the red button below to appear correctly in Step 10.'
-                );
-                
-                if (!confirmed) {
-                  return; // User cancelled
-                }
-                
-                // User confirmed - mark video for recut
-                if (onMarkerModified) {
-                  onMarkerModified(video.videoName);
-                }
+                // Show custom modal instead of browser alert
+                setPendingMarkerAction('start');
+                setShowMarkerConfirmModal(true);
+                return;
               }
               
               const newLockState = !isStartLocked;
@@ -1310,18 +1307,10 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
             onClick={async () => {
               // Check if video is already trimmed and user is trying to lock (modify markers)
               if (video.trimmedVideoUrl && !isEndLocked) {
-                const confirmed = window.confirm(
-                  'Are you sure you want to modify the markers? If you modify them, this video will need to be re-trimmed using the red button below to appear correctly in Step 10.'
-                );
-                
-                if (!confirmed) {
-                  return; // User cancelled
-                }
-                
-                // User confirmed - mark video for recut
-                if (onMarkerModified) {
-                  onMarkerModified(video.videoName);
-                }
+                // Show custom modal instead of browser alert
+                setPendingMarkerAction('end');
+                setShowMarkerConfirmModal(true);
+                return;
               }
               
               const newLockState = !isEndLocked;
@@ -1764,6 +1753,45 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
           </p>
         </div>
       )}
+      
+      {/* Marker Modification Confirmation Modal */}
+      <MarkerModificationConfirmModal
+        isOpen={showMarkerConfirmModal}
+        onClose={() => {
+          setShowMarkerConfirmModal(false);
+          setPendingMarkerAction(null);
+        }}
+        onConfirm={() => {
+          // User confirmed - mark video for recut
+          if (onMarkerModified) {
+            onMarkerModified(video.videoName);
+          }
+          
+          // Apply the pending marker lock action
+          if (pendingMarkerAction === 'start') {
+            const newLockState = !isStartLocked;
+            setIsStartLocked(newLockState);
+            if (onTrimChange) {
+              onTrimChange(video.id, {
+                startKeep: Math.round(previewStart),
+                endKeep: Math.round(previewEnd)
+              }, newLockState, isEndLocked);
+            }
+          } else if (pendingMarkerAction === 'end') {
+            const newLockState = !isEndLocked;
+            setIsEndLocked(newLockState);
+            if (onTrimChange) {
+              onTrimChange(video.id, {
+                startKeep: Math.round(previewStart),
+                endKeep: Math.round(previewEnd)
+              }, isStartLocked, newLockState);
+            }
+          }
+          
+          setPendingMarkerAction(null);
+        }}
+        videoName={video.videoName}
+      />
     </div>
   );
 }, (prevProps, nextProps) => {
