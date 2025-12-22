@@ -10,6 +10,7 @@ import MergeFinalProgressModal from '@/components/MergeFinalProgressModal';
 import DownloadZipProgressModal from '@/components/DownloadZipProgressModal';
 import { SelectiveMergePopup } from '@/components/SelectiveMergePopup';
 import { SelectiveAutopreparePopup } from '@/components/SelectiveAutopreparePopup';
+import { sortVideosByCategory } from '@/utils/videoSorting';
 import { RegenerateVideoConfirmModal } from '@/components/RegenerateVideoConfirmModal';
 import { CreateItemDialog } from '@/components/CreateItemDialog';
 import { trpc } from '../lib/trpc';
@@ -2115,10 +2116,14 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     const filteredAccepted = acceptedVideos.filter(v => !(v.isMergedResult ?? false));
     const filteredRegenerate = regenerateVideos.filter(v => !(v.isMergedResult ?? false));
     
-    if (step5Filter === 'all') return filteredResults;
-    if (step5Filter === 'accepted') return filteredAccepted;
-    if (step5Filter === 'regenerate') return filteredRegenerate;
-    return filteredResults;
+    // Sort by category (HOOK → MIRROR → DCS → TRANSITION → NEW CAUSE → MECHANISM → EMOTIONAL PROOF → TRANSFORMATION → CTA)
+    let result;
+    if (step5Filter === 'all') result = filteredResults;
+    else if (step5Filter === 'accepted') result = filteredAccepted;
+    else if (step5Filter === 'regenerate') result = filteredRegenerate;
+    else result = filteredResults;
+    
+    return sortVideosByCategory(result);
   }, [step5Filter, videoResults, acceptedVideos, regenerateVideos]);
   
   // Filtered lists pentru STEP 6 (based on videoFilter)
@@ -2135,11 +2140,15 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     const filteredAccepted = (acceptedVideos || []).filter(v => !(v.isMergedResult ?? false));
     const filteredFailed = (failedVideos || []).filter(v => !(v.isMergedResult ?? false));
     
-    if (videoFilter === 'all') return filteredResults;
-    if (videoFilter === 'accepted') return filteredAccepted;
-    if (videoFilter === 'failed') return filteredFailed;
-    if (videoFilter === 'no_decision') return filteredResults.filter(v => !v.reviewStatus);
-    return filteredResults;
+    // Sort by category
+    let result;
+    if (videoFilter === 'all') result = filteredResults;
+    else if (videoFilter === 'accepted') result = filteredAccepted;
+    else if (videoFilter === 'failed') result = filteredFailed;
+    else if (videoFilter === 'no_decision') result = filteredResults.filter(v => !v.reviewStatus);
+    else result = filteredResults;
+    
+    return sortVideosByCategory(result);
   }, [videoFilter, videoResults, acceptedVideos, failedVideos]);
   
   // Videos without decision (for STEP 6 statistics)
@@ -5881,11 +5890,14 @@ const handlePrepareForMerge = async () => {
   const hookGroups: Record<string, typeof hookVideos> = {};
   hookVideos.forEach(video => {
     const hookMatch = video.videoName.match(/(.*)(HOOK\d+)[A-Z]?(.*)/);
+    console.log(`[Prepare for Merge] 🔍 Processing: ${video.videoName}`);
+    console.log(`[Prepare for Merge] 🔍 Match result:`, hookMatch);
     if (hookMatch) {
       const prefix = hookMatch[1];
       const hookBase = hookMatch[2];
       const suffix = hookMatch[3];
       const groupKey = `${prefix}${hookBase}${suffix}`;
+      console.log(`[Prepare for Merge] 🔍 GroupKey: ${groupKey}`);
       
       if (!hookGroups[groupKey]) {
         hookGroups[groupKey] = [];
@@ -5894,7 +5906,14 @@ const handlePrepareForMerge = async () => {
     }
   });
   
+  console.log('[Prepare for Merge] 🔍 All hook groups:', Object.keys(hookGroups));
+  Object.entries(hookGroups).forEach(([key, videos]) => {
+    console.log(`[Prepare for Merge] 🔍 Group "${key}": ${videos.length} videos -`, videos.map(v => v.videoName));
+  });
+  
   const hookGroupsToMerge = Object.entries(hookGroups).filter(([_, videos]) => videos.length > 1);
+  console.log('[Prepare for Merge] 🔍 Groups to merge:', hookGroupsToMerge.length);
+  console.log('[Prepare for Merge] 🔍 Groups NOT to merge (single videos):', Object.entries(hookGroups).filter(([_, videos]) => videos.length === 1).map(([key]) => key));
   
   console.log('[Prepare for Merge] 📺 BODY videos:', bodyVideos.length);
   console.log('[Prepare for Merge] 🎣 HOOK groups:', hookGroupsToMerge.length);
@@ -15124,6 +15143,9 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
             // Filter videos with step9Note
             approvedVideos = approvedVideos.filter(v => v.step9Note);
           }
+          
+          // Sort by category
+          approvedVideos = sortVideosByCategory(approvedVideos);
           return (
             <Card className="mb-8 border-2 border-purple-200">
               <CardHeader className="bg-purple-50">
@@ -15990,6 +16012,9 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
             trimmedVideos = trimmedVideos.filter(v => v.recutStatus === 'recut');
           }
           
+          // Sort by category
+          trimmedVideos = sortVideosByCategory(trimmedVideos);
+          
           return (
             <Card className="mb-8 border-2 border-blue-200">
               <CardHeader className="bg-blue-50">
@@ -16683,10 +16708,13 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                     }
                     
                     // Fallback: Show first body video
-                    const bodyVideos = videoResults.filter(v => 
+                    let bodyVideos = videoResults.filter(v => 
                       v.trimmedVideoUrl && 
                       !v.videoName.toLowerCase().includes('hook')
                     );
+                    
+                    // Sort by category
+                    bodyVideos = sortVideosByCategory(bodyVideos);
                     
                     if (bodyVideos.length === 0) {
                       return (
@@ -16990,16 +17018,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                   <>
                     {/* Videos Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {finalVideosFromDB
-                        .slice()
-                        .sort((a, b) => {
-                          // Extract hook number from video name (e.g., HOOK2 -> 2)
-                          const aMatch = a.videoName.match(/HOOK(\d+)/);
-                          const bMatch = b.videoName.match(/HOOK(\d+)/);
-                          const aNom = aMatch ? parseInt(aMatch[1]) : 999;
-                          const bNom = bMatch ? parseInt(bMatch[1]) : 999;
-                          return aNom - bNom;
-                        })
+                      {sortVideosByCategory(finalVideosFromDB)
                         .map((video, index) => (
                         <div key={index} className="space-y-3 p-4 border border-gray-300 rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow">
                           {/* Video Name */}
