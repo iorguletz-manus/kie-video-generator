@@ -9,6 +9,7 @@ import MergeProgressModal from '@/components/MergeProgressModal';
 import MergeFinalProgressModal from '@/components/MergeFinalProgressModal';
 import DownloadZipProgressModal from '@/components/DownloadZipProgressModal';
 import { SelectiveMergePopup } from '@/components/SelectiveMergePopup';
+import { SelectiveAutopreparePopup } from '@/components/SelectiveAutopreparePopup';
 import { CreateItemDialog } from '@/components/CreateItemDialog';
 import { trpc } from '../lib/trpc';
 import mammoth from 'mammoth';
@@ -204,6 +205,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const stopProcessingRef = useRef(false);
   const [showCuttingModeDialog, setShowCuttingModeDialog] = useState(false);
   const [showReprocessWarning, setShowReprocessWarning] = useState(false);
+  const [isSelectiveAutopreparePopupOpen, setIsSelectiveAutopreparePopupOpen] = useState(false);
   const [processingProgress, setProcessingProgress] = useState({ 
     ffmpeg: { current: 0, total: 0, status: 'idle' as 'idle' | 'processing' | 'complete', activeVideos: [] as string[] },
     whisper: { current: 0, total: 0, status: 'idle' as 'idle' | 'processing' | 'complete', activeVideos: [] as string[] },
@@ -9036,6 +9038,68 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
         }}
       />
       
+      {/* Selective Autoprepare Popup for Step 7 */}
+      <SelectiveAutopreparePopup
+        open={isSelectiveAutopreparePopupOpen}
+        onClose={() => setIsSelectiveAutopreparePopupOpen(false)}
+        videoResults={videoResults.filter(v => v.reviewStatus === 'accepted' && v.status === 'success' && v.videoUrl)}
+        onConfirm={async (selectedVideoNames) => {
+          setIsSelectiveAutopreparePopupOpen(false);
+          
+          // Filter selected videos from videoResults
+          const videosToProcess = videoResults.filter(v => selectedVideoNames.includes(v.videoName));
+          
+          console.log(`[Video Editing] 🎯 Processing ${videosToProcess.length} selected videos`);
+          
+          if (videosToProcess.length === 0) {
+            toast.error('❌ No videos selected!');
+            return;
+          }
+          
+          // Clear old Step 8 data for selected videos
+          setVideoResults(prev => prev.map(v => 
+            selectedVideoNames.includes(v.videoName)
+              ? { 
+                  ...v, 
+                  editStatus: null,
+                  whisperTranscript: undefined,
+                  cutPoints: undefined,
+                  words: undefined,
+                  audioUrl: undefined,
+                  waveformData: undefined,
+                  trimStatus: null,
+                  trimmedVideoUrl: undefined,
+                  acceptRejectStatus: null
+                }
+              : v
+          ));
+          
+          // Reset progress
+          setProcessingProgress({ 
+            ffmpeg: { current: 0, total: videosToProcess.length },
+            whisper: { current: 0, total: videosToProcess.length },
+            cleanvoice: { current: 0, total: videosToProcess.length },
+            currentVideoName: '' 
+          });
+          setProcessingStep(null);
+          setShowProcessingModal(true);
+          
+          try {
+            await batchProcessVideosWithWhisper(videosToProcess);
+            const failedCount = processingProgress.failedVideos.length;
+            if (failedCount > 0) {
+              toast.warning(`⚠️ Processing complete: ${processingProgress.successVideos.length} success, ${failedCount} failed. Please retry failed videos.`);
+            } else {
+              toast.success(`✅ ${videosToProcess.length} videos processed successfully! Click Continue to proceed.`);
+            }
+          } catch (error: any) {
+            console.error('[Video Editing] Batch processing error:', error);
+            setShowProcessingModal(false);
+            toast.error(`Error processing videos: ${error.message}`);
+          }
+        }}
+      />
+      
       {/* Merge Final Videos Modal for Step 10 → Step 11 */}
       <MergeFinalProgressModal
         open={isMergingFinalVideos}
@@ -14749,85 +14813,63 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                           return;
                         }
                         
-                        // SMART LOGIC: Check if videos have FFmpeg WAV (audioWav)
-                        const videosWithWav = approvedVideos.filter(v => v.audioWav);
-                        const videosWithoutWav = approvedVideos.filter(v => !v.audioWav);
+                        // SMART LOGIC: Check if videos have audioUrl (FFmpeg WAV processing)
+                        const videosWithAudio = approvedVideos.filter(v => v.audioUrl);
+                        const videosWithoutAudio = approvedVideos.filter(v => !v.audioUrl);
                         
-                        console.log(`[Video Editing] Videos with WAV: ${videosWithWav.length}, Without WAV: ${videosWithoutWav.length}`);
+                        console.log(`[Video Editing] Videos with audioUrl: ${videosWithAudio.length}, Without audioUrl: ${videosWithoutAudio.length}`);
                         
-                        // CASE 1: ALL videos have WAV → Show WARNING popup for reprocess all
-                        if (videosWithoutWav.length === 0) {
-                          console.log('[Video Editing] ⚠️ ALL videos have WAV - showing reprocess warning');
-                          setShowReprocessWarning(true);
-                          return;
-                        }
-                        
-                        // CASE 2: Some videos don't have WAV → Process only those without WAV (no warning)
-                        console.log(`[Video Editing] 🎯 Processing ${videosWithoutWav.length} videos without WAV`);
-                        const videosToProcess = videosWithoutWav;
-                        
-                        if (videosToProcess.length === 0) {
-                          toast.error('❌ No accepted videos! Check Step 7.');
-                          return;
-                        }
-                        
-                        console.log(`[Video Editing] ✅ Approved videos (${approvedVideos.length}):`, approvedVideos.map(v => v.videoName));
-                        console.log(`[Video Editing] Starting batch processing for ${videosToProcess.length} videos (with and without red text)`);
-                        console.log(`[Video Editing] 📋 Videos to process:`, videosToProcess.map(v => ({
-                          name: v.videoName,
-                          hasRedText: v.redStart !== undefined && v.redEnd !== undefined,
-                          redStart: v.redStart,
-                          redEnd: v.redEnd
-                        })));
-                        
-                        // CLEAR old Step 8 data (editStatus, whisperTranscript, cutPoints, etc.) before starting new batch
-                        // This preserves videos in Step 7 while removing Step 8 processing data
-                        setVideoResults(prev => prev.map(v => 
-                          v.editStatus === 'processed' 
-                            ? { 
-                                ...v, 
-                                editStatus: null,
-                                whisperTranscript: undefined,
-                                cutPoints: undefined,
-                                words: undefined,
-                                audioUrl: undefined,
-                                waveformData: undefined,
-                                trimStatus: null,
-                                trimmedVideoUrl: undefined,
-                                acceptRejectStatus: null
-                              }
-                            : v
-                        ));
-                        
-                        // Reset progress BEFORE opening modal to avoid showing old value
-                        setProcessingProgress({ 
-                          ffmpeg: { current: 0, total: videosToProcess.length },
-                          whisper: { current: 0, total: videosToProcess.length },
-                          cleanvoice: { current: 0, total: videosToProcess.length },
-                          currentVideoName: '' 
-                        });
-                        setProcessingStep(null);
-                        
-                        // Open ProcessingModal and start batch processing
-                        setShowProcessingModal(true);
-                        
-                        try {
-                          await batchProcessVideosWithWhisper(videosToProcess);
+                        // CASE 1: NO videos have audioUrl → Process all directly (existing behavior)
+                        if (videosWithAudio.length === 0) {
+                          console.log('[Video Editing] ✅ NO videos have audioUrl - processing all directly');
+                          const videosToProcess = approvedVideos;
                           
-                          // Check if there are failed videos
-                          const failedCount = processingProgress.failedVideos.length;
+                          // Clear old Step 8 data and start processing
+                          setVideoResults(prev => prev.map(v => 
+                            v.editStatus === 'processed' 
+                              ? { 
+                                  ...v, 
+                                  editStatus: null,
+                                  whisperTranscript: undefined,
+                                  cutPoints: undefined,
+                                  words: undefined,
+                                  audioUrl: undefined,
+                                  waveformData: undefined,
+                                  trimStatus: null,
+                                  trimmedVideoUrl: undefined,
+                                  acceptRejectStatus: null
+                                }
+                              : v
+                          ));
                           
-                          // Keep modal open - user will click Continue or Retry Failed
-                          if (failedCount > 0) {
-                            toast.warning(`⚠️ Processing complete: ${processingProgress.successVideos.length} success, ${failedCount} failed. Please retry failed videos.`);
-                          } else {
-                            toast.success(`✅ ${videosToProcess.length} videos processed successfully! Click Continue to proceed.`);
+                          setProcessingProgress({ 
+                            ffmpeg: { current: 0, total: videosToProcess.length },
+                            whisper: { current: 0, total: videosToProcess.length },
+                            cleanvoice: { current: 0, total: videosToProcess.length },
+                            currentVideoName: '' 
+                          });
+                          setProcessingStep(null);
+                          setShowProcessingModal(true);
+                          
+                          try {
+                            await batchProcessVideosWithWhisper(videosToProcess);
+                            const failedCount = processingProgress.failedVideos.length;
+                            if (failedCount > 0) {
+                              toast.warning(`⚠️ Processing complete: ${processingProgress.successVideos.length} success, ${failedCount} failed. Please retry failed videos.`);
+                            } else {
+                              toast.success(`✅ ${videosToProcess.length} videos processed successfully! Click Continue to proceed.`);
+                            }
+                          } catch (error: any) {
+                            console.error('[Video Editing] Batch processing error:', error);
+                            setShowProcessingModal(false);
+                            toast.error(`Error processing videos: ${error.message}`);
                           }
-                        } catch (error: any) {
-                          console.error('[Video Editing] Batch processing error:', error);
-                          setShowProcessingModal(false);
-                          toast.error(`Error processing videos: ${error.message}`);
+                          return;
                         }
+                        
+                        // CASE 2: SOME videos have audioUrl → Show selective popup
+                        console.log('[Video Editing] 📋 Some videos have audioUrl - showing selective popup');
+                        setIsSelectiveAutopreparePopupOpen(true);
                       }}
                       className="w-full bg-purple-600 hover:bg-purple-700 px-4 md:px-8 py-6 md:py-8 text-base md:text-lg"
                       disabled={acceptedVideosWithUrl.length === 0}
