@@ -28,15 +28,32 @@ async function runAutoMigrations(db: ReturnType<typeof drizzle>) {
     
     // Migration 1: Add ffmpegBatchSize column if not exists
     try {
-      await db.execute(`
-        ALTER TABLE app_users 
-        ADD COLUMN IF NOT EXISTS ffmpegBatchSize INT NOT NULL DEFAULT 15
+      // Check if column exists first (MySQL doesn't support IF NOT EXISTS for ADD COLUMN)
+      const checkResult: any = await db.execute(`
+        SELECT COUNT(*) as count 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'app_users' 
+        AND COLUMN_NAME = 'ffmpegBatchSize'
       `);
-      console.log('[Database] ✅ Migration: ffmpegBatchSize column added/verified');
+      
+      const columnExists = checkResult[0]?.[0]?.count > 0;
+      
+      if (!columnExists) {
+        await db.execute(`
+          ALTER TABLE app_users 
+          ADD COLUMN ffmpegBatchSize INT NOT NULL DEFAULT 15
+        `);
+        console.log('[Database] ✅ Migration: ffmpegBatchSize column added');
+      } else {
+        console.log('[Database] ✅ Migration: ffmpegBatchSize column already exists');
+      }
     } catch (error: any) {
       // Ignore "Duplicate column" errors (MySQL)
-      if (!error.message?.includes('Duplicate column')) {
-        console.error('[Database] ⚠️ Migration failed (ffmpegBatchSize):', error);
+      if (error.message?.includes('Duplicate column')) {
+        console.log('[Database] ✅ Migration: ffmpegBatchSize column already exists');
+      } else {
+        console.error('[Database] ⚠️ Migration failed (ffmpegBatchSize):', error.message);
       }
     }
     
