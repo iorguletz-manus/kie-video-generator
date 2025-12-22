@@ -68,7 +68,29 @@ export function sortVideosByCategory<T extends VideoWithSection>(videos: T[]): T
       return priorityA - priorityB;
     }
     
-    // Within same category, sort alphabetically by videoName
+    // Within same category, sort by numeric value if present, then alphabetically
+    // Extract numbers from videoName (e.g., HOOK10 → 10, HOOK1B → 1)
+    const matchA = a.videoName.match(/(HOOK|MIRROR|DCS|TRANSITION|NEW_CAUSE|MECHANISM|EMOTIONAL_PROOF|TRANSFORMATION|CTA)(\d+)([A-Z]?)/i);
+    const matchB = b.videoName.match(/(HOOK|MIRROR|DCS|TRANSITION|NEW_CAUSE|MECHANISM|EMOTIONAL_PROOF|TRANSFORMATION|CTA)(\d+)([A-Z]?)/i);
+    
+    if (matchA && matchB) {
+      const numA = parseInt(matchA[2]);
+      const numB = parseInt(matchB[2]);
+      const suffixA = matchA[3] || '';
+      const suffixB = matchB[3] || '';
+      
+      // First compare by number (HOOK1 before HOOK10)
+      if (numA !== numB) {
+        return numA - numB;
+      }
+      
+      // If numbers are same, compare by suffix (HOOK1 before HOOK1A before HOOK1B)
+      if (suffixA !== suffixB) {
+        return suffixA.localeCompare(suffixB);
+      }
+    }
+    
+    // Fallback to alphabetical comparison
     return a.videoName.localeCompare(b.videoName);
   });
 }
