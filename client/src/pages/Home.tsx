@@ -98,6 +98,10 @@ interface VideoResult {
   waveformData?: string;    // Waveform JSON data
   editingDebugInfo?: any;   // Debug info from Whisper processing
   cleanvoiceAudioUrl?: string; // CleanVoice processed audio URL
+  
+  // Step 7/8: Audio Processing Status (SEPARATE from video generation status)
+  audioProcessingStatus?: 'pending' | 'success' | 'failed'; // Whisper/CleanVoice processing status
+  audioProcessingError?: string; // Audio processing error message
   // Step 9: Trimmed video fields
   trimmedVideoUrl?: string; // Trimmed video URL from Bunny CDN
 
@@ -3065,17 +3069,21 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       return video; // Keep original video unchanged
     }
     
-    // If processing failed, mark as failed
+    // If processing failed, mark audio processing as failed (DON'T touch video generation status!)
     if (!result.success) {
-      console.log(`[Batch Processing] ❌ Failed processing for ${video.videoName}:`, result.error);
-      return { ...video, status: 'failed' as const, error: result.error };
+      console.log(`[Batch Processing] ❌ Failed audio processing for ${video.videoName}:`, result.error);
+      return { 
+        ...video, 
+        audioProcessingStatus: 'failed' as const, 
+        audioProcessingError: result.error 
+      };
     }
     
     // Success - update with new data
     console.log(`[Batch Processing] ✅ Success for ${video.videoName}`);
     return {
       ...video,
-      status: 'success' as const,
+      audioProcessingStatus: 'success' as const, // Audio processing succeeded
       audioUrl: result.result.audioUrl,
       waveformData: result.result.waveformData,
       cutPoints: result.result.cutPoints,
