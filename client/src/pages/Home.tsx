@@ -15329,32 +15329,44 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                 return;
                               }
                               
-                              // Update videoResults state BEFORE reprocessing to clear fields
-                              setVideoResults(prev => prev.map(v =>
-                                v.videoName === videoName
-                                  ? {
-                                      ...v,
-                                      audioUrl: undefined,
-                                      waveformData: undefined,
-                                      cleanvoiceAudioUrl: undefined,
-                                      whisperTranscript: undefined,
-                                      cutPoints: undefined,
-                                      editingDebugInfo: undefined,
-                                      trimmedVideoUrl: undefined, // Clear trimmed video (no longer valid)
-                                      recutStatus: 'recut', // Mark as RECUT for Step 9
-                                    }
-                                  : v
-                              ));
+                              // Update videoResults state BEFORE reprocessing to clear fields AND get updated video
+                              const updatedVideoToReprocess = await new Promise<VideoResult>((resolve) => {
+                                setVideoResults(prev => {
+                                  const newResults = prev.map(v =>
+                                    v.videoName === videoName
+                                      ? {
+                                          ...v,
+                                          audioUrl: undefined,
+                                          waveformData: undefined,
+                                          cleanvoiceAudioUrl: undefined,
+                                          whisperTranscript: undefined,
+                                          cutPoints: undefined,
+                                          editingDebugInfo: undefined,
+                                          trimmedVideoUrl: undefined, // Clear trimmed video (no longer valid)
+                                          recutStatus: 'recut' as const, // Mark as RECUT for Step 9
+                                        }
+                                      : v
+                                  );
+                                  
+                                  // Resolve with the updated video
+                                  const updated = newResults.find(v => v.videoName === videoName);
+                                  if (updated) {
+                                    resolve(updated);
+                                  }
+                                  
+                                  return newResults;
+                                });
+                              });
                               
                               // Log BEFORE reprocesare
                               console.log('[Reprocesare] BEFORE - cutPoints:', {
-                                startKeep: videoToReprocess.cutPoints?.startKeep,
-                                endKeep: videoToReprocess.cutPoints?.endKeep,
-                                redPosition: videoToReprocess.cutPoints?.redPosition,
-                                confidence: videoToReprocess.cutPoints?.confidence
+                                startKeep: updatedVideoToReprocess.cutPoints?.startKeep,
+                                endKeep: updatedVideoToReprocess.cutPoints?.endKeep,
+                                redPosition: updatedVideoToReprocess.cutPoints?.redPosition,
+                                confidence: updatedVideoToReprocess.cutPoints?.confidence
                               });
                               console.log('[Reprocesare] Cleared: audioUrl, waveformData, trimmedVideoUrl, cutPoints');
-                              console.log('[Reprocesare] Set recutStatus to: RECUT');
+                              console.log('[Reprocesare] Set recutStatus to:', updatedVideoToReprocess.recutStatus);
                               
                               // Reset progress and open modal
                               setProcessingProgress({ 
@@ -15367,9 +15379,9 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                               setShowProcessingModal(true);
                               
                               try {
-                                // Call batch processing with single video
+                                // Call batch processing with UPDATED video (with recutStatus: 'recut')
                                 // batchProcessVideosWithWhisper already updates videoResults internally
-                                const resultsMap = await batchProcessVideosWithWhisper([videoToReprocess]);
+                                const resultsMap = await batchProcessVideosWithWhisper([updatedVideoToReprocess]);
                                 
                                 // Check if processing was successful
                                 const result = resultsMap.get(videoName);
