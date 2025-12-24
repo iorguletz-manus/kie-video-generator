@@ -31,18 +31,19 @@ export const SelectiveMergePopup: React.FC<SelectiveMergePopupProps> = ({
     }
   }, [open]);
 
-  // Get ALREADY merged hooks (from hookMergedVideos)
-  const mergedHookNames = hookMergedVideos ? Object.keys(hookMergedVideos) : [];
+  // Get ALREADY merged hooks (from hookMergedVideos) - remove 'M' suffix for display
+  const mergedHookNames = hookMergedVideos ? Object.keys(hookMergedVideos).map(name => name.replace(/M$/, '')) : [];
   
   // Get NEW hooks that NEED merging (from allHookGroups with count > 1)
   const newHooksToMerge = allHookGroups
     ? Object.entries(allHookGroups)
-        .filter(([hookName, count]) => count > 1 && !mergedHookNames.includes(hookName + 'M'))
+        .filter(([hookName, count]) => count > 1 && !mergedHookNames.includes(hookName))
         .map(([hookName]) => hookName)
     : [];
   
-  // Combine BOTH: merged hooks (for re-merge) + new hooks (for first merge)
-  const allHooksToShow = [...mergedHookNames, ...newHooksToMerge].sort((a, b) => {
+  // Combine BOTH and remove duplicates using Set
+  const allHooksSet = new Set([...mergedHookNames, ...newHooksToMerge]);
+  const allHooksToShow = Array.from(allHooksSet).sort((a, b) => {
     // Extract HOOK number from names
     const hookNumA = a.match(/HOOK(\d+)/)?.[1];
     const hookNumB = b.match(/HOOK(\d+)/)?.[1];
