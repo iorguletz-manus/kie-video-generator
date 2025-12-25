@@ -8,6 +8,7 @@ interface SelectiveMergePopupProps {
   onClose: () => void;
   hookMergedVideos: Record<string, string>;
   bodyMergedVideoUrl: string | null;
+  hasBodyVideos?: boolean; // Whether there are body videos that need merging (regardless of merge status)
   allHookGroups?: Record<string, number>; // All hook groups with video count (including single videos)
   onConfirm: (selectedHooks: string[], selectedBody: boolean) => void;
 }
@@ -17,6 +18,7 @@ export const SelectiveMergePopup: React.FC<SelectiveMergePopupProps> = ({
   onClose,
   hookMergedVideos,
   bodyMergedVideoUrl,
+  hasBodyVideos,
   allHookGroups,
   onConfirm,
 }) => {
@@ -57,7 +59,8 @@ export const SelectiveMergePopup: React.FC<SelectiveMergePopupProps> = ({
   });
   
   const hookNames = allHooksToShow;
-  const hasBody = bodyMergedVideoUrl !== null;
+  // Show body checkbox if there are body videos OR if body is already merged
+  const hasBody = hasBodyVideos || bodyMergedVideoUrl !== null;
 
   // Calculate hooks that don't need merge (only 1 video in group)
   const hooksNoMerge = allHookGroups 

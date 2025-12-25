@@ -2201,6 +2201,18 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     return hookGroups;
   }, [videoResults]);
   
+  // Check if there are body videos that need merging
+  const hasBodyVideos = useMemo(() => {
+    const trimmedVideos = (videoResults || []).filter(v => 
+      v.trimmedVideoUrl &&
+      v.reviewStatus === 'accepted' && 
+      v.status === 'success'
+    );
+    
+    const bodyVideos = trimmedVideos.filter(v => !v.videoName.match(/HOOK\d+[A-Z]?/));
+    return bodyVideos.length > 0;
+  }, [videoResults]);
+  
   // Final combinations count (Step 10)
   const finalCombinationsCount = useMemo(() => {
     if (selectedHooks.length === 0 || !selectedBody) return 0;
@@ -9183,6 +9195,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
         onClose={() => setIsSelectiveMergePopupOpen(false)}
         hookMergedVideos={hookMergedVideos}
         bodyMergedVideoUrl={bodyMergedVideoUrl}
+        hasBodyVideos={hasBodyVideos}
         allHookGroups={allHookGroups}
         onConfirm={(selectedHooks, selectedBody) => {
           setIsMergingStep10(true);
