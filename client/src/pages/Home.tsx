@@ -5238,10 +5238,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           console.log(`[Retry] ✅ ${failedMerge.name} SUCCESS:`, result.cdnUrl);
           
           // Update hookMergedVideos
-          setHookMergedVideos(prev => [
-            ...prev.filter(v => !v.name.startsWith(baseName)),
-            { name: outputName, url: result.cdnUrl }
-          ]);
+          setHookMergedVideos(prev => ({
+            ...Object.fromEntries(
+              Object.entries(prev).filter(([key]) => !key.startsWith(baseName))
+            ),
+            [outputName]: result.cdnUrl
+          }));
           
           // Remove from failed list
           setTrimmingProgress(prev => ({
@@ -8183,7 +8185,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
         const hookId = hookMatch[1];
         const mergedName = `HOOK${hookId}M`;
         // Check if merged video exists in hookMergedVideos
-        const mergedExists = hookMergedVideos.some(hv => hv.videoName === mergedName);
+        const mergedExists = Object.keys(hookMergedVideos).some(key => key.includes(mergedName.replace('M', '')));
         if (mergedExists) {
           mergedVideoName = mergedName;
         }
@@ -8271,7 +8273,12 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
         if (hookMatch) {
           const hookId = hookMatch[1];
           const mergedName = `HOOK${hookId}M`;
-          setHookMergedVideos(prev => prev.filter(hv => hv.videoName !== mergedName));
+          setHookMergedVideos(prev => {
+            const filtered = Object.fromEntries(
+              Object.entries(prev).filter(([key]) => !key.includes(mergedName.replace('M', '')))
+            );
+            return filtered;
+          });
           console.log(`[Regenerate] Deleted merged HOOK video: ${mergedName}`);
           
           // Delete final videos that use this HOOK
@@ -9216,9 +9223,14 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
           
           // Delete merged HOOK videos
           if (mergedToDelete.length > 0) {
-            setHookMergedVideos(prev => prev.filter(hv => 
-              !mergedToDelete.some(name => hv.videoName.includes(name))
-            ));
+            setHookMergedVideos(prev => {
+              const filtered = Object.fromEntries(
+                Object.entries(prev).filter(([key]) => 
+                  !mergedToDelete.some(name => key.includes(name))
+                )
+              );
+              return filtered;
+            });
           }
           
           // Delete BODY merged video if needed
