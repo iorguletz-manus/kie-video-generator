@@ -24,7 +24,7 @@ interface SelectiveAutopreparePopupProps {
   open: boolean;
   onClose: () => void;
   videoResults: VideoResult[];
-  hookMergedVideos: HookMergedVideo[];
+  hookMergedVideos: Record<string, string>;
   bodyMergedVideoUrl: string | null;
   finalVideos: FinalVideo[];
   onConfirm: (selectedVideoNames: string[]) => void;
@@ -91,7 +91,7 @@ export const SelectiveAutopreparePopup: React.FC<SelectiveAutopreparePopupProps>
           const mergedName = `HOOK${hookId}M`;
           
           // Check if merged HOOK exists
-          const mergedExists = hookMergedVideos.some(hv => hv.videoName.includes(mergedName));
+          const mergedExists = Object.keys(hookMergedVideos).some(key => key.includes(mergedName.replace('M', '')));
           if (mergedExists && !mergedToDelete.includes(mergedName)) {
             mergedToDelete.push(mergedName);
             
