@@ -7902,6 +7902,27 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                     error: newResult.error,
                     videoUrl: undefined,
                     reviewStatus: undefined, // Reset review status
+                    // Clear ALL Step 7 audio processing data
+                    audioUrl: undefined,
+                    audioWav: undefined,
+                    waveformData: undefined,
+                    cleanvoiceAudioUrl: undefined,
+                    whisperTranscript: undefined,
+                    audioProcessingStatus: undefined,
+                    audioProcessingError: undefined,
+                    // Clear ALL Step 8 cutting data
+                    ffmpegWavUrl: undefined,
+                    whisperUrl: undefined,
+                    cleanvoiceUrl: undefined,
+                    cutPoints: undefined,
+                    editingDebugInfo: undefined,
+                    isStartLocked: false,
+                    isEndLocked: false,
+                    // Clear ALL Step 9 data
+                    recutStatus: null,
+                    trimmedVideoUrl: undefined,
+                    trimmedDuration: undefined,
+                    step9Note: undefined,
                   }
                 : v
             )
