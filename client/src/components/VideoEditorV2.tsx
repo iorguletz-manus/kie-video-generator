@@ -1229,8 +1229,8 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
             </div>
           )}
           
-          {/* WARNING Badge - For unprocessed videos */}
-          {onReprocess && (!video.audioWav || !video.markers || !video.cleanVoiceUrl) && (
+          {/* WARNING Badge - For REgenerated unprocessed videos */}
+          {onReprocess && video.generationCount > 1 && (!video.audioWav || !video.markers || !video.cleanVoiceUrl) && (
             <div className="px-3 py-1 bg-red-100 border-2 border-red-500 rounded text-xs font-bold text-red-700 flex items-center gap-1 animate-pulse">
               <span>⚠️</span>
               <span>WARNING: Please reprocess this video first</span>
