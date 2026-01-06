@@ -1976,7 +1976,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       console.error('[useMemo failedVideos] ❌ videoResults is NOT an array!', videoResults);
       return [];
     }
-    return videoResults.filter(v => v.status === 'failed');
+    // Include both failed videos AND videos marked for regeneration
+    return videoResults.filter(v => v.status === 'failed' || v.reviewStatus === 'regenerate');
   }, [videoResults]);
   
   const acceptedVideos = useMemo(() => {
@@ -2173,7 +2174,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       console.error('[useMemo videosWithoutDecision] ❌ videoResults is NOT an array!', videoResults);
       return [];
     }
-    return videoResults.filter(v => v.reviewStatus === null && !(v.isMergedResult ?? false));
+    // Use falsy check to catch both null and undefined
+    return videoResults.filter(v => !v.reviewStatus && !(v.isMergedResult ?? false));
   }, [videoResults]);
   const videosWithoutDecisionCount = useMemo(() => videosWithoutDecision.length, [videosWithoutDecision]);
   
@@ -14797,6 +14799,14 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                 {/* Add Note button (doar pentru Regenerare) */}
                                 {video.reviewStatus === 'regenerate' && (
                                   <div>
+                                    {/* Display existing note if not editing */}
+                                    {video.internalNote && editingNoteVideoName !== video.videoName && (
+                                      <div className="bg-yellow-50 border-2 border-yellow-400 rounded p-3 mb-2">
+                                        <p className="text-xs text-yellow-800 font-medium mb-1">📝 Note:</p>
+                                        <p className="text-xs text-yellow-900 whitespace-pre-wrap">{video.internalNote}</p>
+                                      </div>
+                                    )}
+                                    
                                     {editingNoteVideoName === video.videoName ? (
                                       <div className="bg-yellow-50 border-2 border-yellow-400 rounded p-3 space-y-2">
                                         <textarea

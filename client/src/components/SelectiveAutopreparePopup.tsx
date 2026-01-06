@@ -91,7 +91,7 @@ export const SelectiveAutopreparePopup: React.FC<SelectiveAutopreparePopupProps>
           const mergedName = `HOOK${hookId}M`;
           
           // Check if merged HOOK exists
-          const mergedExists = Object.keys(hookMergedVideos).some(key => key.includes(mergedName.replace('M', '')));
+          const mergedExists = Array.isArray(Object.keys(hookMergedVideos)) && Object.keys(hookMergedVideos).some(key => key.includes(mergedName.replace('M', '')));
           if (mergedExists && !mergedToDelete.includes(mergedName)) {
             mergedToDelete.push(mergedName);
             
@@ -211,7 +211,7 @@ export const SelectiveAutopreparePopup: React.FC<SelectiveAutopreparePopupProps>
                     if (enableReprocessing) {
                       // Remove all processed videos from selection when disabling
                       setSelectedVideos(selectedVideos.filter(name => 
-                        unprocessedVideos.some(v => v.videoName === name)
+                        Array.isArray(unprocessedVideos) && unprocessedVideos.some(v => v.videoName === name)
                       ));
                     }
                   }}
@@ -293,8 +293,8 @@ export const SelectiveAutopreparePopup: React.FC<SelectiveAutopreparePopupProps>
               {selectedVideos.length === 0 ? ' (None)' : ''}
             </p>
             <p className="text-xs text-blue-700 mt-1">
-              {selectedVideos.filter(name => unprocessedVideos.some(v => v.videoName === name)).length} unprocessed, {' '}
-              {selectedVideos.filter(name => processedVideos.some(v => v.videoName === name)).length} reprocessing
+              {selectedVideos.filter(name => Array.isArray(unprocessedVideos) && unprocessedVideos.some(v => v.videoName === name)).length} unprocessed, {' '}
+              {selectedVideos.filter(name => Array.isArray(processedVideos) && processedVideos.some(v => v.videoName === name)).length} reprocessing
             </p>
           </div>
 
