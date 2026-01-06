@@ -457,7 +457,54 @@ export const appRouter = router({
               // Video generat cu succes
               status = 'success';
               if (responseData?.resultUrls && responseData.resultUrls.length > 0) {
-                videoUrl = responseData.resultUrls[0];
+                const tempdrawUrl = responseData.resultUrls[0];
+                console.log(`[checkVideoStatus] Video ready from kie.ai: ${tempdrawUrl}`);
+                
+                // ✅ Download video from tempdraw and upload to Bunny CDN
+                try {
+                  console.log(`[checkVideoStatus] Downloading video from tempdraw...`);
+                  const videoResponse = await fetch(tempdrawUrl);
+                  if (!videoResponse.ok) {
+                    throw new Error(`Failed to download video: ${videoResponse.statusText}`);
+                  }
+                  
+                  const videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
+                  console.log(`[checkVideoStatus] Downloaded ${videoBuffer.length} bytes`);
+                  
+                  // Generate filename with timestamp
+                  const timestamp = Date.now();
+                  const videoName = `kie_${input.taskId}_${timestamp}.mp4`;
+                  const bunnyPath = `user-${input.userId}/videos/kie/${videoName}`;
+                  
+                  // Upload to Bunny CDN
+                  const BUNNYCDN_STORAGE_PASSWORD = '4c9257d6-aede-4ff1-bb0f9fc95279-997e-412b';
+                  const BUNNYCDN_STORAGE_ZONE = 'manus-storage';
+                  const BUNNYCDN_PULL_ZONE_URL = 'https://manus.b-cdn.net';
+                  
+                  const storageUrl = `https://storage.bunnycdn.com/${BUNNYCDN_STORAGE_ZONE}/${bunnyPath}`;
+                  console.log(`[checkVideoStatus] Uploading to Bunny: ${bunnyPath}`);
+                  
+                  const uploadResponse = await fetch(storageUrl, {
+                    method: 'PUT',
+                    headers: {
+                      'AccessKey': BUNNYCDN_STORAGE_PASSWORD,
+                      'Content-Type': 'video/mp4',
+                    },
+                    body: videoBuffer,
+                  });
+                  
+                  if (!uploadResponse.ok) {
+                    throw new Error(`Bunny upload failed: ${uploadResponse.statusText}`);
+                  }
+                  
+                  videoUrl = `${BUNNYCDN_PULL_ZONE_URL}/${bunnyPath}`;
+                  console.log(`[checkVideoStatus] ✅ Video uploaded to Bunny: ${videoUrl}`);
+                } catch (uploadError: any) {
+                  console.error('[checkVideoStatus] Failed to upload to Bunny:', uploadError);
+                  // Fallback to tempdraw URL if upload fails
+                  videoUrl = tempdrawUrl;
+                  console.log('[checkVideoStatus] ⚠️ Using tempdraw URL as fallback');
+                }
               }
             } else if (successFlag === 0) {
               // Video în curs de generare
