@@ -8643,23 +8643,25 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
     const line = adLines[lineIndex];
     
     // Extract base name and variation letter from videoName
-    // Format: T1_C1_E1_AD1_HOOK1B_TEST_ALINA_1
-    const match = line.videoName.match(/^(.*?)(HOOK\d+)([A-Z]?)(.*)$/);
+    // Format: T1_C1_E1_AD1_HOOK1B_TEST_ALINA_1 or T1_C1_E1_AD1_MIRROR1_TEST_ALINA
+    // Support all section types: HOOK, MIRROR, DCS, TRANSITION, NEW_CAUSE, MECHANISM, TRANSFORMATION, CTA
+    const match = line.videoName.match(/^(.*?)(HOOK|MIRROR|DCS|TRANSITION|NEW_CAUSE|MECHANISM|TRANSFORMATION|CTA)(\d+)([A-Z]?)(.*)$/);
     if (!match) {
       toast.error('Cannot duplicate this line');
       return;
     }
     
-    const [_, prefix, hookBase, currentLetter, suffix] = match;
+    const [_, prefix, sectionType, sectionNumber, currentLetter, suffix] = match;
+    const sectionBase = `${sectionType}${sectionNumber}`; // e.g., "HOOK1", "MIRROR2", "CTA1"
     
-    // Find all variations of this hook in adLines
-    const hookPattern = new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}${hookBase}([A-Z]?)${suffix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
+    // Find all variations of this section+number in adLines
+    const sectionPattern = new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}${sectionBase}([A-Z]?)${suffix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
     const variations = adLines
       .map((l, i) => ({ line: l, index: i }))
-      .filter(({ line: l }) => hookPattern.test(l.videoName))
+      .filter(({ line: l }) => sectionPattern.test(l.videoName))
       .sort((a, b) => {
-        const aLetter = a.line.videoName.match(hookPattern)?.[1] || '';
-        const bLetter = b.line.videoName.match(hookPattern)?.[1] || '';
+        const aLetter = a.line.videoName.match(sectionPattern)?.[1] || '';
+        const bLetter = b.line.videoName.match(sectionPattern)?.[1] || '';
         return aLetter.localeCompare(bLetter);
       });
     
@@ -8670,19 +8672,19 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
     // Rename all variations after current one
     const updatedLines = [...adLines];
     variations.forEach(({ line: l, index: idx }) => {
-      const varLetter = l.videoName.match(hookPattern)?.[1] || '';
+      const varLetter = l.videoName.match(sectionPattern)?.[1] || '';
       const varLetterCode = varLetter ? varLetter.charCodeAt(0) : 64;
       
       if (varLetterCode > currentLetterCode) {
         // Shift this variation up by one letter
         const nextLetter = String.fromCharCode(varLetterCode + 1);
-        const newVideoName = `${prefix}${hookBase}${nextLetter}${suffix}`;
+        const newVideoName = `${prefix}${sectionBase}${nextLetter}${suffix}`;
         updatedLines[idx] = { ...updatedLines[idx], videoName: newVideoName };
       }
     });
     
     // Create duplicate at current position + 1
-    const duplicateName = `${prefix}${hookBase}${newLetter}${suffix}`;
+    const duplicateName = `${prefix}${sectionBase}${newLetter}${suffix}`;
     const duplicateLine: AdLine = {
       ...line,
       id: `line-${Date.now()}-${Math.random()}`,
