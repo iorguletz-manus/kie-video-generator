@@ -77,7 +77,8 @@ interface VideoResult {
   text: string;
   imageUrl: string;
   status: 'pending' | 'success' | 'failed' | null;
-  videoUrl?: string;
+  videoUrl?: string; // Bunny CDN URL
+  videoKieUrl?: string; // Original kie.ai/tempdraw URL
   error?: string;
   videoName: string;
   section: SectionType;
@@ -997,6 +998,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const { data: libraryImages = [], refetch: refetchLibraryImages } = trpc.imageLibrary.list.useQuery({
     userId: localCurrentUser.id,
   });
+  
+  // Mutations
+  const checkVideoStatusMutation = trpc.checkVideoStatus.useMutation();
   const { data: libraryCharacters = [] } = trpc.imageLibrary.getCharacters.useQuery({
     userId: localCurrentUser.id,
   });
@@ -7553,47 +7557,30 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
     try {
       console.log(`Checking status for taskId: ${taskId}, index: ${index}`);
       
-      const response = await fetch(`https://api.kie.ai/api/v1/veo/record-info?taskId=${taskId}`, {
-        headers: {
-          'Authorization': 'Bearer a4089052f1c04c6b8be02b026ce87fe8',
-        },
+      const video = videoResults[index];
+      if (!video) {
+        console.error('Video not found at index:', index);
+        return;
+      }
+      
+      // Use backend to check status and upload to Bunny
+      const result = await checkVideoStatusMutation.mutateAsync({
+        userId: localCurrentUser.id,
+        taskId: taskId,
+        videoName: video.videoName,
       });
-
-      const data = await response.json();
-      console.log('Status response:', data);
-
-      if (data.code === 200 && data.data) {
-        let status: 'pending' | 'success' | 'failed' = 'pending';
-        let videoUrl: string | undefined;
-        let errorMessage: string | undefined;
-
-        console.log('Processing video status - successFlag:', data.data.successFlag);
-        console.log('Full API response:', JSON.stringify(data.data, null, 2));
+      
+      console.log('Backend response:', result);
+      
+      if (result.success) {
+        const status = result.status;
+        const videoUrl = result.videoUrl; // Bunny CDN URL
+        const videoKieUrl = result.videoKieUrl; // Original kie.ai URL
+        const errorMessage = result.errorMessage || undefined;
         
-        if (data.data.successFlag === 1) {
-          status = 'success';
-          // Alternative check for resultUrls (can be in data.data or data.data.response)
-          videoUrl = data.data.resultUrls?.[0] || data.data.response?.resultUrls?.[0];
-          console.log('Video SUCCESS - URL:', videoUrl);
-          console.log('resultUrls location:', data.data.resultUrls ? 'data.data.resultUrls' : 'data.data.response.resultUrls');
-        } else if (data.data.successFlag === -1 || data.data.successFlag === 2) {
-          // successFlag === -1 or 2 means failed
-          status = 'failed';
-          errorMessage = data.data.errorMessage || data.data.error || data.data.msg || 'Unknown error';
-          console.log('Video FAILED - Error:', errorMessage);
-        } else if (data.data.errorMessage || data.data.error) {
-          // If errorMessage exists but successFlag is not -1, still consider failed
-          status = 'failed';
-          errorMessage = data.data.errorMessage || data.data.error;
-          console.log('Video FAILED (detected via errorMessage) - Error:', errorMessage);
-        } else if (data.data.successFlag === 0) {
-          // successFlag === 0 means pending
-          status = 'pending';
-          console.log('Video PENDING - successFlag:', data.data.successFlag);
-        } else {
-          console.log('Video status UNKNOWN - successFlag:', data.data.successFlag);
-          console.log('Setting as pending by default');
-        }
+        console.log('Video status:', status);
+        console.log('Bunny URL:', videoUrl);
+        console.log('Kie URL:', videoKieUrl);
 
         setVideoResults(prev =>
           prev.map((v, i) =>
@@ -7602,6 +7589,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                   ...v,
                   status: status,
                   videoUrl: videoUrl,
+                  videoKieUrl: videoKieUrl,
                   error: errorMessage,
                   // Increment generationCount ONLY on success
                   generationCount: status === 'success' ? (v.generationCount || 0) + 1 : v.generationCount,

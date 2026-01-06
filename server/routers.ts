@@ -408,6 +408,7 @@ export const appRouter = router({
       .input(z.object({
         userId: z.number(),
         taskId: z.string(),
+        videoName: z.string(), // T1_C1_E1_AD1_HOOK1_CHARACTER format
       }))
       .mutation(async ({ input }) => {
         try {
@@ -452,6 +453,7 @@ export const appRouter = router({
             // Determină statusul bazat pe successFlag
             let status: 'success' | 'pending' | 'failed';
             let videoUrl: string | undefined = undefined;
+            let videoKieUrl: string | undefined = undefined;
             
             if (successFlag === 1) {
               // Video generat cu succes
@@ -471,10 +473,13 @@ export const appRouter = router({
                   const videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
                   console.log(`[checkVideoStatus] Downloaded ${videoBuffer.length} bytes`);
                   
-                  // Generate filename with timestamp
+                  // Generate filename with proper video name + timestamp
                   const timestamp = Date.now();
-                  const videoName = `kie_${input.taskId}_${timestamp}.mp4`;
-                  const bunnyPath = `user-${input.userId}/videos/kie/${videoName}`;
+                  const fileName = `${input.videoName}_${timestamp}.mp4`;
+                  const bunnyPath = `user-${input.userId}/videos/kie/${fileName}`;
+                  
+                  // Save original kie.ai URL
+                  videoKieUrl = tempdrawUrl;
                   
                   // Upload to Bunny CDN
                   const BUNNYCDN_STORAGE_PASSWORD = '4c9257d6-aede-4ff1-bb0f9fc95279-997e-412b';
@@ -524,7 +529,8 @@ export const appRouter = router({
             return {
               success: true,
               status: status,
-              videoUrl: videoUrl,
+              videoUrl: videoUrl, // Bunny CDN URL
+              videoKieUrl: videoKieUrl, // Original kie.ai/tempdraw URL
               errorMessage: data.data.errorMessage || null,
             };
           } else {
