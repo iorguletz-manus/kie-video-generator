@@ -1088,7 +1088,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   const [shouldAutoLoadContext, setShouldAutoLoadContext] = useState(false);
   
   // Context session query - load workflow data for selected context
-  const { data: contextSession, refetch: refetchContextSession } = trpc.contextSessions.get.useQuery(
+  const { data: contextSession, refetch: refetchContextSession, isLoading: isLoadingContextSession } = trpc.contextSessions.get.useQuery(
     {
       userId: localCurrentUser.id,
       coreBeliefId: selectedCoreBeliefId!,
@@ -8926,7 +8926,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100">
       {/* Loading Overlay - Shows while context sessions are loading */}
-      {isLoadingContextSessions && (
+      {(isLoadingContextSessions || isLoadingContextSession) && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
           <div className="bg-white rounded-2xl shadow-2xl p-8 flex flex-col items-center gap-4 max-w-sm mx-4">
             <div className="relative">
