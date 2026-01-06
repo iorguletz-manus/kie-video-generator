@@ -279,8 +279,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   // State pentru custom prompts (fiecare video poate avea propriul custom prompt)
   const [customPrompts, setCustomPrompts] = useState<Record<number, string>>({});
   
-  // State pentru filtru STEP 6 (show all / accepted / failed)
-  const [videoFilter, setVideoFilter] = useState<'all' | 'accepted' | 'failed'>('all');
+  // State pentru filtru STEP 6 (show all / accepted / failed / regenerated)
+  const [videoFilter, setVideoFilter] = useState<'all' | 'accepted' | 'failed' | 'no_decision' | 'regenerated'>('all');
   
   // State pentru filtru STEP 5 (show all / accepted / regenerate)
   const [step5Filter, setStep5Filter] = useState<'all' | 'accepted' | 'regenerate'>('all');
@@ -2160,6 +2160,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     else if (videoFilter === 'accepted') result = filteredAccepted;
     else if (videoFilter === 'failed') result = filteredFailed;
     else if (videoFilter === 'no_decision') result = filteredResults.filter(v => !v.reviewStatus);
+    else if (videoFilter === 'regenerated') result = filteredResults.filter(v => (v.generationCount || 1) > 1);
     else result = filteredResults;
     
     return sortVideosByCategory(result);
@@ -3726,16 +3727,27 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     // INITIAL COUNTDOWN: 60s with Skip button
     console.log('[Step 10→Step 11] ⏳ Initial countdown 60s...');
     let skipCountdown = false;
+    let cancelMerge = false;
     
     setMergeFinalProgress(prev => ({
       ...prev,
       onSkipCountdown: () => {
         console.log('[Step 10→Step 11] ⏩ User skipped countdown!');
         skipCountdown = true;
+      },
+      onClose: () => {
+        console.log('[Step 10→Step 11] ❌ User cancelled merge!');
+        cancelMerge = true;
+        setIsMergingFinalVideos(false);
       }
     }));
     
     for (let countdown = 60; countdown > 0; countdown--) {
+      if (cancelMerge) {
+        console.log('[Step 10→Step 11] ❌ Merge cancelled by user!');
+        return;
+      }
+      
       if (skipCountdown) {
         console.log('[Step 10→Step 11] ⏩ Countdown skipped!');
         break;
@@ -3766,6 +3778,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     // Process batches sequentially
     for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+      if (cancelMerge) {
+        console.log('[Step 10→Step 11] ❌ Merge cancelled during processing!');
+        return;
+      }
+      
       const batchNom = batchIdx + 1;
       const startIdx = batchIdx * BATCH_SIZE;
       const batch = hookUrls.slice(startIdx, Math.min(startIdx + BATCH_SIZE, hookUrls.length));
@@ -14497,13 +14514,14 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                   <label className="text-sm font-medium text-green-900">Filter videos:</label>
                   <select
                     value={videoFilter}
-                    onChange={(e) => setVideoFilter(e.target.value as 'all' | 'accepted' | 'failed' | 'no_decision')}
+                    onChange={(e) => setVideoFilter(e.target.value as 'all' | 'accepted' | 'failed' | 'no_decision' | 'regenerated')}
                     className="px-4 py-2 border border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                   >
                     <option value="all">Show All ({videoResults.length})</option>
                     <option value="accepted">Only Accepted ({acceptedCount})</option>
                     <option value="failed">Doar Failed/Pending ({failedCount})</option>
                     <option value="no_decision">Only Without Decision ({videosWithoutDecisionCount})</option>
+                    <option value="regenerated">Doar Regenerate ({videoResults.filter(v => (v.generationCount || 1) > 1).length})</option>
                   </select>
                   <span className="text-xs text-gray-500 italic">Filter works only on refresh</span>
                 </div>

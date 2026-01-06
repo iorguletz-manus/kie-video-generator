@@ -64,13 +64,11 @@ export function MergeFinalProgressModal({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
-      if (!isOpen && !isProcessing && onClose) {
+      if (!isOpen && onClose) {
         onClose();
       }
     }}>
-      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto w-[95vw] sm:w-full" onInteractOutside={(e) => {
-        if (isProcessing) e.preventDefault();
-      }}>
+      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto w-[95vw] sm:w-full">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {isProcessing && <Loader2 className="w-5 h-5 animate-spin text-green-600" />}
