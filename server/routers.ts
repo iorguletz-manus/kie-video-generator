@@ -43,8 +43,19 @@ export const appRouter = router({
       .input(z.object({
         username: z.string().min(3).max(64),
         password: z.string().min(1),
+        invitationCode: z.string().min(1),
       }))
       .mutation(async ({ input }) => {
+        // ✅ SECURITY: Validate invitation code (master password)
+        const masterPassword = process.env.MASTER_PASSWORD;
+        if (!masterPassword) {
+          throw new Error('Registration is currently disabled');
+        }
+        
+        if (input.invitationCode !== masterPassword) {
+          throw new Error('Invalid invitation code');
+        }
+        
         // Check if username already exists
         const existingUser = await getAppUserByUsername(input.username);
         if (existingUser) {

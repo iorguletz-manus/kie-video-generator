@@ -1047,7 +1047,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   });
 
   // Get all context sessions to determine UNUSED vs USED characters
-  const { data: allContextSessions = [] } = trpc.contextSessions.listByUser.useQuery({
+  const { data: allContextSessions = [], isLoading: isLoadingContextSessions } = trpc.contextSessions.listByUser.useQuery({
     userId: localCurrentUser.id,
   }, {
     staleTime: 0, // Always fetch fresh data
@@ -1512,6 +1512,12 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   
   // Load data from context session when context changes
   useEffect(() => {
+    // ✅ LOADING GUARD: Wait for allContextSessions to load before processing
+    if (isLoadingContextSessions) {
+      console.log('[Context Session] ⏳ Waiting for allContextSessions to load...');
+      return;
+    }
+    
     console.log('[Context Session] useEffect triggered with:', {
       contextSession: contextSession ? 'EXISTS' : 'NULL',
       selectedAdId,
@@ -1782,7 +1788,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
       setVideoResults([]);
       setReviewHistory([]);
     }
-  }, [contextSession]);
+  }, [contextSession, isLoadingContextSessions]);
   
   // DISABLED: localStorage save - using database as single source of truth
   // Auto-save session la fiecare schimbare (debounced)
@@ -1946,9 +1952,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     // If character changed, clear videoResults to force reload
     if (selectedCharacterId && selectedCharacterId !== previousCharacterIdRef.current) {
-      console.log('[Context Switch] Character changed from', previousCharacterIdRef.current, 'to', selectedCharacterId, '- clearing videoResults');
+      console.log('[Context Switch] Character changed from', previousCharacterIdRef.current, 'to', selectedCharacterId, '- clearing all state');
       setVideoResults([]);
       setCurrentStep(1); // Reset to step 1 when switching context
+      setHookMergedVideos({}); // Clear merged hooks to prevent contamination
+      setBodyMergedVideoUrl(null); // Clear merged body to prevent contamination
+      setFinalVideos([]); // Clear final videos to prevent contamination
+      console.log('[Context Switch] ✅ Cleared videoResults, hookMergedVideos, bodyMergedVideoUrl, finalVideos');
     }
   }, [selectedCharacterId]);
 
@@ -8908,6 +8918,21 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100">
+      {/* Loading Overlay - Shows while context sessions are loading */}
+      {isLoadingContextSessions && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 flex flex-col items-center gap-4 max-w-sm mx-4">
+            <div className="relative">
+              <div className="w-16 h-16 border-4 border-blue-200 rounded-full"></div>
+              <div className="w-16 h-16 border-4 border-blue-600 rounded-full border-t-transparent animate-spin absolute top-0 left-0"></div>
+            </div>
+            <div className="text-center">
+              <h3 className="text-lg font-semibold text-gray-800 mb-1">Loading Sessions...</h3>
+              <p className="text-sm text-gray-600">Please wait while we load your data</p>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Header Navigation Bar */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 shadow-lg">
         <div className="container max-w-6xl mx-auto px-4">

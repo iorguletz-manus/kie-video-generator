@@ -660,13 +660,50 @@ export async function getContextSession(params: {
     conditions.push(eq(contextSessions.tamId, params.tamId));
   }
 
-  const result = await db
+  // Get ALL matching sessions (not just first one)
+  const results = await db
     .select()
     .from(contextSessions)
-    .where(and(...conditions))
-    .limit(1);
+    .where(and(...conditions));
 
-  return result[0] || null;
+  if (results.length === 0) return null;
+  
+  // If only one session, return it
+  if (results.length === 1) return results[0];
+  
+  // Multiple sessions found - prioritize by:
+  // 1. Session with most videos in videoResults
+  // 2. If tie, use most recently updated
+  console.log(`[getContextSession] Found ${results.length} sessions for same context, selecting best one...`);
+  
+  const sessionsWithCount = results.map(session => {
+    let videoCount = 0;
+    try {
+      const videos = typeof session.videoResults === 'string' 
+        ? JSON.parse(session.videoResults) 
+        : session.videoResults;
+      videoCount = Array.isArray(videos) ? videos.length : 0;
+    } catch (e) {
+      videoCount = 0;
+    }
+    return { session, videoCount };
+  });
+  
+  // Sort by video count DESC, then by updatedAt DESC
+  sessionsWithCount.sort((a, b) => {
+    if (a.videoCount !== b.videoCount) {
+      return b.videoCount - a.videoCount; // More videos first
+    }
+    // Tie-breaker: most recent
+    const timeA = a.session.updatedAt ? new Date(a.session.updatedAt).getTime() : 0;
+    const timeB = b.session.updatedAt ? new Date(b.session.updatedAt).getTime() : 0;
+    return timeB - timeA;
+  });
+  
+  const selected = sessionsWithCount[0].session;
+  console.log(`[getContextSession] Selected session ${selected.id} with ${sessionsWithCount[0].videoCount} videos`);
+  
+  return selected;
 }
 
 export async function upsertContextSession(session: InsertContextSession) {

@@ -13,6 +13,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [isLogin, setIsLogin] = useState(true); // true = Login, false = Register
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [invitationCode, setInvitationCode] = useState('');
 
   const loginMutation = trpc.appAuth.login.useMutation();
   const registerMutation = trpc.appAuth.register.useMutation();
@@ -43,10 +44,16 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           toast.error('Username-ul trebuie să aibă minim 3 caractere!');
           return;
         }
+        
+        if (!invitationCode.trim()) {
+          toast.error('Invitation Code este obligatoriu!');
+          return;
+        }
 
         const result = await registerMutation.mutateAsync({
           username: username.trim(),
           password: password.trim(),
+          invitationCode: invitationCode.trim(),
         });
 
         if (result.success && result.user) {
@@ -105,6 +112,22 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 placeholder="Introdu password-ul"
               />
             </div>
+            
+            {/* Invitation Code - only for Register */}
+            {!isLogin && (
+              <div>
+                <label className="block text-sm font-medium text-blue-900 mb-2">
+                  Invitation Code
+                </label>
+                <input
+                  type="password"
+                  value={invitationCode}
+                  onChange={(e) => setInvitationCode(e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Introdu codul de invitație"
+                />
+              </div>
+            )}
 
             <Button
               type="submit"
@@ -125,6 +148,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                   setIsLogin(!isLogin);
                   setUsername('');
                   setPassword('');
+                  setInvitationCode('');
                 }}
                 className="text-blue-600 hover:text-blue-800 font-medium"
               >
