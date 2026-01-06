@@ -1000,7 +1000,7 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   });
   
   // Mutations
-  const checkVideoStatusMutation = trpc.checkVideoStatus.useMutation();
+  const checkVideoStatusMutation = trpc.video.checkVideoStatus.useMutation();
   const { data: libraryCharacters = [] } = trpc.imageLibrary.getCharacters.useQuery({
     userId: localCurrentUser.id,
   });
