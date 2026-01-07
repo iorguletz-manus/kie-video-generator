@@ -1234,8 +1234,12 @@ export async function cutVideoWithFFmpegAPI(
         const drawtextFilter = buildDrawtextFilter(overlaySettings!);
         // Use filter_complex at task level (NOT in options array - that gets split by API!)
         task.filter_complex = `[0:v]${drawtextFilter}[outv]`;
-        // Map the filtered video output
-        task.outputs[0].maps = ['[outv]', '1:a:0'];  // Filtered video + audio from input 1
+        // Rebuild output with file + options + maps (setting maps alone may lose file!)
+        task.outputs[0] = {
+          file: outputFileName,
+          options: task.outputs[0].options,
+          maps: ['[outv]', '1:a:0']  // Filtered video + audio from input 1
+        };
         console.log(`[cutVideoWithFFmpegAPI] 🎨 Drawtext filter_complex:`, task.filter_complex);
       }
       
@@ -1252,8 +1256,12 @@ export async function cutVideoWithFFmpegAPI(
         const drawtextFilter = buildDrawtextFilter(overlaySettings!);
         // Use filter_complex at task level (NOT in options array - that gets split by API!)
         task.filter_complex = `[0:v]${drawtextFilter}[outv];[0:a]acopy[outa]`;
-        // Map the filtered outputs
-        task.outputs[0].maps = ['[outv]', '[outa]'];  // Filtered video + audio
+        // Rebuild output with file + options + maps (setting maps alone may lose file!)
+        task.outputs[0] = {
+          file: outputFileName,
+          options: task.outputs[0].options,
+          maps: ['[outv]', '[outa]']  // Filtered video + audio
+        };
         console.log(`[cutVideoWithFFmpegAPI] 🎨 Drawtext filter_complex:`, task.filter_complex);
       }
       
