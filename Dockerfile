@@ -20,7 +20,7 @@ RUN apt-get update && apt-get install -y \
 # Install ffmpeg (includes ffprobe) and audiowaveform
 RUN wget -O /tmp/audiowaveform.deb https://github.com/bbc/audiowaveform/releases/download/1.10.1/audiowaveform_1.10.1-1-12_amd64.deb \
     && apt-get update \
-    && apt-get install -y ffmpeg /tmp/audiowaveform.deb \
+    && apt-get install -y --fix-missing ffmpeg /tmp/audiowaveform.deb \
     && rm /tmp/audiowaveform.deb \
     && rm -rf /var/lib/apt/lists/*
 
