@@ -1083,15 +1083,16 @@ function buildDrawtextFilter(settings: {
     const lineYOffset = index * (scaledFontSize + scaledLineSpacing);
     const finalY = yPos + lineYOffset;
     
-    // ALWAYS center text horizontally (ignore X position from settings)
-    const xExpression = '(w-text_w)/2';
+    // ALWAYS center text horizontally
+    // Use fixed X position instead of expression - FFmpeg API doesn't accept parentheses
+    const xCentered = Math.round(VIDEO_W / 2);
     
     // Build drawtext parameters
     const params = [
       `text=${escapedLine}`,  // No quotes - FFmpeg API doesn't accept them
       `fontsize=${scaledFontSize}`,
       `fontcolor=${hexColor(settings.textColor)}`,
-      `x=${xExpression}`,
+      `x=${xCentered}`,
       `y=${finalY}`,
       `text_align=center`,  // Internal text alignment (required for proper centering)
       `line_align=center`,  // Multi-line alignment
