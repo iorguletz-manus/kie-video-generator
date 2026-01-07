@@ -1088,8 +1088,8 @@ function buildDrawtextFilter(settings: {
     const textWidth = scaledFontSize * escapedLine.length * 0.6;
     const xCentered = Math.round((VIDEO_W - textWidth) / 2);
     
-    // Simple drawtext with calculated x position
-    return `drawtext=text=${escapedLine}:x=${xCentered}:y=${finalY}:fontsize=${scaledFontSize}:fontcolor=white`;
+    // Simple drawtext with calculated x position (wrap text in single quotes for FFmpeg)
+    return `drawtext=text='${escapedLine}':x=${xCentered}:y=${finalY}:fontsize=${scaledFontSize}:fontcolor=white`;
   });
   
   // Join all drawtext filters with comma (chain filters)
