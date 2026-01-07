@@ -409,6 +409,7 @@ export const appRouter = router({
         userId: z.number(),
         taskId: z.string(),
         videoName: z.string(), // T1_C1_E1_AD1_HOOK1_CHARACTER format
+        oldVideoUrl: z.string().optional(), // Previous Bunny CDN URL to delete after successful regeneration
       }))
       .mutation(async ({ input }) => {
         try {
@@ -504,6 +505,33 @@ export const appRouter = router({
                   
                   videoUrl = `${BUNNYCDN_PULL_ZONE_URL}/${bunnyPath}`;
                   console.log(`[checkVideoStatus] ✅ Video uploaded to Bunny: ${videoUrl}`);
+                  
+                  // 🗑️ Delete old video from Bunny if this is a regeneration
+                  if (input.oldVideoUrl && input.oldVideoUrl.includes('manus.b-cdn.net')) {
+                    try {
+                      // Extract path from Bunny URL: https://manus.b-cdn.net/user-1/videos/kie/video.mp4 → user-1/videos/kie/video.mp4
+                      const oldPath = input.oldVideoUrl.replace('https://manus.b-cdn.net/', '');
+                      const deleteUrl = `https://storage.bunnycdn.com/${BUNNYCDN_STORAGE_ZONE}/${oldPath}`;
+                      
+                      console.log(`[checkVideoStatus] 🗑️ Deleting old video from Bunny: ${oldPath}`);
+                      
+                      const deleteResponse = await fetch(deleteUrl, {
+                        method: 'DELETE',
+                        headers: {
+                          'AccessKey': BUNNYCDN_STORAGE_PASSWORD,
+                        },
+                      });
+                      
+                      if (deleteResponse.ok) {
+                        console.log(`[checkVideoStatus] ✅ Old video deleted successfully`);
+                      } else {
+                        console.warn(`[checkVideoStatus] ⚠️ Failed to delete old video: ${deleteResponse.statusText}`);
+                      }
+                    } catch (deleteError: any) {
+                      console.error('[checkVideoStatus] ❌ Error deleting old video:', deleteError);
+                      // Don't fail the whole operation if delete fails
+                    }
+                  }
                 } catch (uploadError: any) {
                   console.error('[checkVideoStatus] Failed to upload to Bunny:', uploadError);
                   // Fallback to tempdraw URL if upload fails

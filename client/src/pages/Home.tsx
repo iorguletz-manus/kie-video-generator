@@ -7587,6 +7587,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
         userId: localCurrentUser.id,
         taskId: taskId,
         videoName: video.videoName,
+        oldVideoUrl: video.videoUrl, // Pass old URL for cleanup after successful regeneration
       });
       
       console.log('Backend response:', result);
@@ -15617,12 +15618,29 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                   },
                                 });
                                 
-                                // Open popup with test video
-                                setTrimmingMergedVideoUrl(result.downloadUrl);
-                                setTrimmingCurrentVideoName(video.videoName + ' (Overlay Test)');
-                                setIsTrimmingModalOpen(true);
-                                
-                                toast.success('🎨 Overlay test ready!');
+                // Open popup with test video
+                setTrimmingMergedVideoUrl(result.downloadUrl);
+                setTrimmingCurrentVideoName(video.videoName + ' (Overlay Test)');
+                
+                // Populate trimmingProgress so video player displays
+                setTrimmingProgress({
+                  current: 1,
+                  total: 1,
+                  currentVideo: video.videoName,
+                  status: 'complete',
+                  message: 'Overlay test ready!',
+                  successVideos: [{ name: video.videoName }],
+                  failedVideos: [],
+                  inProgressVideos: [],
+                  mergedVideos: [],
+                  currentBatch: 1,
+                  totalBatches: 1,
+                  batchSize: 1,
+                });
+                
+                setIsTrimmingModalOpen(true);
+                
+                toast.success('🎨 Overlay test ready!');
                               } catch (error: any) {
                                 console.error('[Test Overlay] Error:', error);
                                 toast.error(`Test failed: ${error.message}`);
