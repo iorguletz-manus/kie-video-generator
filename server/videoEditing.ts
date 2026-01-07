@@ -1102,7 +1102,9 @@ function buildDrawtextFilter(settings: {
     
     // Add font family if not default
     if (settings.fontFamily && settings.fontFamily !== 'Arial') {
-      const escapedFont = escapeFontFamily(settings.fontFamily);
+      // Take only the first font from CSS fallback list (e.g., "Inter, system-ui, sans-serif" → "Inter")
+      const firstFont = settings.fontFamily.split(',')[0].trim();
+      const escapedFont = escapeFontFamily(firstFont);
       const fontModifiers = [fontWeight, fontStyle].filter(Boolean).join('-');
       const fullFont = fontModifiers ? `${escapedFont}-${fontModifiers}` : escapedFont;
       params.push(`font=${fullFont}`);
