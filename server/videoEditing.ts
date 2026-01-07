@@ -24,7 +24,7 @@ const getOpenAIClient = (userApiKey?: string) => {
 };
 
 // OVERLAY FEATURE FLAG - Set to false to disable overlay completely
-const OVERLAY_ENABLED = false;
+const OVERLAY_ENABLED = true;
 
 // FFMPEG API configuration (API key passed as parameter from user settings)
 const FFMPEG_API_BASE = 'https://api.ffmpeg-api.com';
