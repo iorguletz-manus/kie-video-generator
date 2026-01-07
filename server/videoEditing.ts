@@ -1024,11 +1024,11 @@ function buildDrawtextFilter(settings: {
   // Escape text for FFmpeg drawtext filter (for FFmpeg API compatibility)
   const escapeText = (text: string): string => {
     return text
-      .replace(/\\/g, '\\\\')  // Escape backslashes
-      .replace(/:/g, '\\:')      // Escape colons
-      .replace(/ /g, '\\ ')      // Escape spaces (required when not using quotes)
-      .replace(/'/g, '')          // Remove single quotes (FFmpeg API doesn't accept them)
-      .replace(/\n/g, '\\n');    // Convert newlines to \\n
+      .replace(/\\/g, '\\\\\\\\')  // Escape backslashes (double for JSON)
+      .replace(/:/g, '\\\\:')      // Escape colons (double for JSON)
+      .replace(/ /g, '\\\\ ')      // Escape spaces (double backslash for JSON)
+      .replace(/'/g, '')          // Remove single quotes
+      .replace(/\n/g, '\\\\n');    // Convert newlines (double for JSON)
   };
   
   // Escape font family for FFmpeg (escape commas, spaces, quotes)
