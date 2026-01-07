@@ -1021,12 +1021,13 @@ function buildDrawtextFilter(settings: {
   cornerRadius: number;
   lineSpacing: number;
 }): string {
-  // Escape text for FFmpeg drawtext filter
+  // Escape text for FFmpeg drawtext filter (for FFmpeg API compatibility)
   const escapeText = (text: string): string => {
     return text
       .replace(/\\/g, '\\\\')  // Escape backslashes
       .replace(/:/g, '\\:')      // Escape colons
-      .replace(/'/g, "\\'")      // Escape single quotes
+      .replace(/ /g, '\\ ')      // Escape spaces (required when not using quotes)
+      .replace(/'/g, '')          // Remove single quotes (FFmpeg API doesn't accept them)
       .replace(/\n/g, '\\n');    // Convert newlines to \\n
   };
   
@@ -1087,7 +1088,7 @@ function buildDrawtextFilter(settings: {
     
     // Build drawtext parameters
     const params = [
-      `text='${escapedLine}'`,
+      `text=${escapedLine}`,  // No quotes - FFmpeg API doesn't accept them
       `fontsize=${scaledFontSize}`,
       `fontcolor=${hexColor(settings.textColor)}`,
       `x=${xExpression}`,
