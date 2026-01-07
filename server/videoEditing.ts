@@ -1021,14 +1021,14 @@ function buildDrawtextFilter(settings: {
   cornerRadius: number;
   lineSpacing: number;
 }): string {
-  // Escape text for FFmpeg drawtext filter (for FFmpeg API compatibility)
+  // Escape text for FFmpeg drawtext filter (use single quotes, as recommended by ChatGPT)
   const escapeText = (text: string): string => {
     return text
-      .replace(/\\/g, '\\\\\\\\')  // Escape backslashes (double for JSON)
-      .replace(/:/g, '\\\\:')      // Escape colons (double for JSON)
-      .replace(/ /g, '\\\\ ')      // Escape spaces (double backslash for JSON)
-      .replace(/'/g, '')          // Remove single quotes
-      .replace(/\n/g, '\\\\n');    // Convert newlines (double for JSON)
+      .replace(/\\/g, '\\\\')  // Escape backslashes
+      .replace(/:/g, '\\:')    // Escape colons (drawtext option separator)
+      .replace(/'/g, "\\'")    // Escape single quotes (we wrap text in quotes)
+      .replace(/%/g, '\\%')    // Escape % (drawtext expansions)
+      .replace(/\n/g, '\\n');  // Convert newlines
   };
   
   // Escape font family for FFmpeg (escape commas, spaces, quotes)
@@ -1087,9 +1087,9 @@ function buildDrawtextFilter(settings: {
     // Use fixed X position instead of expression - FFmpeg API doesn't accept parentheses
     const xCentered = Math.round(VIDEO_W / 2);
     
-    // MINIMAL drawtext for testing - add params one by one after this works
+    // MINIMAL drawtext for testing - use single quotes around text (ChatGPT solution)
     const params = [
-      `text=${escapedLine}`,
+      `text='${escapedLine}'`,  // Single quotes around text - FFmpeg parser treats as single value
       `x=${xCentered}`,
       `y=${finalY}`,
       `fontsize=${scaledFontSize}`,
