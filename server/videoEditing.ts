@@ -1084,8 +1084,8 @@ function buildDrawtextFilter(settings: {
     const finalY = yPos + lineYOffset;
     
     // ALWAYS center text horizontally
-    // Use fixed X position instead of expression - FFmpeg API doesn't accept parentheses
-    const xCentered = Math.round(VIDEO_W / 2);
+    // Use x expression to center text by offsetting by half text width
+    const xCentered = `(w-text_w)/2`;  // Center horizontally using FFmpeg expression
     
     // MINIMAL drawtext for testing - use single quotes around text (ChatGPT solution)
     const params = [
@@ -1133,7 +1133,8 @@ export async function cutVideoWithFFmpegAPI(
     lineSpacing: number;
     videoWidth?: number;  // Optional: video width in pixels
     videoHeight?: number;  // Optional: video height in pixels
-  }
+  },
+  skipBunnyUpload?: boolean  // Optional: skip Bunny CDN upload for preview/test
 ): Promise<string> {
   try {
     console.log(`[cutVideoWithFFmpegAPI] Cutting video ${videoName}: ${startTimeSeconds}s → ${endTimeSeconds}s`);
@@ -1310,6 +1311,12 @@ export async function cutVideoWithFFmpegAPI(
     
     const downloadUrl = result.result[0].download_url;
     console.log(`[cutVideoWithFFmpegAPI] Video cut successfully! Temporary URL: ${downloadUrl}`);
+    
+    // If skipBunnyUpload is true, return temporary URL directly (for preview/test)
+    if (skipBunnyUpload) {
+      console.log(`[cutVideoWithFFmpegAPI] ⚡ Skipping Bunny CDN upload (preview mode)`);
+      return downloadUrl;
+    }
     
     // 3. Download trimmed video from FFMPEG API
     console.log(`[cutVideoWithFFmpegAPI] Downloading trimmed video...`);

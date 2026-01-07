@@ -2071,6 +2071,7 @@ export const appRouter = router({
           videoHeight: z.number().optional(),  // Native video height
           scaleFactor: z.number().optional(),  // Scale factor for fontSize (videoWidth / playerWidth)
         }).optional(),  // Optional: overlay settings for HOOK videos
+        skipBunnyUpload: z.boolean().optional(),  // Optional: skip Bunny CDN upload for preview/test
       }))
       .mutation(async ({ input }) => {
         try {
@@ -2088,10 +2089,11 @@ export const appRouter = router({
             parseFloat(startTimeSeconds),
             parseFloat(endTimeSeconds),
             input.ffmpegApiKey!,
-            input.cleanVoiceAudioUrl,  // Pass CleanVoice audio URL
+            input.cleanVoiceAudioUrl || undefined,  // Pass CleanVoice audio URL or undefined
             input.userId,  // Pass userId for user-specific folder
             input.dirId,  // Pass dirId for batch processing optimization
-            input.overlaySettings  // Pass overlay settings for HOOK videos
+            input.overlaySettings,  // Pass overlay settings for HOOK videos
+            input.skipBunnyUpload  // Pass skipBunnyUpload flag for preview/test
           );
           
           console.log(`[videoEditing.cutVideo] Video cut and uploaded successfully:`, finalVideoUrl);

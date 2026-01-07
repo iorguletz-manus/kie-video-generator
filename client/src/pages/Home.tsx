@@ -15616,6 +15616,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                                     videoHeight: 1920,
                                     scaleFactor: 1080 / 400,  // Assuming player width is 400px
                                   },
+                                  skipBunnyUpload: true,  // Skip Bunny CDN upload for preview/test
                                 });
                                 
                 // Open popup with test video
