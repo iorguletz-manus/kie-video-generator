@@ -1083,20 +1083,13 @@ function buildDrawtextFilter(settings: {
     const lineYOffset = index * (scaledFontSize + scaledLineSpacing);
     const finalY = yPos + lineYOffset;
     
-    // ALWAYS center text horizontally
-    // Use x expression to center text by offsetting by half text width
-    const xCentered = `(w-text_w)/2`;  // Center horizontally using FFmpeg expression
+    // Calculate centered x position in TypeScript (FFmpeg API doesn't support expressions)
+    // Approximate text width: fontsize * text.length * 0.6 (rough estimate for monospace)
+    const textWidth = scaledFontSize * escapedLine.length * 0.6;
+    const xCentered = Math.round((VIDEO_W - textWidth) / 2);
     
-    // MINIMAL drawtext for testing - use single quotes around text (ChatGPT solution)
-    const params = [
-      `text='${escapedLine}'`,  // Single quotes around text - FFmpeg parser treats as single value
-      `x=${xCentered}`,
-      `y=${finalY}`,
-      `fontsize=${scaledFontSize}`,
-      `fontcolor=white`
-    ];
-    
-    return `drawtext=${params.join(':')}`;
+    // Simple drawtext with calculated x position
+    return `drawtext=text=${escapedLine}:x=${xCentered}:y=${finalY}:fontsize=${scaledFontSize}:fontcolor=white`;
   });
   
   // Join all drawtext filters with comma (chain filters)
