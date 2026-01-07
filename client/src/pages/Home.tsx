@@ -15353,7 +15353,9 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                             video={{
                             id: video.videoName, // Use videoName as unique identifier
                             videoName: video.videoName,
-                            videoUrl: `/api/proxy-video?url=${encodeURIComponent(video.videoUrl!)}`,
+                            videoUrl: video.videoUrl!.includes('manus.b-cdn.net') 
+                              ? video.videoUrl!  // Bunny CDN - direct access
+                              : `/api/proxy-video?url=${encodeURIComponent(video.videoUrl!)}`,  // tempdraw - needs proxy
                             audioUrl: video.audioUrl || '',
                             peaksUrl: peaksUrl,
                             cutPoints: video.cutPoints || { startKeep: 0, endKeep: duration * 1000 }, // Default: full video
