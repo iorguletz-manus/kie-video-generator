@@ -1087,30 +1087,14 @@ function buildDrawtextFilter(settings: {
     // Use fixed X position instead of expression - FFmpeg API doesn't accept parentheses
     const xCentered = Math.round(VIDEO_W / 2);
     
-    // Build drawtext parameters
+    // MINIMAL drawtext for testing - add params one by one after this works
     const params = [
-      `text=${escapedLine}`,  // No quotes - FFmpeg API doesn't accept them
-      `fontsize=${scaledFontSize}`,
-      `fontcolor=${hexColor(settings.textColor)}`,
+      `text=${escapedLine}`,
       `x=${xCentered}`,
       `y=${finalY}`,
-      `text_align=center`,  // Internal text alignment (required for proper centering)
-      `line_align=center`,  // Multi-line alignment
-      `box=1`,
-      `boxcolor=${hexColor(settings.backgroundColor)}@${settings.opacity}`,
-      `boxborderw=${scaledPadding}`,
-      // Note: FFmpeg doesn't support border-radius in drawtext, we'll skip it
+      `fontsize=${scaledFontSize}`,
+      `fontcolor=white`
     ];
-    
-    // Add font family if not default
-    if (settings.fontFamily && settings.fontFamily !== 'Arial') {
-      // Take only the first font from CSS fallback list (e.g., "Inter, system-ui, sans-serif" → "Inter")
-      const firstFont = settings.fontFamily.split(',')[0].trim();
-      const escapedFont = escapeFontFamily(firstFont);
-      const fontModifiers = [fontWeight, fontStyle].filter(Boolean).join('-');
-      const fullFont = fontModifiers ? `${escapedFont}-${fontModifiers}` : escapedFont;
-      params.push(`font=${fullFont}`);
-    }
     
     return `drawtext=${params.join(':')}`;
   });
