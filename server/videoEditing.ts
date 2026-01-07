@@ -1218,7 +1218,7 @@ export async function cutVideoWithFFmpegAPI(
     };
     
     // Check if overlay is enabled for HOOK videos
-    const hasOverlay = OVERLAY_ENABLED && overlaySettings?.enabled && overlaySettings?.text && videoName.toLowerCase().includes('hook');
+    const hasOverlay = OVERLAY_ENABLED && overlaySettings?.enabled && overlaySettings?.text && videoName.toUpperCase().includes('HOOK');
     
     if (hasOverlay) {
       console.log(`[cutVideoWithFFmpegAPI] 🎨 Overlay enabled for HOOK video: ${videoName}`);

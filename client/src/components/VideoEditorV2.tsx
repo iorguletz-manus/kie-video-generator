@@ -790,20 +790,18 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
                 const startPosY = localOverlaySettings.y;
                 
                 const handleMouseMove = (moveEvent: MouseEvent) => {
-                  const deltaX = moveEvent.clientX - startX;
+                  // Only allow vertical (Y) dragging - X is always centered at 50%
                   const deltaY = moveEvent.clientY - startY;
                   
-                  let newX = Math.max(0, Math.min(100, startPosX + (deltaX / rect.width) * 100));
+                  const newX = 50; // Always center horizontally
                   let newY = Math.max(0, Math.min(100, startPosY + (deltaY / rect.height) * 100));
                   
-                  // Snap to center (50%) if within threshold
+                  // Snap to center (50%) if within threshold (horizontal center line)
                   const snapHorizontal = Math.abs(newY - 50) < SNAP_THRESHOLD;
-                  const snapVertical = Math.abs(newX - 50) < SNAP_THRESHOLD;
                   
                   if (snapHorizontal) newY = 50;
-                  if (snapVertical) newX = 50;
                   
-                  setShowSnapGuides({ horizontal: snapHorizontal, vertical: snapVertical });
+                  setShowSnapGuides({ horizontal: snapHorizontal, vertical: true }); // Vertical guide always on (center)
                   setLocalOverlaySettings(prev => ({ ...prev, x: newX, y: newY }));
                 };
                 
