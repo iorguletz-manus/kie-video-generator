@@ -14548,7 +14548,7 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
               )}
 
               {/* Organizare pe categorii */}
-              {['HOOKS', 'MIRROR', 'DCS', 'TRANSITION', 'NEW_CAUSE', 'MECHANISM', 'TRANSFORMATION', 'CTA'].map(category => {
+              {['HOOKS', 'MIRROR', 'DCS', 'TRANSITION', 'NEW_CAUSE', 'MECHANISM', 'EMOTIONAL_PROOF', 'TRANSFORMATION', 'CTA'].map(category => {
                 // Filter videos: only successfully generated ones (status === 'success' and videoUrl exists)
                 // Use step6FilteredVideos to prevent auto-remove on decision change
                 let categoryVideos = step6FilteredVideos.filter(v => 
@@ -15005,8 +15005,8 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                       try {
                         const zip = new JSZip();
                         
-                        // Order videos by category: HOOKS, MIRROR, DCS, TRANSITION, NEW_CAUSE, MECHANISM, TRANSFORMATION, CTA
-                        const categoryOrder = ['HOOKS', 'MIRROR', 'DCS', 'TRANSITION', 'NEW_CAUSE', 'MECHANISM', 'TRANSFORMATION', 'CTA'];
+                        // Order videos by category: HOOKS, MIRROR, DCS, TRANSITION, NEW_CAUSE, MECHANISM, EMOTIONAL_PROOF, TRANSFORMATION, CTA
+                        const categoryOrder = ['HOOKS', 'MIRROR', 'DCS', 'TRANSITION', 'NEW_CAUSE', 'MECHANISM', 'EMOTIONAL_PROOF', 'TRANSFORMATION', 'CTA'];
                         const orderedVideos: typeof acceptedVideos = [];
                         
                         categoryOrder.forEach(category => {
