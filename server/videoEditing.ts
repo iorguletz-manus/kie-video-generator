@@ -1229,11 +1229,14 @@ export async function cutVideoWithFFmpegAPI(
         '-ar', '48000'         // 48 kHz sample rate
       ];
       
-      // Add overlay filter if enabled
+      // Add overlay filter if enabled (use filter_complex, not -vf in options!)
       if (hasOverlay) {
         const drawtextFilter = buildDrawtextFilter(overlaySettings!);
-        task.outputs[0].options.push('-vf', drawtextFilter);
-        console.log(`[cutVideoWithFFmpegAPI] 🎨 Drawtext filter:`, drawtextFilter);
+        // Use filter_complex at task level (NOT in options array - that gets split by API!)
+        task.filter_complex = `[0:v]${drawtextFilter}[outv]`;
+        // Map the filtered video output
+        task.outputs[0].maps = ['[outv]', '1:a:0'];  // Filtered video + audio from input 1
+        console.log(`[cutVideoWithFFmpegAPI] 🎨 Drawtext filter_complex:`, task.filter_complex);
       }
       
       console.log(`[cutVideoWithFFmpegAPI] ✅ VARIANT 1: Cut both video AND audio at ${startTimeSeconds}s-${endTimeSeconds}s (perfect sync)`);
@@ -1244,11 +1247,14 @@ export async function cutVideoWithFFmpegAPI(
         '-c:a', 'copy'      // Copy audio codec (FAST)
       ];
       
-      // Add overlay filter if enabled
+      // Add overlay filter if enabled (use filter_complex, not -vf in options!)
       if (hasOverlay) {
         const drawtextFilter = buildDrawtextFilter(overlaySettings!);
-        task.outputs[0].options.push('-vf', drawtextFilter);
-        console.log(`[cutVideoWithFFmpegAPI] 🎨 Drawtext filter:`, drawtextFilter);
+        // Use filter_complex at task level (NOT in options array - that gets split by API!)
+        task.filter_complex = `[0:v]${drawtextFilter}[outv];[0:a]acopy[outa]`;
+        // Map the filtered outputs
+        task.outputs[0].maps = ['[outv]', '[outa]'];  // Filtered video + audio
+        console.log(`[cutVideoWithFFmpegAPI] 🎨 Drawtext filter_complex:`, task.filter_complex);
       }
       
       console.log(`[cutVideoWithFFmpegAPI] Task configured: Trim only (no audio replacement)`);
