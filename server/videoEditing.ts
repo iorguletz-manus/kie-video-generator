@@ -1268,6 +1268,9 @@ export async function cutVideoWithFFmpegAPI(
       console.log(`[cutVideoWithFFmpegAPI] Task configured: Trim only (no audio replacement)`);
     }
     
+    // Log full task JSON for debugging
+    console.log(`[cutVideoWithFFmpegAPI] 📤 Full task JSON:`, JSON.stringify(task, null, 2));
+    
     // 4. Send to FFmpeg API
     const processRes = await fetch(`${FFMPEG_API_BASE}/ffmpeg/process`, {
       method: 'POST',
