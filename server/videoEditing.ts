@@ -2154,25 +2154,28 @@ export async function mergeVideosWithFilterComplex(
         const files = await listResponse.json();
         
         // Extract AD+character+baseName from outputVideoName
-        // Format: T4_C1_E1_AD1_HOOK1_IOANA_1234567890123.mp4
-        const match = outputVideoName.match(/^(.*)_(AD\d+)_(.*)_([A-Z]+)_(\d+)$/);
+        // Match ALL variants:
+        // - T4_C1_E1_AD1_HOOK1_IOANA_1 (no timestamp)
+        // - T4_C1_E1_AD1_HOOK1_IOANA_1_1767874917996 (with timestamp)
+        // - T4_C1_E1_AD1_HOOK1_IOANA_1_2_1 (with _2_1 suffix)
+        const match = outputVideoName.match(/^(.*)_(AD\d+)_(.*)_([A-Z]+)(?:_\d+)*$/);
         if (!match) {
           console.warn(`[mergeVideosWithFilterComplex] ⚠️ Cannot parse outputVideoName: ${outputVideoName}`);
           return; // Skip cleanup if format is unexpected
         }
         
-        const [, prefix, ad, middle, character, timestamp] = match;
+        const [, prefix, ad, middle, character] = match;
         const baseName = `${prefix}_${ad}_${middle}_${character}`;
         console.log(`[mergeVideosWithFilterComplex] 🔍 Cleanup filter: AD=${ad}, Character=${character}, BaseName=${baseName}`);
         
         for (const file of files) {
           if (!file.ObjectName || file.ObjectName === bunnyFileName) continue;
           
-          // Check if file matches AD+character+baseName
-          const fileMatch = file.ObjectName.match(/^(.*)_(AD\d+)_(.*)_([A-Z]+)_(\d+)\.mp4$/);
+          // Check if file matches AD+character+baseName (same regex)
+          const fileMatch = file.ObjectName.match(/^(.*)_(AD\d+)_(.*)_([A-Z]+)(?:_\d+)*\.mp4$/);
           if (!fileMatch) continue;
           
-          const [, fPrefix, fAd, fMiddle, fCharacter, fTimestamp] = fileMatch;
+          const [, fPrefix, fAd, fMiddle, fCharacter] = fileMatch;
           const fBaseName = `${fPrefix}_${fAd}_${fMiddle}_${fCharacter}`;
           
           // Only delete if AD+character+baseName match

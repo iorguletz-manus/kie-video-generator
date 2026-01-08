@@ -3927,10 +3927,13 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     // CLEANUP: Remove old variants from finalVideosFromDB
     // Extract AD+character+base name from new results
     const newVideosToCleanup = results.map(v => {
-      // Extract: T4_C1_E1_AD1_HOOK1_IOANA_1 → { ad: 'AD1', baseName: 'T4_C1_E1_AD1_HOOK1_IOANA' }
-      const match = v.videoName.match(/^(.*)_(AD\d+)_(.*)_([A-Z]+)_(\d+)$/);
+      // Match ALL variants:
+      // - T4_C1_E1_AD1_HOOK1_IOANA_1 (no timestamp)
+      // - T4_C1_E1_AD1_HOOK1_IOANA_1_1767874917996 (with timestamp)
+      // - T4_C1_E1_AD1_HOOK1_IOANA_1_2_1 (with _2_1 suffix)
+      const match = v.videoName.match(/^(.*)_(AD\d+)_(.*)_([A-Z]+)(?:_\d+)*$/);
       if (!match) return null;
-      const [, prefix, ad, middle, character, timestamp] = match;
+      const [, prefix, ad, middle, character] = match;
       const baseName = `${prefix}_${ad}_${middle}_${character}`;
       return { ad, character, baseName, fullName: v.videoName };
     }).filter(Boolean);
@@ -3939,10 +3942,11 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     
     // Filter out old variants with same AD+character+baseName
     const cleanedFinalVideos = finalVideosFromDB.filter(v => {
-      const match = v.videoName.match(/^(.*)_(AD\d+)_(.*)_([A-Z]+)_(\d+)$/);
+      // Match ALL variants (same regex as above)
+      const match = v.videoName.match(/^(.*)_(AD\d+)_(.*)_([A-Z]+)(?:_\d+)*$/);
       if (!match) return true; // Keep videos with unexpected format
       
-      const [, prefix, ad, middle, character, timestamp] = match;
+      const [, prefix, ad, middle, character] = match;
       const baseName = `${prefix}_${ad}_${middle}_${character}`;
       
       // Check if this video should be removed
