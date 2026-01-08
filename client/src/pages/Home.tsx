@@ -9448,8 +9448,8 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
         onRetryFailed={handleRetryFailedFinalMerge}
         onContinue={() => {
           setIsMergingFinalVideos(false);
-          // Don't auto-redirect - user will use Continue button in Step 10
-          toast.success('✅ Final merge complete! Use Continue button to proceed to Step 11.');
+          setCurrentStep(11);
+          toast.success('✅ Final merge complete! Navigating to Step 11...');
         }}
         onClose={() => {
           if (mergeFinalProgress.status !== 'processing' && mergeFinalProgress.status !== 'countdown') {
