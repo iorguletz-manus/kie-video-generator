@@ -1946,25 +1946,9 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
   //   }
   // }, [selectedCharacterId]);
   
-  // Clear videoResults when Character changes (context switch)
-  // This forces re-loading from database for the new context
-  useEffect(() => {
-    // Skip on initial mount (previousCharacterIdRef is null)
-    if (previousCharacterIdRef.current === null) {
-      return;
-    }
-    
-    // If character changed, clear videoResults to force reload
-    if (selectedCharacterId && selectedCharacterId !== previousCharacterIdRef.current) {
-      console.log('[Context Switch] Character changed from', previousCharacterIdRef.current, 'to', selectedCharacterId, '- clearing all state');
-      setVideoResults([]);
-      setCurrentStep(1); // Reset to step 1 when switching context
-      setHookMergedVideos({}); // Clear merged hooks to prevent contamination
-      setBodyMergedVideoUrl(null); // Clear merged body to prevent contamination
-      setFinalVideos([]); // Clear final videos to prevent contamination
-      console.log('[Context Switch] ✅ Cleared videoResults, hookMergedVideos, bodyMergedVideoUrl, finalVideos');
-    }
-  }, [selectedCharacterId]);
+  // REMOVED: Character switch state reset - causes auto-save to overwrite DB with empty data
+  // The contextSession query will automatically load the correct data from DB
+  // If no data exists in DB, the useEffect at line 1780 will reset to empty state
 
   // Lock system removed - free navigation enabled
 
