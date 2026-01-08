@@ -2049,7 +2049,8 @@ export async function mergeVideosWithFilterComplex(
             // NOTE: -movflags faststart REMOVED - causes video freezing at 4s for complex merges (HOOK+BODY with loudnorm)
             '-c:a', 'aac',
             '-ar', '48000',
-            '-ac', '1',  // Keep MONO audio (same as input videos) to prevent sync issues
+            // NOTE: -ac parameter REMOVED - let FFmpeg auto-detect audio channels from input
+            // Forcing -ac 1 (mono) caused VLC playback issues when input videos are stereo
             '-shortest'  // End output when shortest stream ends (fixes audio/video duration mismatch)
             // NO -af here! Audio comes from [outa] via maps
           ]
@@ -2151,10 +2152,31 @@ export async function mergeVideosWithFilterComplex(
       
       if (listResponse.ok) {
         const files = await listResponse.json();
-        const baseNameWithoutTimestamp = outputVideoName.replace(/_\d{13}$/, ''); // Remove timestamp
+        
+        // Extract AD+character+baseName from outputVideoName
+        // Format: T4_C1_E1_AD1_HOOK1_IOANA_1234567890123.mp4
+        const match = outputVideoName.match(/^(.*)_(AD\d+)_(.*)_([A-Z]+)_(\d+)$/);
+        if (!match) {
+          console.warn(`[mergeVideosWithFilterComplex] ⚠️ Cannot parse outputVideoName: ${outputVideoName}`);
+          return; // Skip cleanup if format is unexpected
+        }
+        
+        const [, prefix, ad, middle, character, timestamp] = match;
+        const baseName = `${prefix}_${ad}_${middle}_${character}`;
+        console.log(`[mergeVideosWithFilterComplex] 🔍 Cleanup filter: AD=${ad}, Character=${character}, BaseName=${baseName}`);
         
         for (const file of files) {
-          if (file.ObjectName && file.ObjectName.startsWith(baseNameWithoutTimestamp) && file.ObjectName !== bunnyFileName) {
+          if (!file.ObjectName || file.ObjectName === bunnyFileName) continue;
+          
+          // Check if file matches AD+character+baseName
+          const fileMatch = file.ObjectName.match(/^(.*)_(AD\d+)_(.*)_([A-Z]+)_(\d+)\.mp4$/);
+          if (!fileMatch) continue;
+          
+          const [, fPrefix, fAd, fMiddle, fCharacter, fTimestamp] = fileMatch;
+          const fBaseName = `${fPrefix}_${fAd}_${fMiddle}_${fCharacter}`;
+          
+          // Only delete if AD+character+baseName match
+          if (fAd === ad && fCharacter === character && fBaseName === baseName) {
             const oldFilePath = `${folderPath}/${file.ObjectName}`;
             const deleteUrl = `https://storage.bunnycdn.com/${BUNNYCDN_STORAGE_ZONE}/${oldFilePath}`;
             

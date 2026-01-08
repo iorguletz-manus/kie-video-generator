@@ -3924,19 +3924,50 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
     console.log('  Previous finalVideos from DB:', finalVideosFromDB.length, 'videos');
     console.log('  New results:', results.length, 'videos');
     
-    // Create a map of existing videos by videoName
-    const existingMap = new Map(finalVideosFromDB.map(v => [v.videoName, v]));
+    // CLEANUP: Remove old variants from finalVideosFromDB
+    // Extract AD+character+base name from new results
+    const newVideosToCleanup = results.map(v => {
+      // Extract: T4_C1_E1_AD1_HOOK1_IOANA_1 → { ad: 'AD1', baseName: 'T4_C1_E1_AD1_HOOK1_IOANA' }
+      const match = v.videoName.match(/^(.*)_(AD\d+)_(.*)_([A-Z]+)_(\d+)$/);
+      if (!match) return null;
+      const [, prefix, ad, middle, character, timestamp] = match;
+      const baseName = `${prefix}_${ad}_${middle}_${character}`;
+      return { ad, character, baseName, fullName: v.videoName };
+    }).filter(Boolean);
     
-    // Add/replace with new results
-    results.forEach(newVideo => {
-      const action = existingMap.has(newVideo.videoName) ? 'REPLACED' : 'ADDED';
-      console.log(`  ${action}: ${newVideo.videoName}`);
-      existingMap.set(newVideo.videoName, newVideo);
+    console.log('  Videos to cleanup:', newVideosToCleanup.map(v => `${v!.baseName} (${v!.ad}, ${v!.character})`));
+    
+    // Filter out old variants with same AD+character+baseName
+    const cleanedFinalVideos = finalVideosFromDB.filter(v => {
+      const match = v.videoName.match(/^(.*)_(AD\d+)_(.*)_([A-Z]+)_(\d+)$/);
+      if (!match) return true; // Keep videos with unexpected format
+      
+      const [, prefix, ad, middle, character, timestamp] = match;
+      const baseName = `${prefix}_${ad}_${middle}_${character}`;
+      
+      // Check if this video should be removed
+      const shouldRemove = newVideosToCleanup.some(newV => 
+        newV!.ad === ad && 
+        newV!.character === character && 
+        newV!.baseName === baseName
+      );
+      
+      if (shouldRemove) {
+        console.log(`  🗑️ REMOVING old variant: ${v.videoName}`);
+      }
+      
+      return !shouldRemove;
     });
     
-    // Get merged array
-    const mergedFinalVideos = Array.from(existingMap.values());
+    console.log('  After cleanup:', cleanedFinalVideos.length, 'videos (removed', finalVideosFromDB.length - cleanedFinalVideos.length, ')');
+    
+    // Add new results
+    const mergedFinalVideos = [...cleanedFinalVideos, ...results];
     console.log('  Final merged array:', mergedFinalVideos.length, 'videos');
+    
+    results.forEach(newVideo => {
+      console.log(`  ➕ ADDED: ${newVideo.videoName}`);
+    });
     
     // Save merged array to database
     try {
