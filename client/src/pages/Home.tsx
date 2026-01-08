@@ -15071,7 +15071,10 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                         }
                         
                         setDownloadZipProgress('Creez arhiva ZIP...');
-                        const zipBlob = await zip.generateAsync({ type: 'blob' });
+                        const zipBlob = await zip.generateAsync({ 
+                          type: 'blob',
+                          compression: 'STORE'  // No compression - prevents video corruption
+                        });
                         
                         setDownloadZipProgress('Descarc arhiva...');
                         const url = window.URL.createObjectURL(zipBlob);
@@ -17274,7 +17277,10 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                             }));
                             
                             // Generate ZIP and download
-                            const zipBlob = await zip.generateAsync({ type: 'blob' });
+                            const zipBlob = await zip.generateAsync({ 
+                              type: 'blob',
+                              compression: 'STORE'  // No compression - prevents video corruption
+                            });
                             const link = document.createElement('a');
                             link.href = URL.createObjectURL(zipBlob);
                             link.download = `${folderName}.zip`;
