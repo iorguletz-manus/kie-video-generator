@@ -8419,15 +8419,15 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
     // Only poll if we're in Step 6 (generation step)
     if (currentStep !== 6) return;
 
-    // Only poll videos that are truly pending (no videoUrl yet)
-    const pendingVideos = videoResults.filter(v => v.status === 'pending' && v.taskId && !v.videoUrl);
+    // Poll ALL videos with status 'pending' (even if they have old videoUrl from previous generation)
+    const pendingVideos = videoResults.filter(v => v.status === 'pending' && v.taskId);
     if (pendingVideos.length === 0) return;
 
     console.log(`[Polling] Starting polling for ${pendingVideos.length} truly pending videos`);
 
     // Checks every 5 seconds from start
     const interval = setInterval(() => {
-      const stillPending = videoResults.filter(v => v.status === 'pending' && v.taskId && !v.videoUrl);
+      const stillPending = videoResults.filter(v => v.status === 'pending' && v.taskId);
       if (stillPending.length === 0) {
         console.log('[Polling] All videos completed, stopping polling');
         clearInterval(interval);
