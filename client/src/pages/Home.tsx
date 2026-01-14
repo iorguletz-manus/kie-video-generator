@@ -2459,16 +2459,8 @@ export default function Home({ currentUser, onLogout }: HomeProps) {
           let promptType: PromptType = 'PROMPT_NEUTRAL';
           
           if (currentSection === 'TRANSFORMATION' || currentSection === 'CTA') {
-            // Check if CTA line contains "book" keyword
-            const lowerText = line.text.toLowerCase();
-            const ctaKeywords = ['book', 'the book', 'rewrite', 'tears', 'lacrami'];
-            const hasCTAKeyword = ctaKeywords.some(keyword => lowerText.includes(keyword));
-            
-            if (currentSection === 'CTA' && hasCTAKeyword) {
-              promptType = 'PROMPT_CTA';
-            } else {
-              promptType = 'PROMPT_SMILING';
-            }
+            // Always use PROMPT_SMILING for TRANSFORMATION and CTA sections
+            promptType = 'PROMPT_SMILING';
           }
           
           extractedLines.push({
@@ -12061,7 +12053,6 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                   <div className="text-sm text-green-700 space-y-1">
                     <p>✓ PROMPT_NEUTRAL - for sections up to TRANSFORMATION</p>
                     <p>✓ PROMPT_SMILING - for TRANSFORMATION and CTA</p>
-                    <p>✓ PROMPT_CTA - for CTA with book</p>
                   </div>
                 </div>
               )}
@@ -12225,7 +12216,6 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                 <div className="text-sm text-green-700 space-y-1">
                   <p>✓ PROMPT_NEUTRAL - for sections up to TRANSFORMATION</p>
                   <p>✓ PROMPT_SMILING - for TRANSFORMATION and CTA</p>
-                  <p>✓ PROMPT_CTA - for CTA with book</p>
                 </div>
               </div>
 
