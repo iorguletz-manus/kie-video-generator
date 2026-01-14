@@ -15033,11 +15033,15 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                           
                           try {
                             const response = await fetch(video.videoUrl!);
-                            const blob = await response.blob();
+                            if (!response.ok) {
+                              throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                            }
+                            // Use arrayBuffer instead of blob to ensure complete data is read
+                            const arrayBuffer = await response.arrayBuffer();
                             
                             // Add numbered prefix to filename
                             const filename = `${videoNomber}. ${video.videoName}.mp4`;
-                            zip.file(filename, blob);
+                            zip.file(filename, arrayBuffer);
                           } catch (error) {
                             console.error(`Download error ${video.videoName}:`, error);
                             toast.error(`Download error ${video.videoName}`);
@@ -17227,8 +17231,12 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
                             const downloadPromises = finalVideosFromDB.map(async (video) => {
                               try {
                                 const response = await fetch(video.cdnUrl);
-                                const blob = await response.blob();
-                                zip.file(`${folderName}/${video.videoName}.mp4`, blob);
+                                if (!response.ok) {
+                                  throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                                }
+                                // Use arrayBuffer instead of blob to ensure complete data is read
+                                const arrayBuffer = await response.arrayBuffer();
+                                zip.file(`${folderName}/${video.videoName}.mp4`, arrayBuffer);
                                 
                                 // Update progress
                                 completedCount++;
