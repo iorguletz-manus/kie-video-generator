@@ -542,10 +542,12 @@ export const appRouter = router({
             } else if (successFlag === 0) {
               // Video în curs de generare
               status = 'pending';
-            } else if (successFlag === -1) {
-              // Generare eșuată
+            } else if (successFlag === -1 || successFlag === 3) {
+              // Generare eșuată (successFlag: -1 = failed, 3 = content policy violation)
               status = 'failed';
             } else {
+              // Unknown successFlag → treat as pending to avoid infinite loop
+              console.warn(`[checkVideoStatus] Unknown successFlag: ${successFlag}, treating as pending`);
               status = 'pending';
             }
             
