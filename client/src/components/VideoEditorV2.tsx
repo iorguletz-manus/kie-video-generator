@@ -109,7 +109,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
   const [isLogVisible, setIsLogVisible] = useState(false);
   
   // Overlay Settings dropdown state (only for HOOK videos)
-  const [isOverlaySettingsVisible, setIsOverlaySettingsVisible] = useState(true); // Open by default
+  const [isOverlaySettingsVisible, setIsOverlaySettingsVisible] = useState(false); // Closed by default
   const isHookVideo = video.videoName.toLowerCase().includes('hook');
   
   // Snap guides state
@@ -767,8 +767,8 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
             />
           )}
           
-          {/* Draggable Overlay Preview - Only for HOOK videos with enabled overlay */}
-          {OVERLAY_ENABLED && isHookVideo && localOverlaySettings.enabled && (
+          {/* Draggable Overlay Preview - Only for HOOK videos with enabled overlay AND custom text */}
+          {OVERLAY_ENABLED && isHookVideo && localOverlaySettings.enabled && localOverlaySettings.text && localOverlaySettings.text.trim() !== '' && (
             <div
               className="absolute cursor-move select-none"
               style={{
@@ -817,7 +817,7 @@ export const VideoEditorV2 = React.memo(function VideoEditorV2({ video, previous
               }}
             >
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                {(localOverlaySettings.text || 'Lorem ipsum generator\nLorem ipsum').split('\n').map((line, idx, arr) => (
+                {localOverlaySettings.text.split('\n').map((line, idx, arr) => (
                   <span
                     key={idx}
                     style={{
