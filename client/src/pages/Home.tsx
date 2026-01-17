@@ -8287,19 +8287,26 @@ const handleSelectiveMerge = async (selectedHooks: string[], selectedBody: boole
       let promptTemplate: string;
       const promptType = combo.promptType;
       
-      let customPrompt;
-      if (promptType === 'PROMPT_NEUTRAL') {
-        customPrompt = prompts.find(p => p.name.toUpperCase().includes('NEUTRAL'));
-      } else if (promptType === 'PROMPT_SMILING') {
-        customPrompt = prompts.find(p => p.name.toUpperCase().includes('SMILING'));
-      } else if (promptType === 'PROMPT_CTA') {
-        customPrompt = prompts.find(p => p.name.toUpperCase().includes('CTA'));
-      }
-      
-      if (customPrompt) {
-        promptTemplate = customPrompt.template;
+      // Check if this video has a custom prompt saved in session
+      if (promptType === 'PROMPT_CUSTOM' && customPrompts[index]) {
+        promptTemplate = customPrompts[index];
+        console.log('[performRegeneration] Using PROMPT_CUSTOM from session:', promptTemplate.substring(0, 50));
       } else {
-        promptTemplate = `HARDCODED_${promptType}`;
+        // Otherwise, use selected prompt type from library
+        let customPrompt;
+        if (promptType === 'PROMPT_NEUTRAL') {
+          customPrompt = prompts.find(p => p.name.toUpperCase().includes('NEUTRAL'));
+        } else if (promptType === 'PROMPT_SMILING') {
+          customPrompt = prompts.find(p => p.name.toUpperCase().includes('SMILING'));
+        } else if (promptType === 'PROMPT_CTA') {
+          customPrompt = prompts.find(p => p.name.toUpperCase().includes('CTA'));
+        }
+        
+        if (customPrompt) {
+          promptTemplate = customPrompt.template;
+        } else {
+          promptTemplate = `HARDCODED_${promptType}`;
+        }
       }
 
       const result = await generateBatchMutation.mutateAsync({
